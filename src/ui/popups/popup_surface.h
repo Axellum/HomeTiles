@@ -23,6 +23,9 @@ namespace popup_surface {
 // cards) theme_scope(). So no popup draws with the rules of a tile that
 // updates it (b343: the Light popup turned grey inside a filled tile's
 // update).
+// It stays set after the popup closes: a popup opened without a tile resets it
+// (tile_icon_source::open_popup_without_tile), and nothing reads the theme's
+// colors under the previous popup's surface before its opener set it.
 inline int8_t g_open_surface = ui_theme::kThemeSurface;
 inline ui_theme::SurfaceScope scope() { return ui_theme::SurfaceScope(g_open_surface); }
 inline ui_theme::SurfaceScope theme_scope() { return ui_theme::SurfaceScope(ui_theme::kThemeSurface); }

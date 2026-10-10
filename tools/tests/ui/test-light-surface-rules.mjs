@@ -109,6 +109,24 @@ assert.ok(read('src/types/cover/renderer.cpp').includes(
 assert.match(read('src/ui/popups/device/device_popup.cpp'),
   /if \(d\.valid && !d\.available\) return nullptr;\s+return device_control::blocked_reason\(pop\.target\.type, d, nullptr\);/,
   'no permission hint while unavailable');
+// The open surface stays set after a popup closes (V2 b365: after a filled
+// Alarm tile the white Lock tile's popup got the dark default card under
+// light text). A popup without a tile resets it, and no default card is read
+// under the previous popup's surface.
+const devicePopup = read('src/ui/popups/device/device_popup.cpp');
+assert.match(devicePopup, /uint32_t theme_default_card\(\) \{\s*const ui_theme::SurfaceScope theme = popup_surface::theme_scope\(\);\s*return popup_surface::card_or_default\(tileDefaultBgColor\(\)\);/,
+  'device popup: the default card read with the theme');
+assert.match(devicePopup, /void show_device_popup\(const DevicePopupTarget& target\) \{\s*\/\/[^\n]*\n\s*const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope\(\);/,
+  'device popup entry: the theme until its opener sets the surface');
+assert.equal((devicePopup.match(/if \(!(?:pop|g_code)\.target\.source\) tile_icon_source::open_popup_without_tile\(\);/g) || []).length, 2,
+  'device popup and code entry without a tile: the theme');
+const srcText = fs.readdirSync(path.join(root, 'src'), {recursive: true})
+  .filter(f => /\.(cpp|h)$/.test(f)).map(f => read(path.join('src', f))).join('\n');
+assert.ok(!/popup_background\([^,;]*,\s*tileDefaultBgColor\(\)\)/.test(srcText), 'no default card evaluated before its opener');
+assert.match(read('src/ui/ui_manager.cpp'), /pending_access_kind = PendingAccessKind::Settings;\s*pending_access_folder_id = 0;\s*\/\/[^\n]*\n\s*tile_icon_source::open_popup_without_tile\(\);/,
+  'Settings PIN: never the last popup\'s surface');
+assert.match(read('src/ui/navigation/view_navigation.cpp'), /tile_icon_source::open_popup_without_tile\(\);\s*uiManager\.requestFolderAccess\(next, folder->name, folder->icon_name\);/,
+  'folder PIN from view navigation: the theme');
 assert.ok(theme.includes('inline uint32_t unavailable_icon(uint32_t dark_grey) { return theme_light() ? icon_unavailable() : dark_grey; }') &&
   grid.includes("return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;") &&
   read('src/types/device/admin.js').includes('if (!d.available && typeof unavailableIconHex === \'function\') out.color = unavailableIconHex(out.color);') &&

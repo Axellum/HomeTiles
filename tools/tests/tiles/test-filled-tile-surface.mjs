@@ -88,10 +88,16 @@ for (const [popup, name] of Object.entries(opens)) {
   const file = `src/ui/popups/${popup}/${popup}_popup.cpp`;
   const text = read(file);
   assert.ok(text.includes('#include "src/ui/popups/popup_surface.h"'), `${file}: popup_surface`);
-  const body = cppFunctionDefinitions(text).find(f => f.name === name)?.source || '';
+  // The device popup's opener is open_for (popup_background): its entry
+  // draws with the theme until then (V2 b365: a stale surface).
+  const opener = popup === 'device' ? 'open_for' : name;
+  const body = cppFunctionDefinitions(text).find(f => f.name === opener)?.source || '';
   const neutral = ['light', 'climate', 'cover'].includes(popup);
   assert.ok(body.includes(neutral ? themed : scoped), `${name}: ${neutral ? 'theme' : 'open surface'}`);
   if (neutral) assert.ok(!text.includes(scoped), `${file}: never the tile's surface`);
+  if (popup === 'device') {
+    assert.ok((cppFunctionDefinitions(text).find(f => f.name === name)?.source || '').includes(themed), `${name}: theme`);
+  }
 }
 // Updates of the Light popup from its tile (tile scope open) draw with the theme.
 const lightPopup = read('src/ui/popups/light/light_popup.cpp');

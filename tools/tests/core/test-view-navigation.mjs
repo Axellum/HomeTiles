@@ -98,6 +98,7 @@ struct {
     else {tileConfig.active=id;switch_pending=false;}
   }
 } uiManager;
+namespace tile_icon_source { void open_popup_without_tile() {} }
 struct {struct Config{int language=0;} cfg; const Config& getConfig(){return cfg;}} configManager;
 namespace i18n {struct Text{const char* home="Home";}; Text strings(int){return {};}}
 constexpr size_t kMaxFolders=128;

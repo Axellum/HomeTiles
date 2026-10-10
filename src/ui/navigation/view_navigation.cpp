@@ -13,6 +13,7 @@
 #include "src/ui/popups/cover/cover_popup.h"
 #include "src/ui/popups/device/device_popup.h"
 #include "src/ui/popups/pin/pin_popup.h"
+#include "src/tiles/runtime/tile_icon_source.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/core/power/power_manager.h"
 #include "src/core/display/display_manager.h"
@@ -263,6 +264,8 @@ void servicePending(uint32_t now) {
     pending.waiting_folder = next;
     pending.waiting = true;
     pending.pin = tileConfig.isFolderPinEnabled(next);
+    // No tile opens this PIN popup: the theme, not the last popup's surface.
+    tile_icon_source::open_popup_without_tile();
     uiManager.requestFolderAccess(next, folder->name, folder->icon_name);
     return;
   }

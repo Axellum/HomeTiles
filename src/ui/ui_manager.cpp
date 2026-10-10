@@ -29,6 +29,8 @@
 #include "src/ui/tabs/settings/settings_screen.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/ui/popups/popup_surface.h"
+#include "src/tiles/runtime/tile_icon_source.h"
 #include "src/core/config/tile_radius.h"
 
 #include <time.h>
@@ -543,6 +545,9 @@ void UIManager::requestSettingsAccess() {
 
   pending_access_kind = PendingAccessKind::Settings;
   pending_access_folder_id = 0;
+  // Never a tile's look: the theme, also after a popup on a filled tile.
+  tile_icon_source::open_popup_without_tile();
+  const ui_theme::SurfaceScope theme = popup_surface::theme_scope();
   const auto& tr = i18n::strings(config.language);
   PinPopupInit init;
   // The header shows "Settings" and the state "Locked".

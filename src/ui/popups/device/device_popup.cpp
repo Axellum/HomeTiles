@@ -1108,6 +1108,14 @@ void refresh(bool show) {
   if (pop.open) popup_shell_pulse_icon(pop.card, v.waiting || (*target && std::strcmp(target, d.state) != 0));
 }
 
+// The theme's default card, read with the theme: the caller may still hold
+// the surface of the popup opened before (after a filled Alarm tile the
+// white Lock tile got the dark theme's default card, V2 b365).
+uint32_t theme_default_card() {
+  const ui_theme::SurfaceScope theme = popup_surface::theme_scope();
+  return popup_surface::card_or_default(tileDefaultBgColor());
+}
+
 // The popup's background: the opening tile's color while that card lives
 // (tile_icon_source::popup_background also takes its header disc options).
 void open_for(const DevicePopupTarget& target) {
@@ -1118,9 +1126,9 @@ void open_for(const DevicePopupTarget& target) {
   }
   pop.target = target;
   if (!device_tile_alive(target.source)) pop.target.source = nullptr;
-  if (!pop.target.source) popup_surface::g_open_surface = ui_theme::kThemeSurface;
-  pop.card_rgb = pop.target.source ? tile_icon_source::popup_background(pop.target.source, tileDefaultBgColor())
-                                   : popup_surface::card_or_default(tileDefaultBgColor());
+  const uint32_t fallback = theme_default_card();
+  if (!pop.target.source) tile_icon_source::open_popup_without_tile();
+  pop.card_rgb = pop.target.source ? tile_icon_source::popup_background(pop.target.source, fallback) : fallback;
   // Drawn with the surface its opener just set.
   const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   refresh(true);
@@ -1220,8 +1228,9 @@ void ask_code(const DevicePopupTarget& target, const char* action, bool from_til
   PinPopupInit init;
   init.title = target.title;
   init.icon_name = target.icon_name.length() ? target.icon_name : String(v.icon);
-  init.bg_color = g_code.target.source ? tile_icon_source::popup_background(g_code.target.source, tileDefaultBgColor())
-                                       : popup_surface::card_or_default(tileDefaultBgColor());
+  const uint32_t fallback = theme_default_card();
+  if (!g_code.target.source) tile_icon_source::open_popup_without_tile();
+  init.bg_color = g_code.target.source ? tile_icon_source::popup_background(g_code.target.source, fallback) : fallback;
   init.icon_color = v.color;
   init.hide_on_success = false;
   init.verify = capture_code;
@@ -1334,7 +1343,8 @@ void device_popup_on_no_reaction(const String& entity) {
 }
 
 void show_device_popup(const DevicePopupTarget& target) {
-  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
+  // Its opener is open_for (popup_background); until then the theme.
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (!target.entity.length()) return;
   hide_pin_popup();
   hide_light_popup();
