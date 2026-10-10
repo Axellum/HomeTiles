@@ -15,9 +15,6 @@ namespace {
 
 constexpr int kPreviewTargetHeight = 430;
 constexpr int kWideFourRowPreviewTargetHeight = 390;
-// A black bezel around the scaled screen; not part of the device geometry
-// (user 2026-10-02: keep the black frame of the former 12 px margin).
-constexpr int kPreviewFramePx = 10;
 
 int preview_target_height_px() {
   // At equal height, the Tab5 (7x4) preview would be wider than the 8-inch
@@ -44,9 +41,10 @@ int admin_wrapper_target_width_px() {
 // than on the panel). The cell height stays a whole pixel; every other
 // length follows its scale.
 int preview_cell_h_px() {
-  // The screen fills the target height inside the bezel, so the preview
-  // keeps its former size and the settings panel beside it fits.
-  const int screen_h = preview_target_height_px() - 2 * kPreviewFramePx;
+  // The screen fills the target height (the black bezel around it is gone,
+  // user 2026-10-10), so the preview keeps its size and the settings panel
+  // beside it fits.
+  const int screen_h = preview_target_height_px();
   // One scale for every layout (the layout window draws them side by side):
   // an upright screen's preview is taller.
   const int cell = (screen_h * GRID_CELL_H + Device::kScreenHeight / 2) / Device::kScreenHeight;
@@ -388,11 +386,8 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   {
     // The wallpaper fills the whole screen with corners of the tile radius
     // plus the tiles' distance to the edge (image_screensaver image_radius()).
-    char radius[160];
-    snprintf(radius, sizeof(radius),
-             "--preview-frame:%dpx;--screensaver-image-inset:%dpx;"
-             "--screensaver-image-radius:calc(var(--tile-radius) + %.2fpx);",
-             kPreviewFramePx, kPreviewFramePx,
+    char radius[96];
+    snprintf(radius, sizeof(radius), "--screensaver-image-radius:calc(var(--tile-radius) + %.2fpx);",
              static_cast<double>(grid_layout::kEdgePad * preview_cell_h_px()) / GRID_CELL_H);
     html += radius;
   }

@@ -11631,8 +11631,8 @@ function syncTileRadiusControls(tabEl) {
     if (!layoutWindow || !isScreensaverTileTab(layoutWindow.tab)) return null;
     return layoutClock(layoutWindow.key);
   }
-  // The layout's screen in the window's grid (padding box px, the bezel
-  // left out) and on the page, for the clock's place.
+  // The layout's screen in the window's grid (padding box px)
+  // and on the page, for the clock's place.
   function layoutWindowScreen(preview) {
     const screen = layoutWindow?.screen;
     if (!screen || !preview?.classList?.contains('setup-grid') || !isScreensaverTileTab(layoutWindow.tab)) return null;
@@ -11809,10 +11809,9 @@ function syncTileRadiusControls(tabEl) {
       .map(([n, val]) => [n, parseFloat(val)])),
       ...(LAYOUTS[key].bar ? {} : {'--preview-pad-top': layoutBaseSizes.bar['--preview-pad-top']})});
     const areaOf = (sizes, cols, rows) => {
-      const frame = sizes['--preview-frame'] || 0;
       const gap = sizes['--preview-gap'] || 0;
-      return [2 * frame + sizes['--preview-pad-left'] + sizes['--preview-pad-right'] + cols * sizes['--preview-cell-w'] + (cols - 1) * gap,
-        2 * frame + sizes['--preview-pad-top'] + sizes['--preview-pad-bottom'] + rows * sizes['--preview-cell-h'] + (rows - 1) * gap];
+      return [sizes['--preview-pad-left'] + sizes['--preview-pad-right'] + cols * sizes['--preview-cell-w'] + (cols - 1) * gap,
+        sizes['--preview-pad-top'] + sizes['--preview-pad-bottom'] + rows * sizes['--preview-cell-h'] + (rows - 1) * gap];
     };
     const canvas = layoutCanvas();
     const areas = LAYOUT_KEYS.filter(key => LAYOUTS[key].available).map(key => areaOf(sizesOf(key), canvas.cols, canvas.rows));
@@ -11842,24 +11841,18 @@ function syncTileRadiusControls(tabEl) {
     } else {
       const own = layoutBaseSizes.classic;
       const px = name => own[name];
-      const frame = base['--preview-frame'] || 0;
       const gap = base['--preview-gap'] || 0;
-      w = (2 * frame + px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * f;
-      h = (2 * frame + px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * f;
+      w = (px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * f;
+      h = (px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * f;
       y = (base['--preview-pad-top'] - px('--preview-pad-top')) * f;
     }
     const r = parseFloat(getComputedStyle(grid).borderTopLeftRadius) || 20;
-    // The screen inside its black bezel (the page preview's ring, admin.css):
-    // the screen color fills only the screen, its corners concentric.
-    const bezel = (base['--preview-frame'] || 0) * f;
     const screen = (panelRole('screen') || [0, 0, 0]).join(',');
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'>` +
-      `<rect width='${w}' height='${h}' rx='${r}' fill='black'/>` +
-      `<rect x='${bezel}' y='${bezel}' width='${w - 2 * bezel}' height='${h - 2 * bezel}' rx='${Math.max(0, r - bezel)}' fill='rgb(${screen})'/></svg>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='${w}' height='${h}' rx='${r}' fill='rgb(${screen})'/></svg>`;
     grid.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
     grid.style.backgroundPosition = `0px ${y}px`;
-    // The screen inside its bezel: the screensaver clock's frame.
-    layoutWindow.screen = {left: bezel, top: y + bezel, width: w - 2 * bezel, height: h - 2 * bezel, screenW: L.screenW};
+    // The screen: the screensaver clock's frame.
+    layoutWindow.screen = {left: 0, top: y, width: w, height: h, screenW: L.screenW};
     // The storage's name in its bottom right corner (beside every screen).
     const label = document.createElement('div');
     label.className = 'setup-storage-label';

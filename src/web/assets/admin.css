@@ -937,25 +937,16 @@
          (--grid-half-track, web_admin_styles.cpp). */
       grid-template-rows:repeat(var(--grid-rows), var(--preview-cell-h)) var(--grid-half-track,);
       gap:var(--preview-gap);
-      /* The scaled screen inside a black bezel (--preview-frame). */
-      padding:calc(var(--preview-frame, 0px) + var(--preview-pad-top, var(--preview-pad)))
-        calc(var(--preview-frame, 0px) + var(--preview-pad-right, var(--preview-pad)))
-        calc(var(--preview-frame, 0px) + var(--preview-pad-bottom, var(--preview-pad)))
-        calc(var(--preview-frame, 0px) + var(--preview-pad-left, var(--preview-pad)));
+      /* The scaled screen: its margins are the panel's. */
+      padding:var(--preview-pad-top, var(--preview-pad)) var(--preview-pad-right, var(--preview-pad))
+        var(--preview-pad-bottom, var(--preview-pad)) var(--preview-pad-left, var(--preview-pad));
 
       background:var(--pv-screen, #000000);
       border:1px solid var(--line);
-      border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + var(--preview-frame, 0px) + 1px);
+      border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + 1px);
       width:fit-content;
       height:fit-content;
     }
-    /* The bezel (--preview-frame) stays black around the screen in both
-       themes (user 2026-10-02: the black frame); the screen color fills only
-       the screen, so the light screen ends where the panel's does and its
-       tiles keep the panel's distance to the edge (user 2026-10-10). The
-       ring's inner corners are the screen's, concentric with the tiles. The
-       layout window draws its screens itself (layout-window.js). */
-    .tile-grid:not(.setup-grid) { box-shadow:inset 0 0 0 var(--preview-frame, 0px) #000000; }
     /* width:0 + min-width:100% like .folder-footer: the row follows the grid
        width, and the hint beside the slot wraps instead of widening the
        column (and pushing the Tile settings panel out of the card). */
@@ -971,7 +962,7 @@
        the head, which the slot does not have. */
     .tile-grid.settings-hidden-slot {
       flex:none;
-      padding:calc(var(--preview-frame, 0px) + var(--preview-pad));
+      padding:var(--preview-pad);
       grid-template-columns:var(--preview-cell-w);
       grid-template-rows:var(--preview-cell-h);
       width:fit-content;
@@ -1057,7 +1048,7 @@
     .tile-grid.screensaver-tile-grid { background:#000000; }
     .screensaver-grid-image-frame {
       position:absolute;
-      inset:var(--screensaver-image-inset);
+      inset:0;
       z-index:0;
       overflow:hidden;
       border-radius:var(--screensaver-image-radius);
@@ -2815,8 +2806,8 @@
 .tile-grid:not(.head-bar-grid):not(.setup-head) > .head-bar-preview { display:none; }
 .head-bar-preview {
   position:absolute;
-  left:var(--preview-frame, 0px);
-  top:var(--preview-frame, 0px);
+  left:0;
+  top:0;
   width:var(--head-screen-w);
   height:var(--head-top);
   pointer-events:none;
@@ -2888,8 +2879,8 @@
 /* Fractional placement preserves the existing cell pitch and gutter. */
 .tile-grid > .fractional-tile {
   position:absolute;
-  left:calc(var(--preview-frame, 0px) + var(--preview-pad-left, var(--preview-pad)) + var(--tile-col) * (var(--preview-cell-w) + var(--preview-gap)));
-  top:calc(var(--preview-frame, 0px) + var(--preview-pad-top, var(--preview-pad)) + var(--tile-row) * (var(--preview-cell-h) + var(--preview-gap)));
+  left:calc(var(--preview-pad-left, var(--preview-pad)) + var(--tile-col) * (var(--preview-cell-w) + var(--preview-gap)));
+  top:calc(var(--preview-pad-top, var(--preview-pad)) + var(--tile-row) * (var(--preview-cell-h) + var(--preview-gap)));
   width:calc(var(--tile-w) * (var(--preview-cell-w) + var(--preview-gap)) - var(--preview-gap));
   height:calc(var(--tile-h) * (var(--preview-cell-h) + var(--preview-gap)) - var(--preview-gap));
   box-sizing:border-box;
