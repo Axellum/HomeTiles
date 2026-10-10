@@ -11832,7 +11832,8 @@ function syncTileRadiusControls(tabEl) {
     // track, --grid-half-track, is not part of it).
     layoutSetVars(grid, {'--grid-cols': String(GRID_COLS), '--grid-rows': String(GRID_ROWS),
       '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * f)});
-    // The layout's screen, black with its rounded corners, behind the tiles.
+    // The layout's screen, in the theme's screen color (black in the dark
+    // theme) with its rounded corners, behind the tiles.
     // The classic screen has no head: its cells start where the bar
     // layouts' do, right under the window's head.
     let w, h, y = 0;
@@ -11848,7 +11849,8 @@ function syncTileRadiusControls(tabEl) {
       y = (base['--preview-pad-top'] - px('--preview-pad-top')) * f;
     }
     const r = parseFloat(getComputedStyle(grid).borderTopLeftRadius) || 20;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='${w}' height='${h}' rx='${r}' fill='black'/></svg>`;
+    const screen = (panelRole('screen') || [0, 0, 0]).join(',');
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='${w}' height='${h}' rx='${r}' fill='rgb(${screen})'/></svg>`;
     grid.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
     grid.style.backgroundPosition = `0px ${y}px`;
     // The screen inside its bezel: the screensaver clock's frame.
