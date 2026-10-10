@@ -191,6 +191,16 @@ const clockRenderer = read('src/types/clock/renderer.cpp');
 assert.match(clockRenderer, /if \(!label\) return nullptr;  \/\/ The stack owns and cleans up line\.\n(?:  \/\/[^\n]*\n)+  set_label_style\(label, lv_color_white\(\), font\);/);
 assert.ok(adminCss.includes('.tile-grid.screensaver-tile-grid { background:#000000; }'));
 
+// The preview's bezel stays black, the screen color fills only the screen
+// (the light screen ends where the panel's does), in the page and in the
+// layout window; the screenshot shows the screen corners (system layer).
+assert.ok(adminCss.includes('.tile-grid:not(.setup-grid) { box-shadow:inset 0 0 0 var(--preview-frame, 0px) #000000; }'));
+const layoutWindow = read('src/web/admin/tiles/layout-window.js');
+assert.ok(layoutWindow.includes("`<rect width='${w}' height='${h}' rx='${r}' fill='black'/>`") &&
+  layoutWindow.includes("rx='${Math.max(0, r - bezel)}' fill='rgb(${screen})'/></svg>`;"));
+assert.ok(read('src/web/server/handlers/web_admin_diagnostics.cpp')
+  .includes('for (lv_obj_t* layer : {lv_display_get_layer_top(disp), lv_display_get_layer_sys(disp)}) {'));
+
 const host = await lvglHost(root);
 if (!host) {
   console.log('UI theme: roles and setting pass; SKIP: color math needs a host compiler');
