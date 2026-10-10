@@ -31,12 +31,12 @@ inline Theme g_theme = Theme::Dark;
 
 // A surface that draws with the other theme's rules (user 2026-10-10: "the
 // tile decides"): a tile in its own dark color in the light theme or in its
-// own light color in the dark theme, and the dark design in the light theme
-// (Media while it plays, Weather, a tile's own Design "Dark", tinted tiles
-// with the global option; tile_surface, tile_icon_disc.h). While a
-// SurfaceScope is open, light() and every role answer for that surface;
-// theme_light() stays the screen's.
-//   -1 the theme, 0 dark, 1 light, 2 dark for a tinted tile (kDarkTinted)
+// own light color in the dark theme, and a tinted tile in the light theme
+// (tile_surface::kJewel, tile_icon_disc.h). While a SurfaceScope is open,
+// light() and every role answer for that surface; theme_light() stays the
+// screen's.
+//   -1 the theme, 0 dark, 1 light, 2 a tinted tile in the light theme
+//   (kDarkTinted: white text on its colored card)
 inline int8_t g_surface = -1;
 inline constexpr int8_t kDarkTintedSurface = 2;
 // The card whose surface the innermost tile scope opened
@@ -117,11 +117,11 @@ inline constexpr Roles kDark = {0x000000, 0x1A1A1A, 0x2A2A2A, 0xFFFFFF, 0xFFFFFF
                                 0xB0B0B0, 0x9E9E9E, 0x9E9E9E, 0xD8DEE9, 0xD8D8D8, 0xB0B0B0};
 inline constexpr Roles kLight = {0xE9EBEE, 0xFFFFFF, 0xFFFFFF, 0x1A1A1A, 0x464646,
                                  0x8B8B8B, 0x8B8B8B, 0x464646, 0x5F6368, 0x3A3A3A, 0xBDBDBD};
-// A tinted tile in the dark design (global option "Tinted tiles dark"): the
-// dark roles, but the off, inactive, resting and unavailable greys of the
-// light theme. Such a tile is dark only while its icon has a color; the grey a
-// state update gives its icon untints it, so the tile is light again when the
-// grey shows (tile_surface::change).
+// A tinted tile in the light theme (tile_surface::kJewel): the dark roles
+// (white text), but the off, inactive, resting and unavailable greys of the
+// light theme. Such a tile is filled only while its icon has a color; the grey
+// a state update gives its icon untints it, so the tile is white again when
+// the grey shows (tile_icon_source::change_surface).
 inline constexpr Roles kDarkTinted = {kDark.screen,          kDark.card,          kDark.popup_card,
                                       kDark.text,            kDark.icon,          kLight.icon_off,
                                       kLight.icon_inactive,  kLight.icon_rest,    kDark.text_secondary,
@@ -145,10 +145,24 @@ inline constexpr float kLightSurfaceL = 0.72f;
 // icon's color at this share of the Circle strength over the card (20 % at
 // the default 25 %).
 inline constexpr float kLightCircleShare = 0.8f;
-// The dark design in the light theme (Media, Weather, the selected Settings
-// category, user 2026-10-10): the dark theme's card, this much lighter
-// (OKLCH L).
-inline constexpr float kDarkDesignLift = 0.24f;
+// A tinted tile in the light theme (user 2026-10-10, "ja so übernehmen wir
+// es": the dark theme's recipe, lighter; build/analysis/2026-10-09-analyse.md
+// "BESCHLUSS Hell"): the card kJewelBelowIcon below its icon's own lightness
+// (at most kJewelCardMaxL, white text stays readable) in the icon's hue with
+// chroma up to kJewelChroma at the default strength (20 %); the circle
+// kJewelCircleStep above the card at the default Circle strength; the icon
+// keeps its own color, every tile the same contrast.
+inline constexpr float kJewelBelowIcon = 0.16f;
+inline constexpr float kJewelCardMaxL = 0.70f;
+inline constexpr float kJewelChroma = 0.07f;
+inline constexpr float kJewelCardChromaShare = 0.85f;
+inline constexpr float kJewelCircleStep = 0.05f;
+inline constexpr float kJewelCircleChromaShare = 0.75f;
+inline constexpr float kJewelCircleChromaCap = 1.3f;
+// Its rim (the 1 px tile hairline): kJewelRimStep above the card in the
+// icon's hue, the dark theme's lighter edge (lab 2026-10-10 "Hellkante").
+inline constexpr float kJewelRimStep = 0.12f;
+inline constexpr float kJewelRimChroma = 0.12f;
 
 inline const Roles& roles_of(int8_t surface) {
   if (surface == kDarkTintedSurface) return kDarkTinted;

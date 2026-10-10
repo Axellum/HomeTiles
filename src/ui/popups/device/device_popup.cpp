@@ -146,6 +146,7 @@ int content_height() { return popup_layout::kCardHeight - 2 * lv_obj_get_style_p
 void refresh(bool show);
 
 void expiry_timer_cb(lv_timer_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   pop.expiry_timer = nullptr;
   if (pop.open) refresh(false);
 }
@@ -303,6 +304,7 @@ void set_notice(const char* value) {
 // Lock
 
 void lock_open_tapped(lv_event_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (time_before(pop.open_confirm_until)) {
     pop.open_confirm_until = 0;
     device_request(pop.target, "open", false);
@@ -315,11 +317,13 @@ void lock_open_tapped(lv_event_t*) {
 }
 
 void lock_toggle_tapped(lv_event_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const Detail d = device_control::detail(pop.target.entity);
   device_request(pop.target, device_visual::lock_on(d) ? "unlock" : "lock", false);
 }
 
 void lock_button_tapped(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   device_request(pop.target, lv_event_get_user_data(e) ? "lock" : "unlock", false);
 }
 
@@ -428,6 +432,7 @@ void build_lock(const Detail& d, const Visual& v) {
 // Alarm panel
 
 void alarm_key_tapped(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const int mode = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
   device_request(pop.target,
                  mode < 0 ? "disarm" : device_control::alarm_mode(static_cast<size_t>(mode)).action, false);
@@ -609,6 +614,7 @@ void send_fan_level(uint8_t value) {
 }
 
 void fan_live_cb(lv_timer_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   g_live_timer = nullptr;
   if (pop.fan_dragging && pop.fan_moved) send_fan_level(pop.fan_drag);
 }
@@ -630,6 +636,7 @@ uint8_t fan_level_at(lv_obj_t* track, const Detail& d) {
 }
 
 void on_fan_track(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const lv_event_code_t code = lv_event_get_code(e);
   lv_obj_t* track = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
   const Detail d = device_control::detail(pop.target.entity);
@@ -691,6 +698,7 @@ void on_fan_track(lv_event_t* e) {
 }
 
 void fan_power(lv_event_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const Detail d = device_control::detail(pop.target.entity);
   const bool on = device_visual::fan_on(d);
   if (!(d.features & (on ? device_detail::kFanTurnOff : device_detail::kFanTurnOn))) return;
@@ -722,6 +730,7 @@ void choose_fan_option(FanMenu menu, int index) {
 }
 
 void on_fan_option(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
   const int pill_index = pop.fan_menu_index;
   close_fan_menu();
@@ -833,6 +842,7 @@ void open_fan_menu(int index) {
   lv_obj_add_event_cb(
       current,
       [](lv_event_t*) {
+        const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
         close_fan_menu();
         if (pop.refresh_due) refresh(false);
       },
@@ -999,7 +1009,7 @@ void build_fan(const Detail& d) {
       continue;
     }
     lv_obj_add_event_cb(
-        item, [](lv_event_t* e) { open_fan_menu(static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)))); },
+        item, [](lv_event_t* e) { const ui_theme::SurfaceScope popup_scope = popup_surface::scope(); open_fan_menu(static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)))); },
         LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
   }
 }
@@ -1008,12 +1018,14 @@ void build_fan(const Detail& d) {
 // Popup object
 
 void on_close(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) == LV_EVENT_CLICKED) hide_device_popup();
 }
 
 // A theme change deletes the popup (popup_shell_delete_popups): its objects
 // are gone, ensure_popup builds it again.
 void on_overlay_delete(lv_event_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (g_live_timer) {
     lv_timer_delete(g_live_timer);
     g_live_timer = nullptr;
@@ -1103,8 +1115,11 @@ void open_for(const DevicePopupTarget& target) {
   }
   pop.target = target;
   if (!device_tile_alive(target.source)) pop.target.source = nullptr;
+  if (!pop.target.source) popup_surface::g_open_surface = ui_theme::kThemeSurface;
   pop.card_rgb = pop.target.source ? tile_icon_source::popup_background(pop.target.source, tileDefaultBgColor())
                                    : popup_surface::card_or_default(tileDefaultBgColor());
+  // Drawn with the surface its opener just set.
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   refresh(true);
 }
 
@@ -1135,6 +1150,7 @@ void show_lockout() {
 }
 
 void lockout_timer_cb(lv_timer_t*) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_code.open || !is_pin_popup_visible()) {
     if (g_code.lockout_timer) lv_timer_delete(g_code.lockout_timer);
     g_code.lockout_timer = nullptr;
@@ -1260,6 +1276,7 @@ void device_request(const DevicePopupTarget& target, const char* action, bool fr
 
 void device_popup_on_result(TileType type, const String& entity, const String& id, const char* status,
                             int retry_after) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const bool ok = !std::strcmp(status, "ok") || !std::strcmp(status, "pending");
   if (g_code.in_flight && g_code.command_id == id) {
     g_code.in_flight = false;
@@ -1303,6 +1320,7 @@ void device_popup_on_result(TileType type, const String& entity, const String& i
 }
 
 void device_popup_on_no_reaction(const String& entity) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   // Lock and Alarm show only reported states, so this line is all that
   // tells a code the device rejected (Home Assistant answered ok) apart.
   if (!pop.open || (pop.target.type != TILE_LOCK && pop.target.type != TILE_ALARM) ||
@@ -1313,6 +1331,7 @@ void device_popup_on_no_reaction(const String& entity) {
 }
 
 void show_device_popup(const DevicePopupTarget& target) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!target.entity.length()) return;
   hide_pin_popup();
   hide_light_popup();
@@ -1342,9 +1361,10 @@ void hide_device_popup() {
   lv_obj_remove_flag(pop.overlay, LV_OBJ_FLAG_CLICKABLE);
 }
 
-void preload_device_popup() { ensure_popup(); }
+void preload_device_popup() { const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope(); ensure_popup(); }
 
 void device_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!pop.open || !pop.card) return;
   pop.card_rgb = color;
   lv_obj_set_style_bg_color(pop.card, lv_color_hex(color), 0);
@@ -1352,6 +1372,7 @@ void device_popup_follow_tile_color(uint32_t color) {
 }
 
 void device_popup_refresh(const String& entity) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   // An open code entry follows its device: the card already took the tile's
   // new color, the header and the keys follow here (V2: the card turned
   // orange behind grey keys and the old state while the alarm armed).

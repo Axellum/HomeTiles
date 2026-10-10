@@ -61,7 +61,6 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.head_gear == b.head_gear &&
          a.theme == b.theme &&
          a.theme_auto_last == b.theme_auto_last &&
-         a.dark_tinted == b.dark_tinted &&
          a.icon_glow == b.icon_glow &&
          a.default_tile_color == b.default_tile_color &&
          a.display_rotated_180 == b.display_rotated_180 &&
@@ -238,7 +237,6 @@ ConfigManager::ConfigManager() {
   config.head_gear = false;
   config.theme = 0;
   config.theme_auto_last = 0;
-  config.dark_tinted = false;
   config.icon_glow = icon_glow::kDefault;
   config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;
@@ -381,7 +379,6 @@ bool ConfigManager::load() {
   config.theme = prefs.getUChar("theme", 0);
   if (config.theme > 2) config.theme = 0;
   config.theme_auto_last = prefs.getUChar("theme_al", 0) == 1 ? 1 : 0;
-  config.dark_tinted = prefs.getBool("dark_tint", false);
   config.icon_glow = icon_glow::clamp(prefs.getUChar("icon_glow", icon_glow::kDefault));
   config.default_tile_color =
       tile_color::normalize(prefs.getUInt("tile_color", tile_color::kDefault));
@@ -678,7 +675,6 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putBool("head_gear", normalized.head_gear);
   prefs.putUChar("theme", normalized.theme);
   prefs.putUChar("theme_al", normalized.theme_auto_last);
-  prefs.putBool("dark_tint", normalized.dark_tinted);
   prefs.putUChar("icon_glow", normalized.icon_glow);
   prefs.putUInt("tile_color", normalized.default_tile_color);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
@@ -1021,21 +1017,6 @@ bool ConfigManager::saveThemeAutoLast(uint8_t theme) {
   return true;
 }
 
-bool ConfigManager::saveDarkTinted(bool enabled) {
-  if (config.dark_tinted == enabled) return true;
-  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
-  BatchedNvsWrite::Preferences prefs;
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open tinted tile preferences");
-    return false;
-  }
-  const bool written = prefs.putBool("dark_tint", enabled) == sizeof(uint8_t);
-  const bool committed = BatchedNvsWrite::finish(prefs);
-  if (!written || !committed) return false;
-  config.dark_tinted = enabled;
-  return true;
-}
-
 bool ConfigManager::saveEthernetEnabled(bool enabled) {
 #if defined(DEVICE_ESP32_S3_RGB_480)
   if (config.ethernet_enabled == enabled) return true;
@@ -1168,7 +1149,6 @@ void ConfigManager::clear() {
   config.head_gear = false;
   config.theme = 0;
   config.theme_auto_last = 0;
-  config.dark_tinted = false;
   config.icon_glow = icon_glow::kDefault;
   config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;

@@ -42,26 +42,22 @@ lv_obj_t* card_icon(lv_obj_t* card);
 // discs that follow the background. Skips unchanged values.
 void refresh_card(lv_obj_t* card, const Tile& tile);
 
-// A card marked with the dark design (tile_surface in tile_icon_disc.h; Media and Weather in the
-// light theme): its rendered dark card, ui_theme::kDarkDesignLift lighter.
-// Tints of such a card are lifted the same way (set_tile_tint).
-void apply_dark_design(lv_obj_t* card);
-
 // A new own color of a card (a tile entering or leaving the dark design):
 // kept behind a tint, else shown at once; refresh_card tints again.
 void set_card_base(lv_obj_t* card, uint32_t rgb);
 
 // A card with a rule (tile_surface::set_rule) changes its surface while it
-// runs: Media entering the dark design when it plays, a tinted tile with the
-// global option "Tinted tiles dark" while it is tinted. Its card color,
-// hairline and every role-colored text and icon switch in place, without a
-// rebuild; its open scopes draw the rest of the running update with the new
-// surface (ui_theme::follow_surface). `tile` gives an own card color (Media);
-// without it the card takes the default card of the new surface.
+// runs: a tile without an own color in the light theme is filled while it is
+// tinted (tile_surface::kJewel). Its card color, rim and every role-colored
+// text and icon switch in place, without a rebuild; its open scopes draw the
+// rest of the running update with the new surface
+// (ui_theme::follow_surface). Without `tile` the card takes the default card
+// of the new surface.
 void change_surface(lv_obj_t* card, uint8_t surface, const Tile* tile = nullptr);
 
-// Media: the player started or stopped playing (tile_surface::kPlaying).
-void set_playing(lv_obj_t* card, bool playing, const Tile& tile);
+// Every role-colored text and icon under `root` (a popup) moves from the
+// roles of surface `from` to those of `to` (ui_theme surfaces, -1 the theme).
+void recolor_surface(lv_obj_t* root, int8_t from, int8_t to);
 
 // The Media renderer reports the color of the cover a card shows (`known`
 // false without a cover or without a clear color, media/cover_color.h). A

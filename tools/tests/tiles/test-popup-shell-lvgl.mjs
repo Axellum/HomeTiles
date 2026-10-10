@@ -1,4 +1,4 @@
-import {radiusPolicyHost, surfaceStyleHost} from '../../lib/surface-style-host.mjs';
+import {radiusPolicyHost, surfaceStyleHost, popupSurfaceHost} from '../../lib/surface-style-host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +52,7 @@ ${withoutIncludes(read('src/ui/popups/popup_open.cpp'))}
 ${withoutIncludes(read('src/ui/shared/ui_pulse.h'))}
 ${withoutIncludes(read('src/tiles/icons/mdi_bar_icons.h'))}
 ${withoutIncludes(read('src/ui/shared/icon_lock_mark.h'))}
+${popupSurfaceHost(root)}
 ${withoutIncludes(read('src/ui/popups/popup_shell.cpp'))}
 struct Popup{lv_obj_t*owner,*body,*title,*icon,*close,*content;bool allow_close=true,back=false;int closed=0;};
 Popup make(){

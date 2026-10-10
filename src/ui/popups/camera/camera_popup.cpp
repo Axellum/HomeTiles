@@ -1,4 +1,5 @@
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_shell.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/ui/navigation/view_navigation.h"
@@ -374,6 +375,7 @@ static void close_camera_popup() {
 }
 
 static void close_event_cb(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const lv_event_code_t code = lv_event_get_code(event);
   if (code == LV_EVENT_CLICKED || code == LV_EVENT_RELEASED) {
     close_camera_popup();
@@ -381,11 +383,13 @@ static void close_event_cb(lv_event_t* event) {
 }
 
 static void overlay_event_cb(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   (void)event;
 }
 
 static void video_event_cb(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   if (g_camera_popup && g_camera_popup->visible && !g_camera_popup->full &&
       camera_stream_is_active()) {
@@ -395,6 +399,7 @@ static void video_event_cb(lv_event_t* event) {
 }
 
 static void full_touch_event_cb(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   if (g_camera_popup && g_camera_popup->full) {
     g_camera_popup->full_request = kFullLeave;
@@ -406,6 +411,7 @@ static void full_touch_event_cb(lv_event_t* event) {
 // idle (camera_popup_is_busy holds the change): its full-screen layers on the
 // top layer go with it; preload_camera_popup builds it again.
 static void overlay_deleted_cb(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* ctx = static_cast<CameraPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
   if (ctx->full_touch) lv_obj_delete(ctx->full_touch);
@@ -561,6 +567,7 @@ static void start_camera_stream(const String& url, bool full) {
 }
 
 void preload_camera_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (!g_camera_popup) g_camera_popup = create_popup();
 }
 
@@ -580,6 +587,7 @@ static void finish_camera_popup_open(const CameraPopupInit& init) {
 }
 
 void show_camera_popup(const CameraPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_pin_popup();
   hide_camera_popup();
   if (!init.entity_id.length()) return;
@@ -665,6 +673,7 @@ bool camera_popup_is_busy() {
 }
 
 void process_camera_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_camera_popup) return;
   if (g_camera_popup->draw_buffer_restore_pending &&
       !g_camera_popup->visible) {

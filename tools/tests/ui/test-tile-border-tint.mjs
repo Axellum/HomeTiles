@@ -19,7 +19,13 @@ for (const marker of [
   'constexpr lv_opa_t kTileBorderOpa = 51;',
   'constexpr lv_style_selector_t kBorderTintStore = LV_PART_MAIN | LV_STATE_USER_4;',
   'lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderTintStore)',
-  'const lv_opa_t opa = kTileBorderOpa;',
+  'lv_opa_t opa = kTileBorderOpa;',
+  // A filled tile's rim (light theme) is solid and wins over the hint.
+  'constexpr lv_style_selector_t kBorderRimStore = LV_PART_MAIN | LV_STATE_USER_2 | LV_STATE_USER_4;',
+  'if (lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderRimStore) == LV_STYLE_RES_FOUND) {',
+  'opa = LV_OPA_COVER;',
+  'void set_tile_border_rim(lv_obj_t* obj, lv_color_t rim) {',
+  'void clear_tile_border_rim(lv_obj_t* obj) {',
   'void set_tile_border_tint(lv_obj_t* obj, lv_color_t icon) {',
   'store_border_color(host, border_hint(icon), true);',
   'void clear_tile_border_tint(lv_obj_t* obj) {',
@@ -52,7 +58,7 @@ assert.ok(preview.includes("tileElem.style.setProperty('--tile-border-tint', 'rg
 // (Halfway to the theme's text color: white in the dark theme.)
 assert.ok(preview.includes('const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));'));
 const css = read('src/web/assets/admin.css');
-assert.ok(css.includes('outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));'));
+assert.ok(css.includes('outline:1px solid var(--tile-rim, var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20)));'));
 assert.equal((css.match(/background:var\(--icon-disc-bg, rgba\(255,255,255,0\.149\)\);/g) || []).length, 2,
   'Discs take the circle color per tile, neutral by default');
 // LVGL mix == preview hint.

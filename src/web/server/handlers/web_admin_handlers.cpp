@@ -869,30 +869,6 @@ void WebAdminServer::handleSaveTheme() {
                   ",\"effective\":" + static_cast<int>(shown) + "}");
 }
 
-// Light theme: tinted tiles show the dark design while tinted (tile_surface).
-// Every grid rebuilds like after a default tile color change.
-void WebAdminServer::handleSaveDarkTinted() {
-  webAdminMarkActivity();
-  if (!server.hasArg("enabled")) {
-    sendJsonError(server, 400, "Missing enabled value");
-    return;
-  }
-  String value = server.arg("enabled");
-  value.trim();
-  value.toLowerCase();
-  const bool enabled = value == "1" || value == "true" || value == "on";
-  if (!configManager.saveDarkTinted(enabled)) {
-    sendJsonError(server, 500, "Could not save the tinted tile design");
-    return;
-  }
-  tiles_invalidate_folder(tileConfig.rootFolderId());
-  tiles_request_reload_all();
-  image_screensaver_tiles_changed();
-  server.send(200, "application/json",
-              enabled ? "{\"success\":true,\"enabled\":true}"
-                      : "{\"success\":true,\"enabled\":false}");
-}
-
 void WebAdminServer::handleSaveTileBorders() {
   webAdminMarkActivity();
   if (!server.hasArg("enabled")) {

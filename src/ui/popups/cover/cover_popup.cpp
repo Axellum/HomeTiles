@@ -1195,6 +1195,7 @@ static void finish_cover_popup_open(const CoverPopupInit& init) {
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void cover_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   CoverPopupContext* ctx = g_ctx;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
   apply_card_color(ctx, color);
@@ -1217,6 +1218,7 @@ static void prepare_cover_popup_open(const CoverPopupInit& init) {
 }
 
 void show_cover_popup(const CoverPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   hide_pin_popup();
   if (!init.entity_id.length()) return;
   hide_light_popup();
@@ -1380,6 +1382,7 @@ void show_cover_popup(const CoverPopupInit& init) {
 }
 
 void update_cover_popup(const CoverPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (!g_ctx || !g_ctx->card || !g_ctx->overlay) return;
   if (lv_obj_has_flag(g_ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
   if (!g_ctx->entity_id.equalsIgnoreCase(init.entity_id)) return;
@@ -1394,6 +1397,7 @@ void update_cover_popup(const CoverPopupInit& init) {
 }
 
 void preload_cover_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_ctx && g_ctx->overlay && g_ctx->card) return;
   CoverPopupInit init;
   init.entity_id = "__preload__";

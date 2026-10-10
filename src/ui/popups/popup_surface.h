@@ -14,6 +14,19 @@
 // accents (HVAC mode, light and cover colors) stay as they are.
 namespace popup_surface {
 
+// The surface the open popup draws with (user 2026-10-10): the theme, or for a
+// popup on a filled tile's color in the light theme (tile_surface::kJewel)
+// that tile's rules (ui_theme::kDarkTintedSurface: white text on the colored
+// card, like the dark theme's popups on a tinted card). The opener sets it
+// (tile_icon_source::popup_background); every entry of a popup that takes its
+// tile's color opens scope(), the Light, Climate and Cover popups (neutral
+// cards) theme_scope(). So no popup draws with the rules of a tile that
+// updates it (b343: the Light popup turned grey inside a filled tile's
+// update).
+inline int8_t g_open_surface = ui_theme::kThemeSurface;
+inline ui_theme::SurfaceScope scope() { return ui_theme::SurfaceScope(g_open_surface); }
+inline ui_theme::SurfaceScope theme_scope() { return ui_theme::SurfaceScope(ui_theme::kThemeSurface); }
+
 // The popup card when a caller passes no color (0); the light theme's card.
 inline uint32_t default_card() { return ui_theme::popup_card(); }
 

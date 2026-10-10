@@ -196,10 +196,8 @@
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      const design = typeof tileDesignValue === 'function' ? tileDesignValue(prefix) : '0';
-      const playing = previewKind === 'media' && mediaPreviewPlaying(mediaEntity ? (sensorMetaCache.mediaValues?.[mediaEntity] ?? '') : '');
-      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record, design, playing);
-      if (tileFollowsTint(tab, meta.preview || '', bgValue, record, design)) tileElem.dataset.followTint = '1';
+      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record);
+      if (tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       surfaceDrawn = surface;
       applyTileSurface(tileElem, surface);
@@ -369,9 +367,9 @@
     }
     // Its tint changed the surface: drawn again on it from the start.
     const tileElem = currentTileIndex >= 0 ? document.getElementById(tab + '-tile-' + currentTileIndex) : null;
-    if (!globalThis.hometilesPreviewForcedSurface && surfaceDrawn !== null && surfaceDrawn !== 'darktint' &&
-        tileElem?.dataset.surface === 'darktint') {
-      globalThis.hometilesPreviewForcedSurface = 'darktint';
+    if (!globalThis.hometilesPreviewForcedSurface && surfaceDrawn !== null && surfaceDrawn !== 'jewel' &&
+        tileElem?.dataset.surface === 'jewel') {
+      globalThis.hometilesPreviewForcedSurface = 'jewel';
       try { updateTilePreview(tab); } finally { delete globalThis.hometilesPreviewForcedSurface; }
     }
   }

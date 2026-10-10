@@ -1,4 +1,5 @@
 #include "src/ui/popups/popup_shell.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_nav_style.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/types/value/value_control.h"
@@ -502,6 +503,7 @@ static void update_range_buttons(SensorPopupContext* ctx) {
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void sensor_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   SensorPopupContext* ctx = g_sensor_popup_ctx;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN) || ctx->bg_color == color) return;
   ctx->bg_color = color;
@@ -1229,6 +1231,7 @@ static String format_binary_activity_time(uint64_t epoch_seconds,
 }
 
 static void on_binary_timeline_draw(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_DRAW_MAIN) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(
       lv_event_get_user_data(event));
@@ -1482,6 +1485,7 @@ static void refresh_binary_activity_rows(SensorPopupContext* ctx,
 }
 
 static void on_binary_activity_scroll(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_SCROLL) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(
       lv_event_get_user_data(event));
@@ -1842,6 +1846,7 @@ static void invalidate_readout_cursor(SensorPopupContext* ctx) {
 // Drawn after the graph's children, so the cursor needs no objects that move
 // or change layout while dragging.
 static void on_readout_cursor_draw(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(event));
   auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
   if (!ctx || !target || readout_target(ctx) != target) return;
@@ -3278,6 +3283,7 @@ static void schedule_state_history_refresh(SensorPopupContext* ctx) {
 }
 
 static void on_overlay_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   (void)e;
 }
@@ -3307,6 +3313,7 @@ static void set_sensor_popup_visible(SensorPopupContext* ctx, bool visible) {
 }
 
 static void on_close_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   lv_event_code_t code = lv_event_get_code(e);
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(e));
@@ -3317,6 +3324,7 @@ static void on_close_click(lv_event_t* e) {
 }
 
 static void on_overlay_delete(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
@@ -3335,6 +3343,7 @@ static void on_overlay_delete(lv_event_t* e) {
 }
 
 static void on_range_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   SensorPopupContext* ctx = static_cast<SensorPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -3652,6 +3661,7 @@ static void finish_sensor_popup_open() {
 }
 
 void show_sensor_popup(const SensorPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_pin_popup();
   hide_camera_popup();
   hide_climate_popup();
@@ -3692,6 +3702,7 @@ void show_sensor_popup(const SensorPopupInit& init) {
 }
 
 void preload_sensor_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_sensor_popup_ctx && g_sensor_popup_ctx->overlay && g_sensor_popup_ctx->card) return;
   SensorPopupInit init;
   init.entity_id = "__preload__";
@@ -3786,6 +3797,7 @@ void queue_sensor_popup_binary_state(const String& entity_id,
 }
 
 void process_sensor_popup_queue() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_sensor_popup_ctx || !g_sensor_popup_ctx->card) {
     g_pending_value.valid = false;
     g_pending_history.valid = false;

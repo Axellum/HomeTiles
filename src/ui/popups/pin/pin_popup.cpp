@@ -1,4 +1,5 @@
 #include "src/ui/popups/popup_shell.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/ui/popups/pin/pin_popup.h"
 #include "src/ui/popups/pin/pin_keypad_geometry.h"
@@ -93,6 +94,7 @@ const lv_font_t* digit_font(int key_h) {
 void update_value(PinPopupContext* ctx);
 
 void auto_close_timer_cb(lv_timer_t* timer) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   PinPopupContext* ctx = static_cast<PinPopupContext*>(
       lv_timer_get_user_data(timer));
   if (!ctx || ctx != g_ctx) {
@@ -205,6 +207,7 @@ lv_obj_t* create_key(lv_obj_t* parent, const char* text, const lv_font_t* font,
   lv_obj_add_event_cb(
       button,
       [](lv_event_t* event) {
+        const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
         if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
         PinKeyData* key = static_cast<PinKeyData*>(
             lv_event_get_user_data(event));
@@ -269,6 +272,7 @@ lv_obj_t* create_key(lv_obj_t* parent, const char* text, const lv_font_t* font,
 }
 
 void on_close(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   PinPopupContext* ctx = static_cast<PinPopupContext*>(
       lv_event_get_user_data(event));
@@ -280,6 +284,7 @@ void on_close(lv_event_t* event) {
 }
 
 void on_delete(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_DELETE) return;
   PinPopupContext* ctx = static_cast<PinPopupContext*>(
       lv_event_get_user_data(event));
@@ -395,6 +400,7 @@ void apply_header(PinPopupContext* ctx, const PinPopupInit& init) {
 }  // namespace
 
 void show_pin_popup(const PinPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_device_popup();
   hide_light_popup();
   hide_climate_popup();
@@ -462,6 +468,7 @@ void show_pin_popup(const PinPopupInit& init) {
 }
 
 void preload_pin_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_ctx && g_ctx->overlay && g_ctx->card) return;
   const auto& tr = i18n::strings(configManager.getConfig().language);
   PinPopupInit init;
@@ -489,6 +496,7 @@ void hide_pin_popup() {
 }
 
 void resume_pin_popup_after_failed_success() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_ctx || !g_ctx->card || !g_ctx->overlay ||
       !g_ctx->waiting_for_success_completion) {
     return;
@@ -501,6 +509,7 @@ void resume_pin_popup_after_failed_success() {
 }
 
 void pin_popup_set_error(const char* text, bool show) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_ctx || !g_ctx->card || !text) return;
   g_ctx->error = text;
   g_ctx->show_error = show;
@@ -512,6 +521,7 @@ bool is_pin_popup_for(const void* context) {
 }
 
 void pin_popup_set_state(const String& icon_name, uint32_t icon_color, const String& state) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_ctx || !g_ctx->card || !g_ctx->icon_label || !g_ctx->state_label) return;
   lv_label_set_text(g_ctx->icon_label, popup_icon_glyph(icon_name).c_str());
   lv_obj_set_style_text_color(g_ctx->icon_label, lv_color_hex(icon_color), 0);
@@ -521,6 +531,7 @@ void pin_popup_set_state(const String& icon_name, uint32_t icon_color, const Str
 }
 
 void pin_popup_pulse_icon(bool on) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (g_ctx && g_ctx->card) popup_shell_pulse_icon(g_ctx->card, on);
 }
 

@@ -1,4 +1,5 @@
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/ui/popups/popup_shell.h"
 #include "src/ui/popups/popup_open.h"
@@ -331,6 +332,7 @@ static void update_seek(MediaPopupContext* ctx, const MediaPopupInit& init) {
 }
 
 static void media_progress_timer_cb(lv_timer_t* timer) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   MediaPopupContext* ctx = timer ? static_cast<MediaPopupContext*>(lv_timer_get_user_data(timer)) : nullptr;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN) || ctx->seek_dragging) return;
   set_seek_widgets(ctx, current_media_position(ctx), true);
@@ -445,6 +447,7 @@ static void apply_init_to_context(MediaPopupContext* ctx, const MediaPopupInit& 
 }
 
 static void on_close_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   lv_event_code_t code = lv_event_get_code(e);
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   MediaPopupContext* ctx = static_cast<MediaPopupContext*>(lv_event_get_user_data(e));
@@ -457,11 +460,13 @@ static void on_close_click(lv_event_t* e) {
 }
 
 static void on_overlay_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   (void)e;
 }
 
 static void on_overlay_delete(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   MediaPopupContext* ctx = static_cast<MediaPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
@@ -475,6 +480,7 @@ static void on_overlay_delete(lv_event_t* e) {
 }
 
 static void on_media_command(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   MediaCommandData* data = static_cast<MediaCommandData*>(lv_event_get_user_data(e));
   if (!data || !data->ctx || !data->ctx->entity_id.length() || !data->ctx->available) return;
@@ -499,12 +505,14 @@ static void on_media_command(lv_event_t* e) {
 }
 
 static void on_media_command_delete(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   MediaCommandData* data = static_cast<MediaCommandData*>(lv_event_get_user_data(e));
   delete data;
 }
 
 static void on_volume_slider_event(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   lv_event_code_t code = lv_event_get_code(e);
   const bool released = code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST;
   if (code != LV_EVENT_VALUE_CHANGED && !released) return;
@@ -521,6 +529,7 @@ static void on_volume_slider_event(lv_event_t* e) {
 }
 
 static void on_seek_slider_event(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   const lv_event_code_t code = lv_event_get_code(e);
   const bool released = code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST;
   if (code != LV_EVENT_VALUE_CHANGED && !released) return;
@@ -544,6 +553,7 @@ static void on_seek_slider_event(lv_event_t* e) {
 }
 
 static void on_volume_mute_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   MediaPopupContext* ctx = static_cast<MediaPopupContext*>(lv_event_get_user_data(e));
   if (!ctx || !ctx->entity_id.length() || !ctx->volume_slider || !ctx->available) return;
@@ -637,6 +647,7 @@ static void prepare_media_popup_open(const MediaPopupInit& init) {
 }
 
 void show_media_popup(const MediaPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_pin_popup();
   hide_camera_popup();
   hide_device_popup();
@@ -849,6 +860,7 @@ void show_media_popup(const MediaPopupInit& init) {
 }
 
 void preload_media_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_media_popup_ctx && g_media_popup_ctx->overlay && g_media_popup_ctx->card) return;
   MediaPopupInit init;
   init.entity_id = "__preload__";
@@ -874,11 +886,13 @@ bool media_popup_showing(const String& entity_id) {
 }
 
 void update_media_popup(const MediaPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!media_popup_showing(init.entity_id)) return;
   apply_init_to_context(g_media_popup_ctx, init);
 }
 
 void update_media_popup_cover(const char* entity_id, const lv_image_dsc_t* cover_dsc, uint32_t cover_hash) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!entity_id || !g_media_popup_ctx || !g_media_popup_ctx->card) return;
   if (!g_media_popup_ctx->entity_id.equalsIgnoreCase(entity_id)) return;
   if (lv_obj_has_flag(g_media_popup_ctx->card, LV_OBJ_FLAG_HIDDEN)) return;

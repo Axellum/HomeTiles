@@ -1,4 +1,5 @@
 #include "src/ui/popups/popup_shell.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_nav_style.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/ui/popups/camera/camera_popup.h"
@@ -235,6 +236,7 @@ void update_period_buttons(EnergyPopupContext* ctx) {
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void energy_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   EnergyPopupContext* ctx = g_energy_popup_ctx;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN) || ctx->bg_color == color) return;
   ctx->bg_color = color;
@@ -520,6 +522,7 @@ void invalidate_energy_cursor(EnergyPopupContext* ctx) {
 }
 
 void on_energy_cursor_ext_draw(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* size = static_cast<int32_t*>(lv_event_get_param(event));
   if (size && *size < kReadoutMarkerOverhang) *size = kReadoutMarkerOverhang;
 }
@@ -529,6 +532,7 @@ void on_energy_cursor_ext_draw(lv_event_t* event) {
 // dot to chart_wrap. The marker needs no object that moves while dragging and
 // never overlaps a bar: the line ends at the read bar's top edge.
 void on_energy_cursor_draw(lv_event_t* event) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* ctx = static_cast<EnergyPopupContext*>(lv_event_get_user_data(event));
   lv_layer_t* layer = lv_event_get_layer(event);
   if (!ctx || !layer || ctx->readout_slot < 0) return;
@@ -663,12 +667,14 @@ void apply_energy_readout(EnergyPopupContext* ctx, const lv_point_t& point) {
 }
 
 void on_energy_readout_apply(void* owner, lv_obj_t*, const lv_point_t& point) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* ctx = static_cast<EnergyPopupContext*>(owner);
   if (ctx) apply_energy_readout(ctx, point);
 }
 
 // Release keeps the read bar; it follows new data while it is the newest bar.
 void on_energy_readout_end(void* owner, bool keep) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* ctx = static_cast<EnergyPopupContext*>(owner);
   if (!ctx) return;
   if (keep && ctx->readout_slot >= 0) {
@@ -1065,6 +1071,7 @@ void apply_init_to_context(EnergyPopupContext* ctx, const EnergyPopupInit& init,
 }
 
 void on_close_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   lv_event_code_t code = lv_event_get_code(e);
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   EnergyPopupContext* ctx = static_cast<EnergyPopupContext*>(lv_event_get_user_data(e));
@@ -1080,11 +1087,13 @@ void on_close_click(lv_event_t* e) {
 }
 
 void on_overlay_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   (void)e;
 }
 
 void on_overlay_delete(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   EnergyPopupContext* ctx = static_cast<EnergyPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
@@ -1100,6 +1109,7 @@ void on_overlay_delete(lv_event_t* e) {
 }
 
 void on_period_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   EnergyPopupContext* ctx = static_cast<EnergyPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -1374,6 +1384,7 @@ static void finish_energy_popup_open() {
 }
 
 void show_energy_popup(const EnergyPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_pin_popup();
   hide_camera_popup();
   hide_climate_popup();
@@ -1414,6 +1425,7 @@ void show_energy_popup(const EnergyPopupInit& init) {
 }
 
 void preload_energy_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_energy_popup_ctx && g_energy_popup_ctx->overlay && g_energy_popup_ctx->card) return;
 
   EnergyPopupInit init;
@@ -1456,6 +1468,7 @@ void queue_energy_popup_refresh(const char* period) {
 }
 
 void process_energy_popup_queue() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_energy_popup_ctx || !g_energy_popup_ctx->card) {
     g_pending_refresh = PendingPopupRefresh{};
     return;

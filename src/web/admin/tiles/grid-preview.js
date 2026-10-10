@@ -148,6 +148,9 @@
   // strength never change an icon's color.
   function toneReadableIcon(icon) {
     const tinted = icon[0] !== icon[1] || icon[1] !== icon[2];
+    // A filled tile of the light theme keeps its icon's own color
+    // (tone_color::readable_icon in ui_theme::kDarkTintedSurface).
+    if (globalThis.hometilesPreviewSurface === 2 && tinted) return icon;
     if (panelLight()) {
       // The icon's own color, like Home Assistant; only an icon without a
       // color (white, almost white, the text color) takes the icon grey.
@@ -220,12 +223,8 @@
   const SURFACE_ROLES = ['screen', 'card', 'text', 'icon', 'icon-off', 'icon-inactive', 'icon-rest',
     'text-secondary', 'text-soft', 'icon-unavailable', 'text-rgb'];
   function surfaceTheme(surface) {
-    if (surface === 'darktint') return 2;
-    return surface === 'light' ? 1 : surface === 'dark' || surface === 'darkdesign' ? 0 : -1;
-  }
-  // The dark design on the light theme (no hairline, the lifted dark card).
-  function surfaceDarkDesign(surface) {
-    return surface === 'darkdesign' || surface === 'darktint';
+    if (surface === 'jewel') return 2;
+    return surface === 'light' ? 1 : surface === 'dark' ? 0 : -1;
   }
   // tone_color::light_surface(): text, icons and circles on a color above
   // --pv-light-surface (OKLCH L) follow the light theme's rules.
@@ -233,50 +232,55 @@
     const limit = Number(panelVar('--pv-light-surface', '0.72'));
     return toneOklch(rgb).L > (Number.isFinite(limit) ? limit : 0.72);
   }
-  // tone_color::dark_design(): the dark theme's card, --pv-dark-lift lighter.
-  function toneDarkDesign(rgb) {
-    const lift = Number(panelVar('--pv-dark-lift', '0.24'));
-    const card = toneOklch(rgb);
-    return toneRgb(card.L + (Number.isFinite(lift) ? lift : 0.24), card.C, card.h);
+  // The filled tile of the light theme (ui_theme kJewel*, --pv-jewel-*).
+  function jewelVar(name, fallback) {
+    const value = Number(panelVar('--pv-jewel-' + name, String(fallback)));
+    return Number.isFinite(value) ? value : fallback;
   }
-  // The dark theme's card (the global tile color) behind the dark design.
-  function darkThemeCard() {
-    const hex = String(panelVar('--tile-default-bg', '#1A1A1A'));
-    return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : [26, 26, 26];
+  // tone_color::jewel_card(): the card below its icon's own lightness, in its
+  // hue, with chroma up to the strength's cap.
+  function toneJewelCard(icon, strength) {
+    const seed = toneOklch(icon);
+    const L = Math.min(jewelVar('max', 0.7), seed.L - jewelVar('below', 0.16));
+    const cap = jewelVar('chroma', 0.07) * (strength || 20) / 20;
+    return toneRgb(L, Math.min(seed.C * jewelVar('card-share', 0.85), cap), seed.h);
+  }
+  // tone_color::jewel_fill(): circle and controls one step above the card.
+  function toneJewelFill(card, icon, glowPct, strength) {
+    const base = toneOklch(card), seed = toneOklch(icon);
+    const cap = jewelVar('chroma', 0.07) * jewelVar('circle-cap', 1.3) * (strength || 20) / 20;
+    const C = Math.min(seed.C * jewelVar('circle-share', 0.75), cap);
+    const step = jewelVar('step', 0.05) * glowPct / 25;
+    const control = Math.max(step, 0.03);
+    const disc = glowPct ? toneRgb(base.L + step, C, seed.h) : card.slice();
+    return {discColor: disc, controlColor: toneRgb(base.L + control, C, seed.h), discOpa: glowPct ? 255 : 0,
+      controlOpa: 255, disc, control: toneRgb(base.L + control, C, seed.h), tinted: true};
+  }
+  // tone_color::jewel_rim(): the 1 px rim, a lighter edge in the icon's hue.
+  function toneJewelRim(card, icon) {
+    const base = toneOklch(card), seed = toneOklch(icon);
+    return toneRgb(base.L + jewelVar('rim', 0.12), Math.min(seed.C * jewelVar('card-share', 0.85), jewelVar('rim-chroma', 0.12)), seed.h);
   }
   // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
   function tileHasOwnColor(bgValue, iconColors) {
     const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
     return tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue) && !fill;
   }
-  // tile_surface_of() (tile_renderer.cpp): the surface of a tile. `design`:
-  // the tile's Design (0 Automatic, 1 Light, 2 Dark); `playing`: a Media
-  // player plays.
-  function tileSurfaceOf(tab, previewKind, bgValue, iconColors, design, playing) {
+  // tile_surface_of() (tile_renderer.cpp): a tile in its own color follows
+  // its lightness; every other tile, and the screensaver, keeps the theme.
+  function tileSurfaceOf(tab, previewKind, bgValue, iconColors) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
-    if (tileHasOwnColor(bgValue, iconColors)) {
-      const own = Number(bgValue) & 0xFFFFFF;
-      if (!own) return '';
-      return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
-    }
-    const chosen = String(design ?? '0');
-    if (!panelThemeLight() || chosen === '1') return '';
-    if (chosen === '2' || previewKind === 'weather') return 'darkdesign';
-    if (previewKind === 'media' && playing) return 'darkdesign';
-    return '';
+    if (!tileHasOwnColor(bgValue, iconColors)) return '';
+    const own = Number(bgValue) & 0xFFFFFF;
+    if (!own) return '';
+    return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
   }
-  // tile_surface_rule_of() (tile_renderer.cpp): with the global option
-  // "Tinted tiles dark" (html[data-dark-tinted]) a tile shows the dark design
-  // while it is tinted (setTileTintBackground, applyIconDiscTint).
-  function tileFollowsTint(tab, previewKind, bgValue, iconColors, design) {
+  // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile
+  // without an own color is filled with its icon's color while it is tinted
+  // (setTileTintBackground, applyIconDiscTint).
+  function tileFollowsTint(tab, previewKind, bgValue, iconColors) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return false;
-    return panelThemeLight() && document.documentElement?.dataset?.darkTinted === '1' &&
-      String(design ?? '0') === '0' && previewKind !== 'weather' && !tileHasOwnColor(bgValue, iconColors);
-  }
-  // A Media preview's player plays (media_cached_playing).
-  function mediaPreviewPlaying(raw) {
-    const payload = typeof parseMediaPreviewPayload === 'function' ? parseMediaPreviewPayload(raw) : null;
-    return String(payload?.state || '').trim().toLowerCase() === 'playing';
+    return panelThemeLight() && !tileHasOwnColor(bgValue, iconColors);
   }
   // Marks a tile with its surface: the other theme's roles on it (CSS) and,
   // for the dark design, its card.
@@ -291,7 +295,7 @@
       if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');
       else el.style.removeProperty('--pv-' + name);
     }
-    if (surfaceDarkDesign(surface)) el.style.background = toneHex(toneDarkDesign(darkThemeCard()));
+    if (surface !== 'jewel') el.style.removeProperty('--tile-rim');
   }
   // tone_color::no_color(): white, almost white or grey-white.
   function toneNoColor(rgb) {
@@ -299,12 +303,31 @@
     const hue = rgb[0] !== rgb[1] || rgb[1] !== rgb[2];
     return seed.L > 0.9 && (!hue || seed.C < 0.08);
   }
-  // tone_color::light_accent(): a light without a color in Home Assistant's
-  // light grey (HSV value 225) in the light theme.
+  // tone_color::light_accent(): a light's color as Home Assistant shows it in
+  // the light theme: an HSV saturation below 0.4 raised to 0.4, white (below
+  // 0.1) a grey of value 225.
   function toneLightAccent(rgb) {
-    if (!panelLight() || !toneNoColor(rgb)) return rgb;
-    const max = Math.max(...rgb);
-    return max ? rgb.map(v => Math.floor((v * 225 + Math.floor(max / 2)) / max)) : rgb;
+    if (!panelLight()) return rgb;
+    const [r, g, b] = rgb.map(v => v / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let sat = max > 0 ? d / max : 0, value = max;
+    if (sat >= 0.4 || max <= 0) return rgb;
+    let hue = 0;
+    if (d > 0) {
+      if (max === r) hue = ((g - b) / d) % 6;
+      else if (max === g) hue = (b - r) / d + 2;
+      else hue = (r - g) / d + 4;
+      hue *= 60;
+      if (hue < 0) hue += 360;
+    }
+    if (sat < 0.1) value = 225 / 255;
+    else sat = 0.4;
+    const channel = n => {
+      const k = (n + hue / 60) % 6;
+      const m = Math.max(0, Math.min(1, k, 4 - k));
+      return Math.floor((value - value * sat * m) * 255 + 0.5);
+    };
+    return [channel(5), channel(3), channel(1)];
   }
   // tone_color::mark_on(): dark on a light surface (the dark theme keeps its
   // card cut-out there), white on a dark one.
@@ -370,7 +393,7 @@
       if (choice) {
         setTileTintBackground(tileElem, choice.color, choice.percent);
       } else if (tileElem.dataset.baseBg !== undefined) {
-        if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'darktint') applyTileSurface(tileElem, '');
+        if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');
         tileElem.style.background = tileElem.dataset.baseBg;
       }
       // The surface may have changed with the tint (tile_surface::change).
@@ -430,6 +453,11 @@
       const disc = glowPct ? blendOver(amount) : card.slice();
       const control = blendOver(Math.max(amount, 0.1));
       tone = { discColor: disc, controlColor: control, discOpa: glowPct ? 255 : 0, controlOpa: 255, disc, control, tinted };
+    }
+    // A filled tile of the light theme (tone_color::jewel_fill): one step
+    // above its card in the icon's hue.
+    if (tinted && !seeThrough && tileElem.dataset.surface === 'jewel' && typeof toneJewelFill === 'function') {
+      tone = toneJewelFill(card, given, glowPct, Number(tileElem.dataset.jewelStrength) || 20);
     }
     const rgba = (color, opa) => 'rgba(' + color.join(',') + ',' + (opa / 255).toFixed(3) + ')';
     tileElem.style.setProperty('--icon-disc-bg', rgba(tone.discColor, tone.discOpa));
@@ -513,35 +541,7 @@
     const strength = document.getElementById(tab + '_tile_icon_fill_strength');
     const output = document.getElementById(tab + '_tile_icon_fill_strength_value');
     if (strength && output) output.textContent = strength.value + ' %';
-    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
-  }
-  // The tile's Design (TileDesign): only for tiles without an own color, and
-  // only while the panel can show the light theme.
-  function tileDesignValue(tab) {
-    const value = String(document.getElementById(tab + '_tile_design')?.value || '0');
-    return ['0', '1', '2'].includes(value) ? value : '0';
-  }
-  function syncTileDesign(tab) {
-    const value = tileDesignValue(tab);
-    document.getElementById(tab + '_tile_design_modes')?.querySelectorAll('[data-tile-design]').forEach(button => {
-      const active = button.dataset.tileDesign === value;
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
-    const theme = document.querySelector('.global-theme')?.value || (panelThemeLight() ? '1' : '0');
-    const shown = typeValue !== '0' && tileColorMode(tab) !== 'custom' && (theme !== '0' || panelThemeLight());
-    document.getElementById(tab + '_tile_design_row')?.classList.toggle('hidden', !shown);
-  }
-  function setTileDesign(tab, value) {
-    const input = document.getElementById(tab + '_tile_design');
-    if (!input) return;
-    input.value = ['0', '1', '2'].includes(String(value)) ? String(value) : '0';
-    syncTileDesign(tab);
-    updateTilePreview(tab);
-    updateDraft(tab);
-    scheduleAutoSave(tab);
   }
   function setTileColorMode(tab, mode) {
     const input = document.getElementById(tab + '_tile_color');
@@ -703,15 +703,13 @@
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
     const surface = forcedSurface || (surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
-      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, tile?.design,
-        surfaceKind === 'media' && mediaPreviewPlaying(sensorMeta?.mediaValues?.[tile?.sensor_entity || ''] ?? '')));
+      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
     if (surfaceType !== '0' && typeof tileFollowsTint === 'function' &&
-        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, tile?.design)) {
+        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
       el.dataset.followTint = '1';
     } else {
       delete el.dataset.followTint;
     }
-    el.dataset.design = String(tile?.design ?? '0');
     const surfaceSaved = globalThis.hometilesPreviewSurface;
     const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
     if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
@@ -963,8 +961,8 @@
       globalThis.hometilesPreviewSurface = surfaceSaved;
     }
     // Its tint changed the surface: drawn again on it from the start.
-    if (!forcedSurface && el.dataset.surface === 'darktint' && surface !== 'darktint') {
-      renderTileFromData(tab, index, tile, sensorMeta, 'darktint');
+    if (!forcedSurface && el.dataset.surface === 'jewel' && surface !== 'jewel') {
+      renderTileFromData(tab, index, tile, sensorMeta, 'jewel');
     }
   }
 

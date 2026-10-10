@@ -178,7 +178,7 @@ for (const marker of ['emit_roles(ui_theme::kDark, "pv");', 'emit_roles(ui_theme
   'static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,',
   'static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen,',
   'static_cast<double>(ui_theme::kLightSurfaceL), static_cast<double>(ui_theme::kLightCircleShare),',
-  'static_cast<double>(ui_theme::kDarkDesignLift));',
+  'static_cast<double>(ui_theme::kJewelRimChroma));',
   '  appendPanelThemeVars(html);']) {
   assert.ok(styles.includes(marker), 'web_admin_styles: ' + marker);
 }

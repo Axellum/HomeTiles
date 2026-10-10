@@ -462,8 +462,6 @@ void WebAdminServer::handleGetTiles() {
     out += String(tile.icon_disc_mode);
     out += ",\"icon_glow\":";
     out += tile.icon_glow ? "1" : "0";
-    out += ",\"design\":";
-    out += String(tile.design);
     out += ",\"icon_colors\":\"";
     appendJsonEscaped(out, tile.icon_colors);
     out += "\"";
@@ -704,8 +702,6 @@ void WebAdminServer::handleSaveTiles() {
     tile.icon_disc_mode = normalizeTileIconDiscMode(server.arg("icon_disc").toInt());
   }
   if (server.hasArg("icon_glow")) tile.icon_glow = server.arg("icon_glow").toInt() != 0;
-  // Partial requests keep the stored Design (TileDesign).
-  if (server.hasArg("design")) tile.design = normalizeTileDesign(server.arg("design").toInt());
   // Icon colors: partial requests keep the stored record; the record is
   // normalized (clamped, unknown lines dropped) and cleared for types
   // without icon colors.

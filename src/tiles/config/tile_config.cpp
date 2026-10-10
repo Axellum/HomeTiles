@@ -417,11 +417,8 @@ static void unpackIconDiscOptions(uint16_t packed, Tile& tile) {
   tile.icon_glow = (packed & kIconGlowOffBit) == 0;
 }
 
-// The Design (TileDesign) lives in the top bits of the V7 popup mode byte,
-// which holds only long or short press (0 or 1). Firmware without these bits
-// reads such a tile's popup mode as long press, so the layout stays
-// V7-compatible.
-static constexpr uint8_t kDesignShift = 6;
+// The V7 popup mode byte holds long or short press (0 or 1); b343 kept a
+// tile Design in its top bits, read past them.
 static constexpr uint8_t kPopupModeMask = 0x3Fu;
 
 static uint16_t getNavigateTargetId(const Tile& tile) {
@@ -1277,9 +1274,6 @@ static void packTile(const Tile& in, PackedTileV7& out) {
                          getTilePopupOpenMode(in) == TILE_POPUP_OPEN_SHORT_PRESS)
                             ? TILE_POPUP_OPEN_SHORT_PRESS
                             : TILE_POPUP_OPEN_LONG_PRESS;
-  if (in.type != TILE_EMPTY) {
-    out.popup_open_mode = static_cast<uint8_t>(out.popup_open_mode | (normalizeTileDesign(in.design) << kDesignShift));
-  }
   out.reserved[0] = in.background_opacity;
   out.reserved[1] = static_cast<uint8_t>(in.view_id);
   out.reserved[2] = static_cast<uint8_t>(in.view_id >> 8);
@@ -1443,7 +1437,6 @@ static void unpackTileV7(const PackedTileV7& in, Tile& out) {
       (in.popup_open_mode & kPopupModeMask) == TILE_POPUP_OPEN_SHORT_PRESS) {
     out.popup_open_mode = TILE_POPUP_OPEN_SHORT_PRESS;
   }
-  out.design = out.type == TILE_EMPTY ? TILE_DESIGN_AUTO : normalizeTileDesign(in.popup_open_mode >> kDesignShift);
   out.key_code = in.key_code;
   out.key_modifier = in.key_modifier;
   if (tileTypeStoresPopupModeDirectly(out.type)) {

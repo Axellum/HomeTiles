@@ -10,7 +10,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {cppFunctionDefinitions} from '../../lib/cpp-source.mjs';
 import {lvglHost} from '../../lib/lvgl-host.mjs';
-import {radiusPolicyHost, toneColorHost} from '../../lib/surface-style-host.mjs';
+import {radiusPolicyHost, toneColorHost, popupSurfaceHost} from '../../lib/surface-style-host.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n?/g, '\n');
@@ -152,6 +152,7 @@ ${strip(read('src/ui/popups/popup_open.cpp'))}
 ${strip(read('src/ui/shared/ui_pulse.h'))}
 ${strip(read('src/tiles/icons/mdi_bar_icons.h'))}
 ${strip(read('src/ui/shared/icon_lock_mark.h'))}
+${popupSurfaceHost(root)}
 ${strip(read('src/ui/popups/popup_shell.cpp'))}
 int flushed=0;lv_area_t flushed_area{};
 struct Body{PopupShellParts parts;lv_obj_t* value=nullptr;};

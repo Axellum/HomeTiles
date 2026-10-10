@@ -10,7 +10,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {cppFunctionDefinitions} from '../../lib/cpp-source.mjs';
 import {lvglHost} from '../../lib/lvgl-host.mjs';
-import {radiusPolicyHost, surfaceStyleHost} from '../../lib/surface-style-host.mjs';
+import {radiusPolicyHost, surfaceStyleHost, popupSurfaceHost} from '../../lib/surface-style-host.mjs';
 import {extractFunction, inlineScriptSafe, readRepoFile} from '../../lib/admin-source.mjs';
 import {findBrowser} from '../../lib/headless-dom.mjs';
 
@@ -120,6 +120,7 @@ ${strip(read('src/ui/popups/popup_open.cpp'))}
 ${strip(read('src/ui/shared/ui_pulse.h'))}
 ${strip(read('src/tiles/icons/mdi_bar_icons.h'))}
 ${strip(read('src/ui/shared/icon_lock_mark.h'))}
+${popupSurfaceHost(root)}
 ${strip(read('src/ui/popups/popup_shell.cpp'))}
 ${strip(read('src/types/weather/widgets.h'))}
 ${strip(read('src/types/weather/tile_layout.h'))}

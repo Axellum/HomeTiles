@@ -20,9 +20,6 @@ inline lv_color_t border_hint(lv_color_t icon) {
 }
 
 void disable_tile_border(lv_obj_t* obj);
-// The dark design hides a tile's hairline; leaving it, the tile takes the
-// global hairline option again (a Media tile that stops playing).
-void set_tile_border_hidden(lv_obj_t* obj, bool hidden);
 void apply_tile_border(lv_obj_t* obj, bool enabled);
 void apply_global_tile_border(lv_obj_t* obj);
 
@@ -38,6 +35,11 @@ bool icon_discs_shown();
 // hairline. Both keep the 20 % hairline opacity.
 void set_tile_border_tint(lv_obj_t* obj, lv_color_t icon);
 void clear_tile_border_tint(lv_obj_t* obj);
+// A filled tile in the light theme draws its hairline as a solid lighter rim
+// in its own hue (tone_color::jewel_rim); clear returns to the hint or white.
+// The rim wins over the tint hint while it is set.
+void set_tile_border_rim(lv_obj_t* obj, lv_color_t rim);
+void clear_tile_border_rim(lv_obj_t* obj);
 // The popup card hairline: follows the global Tile borders option, drawn like
 // the tile border.
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa);

@@ -83,3 +83,7 @@ void popup_shell_delete_popups();
 // Register an existing background tree, once after construction. Opaque popup
 // pixels can skip its covered draw calls without hiding or rebuilding widgets.
 void register_popup_background(lv_obj_t* root);
+// A popup that takes its tile's color shows it with the open surface
+// (popup_surface::g_open_surface): its fixed texts and icons, colored when it
+// was built, take that surface's roles (and back on the next opening).
+void popup_follow_surface(lv_obj_t* root);

@@ -245,8 +245,6 @@ async function saveTheme(value) {
   const previousShown = shownPanelTheme();
   themeChosen = theme;
   document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
-  // The tile's Design field shows while the panel can be light.
-  if (typeof syncTileDesign === 'function' && typeof currentTileTab === 'string' && currentTileTab) syncTileDesign(currentTileTab);
   if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
@@ -268,38 +266,6 @@ async function saveTheme(value) {
     showNotification(t('networkErrorSave'), false);
   }
 }
-// Light theme: tinted tiles in the dark design while tinted (tile_surface);
-// html[data-dark-tinted] tells the preview (grid-preview.js tileSurfaceOf).
-let darkTintedSaveSequence = 0;
-function darkTintedEnabled() {
-  return document.documentElement.dataset.darkTinted === '1';
-}
-function applyDarkTintedPreview(enabled) {
-  if (enabled) document.documentElement.dataset.darkTinted = '1';
-  else delete document.documentElement.dataset.darkTinted;
-  document.querySelectorAll('.global-dark-tinted-toggle').forEach(input => { input.checked = !!enabled; });
-  tileDataLoadedTabs.forEach(tab => {
-    getTilesData(tab).forEach((tile, index) => { if (tile) renderTileFromData(tab, index, tile, sensorMetaCache); });
-  });
-  if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
-}
-async function saveDarkTinted(enabled) {
-  const wanted = !!enabled;
-  const sequence = ++darkTintedSaveSequence;
-  applyDarkTintedPreview(wanted);
-  try {
-    const response = await fetch('/api/display/dark-tinted', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'enabled=' + (wanted ? '1' : '0')
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-  } catch (error) {
-    if (sequence !== darkTintedSaveSequence) return;
-    applyDarkTintedPreview(!wanted);
-    showNotification(t('networkErrorSave'), false);
-  }
-}
 function syncGlobalDisplayControls(tabEl) {
   tabEl.querySelectorAll('.global-icon-disc-toggle').forEach(input => {
     input.checked = iconDiscsEnabled();
@@ -310,7 +276,6 @@ function syncGlobalDisplayControls(tabEl) {
   tabEl.querySelectorAll('.global-icon-glow').forEach(input => { input.value = String(glow); });
   tabEl.querySelectorAll('.global-icon-glow-value').forEach(output => { output.textContent = glow + ' %'; });
   if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
-  tabEl.querySelectorAll('.global-dark-tinted-toggle').forEach(input => { input.checked = darkTintedEnabled(); });
 }
 
 // The shared root variables also reach cached and lazily inserted folder grids.

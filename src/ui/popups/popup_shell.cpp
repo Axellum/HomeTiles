@@ -1,4 +1,6 @@
 #include "src/ui/popups/popup_shell.h"
+#include "src/tiles/runtime/tile_icon_source.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/ui/popups/popup_layout.h"
 #include "src/ui/shared/title_label.h"
@@ -375,12 +377,9 @@ void apply_header_disc_tint(lv_obj_t* disc, lv_obj_t* icon, lv_obj_t* source) {
   if (!lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN), color))
     lv_obj_set_style_bg_color(disc, color, 0);
   if (lv_obj_get_style_bg_opa(disc, LV_PART_MAIN) != opa) lv_obj_set_style_bg_opa(disc, opa, 0);
-  // A white light shows a mid grey below its circle in the light theme, also
-  // for pure white (it flashed to the darker icon grey when a dragged color
-  // reached white, user 2026-10-10); every other icon its own color.
-  const lv_color_t readable =
-      lv_color_hex(ui_theme::light() && tone_color::no_color(rgb) ? tone_color::below_circle(fill.disc, rgb)
-                                                                    : tone_color::readable_icon(rgb));
+  // The icon as its popup gives it (a light's icon is resolved by the Light
+  // popup, tone_color::light_icon), readable like a tile's.
+  const lv_color_t readable = lv_color_hex(tone_color::readable_icon(rgb));
   if (!lv_color_eq(lv_obj_get_style_text_color(icon, LV_PART_MAIN), readable))
     lv_obj_set_style_text_color(icon, readable, 0);
   // The pressed close button has exactly the control color of the popup
@@ -437,6 +436,38 @@ bool sync_header_value(lv_obj_t* source) {
 }
 }
 
+namespace {
+// The surface each popup root shows now (popup_follow_surface); cleared with
+// the popups (popup_shell_delete_popups).
+struct SurfaceMark {
+  lv_obj_t* root;
+  int8_t surface;
+};
+constexpr int kSurfaceMarks = 16;
+SurfaceMark g_surface_marks[kSurfaceMarks] = {};
+}  // namespace
+
+void popup_follow_surface(lv_obj_t* root) {
+  if (!root) return;
+  const int8_t want = popup_surface::g_open_surface == ui_theme::kThemeSurface ? -1 : popup_surface::g_open_surface;
+  SurfaceMark* mark = nullptr;
+  for (SurfaceMark& entry : g_surface_marks) {
+    if (entry.root == root) mark = &entry;
+  }
+  if (!mark) {
+    for (SurfaceMark& entry : g_surface_marks) {
+      if (!entry.root) {
+        entry = {root, -1};
+        mark = &entry;
+        break;
+      }
+    }
+  }
+  if (!mark || mark->surface == want) return;
+  tile_icon_source::recolor_surface(root, mark->surface, want);
+  mark->surface = want;
+}
+
 void register_popup_background(lv_obj_t* root) {
   if (!root) return;
   lv_obj_add_event_cb(root, draw_popup_background,
@@ -484,6 +515,8 @@ void show_popup_shell(lv_obj_t* owner, lv_obj_t* body, lv_obj_t* title,
   if (!owner || !body || !close) return;
   Binding* binding = bind(owner, body, title, icon, close);
   if (!binding) return;
+  // The popup's fixed texts take the open surface (a filled tile's color).
+  popup_follow_surface(body);
   binding->value = value;
   ensure_shell();
   // A newly shown popup takes the disc options of the tile that opened it (or
@@ -610,6 +643,8 @@ void popup_shell_follow_tile_color(uint32_t color) {
 
 void popup_shell_delete_popups() {
   detach();
+  // Rebuilt popups start with the theme's colors.
+  for (SurfaceMark& mark : g_surface_marks) mark = {};
   for (lv_obj_t*& slot : g_popup_overlays) {
     lv_obj_t* overlay = slot;
     slot = nullptr;
@@ -631,6 +666,7 @@ void hide_popup_shell(lv_obj_t* body) {
 
 void sync_popup_shell() {
   if (!shell.active) return;
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   auto* body = shell.active->body;
   if (lv_obj_has_flag(body, LV_OBJ_FLAG_HIDDEN)) { hide_popup_shell(body); return; }
   const auto color = lv_obj_get_style_bg_color(body, LV_PART_MAIN);

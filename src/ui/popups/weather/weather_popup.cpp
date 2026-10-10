@@ -1,4 +1,5 @@
 #include "src/ui/popups/popup_shell.h"
+#include "src/ui/popups/popup_surface.h"
 #include "src/ui/popups/popup_nav_style.h"
 #include "src/ui/popups/popup_open.h"
 #include "src/ui/popups/camera/camera_popup.h"
@@ -2972,6 +2973,7 @@ static void apply_init_to_context(WeatherPopupContext* ctx, const WeatherPopupIn
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void weather_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   WeatherPopupContext* ctx = g_weather_popup_ctx;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN) || ctx->bg_color == color) return;
   apply_card_color(ctx, color);
@@ -2982,11 +2984,13 @@ void weather_popup_follow_tile_color(uint32_t color) {
 namespace {
 
 static void on_overlay_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   (void)e;
 }
 
 static void on_close_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   lv_event_code_t code = lv_event_get_code(e);
   if (code != LV_EVENT_CLICKED && code != LV_EVENT_RELEASED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
@@ -3002,6 +3006,7 @@ static void on_close_click(lv_event_t* e) {
 }
 
 static void on_overlay_delete(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_DELETE) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   if (!ctx) return;
@@ -3021,6 +3026,7 @@ static void on_overlay_delete(lv_event_t* e) {
 }
 
 static void detail_title_tick_cb(lv_timer_t* timer) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_timer_get_user_data(timer));
   if (!ctx || !ctx->detail_title_label) return;
   if (weather_refresh_in_progress(ctx)) return;
@@ -3041,6 +3047,7 @@ static void detail_title_tick_cb(lv_timer_t* timer) {
 }
 
 static void on_mode_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -3056,6 +3063,7 @@ static void on_mode_click(lv_event_t* e) {
 }
 
 static void on_detail_nav_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -3085,6 +3093,7 @@ static void on_detail_nav_click(lv_event_t* e) {
 }
 
 static void on_header_action_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -3127,6 +3136,7 @@ static void on_header_action_click(lv_event_t* e) {
 }
 
 static void on_day_column_click(lv_event_t* e) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
   WeatherPopupContext* ctx = static_cast<WeatherPopupContext*>(lv_event_get_user_data(e));
   lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
@@ -4159,6 +4169,7 @@ static void finish_weather_popup_open() {
 }
 
 void show_weather_popup(const WeatherPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   hide_pin_popup();
   hide_camera_popup();
   hide_climate_popup();
@@ -4198,6 +4209,7 @@ void show_weather_popup(const WeatherPopupInit& init) {
 }
 
 void preload_weather_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_weather_popup_ctx && g_weather_popup_ctx->overlay && g_weather_popup_ctx->card) return;
   WeatherPopupInit init;
   init.entity_id = "__preload__";
@@ -4282,6 +4294,7 @@ void queue_weather_popup_payload(const char* entity_id, const char* payload) {
 }
 
 void process_weather_popup_queue() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_weather_popup_ctx || !g_weather_popup_ctx->card) {
     reset_pending_weather_update();
     return;
@@ -4454,6 +4467,7 @@ void process_weather_popup_queue() {
 }
 
 void weather_popup_refresh_language() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (!g_weather_popup_ctx || !g_weather_popup_ctx->card ||
       !g_weather_popup_ctx->has_rendered_data) {
     return;

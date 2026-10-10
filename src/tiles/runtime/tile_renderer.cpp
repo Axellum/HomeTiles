@@ -4427,36 +4427,6 @@ static void process_pending_media_cover_retries() {
                                      g_screensaver_media);
 }
 
-static uint8_t tile_surface_of(const Tile& tile, GridType grid_type, int8_t media_playing);
-
-// Whether the cached state of a Media tile's player is "playing".
-static bool media_cached_playing(const Tile& tile) {
-  String payload;
-  if (!tile.sensor_entity.length() || !tile_icon_source::cached_payload(tile.sensor_entity, payload)) return false;
-  String state;
-  if (!extract_json_string_field_cstr(payload.c_str(), "state", state)) state = payload;
-  state.trim();
-  return state.equalsIgnoreCase("playing");
-}
-
-// A Media tile enters the dark design when its player starts playing and
-// leaves it when it stops (tile_icon_source::set_playing): card, hairline,
-// texts, controls and circle switch without a rebuild.
-static void media_follow_playback(GridType grid_type, uint8_t grid_index, MediaTileWidgets& widgets, bool playing) {
-  lv_obj_t* card = tile_surface::card_of(widgets.media_title_label ? widgets.media_title_label : widgets.icon_label);
-  const Tile* tile = tile_renderer_get_tile_config(grid_type, grid_index);
-  if (!card || !tile) return;
-  const uint8_t before = tile_surface::get(card);
-  tile_icon_source::set_playing(card, playing, *tile);
-  if (tile_surface::get(card) == before) return;
-  // The play circle is filled with the icon color, no text color.
-  const ui_theme::SurfaceScope scope = tile_surface::scope(card);
-  if (lv_obj_t* play = widgets.play_pause_label ? lv_obj_get_parent(widgets.play_pause_label) : nullptr) {
-    lv_obj_set_style_bg_color(play, lv_color_hex(ui_theme::icon()), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(play, lv_color_hex(ui_theme::text_soft()), LV_PART_MAIN | LV_STATE_PRESSED);
-  }
-}
-
 void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char* payload) {
   if (grid_index >= TILES_PER_GRID || !payload) return;
   MediaTileWidgets* target = tile_renderer_get_media_widgets(grid_type);
@@ -4534,8 +4504,6 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
   sanitize_media_display_text(app);
   sanitize_media_display_text(source);
   sanitize_media_display_text(channel);
-  // The dark design while playing (light theme, tile_surface_of).
-  if (state.length()) media_follow_playback(grid_type, grid_index, widgets, state.equalsIgnoreCase("playing"));
 
   if (has_volume_level) {
     if (volume_level > 1.0f && volume_level <= 100.0f) {
@@ -5050,44 +5018,27 @@ static bool tile_has_own_color(const Tile& tile) {
 }
 
 // The surface a tile draws on (tile_surface in tile_icon_disc.h, user 2026-10-10):
-//   - a tile in its own color follows that color's lightness (a black tile is
-//     the light theme's screen: the theme);
-//   - else, in the light theme, its Design (Tile::design): Dark shows the dark
-//     design, Light never; Automatic shows it on Weather and on Media while it
-//     plays ("wenn nix abgespielt wird Media normal"; unknown: its last cached
-//     state), and on tinted tiles with the global option (tile_surface_rule_of);
-//   - the screensaver keeps the theme (a photo frame).
-static uint8_t tile_surface_of(const Tile& tile, GridType grid_type, int8_t media_playing) {
-  if (grid_type == GridType::SCREENSAVER) return tile_surface::kNone;
-  if (tile_has_own_color(tile)) {
-    const uint32_t own = tileBgColorRgb(tile);
-    if (!own) return tile_surface::kNone;
-    return tone_color::light_surface(own) ? tile_surface::kLight : tile_surface::kDark;
-  }
-  if (!ui_theme::theme_light() || tile.design == TILE_DESIGN_LIGHT) return tile_surface::kNone;
-  if (tile.design == TILE_DESIGN_DARK || tile.type == TILE_WEATHER) return tile_surface::kDarkDesign;
-  if (tile.type == TILE_MEDIA) {
-    if (media_playing < 0) media_playing = media_cached_playing(tile) ? 1 : 0;
-    if (media_playing) return tile_surface::kDarkDesign;
-  }
-  return tile_surface::kNone;
+// a tile in its own color follows that color's lightness (a black tile is the
+// light theme's screen: the theme); every other tile, and the screensaver (a
+// photo frame), keeps the theme.
+static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
+  if (grid_type == GridType::SCREENSAVER || !tile_has_own_color(tile)) return tile_surface::kNone;
+  const uint32_t own = tileBgColorRgb(tile);
+  if (!own) return tile_surface::kNone;
+  return tone_color::light_surface(own) ? tile_surface::kLight : tile_surface::kDark;
 }
 
 // The rule of a tile whose surface changes while it runs (tile_surface
-// set_rule, 0 = none): Media follows its playback; with the global option
-// "Tinted tiles dark" a tile shows the dark design while it is tinted.
-static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type, uint8_t surface) {
+// set_rule, 0 = none): in the light theme a tile without an own color is
+// filled with its icon's color while it is tinted (user 2026-10-10, the dark
+// theme's recipe lighter: tile_surface::kJewel). Weather and Media follow the
+// same rule.
+static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
-      tile.design != TILE_DESIGN_AUTO || tile_has_own_color(tile) || tile.type == TILE_WEATHER) {
+      tile_has_own_color(tile)) {
     return 0;
   }
-  uint8_t flags = 0;
-  if (tile.type == TILE_MEDIA) {
-    flags |= tile_surface::kMedia;
-    if (surface == tile_surface::kDarkDesign) flags |= tile_surface::kPlaying;
-  }
-  if (configManager.getConfig().dark_tinted) flags |= tile_surface::kFollowTint;
-  return flags;
+  return tile_surface::kFollowTint;
 }
 
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {
@@ -5097,15 +5048,15 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
   if (desc && desc->render) {
     // The whole tile draws with its surface's rules; its card keeps the
     // surface for every later color change (tile_surface::scope).
-    const uint8_t surface = tile_surface_of(tile, grid_type, -1);
-    const ui_theme::SurfaceScope scope(tile_surface::theme_of(surface));
+    const uint8_t surface = tile_surface_of(tile, grid_type);
+    const int8_t surface_theme = tile_surface::theme_of(surface);
+    const ui_theme::SurfaceScope scope(surface_theme >= 0 ? surface_theme : ui_theme::kThemeSurface);
     lv_obj_t* tile_obj =
         desc->render(parent, col, row, tile, index, grid_type, scene_cb);
     tile_surface::set(tile_obj, surface);
-    if (const uint8_t rule = tile_surface_rule_of(tile, grid_type, surface)) {
+    if (const uint8_t rule = tile_surface_rule_of(tile, grid_type)) {
       tile_surface::set_rule(tile_obj, tile_surface::kNone, rule);
     }
-    if (surface == tile_surface::kDarkDesign) tile_icon_source::apply_dark_design(tile_obj);
     apply_fractional_tile_geometry(tile_obj, tile);
     // Rules (forced icon color, tile tint) from the cached states, before the
     // discs take the icon color and the background. A tint may change the
@@ -5113,13 +5064,11 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
     tile_icon_source::refresh_card(tile_obj, tile);
     tile_icon_disc::apply_tile_options(tile_obj, tile.icon_disc_mode, tile.icon_glow);
     disable_pressed_recolor(tile_obj);
-    // The dark design has no hairline, like the dark theme (lab 2026-10-10).
-    const bool dark_design = tile_surface::dark_design(tile_surface::get(tile_obj));
-    if (!tileBorderEnabled(tile) || dark_design) ui_surface_style::disable_tile_border(tile_obj);
-    // Normal grids use the global display option. The screensaver has its
-    // own setting and applies it after rendering in image_screensaver.cpp.
-    if (tile_obj && grid_type != GridType::SCREENSAVER &&
-        tile.type != TILE_EMPTY && !dark_design) {
+    if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
+    // Normal grids use the global display option (a filled tile draws it as
+    // its rim, set_tile_border_rim). The screensaver has its own setting and
+    // applies it after rendering in image_screensaver.cpp.
+    if (tile_obj && grid_type != GridType::SCREENSAVER && tile.type != TILE_EMPTY) {
       ui_surface_style::apply_global_tile_border(tile_obj);
     }
     return tile_obj;

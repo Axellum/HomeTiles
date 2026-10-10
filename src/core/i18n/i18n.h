@@ -233,8 +233,6 @@ struct Strings {
   const char* theme_dark;
   const char* theme_light;
   const char* theme_auto;
-  // Global option: a tinted tile shows the dark design in the light theme.
-  const char* dark_tinted_tiles;
   // Web Admin: the tabs on top of the settings panel (tile settings, the
   // global tile settings; on the screensaver page its picture settings).
   const char* panel_tab_tile;

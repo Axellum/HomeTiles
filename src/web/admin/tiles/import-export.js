@@ -769,9 +769,6 @@
     if (tile.icon_glow !== undefined && tile.icon_glow !== null) {
       fd.append('icon_glow', ['0', 'false'].includes(String(tile.icon_glow)) ? '0' : '1');
     }
-    if (tile.design !== undefined && tile.design !== null) {
-      fd.append('design', ['1', '2'].includes(String(tile.design)) ? String(tile.design) : '0');
-    }
     const parsedBgColor = parseBgColorValue(tile.bg_color);
     if (parsedBgColor !== 0 || (typeof tile.bg_color === 'string' && tile.bg_color.trim().startsWith('#'))) {
       fd.append('bg_color', parsedBgColor);

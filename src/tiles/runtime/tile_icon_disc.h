@@ -11,16 +11,17 @@
 // The surface a tile card draws on (user 2026-10-10: "the tile decides"). A
 // tile in its own color follows that color's lightness - its text, icons and
 // circles take the dark theme's rules on a dark color and the light theme's on
-// a light one, in either theme - and Media and Weather show the dark design in
-// the light theme (the dark theme's card, ui_theme::kDarkDesignLift lighter).
+// a light one, in either theme - and a tinted tile in the light theme is
+// filled with its icon's color (kJewel: the dark theme's recipe, lighter;
+// tone_color::jewel_card).
 // tile_renderer::render_tile marks the card; every later color path opens a
 // ui_theme::SurfaceScope for it (scope()), so state updates draw like the
 // first render.
 namespace tile_surface {
 
-// kTintDark: the dark design of a tinted tile while it is tinted (global
-// option "Tinted tiles dark"); it draws with ui_theme::kDarkTinted.
-enum : uint8_t { kNone = 0, kDark = 1, kLight = 2, kDarkDesign = 3, kTintDark = 4 };
+// kJewel: a tinted tile in the light theme while it is tinted; it draws with
+// ui_theme::kDarkTinted.
+enum : uint8_t { kNone = 0, kDark = 1, kLight = 2, kJewel = 3 };
 
 // Kept as a local style value in a state selector the card never takes. Every
 // tile card carries it (kNone too), so its scopes know their card.
@@ -62,26 +63,24 @@ inline uint8_t find(lv_obj_t* obj) {
 // The theme a surface draws with (ui_theme::g_surface): 0 dark, 1 light,
 // 2 dark for a tinted tile, -1 the theme.
 inline int8_t theme_of(uint8_t surface) {
-  if (surface == kTintDark) return ui_theme::kDarkTintedSurface;
-  return surface == kLight ? 1 : (surface == kDark || surface == kDarkDesign) ? 0 : -1;
+  if (surface == kJewel) return ui_theme::kDarkTintedSurface;
+  return surface == kLight ? 1 : surface == kDark ? 0 : -1;
 }
 
-// The dark design on the light theme (no hairline, the lifted dark card).
-inline bool dark_design(uint8_t surface) { return surface == kDarkDesign || surface == kTintDark; }
 
-// Opens the surface of `obj`'s card for the colors computed while it lives.
+// Opens the surface of `obj`'s card for the colors computed while it lives;
+// a card on the theme opens the theme explicitly, also inside a popup's
+// scope (a popup command updating its tile).
 inline ui_theme::SurfaceScope scope(lv_obj_t* obj) {
   lv_obj_t* card = card_of(obj);
-  return ui_theme::SurfaceScope(theme_of(card ? get(card) : find(obj)), card);
+  const int8_t theme = theme_of(card ? get(card) : find(obj));
+  return ui_theme::SurfaceScope(theme >= 0 ? theme : ui_theme::kThemeSurface, card);
 }
 
 // The rule of a card whose surface changes while it runs (render_tile): the
-// surface it shows without a tint or playback (BORDER_OPA) and its flags
-// (OUTLINE_OPA). kFollowTint: the dark design while tinted; kPlaying: a Media
-// tile playing shows the dark design.
+// surface it shows without a tint (BORDER_OPA) and its flags (OUTLINE_OPA).
+// kFollowTint: filled (kJewel) while tinted.
 inline constexpr uint8_t kFollowTint = 1;
-inline constexpr uint8_t kPlaying = 2;
-inline constexpr uint8_t kMedia = 4;
 
 inline void set_rule(lv_obj_t* card, uint8_t base, uint8_t flags) {
   if (!card) return;
@@ -102,9 +101,22 @@ inline bool rule_of(lv_obj_t* card, uint8_t& base, uint8_t& flags) {
 
 // The surface a card with a rule shows now.
 inline uint8_t wanted(uint8_t base, uint8_t flags, bool tinted) {
-  if (flags & kPlaying) return kDarkDesign;
-  if ((flags & kFollowTint) && tinted) return kTintDark;
-  return base;
+  return (flags & kFollowTint) && tinted ? kJewel : base;
+}
+
+// The tint strength of a filled card (tile color "From icon" percent): its
+// card's and circle's chroma (tone_color::jewel_card, jewel_fill).
+inline void set_strength(lv_obj_t* card, uint8_t percent) {
+  if (card) lv_obj_set_style_shadow_opa(card, percent, kStore);
+}
+inline uint8_t strength(lv_obj_t* obj) {
+  for (int depth = 0; obj && depth < 5; ++depth, obj = lv_obj_get_parent(obj)) {
+    lv_style_value_t value;
+    if (lv_obj_get_local_style_prop(obj, LV_STYLE_SHADOW_OPA, &value, kStore) == LV_STYLE_RES_FOUND) {
+      return static_cast<uint8_t>(value.num);
+    }
+  }
+  return 0;
 }
 
 }  // namespace tile_surface
@@ -388,6 +400,11 @@ inline uint32_t circle_card(lv_obj_t* host, uint32_t card, uint32_t rgb, bool ti
 // screensaver tiles keep the steps' veil.
 inline tone_color::Fill tile_fill(lv_obj_t* host, uint32_t card, uint32_t rgb, bool tinted, bool pressed,
                                   bool see_through_card, uint8_t percent) {
+  // A filled tile in the light theme: one step above its card in the icon's
+  // hue (tone_color::jewel_fill).
+  if (tinted && !see_through_card && tile_surface::find(host) == tile_surface::kJewel) {
+    return tone_color::jewel_fill(card, rgb, percent, tile_surface::strength(host));
+  }
   if (ui_theme::light() && !see_through_card) {
     const uint32_t shown = tone_color::readable_icon(rgb);
     const uint32_t over = tinted || !icon_color_tints(shown) ? shown : ui_theme::icon();

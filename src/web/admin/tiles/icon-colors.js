@@ -617,24 +617,37 @@
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
   function setTileTintBackground(el, color, percent) {
-    // A tile that follows its tint enters the dark design first
-    // (tile_surface::change in set_tile_tint).
-    if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'darktint' && typeof applyTileSurface === 'function') {
-      applyTileSurface(el, 'darktint');
+    // White and almost white never fill a tile (set_tile_tint): it keeps its
+    // untinted background.
+    const given = [1, 3, 5].map(i => parseInt(String(color).slice(i, i + 2), 16));
+    if (el?.dataset?.followTint === '1' && typeof toneNoColor === 'function' && toneNoColor(given)) {
+      if (el.dataset.surface === 'jewel' && typeof applyTileSurface === 'function') applyTileSurface(el, '');
+      if (el.dataset.baseBg !== undefined) el.style.background = el.dataset.baseBg;
+      return;
+    }
+    // A tile filled while tinted (light theme) enters that surface first
+    // (tile_icon_source::change_surface in set_tile_tint).
+    if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'jewel' && typeof applyTileSurface === 'function') {
+      applyTileSurface(el, 'jewel');
     }
     // A tile on its own surface tints with that surface's rules, from that
-    // theme's card; the dark design a little lighter (set_tile_tint).
+    // theme's card (set_tile_tint).
     const surface = el?.dataset?.surface || '';
     const theme = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
     const pageLight = typeof panelThemeLight === 'function' ? panelThemeLight() : false;
     let base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
-    if ((theme === 0 || theme === 2) && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+    if (theme === 0 && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
     if (theme === 1 && !pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--pvl-card') || '').trim();
     let hex = typeof withSurface === 'function'
       ? withSurface(theme, () => tileTintBackground(base || '#1A1A1A', color, percent))
       : tileTintBackground(base || '#1A1A1A', color, percent);
-    if ((surface === 'darkdesign' || surface === 'darktint') && typeof toneDarkDesign === 'function') {
-      hex = toneHex(toneDarkDesign([1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)))).toUpperCase();
+    if (surface === 'jewel' && typeof toneJewelCard === 'function') {
+      // Filled (tone_color::jewel_card): from the icon's own color; its rim a
+      // step lighter (jewel_rim), its strength for the circle.
+      const card = toneJewelCard(given, Number(percent) || 20);
+      hex = toneHex(card).toUpperCase();
+      el.style.setProperty('--tile-rim', toneHex(toneJewelRim(card, given)));
+      el.dataset.jewelStrength = String(Number(percent) || 20);
     }
     const opacity = el.dataset.bgOpacity;
     el.style.background = opacity === undefined ? hex : hex + Number(opacity).toString(16).padStart(2, '0');

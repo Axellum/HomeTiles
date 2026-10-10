@@ -560,6 +560,13 @@ static uint32_t get_preview_icon_rgb(const LightPopupContext* ctx) {
   return kDefaultColor;
 }
 
+// The header icon of a light that is on: exactly its power button's color
+// (tone_color::light_icon, white = the icon grey); off and unavailable keep
+// their greys.
+static uint32_t shown_icon_rgb(const LightPopupContext* ctx, uint32_t rgb) {
+  return ctx->available && ctx->is_on ? tone_color::light_icon(rgb) : rgb;
+}
+
 // The color the header icon shows, the one its circle is computed for.
 static uint32_t header_icon_rgb(const LightPopupContext* ctx, uint32_t icon_rgb) {
   return ctx->keep_icon_white && ctx->available ? 0xFFFFFF : icon_rgb;
@@ -609,8 +616,7 @@ static void update_header_and_power_visuals(LightPopupContext* ctx, uint32_t ico
   if (ctx->icon_label) {
     lv_obj_set_style_text_color(
         ctx->icon_label,
-        lv_color_hex(
-            ctx->keep_icon_white && ctx->available ? 0xFFFFFF : icon_rgb),
+        lv_color_hex(shown_icon_rgb(ctx, ctx->keep_icon_white && ctx->available ? 0xFFFFFF : icon_rgb)),
         0);
   }
   if (ctx->power_button) {
@@ -658,7 +664,8 @@ static void update_live_accent_visuals(LightPopupContext* ctx,
     ctx->accent_ms = now;
   }
   if (ctx->icon_label && !ctx->keep_icon_white) {
-    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(icon_rgb), 0);
+    // Exactly the power button's color (tone_color::light_icon).
+    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(shown_icon_rgb(ctx, icon_rgb)), 0);
   }
   if (ctx->power_button && ctx->is_on) {
     const uint32_t accent = tone_color::light_accent(icon_rgb);
@@ -1815,6 +1822,7 @@ static void apply_card_color(LightPopupContext* ctx, uint32_t bg_color) {
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void light_popup_follow_tile_color(uint32_t bg_color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   LightPopupContext* ctx = g_light_popup_ctx;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
   const uint32_t color = popup_surface::card_or_default(bg_color);
@@ -1915,8 +1923,8 @@ static void apply_init_to_context(LightPopupContext* ctx, const LightPopupInit& 
     lv_label_set_text(ctx->icon_label, icon_char.c_str());
   }
   if (!apply_content) {
-    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(
-        ctx->keep_icon_white && ctx->available ? 0xFFFFFF : get_preview_icon_rgb(ctx)), 0);
+    lv_obj_set_style_text_color(ctx->icon_label, lv_color_hex(shown_icon_rgb(ctx,
+        ctx->keep_icon_white && ctx->available ? 0xFFFFFF : get_preview_icon_rgb(ctx))), 0);
     // The reused buttons show this light's circle color in the first frame.
     follow_mode_button_fill(ctx, get_preview_icon_rgb(ctx));
     ctx->suppress_events = false;
@@ -2441,6 +2449,7 @@ static void prepare_light_popup_open(const LightPopupInit& init) {
 }
 
 void show_light_popup(const LightPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   hide_pin_popup();
   hide_camera_popup();
   if (!init.entity_id.length()) return;
@@ -2599,6 +2608,7 @@ void show_light_popup(const LightPopupInit& init) {
 // State updates never recolor the card: the popup keeps the background of
 // the tile it was opened from, so init.bg_color is ignored here.
 void update_light_popup(const LightPopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (!g_light_popup_ctx || !g_light_popup_ctx->overlay || !g_light_popup_ctx->card) return;
   if (!g_light_popup_ctx->entity_id.length()) return;
   if (!g_light_popup_ctx->entity_id.equalsIgnoreCase(init.entity_id)) return;
@@ -2629,6 +2639,7 @@ void update_light_popup(const LightPopupInit& init) {
 }
 
 void preload_light_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_light_popup_ctx && g_light_popup_ctx->overlay && g_light_popup_ctx->card) return;
   LightPopupInit init;
   init.entity_id = "__preload__";

@@ -32,10 +32,6 @@
     };
   }
   function loadIconDiscFields(tab, data) {
-    // The tile's Design (TileDesign) loads with its icon options.
-    const design = document.getElementById(tab + '_tile_design');
-    if (design) design.value = ['0', '1', '2'].includes(String(data?.design)) ? String(data.design) : '0';
-    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     const box = document.getElementById(tab + '_tile_icon_disc');
     if (box) box.checked = String(data?.icon_disc) !== '2';
     const glow = document.getElementById(tab + '_tile_icon_glow');
@@ -43,9 +39,6 @@
     syncIconDiscFields(tab);
   }
   function resetIconDiscFields(tab) {
-    const design = document.getElementById(tab + '_tile_design');
-    if (design) design.value = '0';
-    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     const box = document.getElementById(tab + '_tile_icon_disc');
     if (box) box.checked = true;
     const glow = document.getElementById(tab + '_tile_icon_glow');
@@ -68,8 +61,6 @@
     const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
     const meta = getTileTypeMeta(typeValue);
     const out = collectIconDiscFields(prefix, typeValue);
-    // The Design of every tile (TileDesign), 0 for an empty slot.
-    if (typeValue !== '0') out.design = typeof tileDesignValue === 'function' ? tileDesignValue(prefix) : '0';
     if (!meta.save) return out;
     const fd = new FormData();
     callTypeHandler(meta, 'save', prefix, fd);
@@ -133,7 +124,7 @@
     // data, its entity and options returned with the next tile in the slot.
     const tile = Number(snapshot?.type) === 0 ? {} : Object.assign({}, prev);
     const layout = normalizeSnapshotLayout(snapshot, index, tab);
-    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'sensor_gauge_min', 'sensor_gauge_max', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier', 'background_opacity', 'icon_disc', 'icon_glow', 'design'];
+    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'sensor_gauge_min', 'sensor_gauge_max', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier', 'background_opacity', 'icon_disc', 'icon_glow'];
 
     tile.type = clampInt(snapshot?.type, 0, 255, Number(prev.type) || 0);
     tile.title = snapshot?.title || '';

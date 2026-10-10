@@ -1,4 +1,4 @@
-import {radiusPolicyHost, surfaceStyleHost} from '../../lib/surface-style-host.mjs';
+import {radiusPolicyHost, surfaceStyleHost, popupSurfaceHost} from '../../lib/surface-style-host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -91,6 +91,7 @@ ${stripIncludes(read('src/ui/popups/popup_open.cpp'))}
 ${stripIncludes(read('src/ui/shared/ui_pulse.h'))}
 ${stripIncludes(read('src/tiles/icons/mdi_bar_icons.h'))}
 ${stripIncludes(read('src/ui/shared/icon_lock_mark.h'))}
+${popupSurfaceHost(root)}
 ${stripIncludes(read('src/ui/popups/popup_shell.cpp'))}
 ${stripIncludes(read('src/ui/popups/popup_nav_style.h'))}
 ${stripIncludes(read('src/core/config/pin_access.h'))}

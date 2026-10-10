@@ -2396,6 +2396,7 @@ static void finish_climate_popup_open(const ClimatePopupInit& init) {
 // While open, the popup follows its tile's current background (a rules tint
 // that changes with the entity state); tile_icon_source calls this.
 void climate_popup_follow_tile_color(uint32_t color) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   ClimatePopupContext* ctx = g_climate_popup;
   if (!ctx || !ctx->card || lv_obj_has_flag(ctx->card, LV_OBJ_FLAG_HIDDEN)) return;
   apply_card_color(ctx, color, false);
@@ -2425,6 +2426,7 @@ static void prepare_climate_popup_open(const ClimatePopupInit& init) {
 }
 
 void show_climate_popup(const ClimatePopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   hide_pin_popup();
   hide_camera_popup();
   if (!init.entity_id.length()) return;
@@ -2894,6 +2896,7 @@ void show_climate_popup(const ClimatePopupInit& init) {
 }
 
 void update_climate_popup(const ClimatePopupInit& init) {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   ClimatePopupContext* ctx = g_climate_popup;
   if (!ctx || !ctx->card || !ctx->overlay) return;
   if (!ctx->entity_id.equalsIgnoreCase(init.entity_id)) return;
@@ -2920,6 +2923,7 @@ void update_climate_popup(const ClimatePopupInit& init) {
 }
 
 void preload_climate_popup() {
+  const ui_theme::SurfaceScope popup_scope = popup_surface::theme_scope();
   if (g_climate_popup && g_climate_popup->card) return;
   ClimatePopupInit init;
   init.entity_id = "__preload__";

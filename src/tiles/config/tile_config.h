@@ -163,10 +163,6 @@ struct Tile {
   uint8_t icon_disc_mode = 0;
   // Glow: a colored icon tints its disc with the same hue.
   bool icon_glow = true;
-  // Design in the light theme (TileDesign): Automatic, Light or the dark
-  // design (tile_renderer.cpp tile_surface_of). A tile in its own color
-  // follows that color instead.
-  uint8_t design = 0;
   // Fixed icon color, color bar and state colors (tile_icon_colors.h), kept
   // in the /_tile_icon_colors sidecar. Empty = the type's default icon colors.
   String icon_colors;
@@ -218,7 +214,7 @@ static inline bool tileContentEquals(const Tile& a, const Tile& b) {
          a.key_modifier == b.key_modifier && a.image_path == b.image_path &&
          a.image_slideshow_sec == b.image_slideshow_sec &&
          a.icon_disc_mode == b.icon_disc_mode && a.icon_glow == b.icon_glow &&
-         a.design == b.design && a.icon_colors == b.icon_colors;
+         a.icon_colors == b.icon_colors;
 }
 
 // A deleted (empty) tile keeps only its slot geometry. Its entity, texts and
@@ -242,20 +238,6 @@ static inline uint8_t normalizeTileIconDiscMode(int mode) {
   return (mode >= TILE_ICON_DISC_GLOBAL && mode <= TILE_ICON_DISC_OFF)
              ? static_cast<uint8_t>(mode)
              : TILE_ICON_DISC_GLOBAL;
-}
-
-// A tile's Design in the light theme (user 2026-10-10): Automatic (Weather,
-// Media while it plays and, with the global option, tinted tiles show the dark
-// design), always Light, or always the dark design.
-enum TileDesign : uint8_t {
-  TILE_DESIGN_AUTO = 0,
-  TILE_DESIGN_LIGHT = 1,
-  TILE_DESIGN_DARK = 2
-};
-
-static inline uint8_t normalizeTileDesign(int design) {
-  return (design >= TILE_DESIGN_AUTO && design <= TILE_DESIGN_DARK) ? static_cast<uint8_t>(design)
-                                                                    : TILE_DESIGN_AUTO;
 }
 
 // Canonical icon color record for a type: numeric types keep only the color

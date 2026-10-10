@@ -98,9 +98,6 @@ struct DeviceConfig {
   // The theme Automatic showed last (0 dark, 1 light): a boot before the
   // clock is set starts with it.
   uint8_t theme_auto_last = 0;
-  // Light theme: a tinted tile (tile color "From icon", a rule tint) shows the
-  // dark design while it is tinted (user 2026-10-10; tile_surface).
-  bool dark_tinted = false;
   // Glow strength of colored icon discs in percent (icon_glow.h).
   uint8_t icon_glow = icon_glow::kDefault;
   // Background of tiles without their own color (and of reset/new tiles).
@@ -165,7 +162,6 @@ public:
   bool saveHeadGear(bool enabled);
   bool saveTheme(uint8_t theme);
   bool saveThemeAutoLast(uint8_t theme);
-  bool saveDarkTinted(bool enabled);
   bool saveTileRadius(uint16_t radius);
   bool saveIconDiscs(bool enabled);
   bool saveIconGlow(uint8_t percent);

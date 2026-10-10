@@ -1,6 +1,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include "src/ui/popups/popup_surface.h"
 #include <initializer_list>
 #include <math.h>
 #include <stddef.h>
@@ -86,6 +87,8 @@ class PopupGraphScrub {
   }
 
   static void input(lv_event_t* event) {
+    // The graph's popup may draw on a filled tile's color (popup_surface).
+    const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
     auto* self = static_cast<PopupGraphScrub*>(lv_event_get_user_data(event));
     auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
     if (!self || !target) return;
@@ -124,6 +127,8 @@ class PopupGraphScrub {
   }
 
   static void refresh(lv_event_t* event) {
+    // The graph's popup may draw on a filled tile's color (popup_surface).
+    const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
     auto* self = static_cast<PopupGraphScrub*>(lv_event_get_user_data(event));
     if (!self) return;
     if (lv_event_get_code(event) == LV_EVENT_DELETE) {
