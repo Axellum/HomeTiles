@@ -896,6 +896,7 @@
       delete el.dataset.selected;
     });
     document.querySelectorAll('.tile-specific-settings').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tile-settings').forEach(panel => { panel.dataset.pane = 'global'; });
     // The page again, with what the panel now has.
     for (const tab of Object.keys(state.pages)) {
       tilesData[tab] = state.pages[tab];

@@ -67,9 +67,9 @@ assert.match(registry, /if \(follows_default_tile_color\(entry\)\) html \+= "sha
 // Web Admin row: heading and labels come from the central translations.
 const html = read('src/web/server/render/web_admin_html.cpp');
 for (const marker of [
-  'appendHtmlEscaped(html, tr.global_settings_heading);',
-  'appendHtmlEscaped(html, tr.icon_discs);',
-  'appendHtmlEscaped(html, tr.default_tile_color);',
+  'appendHtmlEscaped(global_panel, tr.global_settings_heading);',
+  'appendHtmlEscaped(global_panel, tr.icon_discs);',
+  'appendHtmlEscaped(global_panel, tr.default_tile_color);',
   'onchange=\\"saveIconDiscs(this.checked)\\"',
   'oninput=\\"previewDefaultTileColor(this.value)\\"',
   'onchange=\\"saveDefaultTileColor(this.value)\\"',
@@ -118,23 +118,24 @@ assert.ok(styles.includes('html += "--tile-card:var(--tile-default-bg);--pv-blac
   'The dark theme paints tiles in the global tile color');
 assert.match(read('src/web/admin/tiles/live-preview.js'), /tileBackgroundCss\(meta, isDefaultBg,/);
 assert.match(read('src/web/assets/admin.css'), /\.icon-discs-off \.tile\.sensor-compact:not\(\[data-icon-disc="1"\]\) > \.tile-icon/);
-// The global block uses the Tile Settings style in two compact columns:
+// The global block (written into global_panel, shown in the panel's
+// "Global" tab) uses the Tile Settings style in two compact columns:
 // checkboxes like Glow, small labels above the radius, glow and color fields,
 // and the tile Color field with its reset button.
 for (const marker of [
-  'html += "<section class=\\"global-settings-panel\\"><h3>";',
-  'html += "</h3><div class=\\"global-settings-grid\\"><label class=\\"inline-checkbox\\">"',
+  'global_panel += "<section class=\\"global-settings-panel\\"><h3>";',
+  'global_panel += "</h3><div class=\\"global-settings-grid\\"><label class=\\"inline-checkbox\\">"',
   '"<input class=\\"normal-tile-border-toggle\\" id=\\"" +',
-  'html += "</label><label class=\\"inline-checkbox\\"><input class=\\"global-icon-disc-toggle\\" id=\\"" +',
+  'global_panel += "</label><label class=\\"inline-checkbox\\"><input class=\\"global-icon-disc-toggle\\" id=\\"" +',
   // The layout field (its pen opens the layout window) before the radius.
-  'html += "</label><button type=\\"button\\" class=\\"layout-choice\\" onclick=\\"openLayoutWindow()\\" title=\\"";',
-  'html += "<div class=\\"global-settings-field\\"><label for=\\"" + radius_id + "\\">";',
-  'html += "</div></div><div class=\\"global-settings-field\\"><label for=\\"" + glow_id + "\\">";',
+  'global_panel += "</label><button type=\\"button\\" class=\\"layout-choice\\" onclick=\\"openLayoutWindow()\\" title=\\"";',
+  'global_panel += "<div class=\\"global-settings-field\\"><label for=\\"" + radius_id + "\\">";',
+  'global_panel += "</div></div><div class=\\"global-settings-field\\"><label for=\\"" + glow_id + "\\">";',
   'appendHtmlEscaped(html, tr.icon_glow);',
   '"\\" oninput=\\"previewIconGlowLive(this.value)\\" onchange=\\"saveIconGlow(this.value)\\">"',
   '"onclick=\\"saveIconGlow(" + String(icon_glow::kDefault) + ")\\"><i class=\\"mdi mdi-restore\\"></i></button>"',
-  'html += "<div class=\\"global-settings-field global-tile-color-field\\"><label for=\\"" + color_id + "\\">";',
-  'html += "</label><div class=\\"tile-color-row\\"><input class=\\"global-tile-color\\" id=\\"" + color_id +',
+  'global_panel += "<div class=\\"global-settings-field global-tile-color-field\\"><label for=\\"" + color_id + "\\">";',
+  'global_panel += "</label><div class=\\"tile-color-row\\"><input class=\\"global-tile-color\\" id=\\"" + color_id +',
   '"<button type=\\"button\\" class=\\"tile-color-reset-btn\\" title=\\"Reset\\" "',
   'static_cast<unsigned>(tile_color::kDefault));',
   '<label class="inline-checkbox"><input id="screensaverTileBorder" type="checkbox"> )html";',

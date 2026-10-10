@@ -404,7 +404,9 @@ static void appendHeadBarVars(String& html);
 // with --pv-*, the preview script mirrors tone_color and tile_tint with them.
 // html[data-panel-theme] picks the theme; switching it repaints the preview.
 static void appendPanelThemeVars(String& html) {
-  auto emit_roles = [&html](const ui_theme::Roles& roles) {
+  // `prefix` "pv" is the page's theme; "pvd" and "pvl" keep both tables for
+  // a tile on the other theme's surface (tile_surface, grid-preview.js).
+  auto emit_roles = [&html](const ui_theme::Roles& roles, const char* prefix) {
     const struct {
       const char* name;
       uint32_t rgb;
@@ -413,28 +415,34 @@ static void appendPanelThemeVars(String& html) {
         {"text", roles.text},           {"icon", roles.icon},
         {"icon-off", roles.icon_off},   {"icon-inactive", roles.icon_inactive},
         {"icon-rest", roles.icon_rest}, {"text-secondary", roles.text_secondary},
-        {"text-soft", roles.text_soft},
+        {"text-soft", roles.text_soft}, {"icon-unavailable", roles.icon_unavailable},
     };
     char value[48];
     for (const auto& entry : entries) {
-      snprintf(value, sizeof(value), "--pv-%s:#%06X;", entry.name, static_cast<unsigned>(entry.rgb));
+      snprintf(value, sizeof(value), "--%s-%s:#%06X;", prefix, entry.name, static_cast<unsigned>(entry.rgb));
       html += value;
     }
-    snprintf(value, sizeof(value), "--pv-text-rgb:%u,%u,%u;", static_cast<unsigned>((roles.text >> 16) & 0xFF),
+    snprintf(value, sizeof(value), "--%s-text-rgb:%u,%u,%u;", prefix, static_cast<unsigned>((roles.text >> 16) & 0xFF),
              static_cast<unsigned>((roles.text >> 8) & 0xFF), static_cast<unsigned>(roles.text & 0xFF));
     html += value;
   };
   html += "<style>:root{";
-  emit_roles(ui_theme::kDark);
+  emit_roles(ui_theme::kDark, "pv");
+  emit_roles(ui_theme::kDark, "pvd");
+  emit_roles(ui_theme::kLight, "pvl");
   // The dark theme's tile card is the global tile color; a black tile stays black.
   html += "--tile-card:var(--tile-default-bg);--pv-black-tile:#000000;";
-  char factors[96];
-  snprintf(factors, sizeof(factors), "--pv-light-step:%.6f;--pv-light-tint:%.6f;",
+  char factors[192];
+  snprintf(factors, sizeof(factors),
+           "--pv-light-step:%.6f;--pv-light-tint:%.6f;--pv-light-surface:%.3f;--pv-light-circle:%.3f;"
+           "--pv-dark-lift:%.3f;",
            static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,
-           static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen);
+           static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen,
+           static_cast<double>(ui_theme::kLightSurfaceL), static_cast<double>(ui_theme::kLightCircleShare),
+           static_cast<double>(ui_theme::kDarkDesignLift));
   html += factors;
   html += "}html[data-panel-theme=\"light\"]{";
-  emit_roles(ui_theme::kLight);
+  emit_roles(ui_theme::kLight, "pv");
   // The light theme keeps its light card (tileDefaultBgColor) and shows a
   // black tile in the screen color (tileBgColorOrDefault).
   char card[24];

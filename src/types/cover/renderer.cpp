@@ -486,6 +486,9 @@ void apply_state(GridType grid_type, uint8_t index, const char* payload) {
   if (!state.valid) return;
   widget.last_payload_hash = hash;
   states[index] = state;
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface =
+      tile_surface::scope(widget.icon_label ? widget.icon_label : widget.title_label);
 
   show_view(grid_type, index);
   if (widget.icon_label) {

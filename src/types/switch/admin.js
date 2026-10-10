@@ -349,7 +349,8 @@ function maybeFillTitleFromSwitch(tab) {
     const iconEl = tileElem.querySelector('.tile-icon');
     if (!iconEl) return;
     if (state.available === false) {
-      iconEl.style.color = panelRoleHex('icon-off', SWITCH_ICON_OFF);
+      // Unavailable: fainter than off in the light theme (icon_unavailable).
+      iconEl.style.color = panelRoleHex('icon-unavailable', SWITCH_ICON_OFF);
       return;
     }
     if (!state.hasState && !state.hasColor) return;
@@ -391,9 +392,19 @@ function maybeFillTitleFromSwitch(tab) {
     // Accent = the color the icon shows, card = the tile, thumb off = one
     // OKLCH step above the control fill (tone_color::lifted).
     const iconEl = tileElem.querySelector('.tile-icon');
-    const accent = iconEl ? getComputedStyle(iconEl).color : (state.hasColor ? state.color : SWITCH_ICON_ON);
-    bar.style.setProperty('--switch-accent', accent);
-    bar.style.setProperty('--switch-card', getComputedStyle(tileElem).backgroundColor);
+    // The light theme: the light's own color, a white light in light grey
+    // (accent_color, tone_color::light_accent); marks on it by its lightness.
+    withSurface(surfaceTheme(tileElem.dataset.surface || ''), () => {
+      const givenHex = iconEl?.dataset.toneGiven || '';
+      const shown = iconEl ? cssColorChannels(getComputedStyle(iconEl).color) : null;
+      const given = /^#[0-9a-f]{6}$/i.test(givenHex) ? [1, 3, 5].map(i => parseInt(givenHex.slice(i, i + 2), 16)) : shown;
+      const accentRgb = panelLight() && given ? toneLightAccent(given) : shown;
+      const accent = accentRgb ? toneHex(accentRgb) : (state.hasColor ? state.color : SWITCH_ICON_ON);
+      const card = cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [26, 26, 26];
+      bar.style.setProperty('--switch-accent', accent);
+      bar.style.setProperty('--switch-card', toneHex(card));
+      bar.style.setProperty('--switch-mark', toneHex(accentRgb ? toneMarkOn(accentRgb, card) : card));
+    });
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {
       const base = toneOklch(control);

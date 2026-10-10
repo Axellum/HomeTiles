@@ -80,7 +80,7 @@ for (const icon of icons) {
 // shown color depends only on the icon color: device and preview measure it
 // against the circle of the default settings, never the circle on screen.
 assert.ok(tone.includes('inline uint32_t readable_icon(uint32_t icon) {') &&
-  tone.includes('const uint32_t base = light ? ui_theme::card() : tile_color::kDefault;') &&
+  tone.includes('const uint32_t base = tile_color::kDefault;') &&
   tone.includes('const uint32_t card = tinted ? tile_tint::background(base, icon, kReferenceTint) : base;') &&
   tone.includes('lifted(card, icon, tinted, icon_glow::kDefault * kStepPerPercent);'));
 assert.match(read('src/tiles/config/tile_icon_colors.h'), /inline constexpr uint8_t kTintDefault = 20;/);

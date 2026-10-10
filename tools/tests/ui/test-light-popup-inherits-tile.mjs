@@ -72,10 +72,12 @@ for (const [name, body] of [['update_light_popup', update], ['apply_init_to_cont
 
 // Neutral surfaces derive from the current card.
 for (const marker of [
-  'visual_on ? popup_surface::card(ctx->card_bg) : lv_color_hex(ui_theme::text());',
+  // Marks on the accent keep the card's cut-out where it reads (tone_color::mark_on).
+  'visual_on ? lv_color_hex(tone_color::mark_on(tone_color::light_accent(icon_rgb),',
+  'lv_color_to_u32(popup_surface::card(ctx->card_bg))))',
   ': lv_color_hex(tone_color::switch_thumb_off(lv_color_to_u32(track) & 0xFFFFFF));',
-  'ctx->is_on ? brightness_dash_color(ctx) : lv_color_hex(tone_color::off_icon()), 0);',
-  'dash_dsc.bg_color = brightness_dash_color(ctx);',
+  'ctx->is_on ? lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(brightness_dash_color(ctx))))',
+  'lv_color_hex(tone_color::mark_on(ctx->brightness_draw_color, lv_color_to_u32(brightness_dash_color(ctx))));',
   'return popup_surface::card(ctx->card_bg);',
   'const lv_color_t disabled_color = popup_surface::lighter(card, popup_surface::kDisabled);',
 ]) assert.ok(popup.includes(marker), `derived surface: ${marker}`);

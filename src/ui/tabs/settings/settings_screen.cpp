@@ -204,6 +204,16 @@ void category_line(Category category, char* buf, size_t len, bool* warn) {
 
 void on_lines_timer(lv_timer_t*) { refresh_lines(); }
 
+// The light theme shows the selected category in the dark design (user
+// 2026-10-10, like Media and Weather): the dark theme's "From icon" card,
+// ui_theme::kDarkDesignLift lighter, its circle, icon and labels drawn with
+// the dark rules (ui_theme::SurfaceScope). The others stay light.
+int8_t category_surface(uint8_t index) {
+  return ui_theme::theme_light() && index == static_cast<uint8_t>(g_category) ? 0 : -1;
+}
+
+void refresh_line(uint8_t index);
+
 // Selected = the tile in its color (tile color "From icon") or the tab in
 // its circle; the others on the plain card.
 void style_category(uint8_t index) {
@@ -212,6 +222,24 @@ void style_category(uint8_t index) {
   const bool selected = index == static_cast<uint8_t>(g_category);
   const uint32_t color = kCategoryColors[index];
   const uint32_t card = g_built_card;
+  if (category_surface(index) == 0) {
+    const ui_theme::SurfaceScope surface(0);
+    const uint32_t dark = settings_style::from_icon_card(ui_theme::card(), color);
+    const uint32_t tile = tone_color::dark_design(dark);
+    const uint32_t pressed = tone_color::dark_design(settings_style::from_icon_card(ui_theme::card(), color, true));
+    const Tone tone = settings_style::tone(tile, color);
+    lv_obj_set_style_bg_color(view.box, lv_color_hex(tile), 0);
+    lv_obj_set_style_bg_opa(view.box, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(view.box, lv_color_hex(pressed), LV_STATE_PRESSED);
+    if (view.disc) lv_obj_set_style_bg_color(view.disc, lv_color_hex(tone.disc), 0);
+    if (view.icon) lv_obj_set_style_text_color(view.icon, lv_color_hex(tone.icon), 0);
+    if (view.title) lv_obj_set_style_text_color(view.title, lv_color_hex(ui_theme::text()), 0);
+    refresh_line(index);
+    return;
+  }
+  // Back from the dark design: the theme's text.
+  if (view.title) lv_obj_set_style_text_color(view.title, lv_color_hex(ui_theme::text()), 0);
+  refresh_line(index);
   if (layout() == Layout::Tabs) {
     const Tone tone = settings_style::tone(card, color);
     lv_obj_set_style_bg_color(view.box, lv_color_hex(tone.disc), 0);
@@ -1890,28 +1918,37 @@ void did_hide() {
   setup_screen::hide();
 }
 
-void refresh_lines() {
-  for (uint8_t i = 0; i < kCategoryCount; ++i) {
-    const CategoryView& view = g_views[i];
-    const Category category = static_cast<Category>(i);
-    if (view.icon) {
-      const auto icon = getMdiChar(category_icon(category));
-      if (strcmp(lv_label_get_text(view.icon), icon.c_str()) != 0) lv_label_set_text(view.icon, icon.c_str());
-    }
-    if (!view.line) continue;
-    char buf[96];
-    bool warn = false;
-    category_line(category, buf, sizeof(buf), &warn);
-    if (strcmp(lv_label_get_text(view.line), buf) != 0) lv_label_set_text(view.line, buf);
-    // Only a change touches the styles: every set redraws the line, and the
-    // hotspot loop reports the network on each pass (the clock flickered).
-    const lv_color_t color = warn ? lv_color_hex(settings_style::warn_color()) : lv_color_hex(ui_theme::text());
-    const lv_opa_t opa = warn ? LV_OPA_COVER : settings_style::kGreyOpa;
-    if (!lv_color_eq(lv_obj_get_style_text_color(view.line, LV_PART_MAIN), color)) {
-      lv_obj_set_style_text_color(view.line, color, 0);
-    }
-    if (lv_obj_get_style_text_opa(view.line, LV_PART_MAIN) != opa) lv_obj_set_style_text_opa(view.line, opa, 0);
+namespace {
+
+void refresh_line(uint8_t index) {
+  if (index >= kCategoryCount) return;
+  const CategoryView& view = g_views[index];
+  const Category category = static_cast<Category>(index);
+  // The selected category's labels draw on its dark design (style_category).
+  const ui_theme::SurfaceScope surface(category_surface(index));
+  if (view.icon) {
+    const auto icon = getMdiChar(category_icon(category));
+    if (strcmp(lv_label_get_text(view.icon), icon.c_str()) != 0) lv_label_set_text(view.icon, icon.c_str());
   }
+  if (!view.line) return;
+  char buf[96];
+  bool warn = false;
+  category_line(category, buf, sizeof(buf), &warn);
+  if (strcmp(lv_label_get_text(view.line), buf) != 0) lv_label_set_text(view.line, buf);
+  // Only a change touches the styles: every set redraws the line, and the
+  // hotspot loop reports the network on each pass (the clock flickered).
+  const lv_color_t color = warn ? lv_color_hex(settings_style::warn_color()) : lv_color_hex(ui_theme::text());
+  const lv_opa_t opa = warn ? LV_OPA_COVER : settings_style::kGreyOpa;
+  if (!lv_color_eq(lv_obj_get_style_text_color(view.line, LV_PART_MAIN), color)) {
+    lv_obj_set_style_text_color(view.line, color, 0);
+  }
+  if (lv_obj_get_style_text_opa(view.line, LV_PART_MAIN) != opa) lv_obj_set_style_text_opa(view.line, opa, 0);
+}
+
+}  // namespace
+
+void refresh_lines() {
+  for (uint8_t i = 0; i < kCategoryCount; ++i) refresh_line(i);
 }
 
 void sync_rotation() {

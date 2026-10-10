@@ -226,6 +226,10 @@ function applyPanelThemePreview(theme) {
   tileDataLoadedTabs.forEach(tab => {
     getTilesData(tab).forEach((tile, index) => { if (tile) renderTileFromData(tab, index, tile, sensorMetaCache); });
   });
+  // The parked Settings tile keeps its card color from its last render: draw
+  // it again in the new theme (settings/access.js).
+  const parked = document.getElementById('settingsHiddenTile');
+  if (parked && typeof renderSettingsHiddenSlot === 'function') renderSettingsHiddenSlot(parked.dataset.hidden === '1');
   document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
   if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
 }

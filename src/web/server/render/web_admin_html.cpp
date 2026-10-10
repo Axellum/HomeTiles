@@ -915,21 +915,24 @@ static void appendTileTabHTML(
     html += tr.admin_delete_folder_tab;
     html += "</button></div></div>";
   }
-  html += R"html(          <div class="folder-footer">
+  // The global tile settings moved into the settings panel (its "Global"
+  // tab); only the screensaver page keeps its footer under the grid.
+  String global_panel;
+  if (screensaver_mode) html += R"html(          <div class="folder-footer">
 )html";
   const String radius_value = String(configManager.getConfig().tile_radius);
-  auto append_radius_input = [&](const String& id) {
-    html += "<input class=\"global-tile-radius\"";
-    if (id.length()) html += " id=\"" + id + "\"";
-    html += " type=\"range\" min=\"";
-    html += String(tile_radius::kMinimum);
-    html += "\" max=\"";
-    html += String(tile_radius::kMaximum);
-    html += "\" step=\"1\" value=\"";
-    html += radius_value;
-    html += "\" oninput=\"previewTileRadiusLive(this.value)\" onchange=\"saveTileRadius(this.value)\"><output class=\"global-tile-radius-value\">";
-    html += radius_value;
-    html += "</output>";
+  auto append_radius_input = [&](String& out, const String& id) {
+    out += "<input class=\"global-tile-radius\"";
+    if (id.length()) out += " id=\"" + id + "\"";
+    out += " type=\"range\" min=\"";
+    out += String(tile_radius::kMinimum);
+    out += "\" max=\"";
+    out += String(tile_radius::kMaximum);
+    out += "\" step=\"1\" value=\"";
+    out += radius_value;
+    out += "\" oninput=\"previewTileRadiusLive(this.value)\" onchange=\"saveTileRadius(this.value)\"><output class=\"global-tile-radius-value\">";
+    out += radius_value;
+    out += "</output>";
   };
   if (!screensaver_mode) {
     // Global display settings in the Tile Settings style: two compact
@@ -943,19 +946,19 @@ static void appendTileTabHTML(
     const String glow_id = tab_id + "_global_icon_glow";
     const String theme_id = tab_id + "_global_theme";
     const String glow_value = String(icon_glow::clamp(display.icon_glow));
-    html += "<section class=\"global-settings-panel\"><h3>";
-    appendHtmlEscaped(html, tr.global_settings_heading);
-    html += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
+    global_panel += "<section class=\"global-settings-panel\"><h3>";
+    appendHtmlEscaped(global_panel, tr.global_settings_heading);
+    global_panel += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
             "<input class=\"normal-tile-border-toggle\" id=\"" +
             borders_id + "\" type=\"checkbox\" onchange=\"saveNormalTileBorders(this.checked)\"";
-    if (display.tile_borders) html += " checked";
-    html += "> ";
-    appendHtmlEscaped(html, tr.screensaver_tile_border);
-    html += "</label><label class=\"inline-checkbox\"><input class=\"global-icon-disc-toggle\" id=\"" +
+    if (display.tile_borders) global_panel += " checked";
+    global_panel += "> ";
+    appendHtmlEscaped(global_panel, tr.screensaver_tile_border);
+    global_panel += "</label><label class=\"inline-checkbox\"><input class=\"global-icon-disc-toggle\" id=\"" +
             discs_id + "\" type=\"checkbox\" onchange=\"saveIconDiscs(this.checked)\"";
-    if (display.icon_discs) html += " checked";
-    html += "> ";
-    appendHtmlEscaped(html, tr.icon_discs);
+    if (display.icon_discs) global_panel += " checked";
+    global_panel += "> ";
+    appendHtmlEscaped(global_panel, tr.icon_discs);
     // The layout (grid_layout.h): a field like the tile color, its pen opens
     // the layout window (tiles/layout-window.js).
     {
@@ -963,34 +966,34 @@ static void appendTileTabHTML(
       const char* name = grid_layout::active() == grid_layout::Layout::kBar        ? tr.layout_bar
                          : grid_layout::active() == grid_layout::Layout::kPortrait ? tr.layout_portrait
                                                                                    : tr.layout_classic;
-      html += "</label><div class=\"global-settings-field\"><label>";
-      appendHtmlEscaped(html, tr.layout_label);
-      html += "</label><button type=\"button\" class=\"layout-choice\" onclick=\"openLayoutWindow()\" title=\"";
-      appendHtmlEscaped(html, tr.layout_change);
-      html += "\"><span class=\"layout-current\">";
-      appendHtmlEscaped(html, name);
-      html += " · " + String(shown.cols) + " × " + String(shown.rows);
-      html += "</span><i class=\"mdi mdi-pencil-outline\"></i></button></div>";
+      global_panel += "</label><div class=\"global-settings-field\"><label>";
+      appendHtmlEscaped(global_panel, tr.layout_label);
+      global_panel += "</label><button type=\"button\" class=\"layout-choice\" onclick=\"openLayoutWindow()\" title=\"";
+      appendHtmlEscaped(global_panel, tr.layout_change);
+      global_panel += "\"><span class=\"layout-current\">";
+      appendHtmlEscaped(global_panel, name);
+      global_panel += " · " + String(shown.cols) + " × " + String(shown.rows);
+      global_panel += "</span><i class=\"mdi mdi-pencil-outline\"></i></button></div>";
     }
     // The theme (ui_theme.h): the panel switches while running.
-    html += "<div class=\"global-settings-field\"><label for=\"" + theme_id + "\">";
-    appendHtmlEscaped(html, tr.theme_label);
-    html += "</label><select class=\"global-theme\" id=\"" + theme_id + "\" onchange=\"saveTheme(this.value)\">";
+    global_panel += "<div class=\"global-settings-field\"><label for=\"" + theme_id + "\">";
+    appendHtmlEscaped(global_panel, tr.theme_label);
+    global_panel += "</label><select class=\"global-theme\" id=\"" + theme_id + "\" onchange=\"saveTheme(this.value)\">";
     for (uint8_t theme = 0; theme < 2; ++theme) {
-      html += "<option value=\"" + String(theme) + "\"";
-      if (display.theme == theme) html += " selected";
-      html += ">";
-      appendHtmlEscaped(html, theme ? tr.theme_light : tr.theme_dark);
-      html += "</option>";
+      global_panel += "<option value=\"" + String(theme) + "\"";
+      if (display.theme == theme) global_panel += " selected";
+      global_panel += ">";
+      appendHtmlEscaped(global_panel, theme ? tr.theme_light : tr.theme_dark);
+      global_panel += "</option>";
     }
-    html += "</select></div>";
-    html += "<div class=\"global-settings-field\"><label for=\"" + radius_id + "\">";
-    appendHtmlEscaped(html, tr.tile_radius);
-    html += "</label><div class=\"global-radius-field\">";
-    append_radius_input(radius_id);
-    html += "</div></div><div class=\"global-settings-field\"><label for=\"" + glow_id + "\">";
-    appendHtmlEscaped(html, tr.icon_glow_strength);
-    html += "</label><div class=\"global-radius-field\"><input class=\"global-icon-glow\" id=\"" + glow_id +
+    global_panel += "</select></div>";
+    global_panel += "<div class=\"global-settings-field\"><label for=\"" + radius_id + "\">";
+    appendHtmlEscaped(global_panel, tr.tile_radius);
+    global_panel += "</label><div class=\"global-radius-field\">";
+    append_radius_input(global_panel, radius_id);
+    global_panel += "</div></div><div class=\"global-settings-field\"><label for=\"" + glow_id + "\">";
+    appendHtmlEscaped(global_panel, tr.icon_glow_strength);
+    global_panel += "</label><div class=\"global-radius-field\"><input class=\"global-icon-glow\" id=\"" + glow_id +
             "\" type=\"range\" min=\"" + String(icon_glow::kMinimum) + "\" max=\"" +
             String(icon_glow::kMaximum) + "\" step=\"" + String(icon_glow::kStep) + "\" value=\"" + glow_value +
             "\" oninput=\"previewIconGlowLive(this.value)\" onchange=\"saveIconGlow(this.value)\">"
@@ -998,8 +1001,8 @@ static void appendTileTabHTML(
             "<button type=\"button\" class=\"tile-color-reset-btn global-icon-glow-reset\" title=\"Reset\" "
             "onclick=\"saveIconGlow(" + String(icon_glow::kDefault) + ")\"><i class=\"mdi mdi-restore\"></i></button>"
             "</div></div>";
-    html += "<div class=\"global-settings-field global-tile-color-field\"><label for=\"" + color_id + "\">";
-    appendHtmlEscaped(html, tr.default_tile_color);
+    global_panel += "<div class=\"global-settings-field global-tile-color-field\"><label for=\"" + color_id + "\">";
+    appendHtmlEscaped(global_panel, tr.default_tile_color);
     char default_color_hex[8];
     // The stored setting (the dark theme's card); the light theme keeps its
     // own card and hides the field (admin.css).
@@ -1008,15 +1011,15 @@ static void appendTileTabHTML(
     char factory_color_hex[8];
     snprintf(factory_color_hex, sizeof(factory_color_hex), "#%06X",
              static_cast<unsigned>(tile_color::kDefault));
-    html += "</label><div class=\"tile-color-row\"><input class=\"global-tile-color\" id=\"" + color_id +
+    global_panel += "</label><div class=\"tile-color-row\"><input class=\"global-tile-color\" id=\"" + color_id +
             "\" type=\"color\" value=\"";
-    html += default_color_hex;
-    html += "\" oninput=\"previewDefaultTileColor(this.value)\" "
+    global_panel += default_color_hex;
+    global_panel += "\" oninput=\"previewDefaultTileColor(this.value)\" "
             "onchange=\"saveDefaultTileColor(this.value)\">"
             "<button type=\"button\" class=\"tile-color-reset-btn\" title=\"Reset\" "
             "onclick=\"saveDefaultTileColor('";
-    html += factory_color_hex;
-    html += "')\"><i class=\"mdi mdi-restore\"></i></button></div></div></div></section>\n";
+    global_panel += factory_color_hex;
+    global_panel += "')\"><i class=\"mdi mdi-restore\"></i></button></div></div></div></section>\n";
   } else {
     html += R"html(            <div class="folder-footer-options screensaver-tile-options">
 <label class="inline-checkbox"><input id="screensaverTileBorder" type="checkbox"> )html";
@@ -1026,7 +1029,7 @@ static void appendTileTabHTML(
     html += "<label class=\"tile-radius-control\"><span>";
     appendHtmlEscaped(html, tr.tile_radius);
     html += "</span>";
-    append_radius_input(String());
+    append_radius_input(html, String());
     html += "</label>";
     html += R"html(              <label class="inline-checkbox"><input id="screensaverTileShadow" type="checkbox"> )html";
     html += tr.screensaver_tile_shadow;
@@ -1049,14 +1052,30 @@ static void appendTileTabHTML(
     html += R"html(</p>
 )html";
   }
-  html += R"html(          </div>
-</div>
+  if (screensaver_mode) html += "          </div>\n";
+  html += R"html(</div>
 
 <!-- Settings Panel -->
 <div class="tile-settings" id=")html";
   html += tab_id;
-  html += R"html(Settings">
+  html += R"html(Settings" data-pane="global">
 )html";
+  // Tabs on top of the panel: the selected tile's settings, or the global
+  // tile settings (on the screensaver page its picture settings). Selecting
+  // a tile shows its settings again (tiles/settings-pane.js).
+  html += "<div class=\"icon-color-segmented choice-row panel-tabs\" role=\"tablist\">";
+  html += "<button type=\"button\" data-pane=\"tile\" onclick=\"showSettingsPane('" + tab_id + "','tile')\">";
+  appendHtmlEscaped(html, tr.panel_tab_tile);
+  html += "</button><button type=\"button\" data-pane=\"global\" onclick=\"showSettingsPane('" + tab_id + "','global')\">";
+  appendHtmlEscaped(html, screensaver_mode ? tr.panel_tab_screensaver : tr.panel_tab_global);
+  html += "</button></div><p class=\"hint panel-tile-hint\">";
+  html += tr.admin_tile_hint;
+  html += "</p>";
+  if (!screensaver_mode) {
+    html += "<div class=\"panel-global\">";
+    html += global_panel;
+    html += "</div>";
+  }
   if (screensaver_mode) {
     html += R"html(            <div id="screensaverBackgroundSettings" class="screensaver-background-settings">
 <div class="tile-settings-head"><h3 id="screensaverBackgroundHeading" style="margin-top:0;" data-sd=")html";

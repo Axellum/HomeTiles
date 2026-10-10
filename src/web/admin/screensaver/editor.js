@@ -261,6 +261,7 @@
       delete tile.dataset.selected;
     });
     document.getElementById('screensaverGrid')?.classList.add('selected-background');
+    setSettingsPane('screensaver', 'global');
     currentTileIndex = -1;
     currentTileTab = 'screensaver';
     renderScreensaverEditor();
@@ -271,6 +272,7 @@
     document.getElementById('screensaverBackgroundSettings')?.classList.add('hidden');
     document.getElementById('screensaverClockSettings')?.classList.remove('hidden');
     document.getElementById('screensaverGrid')?.classList.remove('selected-background');
+    setSettingsPane('screensaver', 'tile');
     const settings = document.getElementById('screensaverSettings');
     settings?.querySelector('.tile-specific-settings')?.classList.add('hidden');
     document.querySelectorAll('#tab-tiles-screensaver .tile').forEach(tile => {

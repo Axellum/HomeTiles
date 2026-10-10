@@ -375,8 +375,12 @@ void apply_header_disc_tint(lv_obj_t* disc, lv_obj_t* icon, lv_obj_t* source) {
   if (!lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN), color))
     lv_obj_set_style_bg_color(disc, color, 0);
   if (lv_obj_get_style_bg_opa(disc, LV_PART_MAIN) != opa) lv_obj_set_style_bg_opa(disc, opa, 0);
+  // A white light shows a mid grey below its circle in the light theme, also
+  // for pure white (it flashed to the darker icon grey when a dragged color
+  // reached white, user 2026-10-10); every other icon its own color.
   const lv_color_t readable =
-      lv_color_hex(tone_color::readable_icon(rgb));
+      lv_color_hex(ui_theme::light() && tone_color::no_color(rgb) ? tone_color::below_circle(fill.disc, rgb)
+                                                                    : tone_color::readable_icon(rgb));
   if (!lv_color_eq(lv_obj_get_style_text_color(icon, LV_PART_MAIN), readable))
     lv_obj_set_style_text_color(icon, readable, 0);
   // The pressed close button has exactly the control color of the popup

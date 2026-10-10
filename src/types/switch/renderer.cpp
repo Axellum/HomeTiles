@@ -257,7 +257,12 @@ void show_state_text(SwitchBarView* view, const SwitchState& state, bool dimmabl
 // opacity layer: every shape lies inside the bar's own outline.
 
 uint32_t accent_color(const SwitchBarView* view) {
-  if (view->icon) return lv_color_to_u32(lv_obj_get_style_text_color(view->icon, LV_PART_MAIN)) & 0xFFFFFF;
+  if (view->icon) {
+    // The light theme: the light's own color, a white light in light grey
+    // (tone_color::light_accent), like the Light popup's fill.
+    if (ui_theme::light()) return tone_color::light_accent(tile_icon_disc::icon_color(view->icon));
+    return lv_color_to_u32(lv_obj_get_style_text_color(view->icon, LV_PART_MAIN)) & 0xFFFFFF;
+  }
   return view->fill_rgb;
 }
 
@@ -302,6 +307,8 @@ void bar_draw_cb(lv_event_t* e) {
   SwitchBarView* view = static_cast<SwitchBarView*>(lv_event_get_user_data(e));
   lv_layer_t* layer = lv_event_get_layer(e);
   if (!view || !view->bar || !layer || !view->available) return;
+  // The bar draws with its tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(view->card);
   lv_area_t area;
   lv_obj_get_coords(view->bar, &area);
   const int32_t width = lv_area_get_width(&area);
@@ -310,10 +317,14 @@ void bar_draw_cb(lv_event_t* e) {
   const int32_t radius =
       std::min<int32_t>(lv_obj_get_style_radius(view->bar, LV_PART_MAIN), height / 2);
   const lv_color_t card = lv_obj_get_style_bg_color(view->card, LV_PART_MAIN);
-  const lv_color_t accent = lv_color_hex(accent_color(view));
+  const uint32_t accent_rgb = accent_color(view);
+  const lv_color_t accent = lv_color_hex(accent_rgb);
+  // Marks on the accent (the handle line, the power symbol): dark on a light
+  // accent, white on a dark one (tone_color::mark_on), like the Light popup.
+  const lv_color_t mark = lv_color_hex(tone_color::mark_on(accent_rgb, lv_color_to_u32(card) & 0xFFFFFF));
 
   if (view->bar_kind == static_cast<uint8_t>(Bar::Dimmer)) {
-    level_bar::draw_fill(layer, view->bar, view->level, view->bar_base, accent, card);
+    level_bar::draw_fill(layer, view->bar, view->level, view->bar_base, accent, mark);
     return;
   }
 
@@ -323,7 +334,7 @@ void bar_draw_cb(lv_event_t* e) {
   const lv_area_t thumb = view->on ? lv_area_t{area.x2 - half + 1, area.y1, area.x2, area.y2}
                                    : lv_area_t{area.x1, area.y1, area.x1 + half - 1, area.y2};
   lv_color_t thumb_color = accent;
-  lv_color_t symbol_color = card;
+  lv_color_t symbol_color = mark;
   if (!view->on) {
     // One circle step above the bar, computed once per bar color; the symbol
     // in the grey of an off icon, like the Light popup switch.
@@ -591,6 +602,7 @@ void release_timer_cb(lv_timer_t*) {
   if (!widgets || !tile || data->index >= TILES_PER_GRID || widgets[data->index].view != data->view) return;
   // Icon, circle and tile tint too: they kept the held on/off.
   const SwitchState state = get_switch_state(data->grid_type, data->index);
+  const ui_theme::SurfaceScope surface = tile_surface::scope(data->view->card);
   switch_tile_show_state(widgets[data->index], *tile, state, switch_state_icon_color(state));
 }
 

@@ -17,13 +17,15 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '
 const theme = read('src/ui/shared/ui_theme.h');
 // One table per theme (the firmware and the Web Admin preview read both).
 const roleNames = ['screen', 'card', 'popup_card', 'text', 'icon', 'icon_off', 'icon_inactive', 'icon_rest',
-  'text_secondary', 'text_soft'];
+  'text_secondary', 'text_soft', 'icon_unavailable'];
 const table = name => theme.match(new RegExp(`inline constexpr Roles ${name} = \\{([^}]*)\\};`))[1]
   .split(',').map(value => value.trim());
+// Unavailable (user 2026-10-10): the dark theme keeps its off grey, the light
+// theme shows a fainter grey than off, like Home Assistant.
 assert.deepEqual(table('kDark'), ['0x000000', '0x1A1A1A', '0x2A2A2A', '0xFFFFFF', '0xFFFFFF', '0xB0B0B0', '0x9E9E9E',
-  '0x9E9E9E', '0xD8DEE9', '0xD8D8D8'], 'dark roles = the former constants');
+  '0x9E9E9E', '0xD8DEE9', '0xD8D8D8', '0xB0B0B0'], 'dark roles = the former constants');
 assert.deepEqual(table('kLight'), ['0xE9EBEE', '0xFFFFFF', '0xFFFFFF', '0x1A1A1A', '0x464646', '0x8B8B8B', '0x8B8B8B',
-  '0x464646', '0x5F6368', '0x3A3A3A'], 'light roles as set in the simulator');
+  '0x464646', '0x5F6368', '0x3A3A3A', '0xBDBDBD'], 'light roles as set in the simulator');
 for (const role of roleNames) {
   assert.ok(theme.includes(`inline uint32_t ${role}() { return roles().${role}; }`), `ui_theme::${role}`);
   assert.match(theme, new RegExp(`  uint32_t ${role};`), `Roles::${role}`);
@@ -94,11 +96,15 @@ assert.ok(saveTheme.includes('if (value != "0" && value != "1") {') &&
 assert.ok(read('src/web/server/web_admin.cpp').includes('server.on("/api/display/theme", HTTP_POST,'));
 const html = read('src/web/server/render/web_admin_html.cpp');
 assert.ok(html.includes('<select class=\\"global-theme\\" id=\\"" + theme_id + "\\" onchange=\\"saveTheme(this.value)\\">') &&
-  html.includes('if (display.theme == theme) html += " selected";') &&
-  html.includes('appendHtmlEscaped(html, theme ? tr.theme_light : tr.theme_dark);') &&
-  html.includes('appendHtmlEscaped(html, tr.theme_label);'), 'Global settings: the theme field');
+  html.includes('if (display.theme == theme) global_panel += " selected";') &&
+  html.includes('appendHtmlEscaped(global_panel, theme ? tr.theme_light : tr.theme_dark);') &&
+  html.includes('appendHtmlEscaped(global_panel, tr.theme_label);'), 'Global settings: the theme field');
 const admin = read('src/web/admin/settings/display-borders.js');
 assert.ok(admin.includes("const response = await fetch('/api/display/theme', {") && admin.includes("body: 'theme=' + theme"));
+// The parked Settings tile is drawn again in the new theme too (user
+// 2026-10-10: it stayed white after switching to dark).
+assert.ok(admin.includes("if (parked && typeof renderSettingsHiddenSlot === 'function') renderSettingsHiddenSlot(parked.dataset.hidden === '1');"),
+  'theme switch redraws the parked Settings tile');
 const i18n = read('src/core/i18n/i18n.cpp');
 for (const words of [['"Design",', '"Dunkel",', '"Hell",'], ['"Theme",', '"Dark",', '"Light",'],
   ['"Thème",', '"Sombre",', '"Clair",'], ['"Motyw",', '"Ciemny",', '"Jasny",']]) {
@@ -164,9 +170,14 @@ assert.ok(read('src/tiles/runtime/tile_icon_source.cpp').includes('entry.percent
 // The Web Admin preview takes both role tables and the light factors from
 // ui_theme.h (one place for every light value) and switches with the field.
 const styles = read('src/web/server/render/web_admin_styles.cpp');
-for (const marker of ['emit_roles(ui_theme::kDark);', 'emit_roles(ui_theme::kLight);',
+// Both tables also as --pvd-* and --pvl-* for tiles on the other theme's
+// surface (tile_surface, user 2026-10-10).
+for (const marker of ['emit_roles(ui_theme::kDark, "pv");', 'emit_roles(ui_theme::kLight, "pv");',
+  'emit_roles(ui_theme::kDark, "pvd");', 'emit_roles(ui_theme::kLight, "pvl");',
   'static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,',
-  'static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen);',
+  'static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen,',
+  'static_cast<double>(ui_theme::kLightSurfaceL), static_cast<double>(ui_theme::kLightCircleShare),',
+  'static_cast<double>(ui_theme::kDarkDesignLift));',
   '  appendPanelThemeVars(html);']) {
   assert.ok(styles.includes(marker), 'web_admin_styles: ' + marker);
 }
@@ -174,7 +185,7 @@ assert.ok(html.includes('html += ui_theme::light() ? "\\" data-panel-theme=\\"li
 const previewJs = read('src/web/admin/tiles/grid-preview.js');
 for (const marker of ["return -step * (Number.isFinite(scale) ? scale : 5 / 6);",
   "const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)",
-  "if (!tinted && (seed.L > 0.9 || toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase())) {"]) {
+  "return text || (seed.L > 0.9 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;"]) {
   assert.ok(previewJs.includes(marker), 'grid-preview: ' + marker);
 }
 assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("const scale = Number(panelVar('--pv-light-tint', '0.8'));"));
@@ -255,14 +266,15 @@ run(0).forEach(([shown, tint, former, tintedUp], i) => {
   if (colors[i] === 0xFFFFFF) assert.equal(shown, 0xFFFFFF, 'dark: a white icon stays white');
   assert.ok(L(tintedUp) > L(0x1A1A1A), 'dark: the circle steps up from the card');
 });
-// Light: tints on the light card at 4/5 strength, neutral icons in the icon
-// grey, colored icons lowered under their circle, circles step down.
+// Light: tints on the light card at 4/5 strength, icons without a color in
+// the icon grey, colored icons in their own color (like Home Assistant),
+// circles step down.
 run(1).forEach(([shown, tint, , , neutralDown], i) => {
   const c = colors[i];
   const neutral = ((c >> 16) & 255) === ((c >> 8) & 255) && ((c >> 8) & 255) === (c & 255);
   assert.equal(tint, mix(0xFFFFFF, c, 16), `light tint of #${c.toString(16)}`);
   if (c === 0xFFFFFF || c === 0x1A1A1A) assert.equal(shown, 0x464646, 'light: white and text-colored icons take the icon grey');
-  if (!neutral) assert.ok(L(shown) <= L(mix(0xFFFFFF, c, 16)) - 0.05 - 0.22 + 0.01, `light: #${c.toString(16)} readable on its circle`);
+  if (!neutral) assert.equal(shown, c, `light: #${c.toString(16)} keeps its own color`);
   assert.ok(Math.abs(L(neutralDown) - (1 - 0.05)) < 0.01, 'light: a circle steps down by 5/6 of the step');
 });
 console.log('UI theme: dark roles = former colors, dark tint unchanged, light mirrors the rules, setting read at boot');

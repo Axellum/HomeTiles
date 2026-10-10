@@ -97,11 +97,12 @@ assert.ok(tileSwitch.includes('view->thumb_off = tone_color::switch_thumb_off(ba
 const popup = read('src/ui/popups/light/light_popup.cpp');
 assert.ok(popup.includes('popup_nav_style::fill(popup_surface::card(ctx->card_bg), lv_color_hex(header_icon_rgb(ctx, icon_rgb)), color, opa);'),
   'Light popup controls use the shell control fill (the header circle color)');
-assert.equal((popup.match(/control_fill\(ctx, icon_rgb, track, track_opa\);\n\s*(?:const lv_color_t thumb_color =|lv_obj_set_style_bg_color\(ctx->val_slider, track, LV_PART_MAIN\);)/g) || []).length, 2,
+assert.equal((popup.match(/control_fill\(ctx, icon_rgb, track, track_opa\);\n\s*(?:const uint32_t accent = tone_color::light_accent\(icon_rgb\);\n\s*const lv_color_t thumb_color =|const lv_color_t thumb_color =|lv_obj_set_style_bg_color\(ctx->val_slider, track, LV_PART_MAIN\);)/g) || []).length, 2,
   'Switch and brightness track take the control fill');
 assert.ok(popup.includes(': lv_color_hex(tone_color::switch_thumb_off(lv_color_to_u32(track) & 0xFFFFFF));') &&
-  popup.includes('ctx->is_on ? brightness_dash_color(ctx) : lv_color_hex(tone_color::off_icon()), 0);'),
-  'Light popup switch: off thumb a step above the track, grey off symbol, on symbol in the tile card color');
+  popup.includes('ctx->is_on ? lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(brightness_dash_color(ctx))))') &&
+  popup.includes(': lv_color_hex(tone_color::off_icon()),'),
+  'Light popup switch: off thumb a step above the track, grey off symbol, on symbol a mark on the accent');
 assert.ok(popup.includes('const lv_opa_t bg_opa = enabled && (active || pressed) ? fill_opa : static_cast<lv_opa_t>(LV_OPA_TRANSP);') &&
   popup.includes('popup_nav_style::no_press_filter(button, selector);'),
   'Selected and pressed mode buttons show the control fill without theme darkening');

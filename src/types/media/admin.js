@@ -209,7 +209,6 @@ function maybeFillTitleFromMedia(tab) {
     if (entity) {
       const unavailable = String(state?.state || '').trim().toLowerCase() === 'unavailable';
       const playing = String(state?.state || '').trim().toLowerCase() === 'playing';
-      const cardColor = el.style.background || 'var(--tile-card, #1A1A1A)';
       const buttonY = height - L.button + L.buttonBottom;
       const iconTop = (Math.trunc((L.button - L.iconLine) / 2) + L.iconEmDy) * scale;
       for (const [offset, icon, primary] of [[-L.buttonSide, 'skip-previous', false],
@@ -218,7 +217,7 @@ function maybeFillTitleFromMedia(tab) {
         html += '<div class="media-preview-control' + (primary ? ' media-preview-play' : '') +
           (unavailable ? ' media-preview-disabled' : '') + '" style="' + at(x, buttonY) +
           'width:' + (L.button * scale).toFixed(2) + 'px;height:' + (L.button * scale).toFixed(2) + 'px;' +
-          (primary ? 'color:' + escapeHtml(cardColor) + ';' : '') + '">' +
+          '">' +
           '<i class="mdi mdi-' + icon + '" style="top:' + iconTop.toFixed(2) + 'px"></i></div>';
       }
     }

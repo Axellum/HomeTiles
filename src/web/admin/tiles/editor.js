@@ -40,6 +40,7 @@
       if (tileSpecific) {
         tileSpecific.classList.remove('hidden');
       }
+      setSettingsPane(tab, 'tile');
     }
     // Bind the live handlers right away. This used to happen only after the
     // asynchronous GET of the tile data, and until then size, position and style
@@ -66,6 +67,7 @@
     if (specific) {
       specific.classList.remove('hidden');
     }
+    setSettingsPane('folder0', 'tile');
     applyFolderTypeLock('folder0', false);
     const snapshot = normalizeHiddenSettingsSnapshot();
     if (!applyDraft('folder0', HIDDEN_SETTINGS_TILE_INDEX)) {

@@ -149,20 +149,11 @@
   function toneReadableIcon(icon) {
     const tinted = icon[0] !== icon[1] || icon[1] !== icon[2];
     if (panelLight()) {
-      // Mirrored on the light card: white or the text color is the icon grey,
-      // any other icon is lowered until it sits 0.22 L below its circle.
+      // The icon's own color, like Home Assistant; only an icon without a
+      // color (white, almost white, the text color) takes the icon grey.
       const seed = toneOklch(icon);
-      if (!tinted && (seed.L > 0.9 || toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase())) {
-        return panelRole('icon') || icon;
-      }
-      const cardHex = toneHex(panelRole('card') || [255, 255, 255]);
-      const tintHex = tinted && typeof tileTintBackground === 'function'
-        ? tileTintBackground(cardHex, toneHex(icon), ICON_FILL_DEFAULT) : cardHex;
-      const base = toneOklch([1, 3, 5].map(i => parseInt(tintHex.slice(i, i + 2), 16)));
-      const step = toneStep(0.06);
-      const circle = tinted ? toneRgb(base.L + step, seed.C * 0.55, seed.h) : toneRgb(base.L + step, base.C, base.h);
-      const maximum = toneOklch(circle).L - 0.22;
-      return seed.L <= maximum ? icon : toneRgb(maximum, seed.C, seed.h);
+      const text = toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase();
+      return text || (seed.L > 0.9 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;
     }
     const linear = v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     const contrast = c => 1.05 / (0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2]) + 0.05);
@@ -180,9 +171,25 @@
     return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
   }
   // The panel's theme (html[data-panel-theme], ui_theme.h) and its roles
-  // (--pv-*, written from ui_theme.h by web_admin_styles.cpp).
-  function panelLight() {
+  // (--pv-*, written from ui_theme.h by web_admin_styles.cpp; --pvd-* and
+  // --pvl-* keep the dark and the light table).
+  // tile_surface (tile_icon_disc.h): a tile in its own color follows that
+  // color's lightness, Media and Weather show the dark design in the light
+  // theme. While withSurface() runs, panelLight() and panelRole() answer for
+  // that surface (globalThis.hometilesPreviewSurface: 0 dark, 1 light,
+  // unset the page's theme; each function reads it by itself).
+  function panelThemeLight() {
     return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
+  }
+  function panelLight() {
+    const surface = globalThis.hometilesPreviewSurface;
+    if (surface === 0 || surface === 1) return surface === 1;
+    return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
+  }
+  function withSurface(surface, run) {
+    const saved = globalThis.hometilesPreviewSurface;
+    if (surface === 0 || surface === 1) globalThis.hometilesPreviewSurface = surface;
+    try { return run(); } finally { globalThis.hometilesPreviewSurface = saved; }
   }
   function panelVar(name, fallback) {
     if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return fallback;
@@ -190,8 +197,78 @@
     return value || fallback;
   }
   function panelRole(name) {
-    const hex = panelVar('--pv-' + name, '');
+    const surface = globalThis.hometilesPreviewSurface;
+    const pageLight = typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
+    const prefix = (surface === 0 || surface === 1) && (surface === 1) !== pageLight
+      ? (surface === 1 ? '--pvl-' : '--pvd-') : '--pv-';
+    const hex = panelVar(prefix + name, '');
     return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
+  }
+  // The roles a surface overrides on its tile (the preview's CSS reads them).
+  const SURFACE_ROLES = ['screen', 'card', 'text', 'icon', 'icon-off', 'icon-inactive', 'icon-rest',
+    'text-secondary', 'text-soft', 'icon-unavailable', 'text-rgb'];
+  function surfaceTheme(surface) {
+    return surface === 'light' ? 1 : surface === 'dark' || surface === 'darkdesign' ? 0 : -1;
+  }
+  // tone_color::light_surface(): text, icons and circles on a color above
+  // --pv-light-surface (OKLCH L) follow the light theme's rules.
+  function toneLightSurface(rgb) {
+    const limit = Number(panelVar('--pv-light-surface', '0.72'));
+    return toneOklch(rgb).L > (Number.isFinite(limit) ? limit : 0.72);
+  }
+  // tone_color::dark_design(): the dark theme's card, --pv-dark-lift lighter.
+  function toneDarkDesign(rgb) {
+    const lift = Number(panelVar('--pv-dark-lift', '0.24'));
+    const card = toneOklch(rgb);
+    return toneRgb(card.L + (Number.isFinite(lift) ? lift : 0.24), card.C, card.h);
+  }
+  // The dark theme's card (the global tile color) behind the dark design.
+  function darkThemeCard() {
+    const hex = String(panelVar('--tile-default-bg', '#1A1A1A'));
+    return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : [26, 26, 26];
+  }
+  // tile_surface_of() (tile_renderer.cpp): the surface of a tile.
+  function tileSurfaceOf(tab, previewKind, bgValue, iconColors) {
+    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
+    if (panelThemeLight() && (previewKind === 'media' || previewKind === 'weather')) return 'darkdesign';
+    const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
+    if (!tileBgValueIsSet(bgValue) || tileBgFollowsDefault(bgValue) || fill) return '';
+    const own = Number(bgValue) & 0xFFFFFF;
+    if (!own) return '';
+    return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
+  }
+  // Marks a tile with its surface: the other theme's roles on it (CSS) and,
+  // for the dark design, its card.
+  function applyTileSurface(el, surface) {
+    if (!el) return;
+    if (surface) el.dataset.surface = surface;
+    else delete el.dataset.surface;
+    const theme = surfaceTheme(surface);
+    const flip = theme >= 0 && (theme === 1) !== panelThemeLight();
+    for (const name of SURFACE_ROLES) {
+      if (flip) el.style.setProperty('--pv-' + name, 'var(--pv' + (theme === 1 ? 'l' : 'd') + '-' + name + ')');
+      else el.style.removeProperty('--pv-' + name);
+    }
+    if (surface === 'darkdesign') el.style.background = toneHex(toneDarkDesign(darkThemeCard()));
+  }
+  // tone_color::no_color(): white, almost white or grey-white.
+  function toneNoColor(rgb) {
+    const seed = toneOklch(rgb);
+    const hue = rgb[0] !== rgb[1] || rgb[1] !== rgb[2];
+    return seed.L > 0.9 && (!hue || seed.C < 0.08);
+  }
+  // tone_color::light_accent(): a light without a color in Home Assistant's
+  // light grey (HSV value 225) in the light theme.
+  function toneLightAccent(rgb) {
+    if (!panelLight() || !toneNoColor(rgb)) return rgb;
+    const max = Math.max(...rgb);
+    return max ? rgb.map(v => Math.floor((v * 225 + Math.floor(max / 2)) / max)) : rgb;
+  }
+  // tone_color::mark_on(): dark on a light surface (the dark theme keeps its
+  // card cut-out there), white on a dark one.
+  function toneMarkOn(surface, cutout) {
+    if (toneLightSurface(surface)) return panelLight() ? (panelRole('text') || [26, 26, 26]) : cutout;
+    return [255, 255, 255];
   }
   function panelRoleHex(name, fallback) {
     const rgb = panelRole(name);
@@ -219,7 +296,18 @@
   const PREVIEW_LOCK_MARK = '<span class="tile-icon-lock mdi mdi-lock" aria-hidden="true"></span>';
 
   function applyIconDiscTint(tileElem) {
-    const icon = tileElem?.querySelector(':scope > .tile-icon');
+    if (!tileElem) return;
+    // The tile's surface rules (tile_surface) while its colors are computed.
+    const surfaceSaved = globalThis.hometilesPreviewSurface;
+    const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(tileElem.dataset?.surface || '') : -1;
+    if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
+    try {
+    // Cut-outs in the card's color (the Media play glyph,
+    // tile_icon_disc::refresh_cutouts) follow the card after every tint.
+    const cutCard = typeof getComputedStyle === 'function'
+      ? cssColorChannels(getComputedStyle(tileElem).backgroundColor) : null;
+    if (cutCard && tileElem.style?.setProperty) tileElem.style.setProperty('--tile-cut', toneHex(cutCard));
+    const icon = tileElem.querySelector(':scope > .tile-icon');
     if (!icon) return;
     const glow = tileElem.dataset.iconGlow !== '0';
     // The color the icon was given (tile_icon_disc::icon_color): a shown
@@ -282,7 +370,21 @@
       const familyHex = tileTintBackground(base || '#1A1A1A', givenHex, ICON_FILL_DEFAULT);
       circleCard = [1, 3, 5].map(i => parseInt(familyHex.slice(i, i + 2), 16));
     }
-    const tone = toneFill(circleCard, given || [255, 255, 255], tinted, glowPct, seeThrough);
+    let tone = toneFill(circleCard, given || [255, 255, 255], tinted, glowPct, seeThrough);
+    // The light theme's tile circle (tone_color::tile_fill, lab 2026-10-10):
+    // the shown icon color at --pv-light-circle of the Circle strength over
+    // the card itself; controls at least 10 %.
+    const lightCircle = panelLight() && !seeThrough;
+    if (lightCircle) {
+      const shown = toneReadableIcon(given || [255, 255, 255]);
+      const over = tinted || !iconDiscTinted('rgb(' + shown.join(',') + ')') ? shown : (panelRole('icon') || shown);
+      const share = Number(panelVar('--pv-light-circle', '0.8'));
+      const amount = glowPct * (Number.isFinite(share) ? share : 0.8) / 100;
+      const blendOver = value => toneBlend(card, over, Math.round(Math.min(1, value) * 255));
+      const disc = glowPct ? blendOver(amount) : card.slice();
+      const control = blendOver(Math.max(amount, 0.1));
+      tone = { discColor: disc, controlColor: control, discOpa: glowPct ? 255 : 0, controlOpa: 255, disc, control, tinted };
+    }
     const rgba = (color, opa) => 'rgba(' + color.join(',') + ',' + (opa / 255).toFixed(3) + ')';
     tileElem.style.setProperty('--icon-disc-bg', rgba(tone.discColor, tone.discOpa));
     // Mirrors icon_lock_mark::behind(): the lock's rim takes the circle over
@@ -295,7 +397,7 @@
     // Mirrors tile_icon_source::refresh_controls(): tile controls (the
     // Climate target pill, Media buttons, the Switch bar) take the circle's
     // color whenever it is tinted, in every tile color; else the neutral step.
-    const controls = tinted ? tone : toneFill(card, given || [255, 255, 255], false, glowPct, seeThrough);
+    const controls = tinted || lightCircle ? tone : toneFill(card, given || [255, 255, 255], false, glowPct, seeThrough);
     tileElem.style.setProperty('--control-fill', rgba(controls.controlColor, controls.controlOpa));
     // The icon, readable like on the device (the same with every tile color,
     // Circle strength and circle option).
@@ -312,6 +414,9 @@
       icon.dataset.toneGiven = givenHex;
       icon.dataset.toneShown = readableHex;
       icon.style.color = readableHex;
+    }
+    } finally {
+      globalThis.hometilesPreviewSurface = surfaceSaved;
     }
   }
   // Mirrors tileBgColorFollowsDefault(): an unset color and the built-in
@@ -518,6 +623,14 @@
   function renderTileFromData(tab, index, tile, sensorMeta) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return;
+    // The whole tile draws with its surface's rules (tile_surface).
+    const surfaceType = String(tile?.type ?? '0');
+    const surface = surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
+      : tileSurfaceOf(tab, getTileTypeMeta(surfaceType).preview || '', tile?.bg_color, tile?.icon_colors);
+    const surfaceSaved = globalThis.hometilesPreviewSurface;
+    const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
+    if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
+    try {
     const metaValues = sensorMeta?.values || {};
     const metaUnits = sensorMeta?.units || {};
     const metaIcons = sensorMeta?.icons || {};
@@ -567,6 +680,7 @@
         el.style.background = bg;
       }
     }
+    if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);
     const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
     if (typeValue === '0') {
       el.innerHTML = '';
@@ -759,6 +873,9 @@
     if (typeValue === '5' && tile.sensor_entity) {
       const state = parseSwitchPayload(metaValues[tile.sensor_entity] ?? '');
       applySwitchPreviewState(el, state, tile.sensor_entity);
+    }
+    } finally {
+      globalThis.hometilesPreviewSurface = surfaceSaved;
     }
   }
 

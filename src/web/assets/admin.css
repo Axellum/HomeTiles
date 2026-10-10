@@ -1448,7 +1448,9 @@
     /* The same width on every device; only narrow windows stack it below
        the grid (media query further down). */
     .tile-settings {
-      flex:0 0 var(--settings-panel-width, 390px);
+      /* It may give way (down to min-width) so a wide grid never pushes its
+         right edge out of the page. */
+      flex:0 1 var(--settings-panel-width, 390px);
       width:var(--settings-panel-width, 390px);
       min-width:300px;
       max-width:var(--settings-panel-width, 390px);
@@ -1468,6 +1470,22 @@
       overflow:hidden;
     }
     .tile-settings.hidden { display:none; }
+    /* The panel's tabs (tiles/settings-pane.js): the selected tile's settings
+       or the global ones (the screensaver page: its picture settings); the
+       panel's data-pane picks what shows. */
+    .tile-settings > .panel-tabs { flex:0 0 auto; margin:0 0 14px; }
+    .tile-settings[data-pane="tile"] > .panel-tabs > [data-pane="tile"],
+    .tile-settings[data-pane="global"] > .panel-tabs > [data-pane="global"] { background:var(--accent-soft); color:#5fd4c7; }
+    .tile-settings[data-pane="global"] > .tile-specific-settings,
+    .tile-settings[data-pane="global"] > .screensaver-clock-settings,
+    .tile-settings[data-pane="tile"] > #screensaverBackgroundSettings,
+    .tile-settings[data-pane="tile"] > .panel-global { display:none; }
+    /* "Tile" without a selected tile: the hint how to pick one. */
+    .panel-tile-hint { display:none; margin:0; }
+    .tile-settings[data-pane="tile"]:not(:has(> .tile-specific-settings:not(.hidden), > .screensaver-clock-settings:not(.hidden))) > .panel-tile-hint { display:block; }
+    .panel-global { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+    .panel-global > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
+    .panel-global .global-settings-grid { grid-template-columns:minmax(0, 1fr); max-width:none; gap:12px; }
     /* The head (title + type) stays put, only the body scrolls */
     .tile-specific-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
     .screensaver-background-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
@@ -1871,7 +1889,9 @@
     .tile.media > .media-preview-title.media-preview-state { text-overflow:ellipsis; }
     .tile.media > .media-preview-subtitle { color:var(--pv-text-secondary, #D8DEE9); }
     .tile.media > .media-preview-control { border-radius:50%; color:var(--pv-icon, #fff); }
-    .tile.media > .media-preview-control.media-preview-play { background:var(--pv-icon, #fff); }
+    /* Play: a cut-out in the card's current color (--tile-cut, set after
+       every tint by applyIconDiscTint), like refresh_cutouts on the panel. */
+    .tile.media > .media-preview-control.media-preview-play { background:var(--pv-icon, #fff); color:var(--tile-cut, var(--tile-card, #1A1A1A)); }
     .tile.media > .media-preview-control.media-preview-disabled { opacity:.3; }
     .tile.media > .media-preview-control > .mdi {
       position:absolute; left:0; right:0; display:block; text-align:center;
@@ -2052,7 +2072,7 @@
       width:var(--switch-handle-w, 3px); height:var(--switch-handle-h, 42%);
       transform:translate(50%, -50%);
       border-radius:999px;
-      background:var(--switch-card, #1A1A1A);
+      background:var(--switch-mark, var(--switch-card, #1A1A1A));
     }
     /* Switch: a half-width thumb flush with the bar like the Light popup
        switch, the power symbol on it; off in the grey of an off icon
@@ -2069,7 +2089,7 @@
     .tile-switch.is-on .tile-switch-knob {
       left:50%;
       background:var(--switch-accent, #FFD54F);
-      color:var(--switch-card, #1A1A1A);
+      color:var(--switch-mark, var(--switch-card, #1A1A1A));
     }
     .tile-switch .tile-switch-symbol { font-size:calc(var(--switch-bar-height, 30px) * .55); line-height:1; }
     /* Lock: the thumb in the state color on both sides, its symbol in the

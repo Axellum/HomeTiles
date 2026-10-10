@@ -231,6 +231,11 @@ struct Strings {
   const char* theme_label;
   const char* theme_dark;
   const char* theme_light;
+  // Web Admin: the tabs on top of the settings panel (tile settings, the
+  // global tile settings; on the screensaver page its picture settings).
+  const char* panel_tab_tile;
+  const char* panel_tab_global;
+  const char* panel_tab_screensaver;
   // The layouts (grid_layout.h) and their "Layout ändern" window: the field
   // in the global settings, the three layouts, the window's buttons and
   // status ("**...**" is shown bold, {n} a count, {layout}/{tile} a name).

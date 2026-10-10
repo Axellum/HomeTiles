@@ -220,6 +220,9 @@ void apply_state(GridType grid_type, uint8_t index,
 
   widgets.last_payload_hash = payload_hash;
   tile_renderer_get_binary_sensor_states(grid_type)[index] = state;
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface =
+      tile_surface::scope(widgets.icon_label ? widgets.icon_label : widgets.state_label);
   const String label = state_label(state);
   if (widgets.state_label) {
     lv_label_set_text(widgets.state_label, label.c_str());

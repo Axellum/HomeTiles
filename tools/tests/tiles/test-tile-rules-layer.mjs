@@ -72,7 +72,7 @@ for (const marker of [
   'tile_icon_disc::release_icon_color(icon);',
   'tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card)));',
   'apply_tint_choice(card, choice);',
-  'const uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);',
+  'uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);',
 ]) assert.ok(source.includes(marker), `tile_icon_source: ${marker}`);
 const disc = read('src/tiles/runtime/tile_icon_disc.h');
 assert.match(disc, /if \(forced_color\(icon, forced\)\) \{\s*lv_obj_set_style_text_color\(icon, color, kIconRequested\);\s*color = forced;/,

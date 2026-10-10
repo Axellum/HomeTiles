@@ -14,8 +14,9 @@
 // "Heller Modus"):
 //   text and the head's icons  #1A1A1A   (dark: white)
 //   an icon beside a text      #464646   (dark: white)
-//   off and unavailable icons  #8B8B8B   (dark: #B0B0B0; the dark step from
+//   off icons                  #8B8B8B   (dark: #B0B0B0; the dark step from
 //                                         white to #B0B0B0 above #464646)
+//   unavailable icons          #BDBDBD   (dark: its off grey #B0B0B0)
 //   secondary text             #5F6368
 //   accents as text            their dark tone (OKLCH L 0.58)
 // Every light value lives here, the firmware and the Web Admin preview
@@ -28,8 +29,30 @@ enum class Theme : uint8_t { Dark = 0, Light = 1 };
 
 inline Theme g_theme = Theme::Dark;
 
-inline bool light() { return g_theme == Theme::Light; }
+// A surface that draws with the other theme's rules (user 2026-10-10: "the
+// tile decides"): a tile in its own dark color in the light theme or in its
+// own light color in the dark theme, and the dark design of Media and Weather
+// in the light theme (tile_surface, tile_icon_disc.h). While a SurfaceScope is open, light()
+// and every role answer for that surface; theme_light() stays the screen's.
+inline int8_t g_surface = -1;  // -1: the theme, 0: dark, 1: light
+
+inline bool theme_light() { return g_theme == Theme::Light; }
+inline bool light() { return g_surface >= 0 ? g_surface == 1 : theme_light(); }
 inline void set(uint8_t stored) { g_theme = stored == 1 ? Theme::Light : Theme::Dark; }
+
+class SurfaceScope {
+ public:
+  // -1 keeps the surface that is open (or the theme).
+  explicit SurfaceScope(int8_t surface) : saved_(g_surface) {
+    if (surface >= 0) g_surface = surface;
+  }
+  ~SurfaceScope() { g_surface = saved_; }
+  SurfaceScope(const SurfaceScope&) = delete;
+  SurfaceScope& operator=(const SurfaceScope&) = delete;
+
+ private:
+  int8_t saved_;
+};
 
 // The roles of one theme.
 struct Roles {
@@ -56,12 +79,15 @@ struct Roles {
   uint32_t text_secondary;
   // The softer text of the dark theme's #D8D8D8 (pressed play circle, captions).
   uint32_t text_soft;
+  // Unavailable: fainter than off in the light theme (like Home Assistant,
+  // user 2026-10-10); the dark theme keeps its off grey.
+  uint32_t icon_unavailable;
 };
 
 inline constexpr Roles kDark = {0x000000, 0x1A1A1A, 0x2A2A2A, 0xFFFFFF, 0xFFFFFF,
-                                0xB0B0B0, 0x9E9E9E, 0x9E9E9E, 0xD8DEE9, 0xD8D8D8};
+                                0xB0B0B0, 0x9E9E9E, 0x9E9E9E, 0xD8DEE9, 0xD8D8D8, 0xB0B0B0};
 inline constexpr Roles kLight = {0xE9EBEE, 0xFFFFFF, 0xFFFFFF, 0x1A1A1A, 0x464646,
-                                 0x8B8B8B, 0x8B8B8B, 0x464646, 0x5F6368, 0x3A3A3A};
+                                 0x8B8B8B, 0x8B8B8B, 0x464646, 0x5F6368, 0x3A3A3A, 0xBDBDBD};
 
 // The light theme's steps against the dark ones: a circle or control step
 // goes down by kLightStepNum / kLightStepDen of the dark step
@@ -71,6 +97,20 @@ inline constexpr int kLightStepNum = 5;
 inline constexpr int kLightStepDen = 6;
 inline constexpr int kLightTintNum = 4;
 inline constexpr int kLightTintDen = 5;
+
+// A surface counts as light above this OKLCH lightness: text, icons and
+// circles on it follow the light theme's rules, else the dark one's
+// (tone_color::light_surface; lab 2026-10-10: the WCAG ratio picked black on
+// mid colors like green).
+inline constexpr float kLightSurfaceL = 0.72f;
+// The light theme's tile circle (lab 2026-10-10, like Home Assistant): the
+// icon's color at this share of the Circle strength over the card (20 % at
+// the default 25 %).
+inline constexpr float kLightCircleShare = 0.8f;
+// The dark design in the light theme (Media, Weather, the selected Settings
+// category, user 2026-10-10): the dark theme's card, this much lighter
+// (OKLCH L).
+inline constexpr float kDarkDesignLift = 0.24f;
 
 inline const Roles& roles() { return light() ? kLight : kDark; }
 
@@ -84,6 +124,7 @@ inline uint32_t icon_inactive() { return roles().icon_inactive; }
 inline uint32_t icon_rest() { return roles().icon_rest; }
 inline uint32_t text_secondary() { return roles().text_secondary; }
 inline uint32_t text_soft() { return roles().text_soft; }
+inline uint32_t icon_unavailable() { return roles().icon_unavailable; }
 
 }  // namespace ui_theme
 

@@ -28,6 +28,7 @@
 #include "src/tiles/runtime/tile_icon_disc.h"
 #include "src/tiles/runtime/tile_icon_color_rules.h"
 #include "src/tiles/runtime/tile_icon_source.h"
+#include "src/tiles/config/tile_icon_colors.h"
 #include "src/types/media/cover_color.h"
 #include "src/core/config/config_manager.h"
 #include "src/core/display/dma2d_arbiter.h"
@@ -1752,7 +1753,8 @@ static bool switch_state_has_update(const SwitchState& state) {
 // color of CCT-only lights, else amber) while on, grey while off or
 // unavailable.
 uint32_t switch_state_icon_color(const SwitchState& state) {
-  if (!state.available || (state.has_state && !state.is_on)) return ui_theme::icon_off();
+  if (!state.available) return ui_theme::icon_unavailable();
+  if (state.has_state && !state.is_on) return ui_theme::icon_off();
   if (state.supports_temperature && !state.supports_color && state.has_color_temp) {
     return lv_color_to_u32(light_color_from_temperature_kelvin(state.color_temp_kelvin)) & 0xFFFFFF;
   }
@@ -1830,6 +1832,8 @@ static void apply_switch_tile_state(GridType grid_type, uint8_t grid_index,
   // the bound popup current, but do not invalidate every duplicate tile.
   // Header layouts show the brightness in their state line and dimmer.
   SwitchTileWidgets& widgets = target[grid_index];
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(widgets.icon_label ? widgets.icon_label : widgets.title_label);
   const bool shows_level = widgets.view != nullptr;
   const bool tile_visual_unchanged =
       switch_tile_visual_state_equal(prev, state) &&
@@ -2330,7 +2334,8 @@ String climate_visual_icon(
 }
 
 uint32_t climate_visual_color(const ClimateState& state) {
-  if (!state.available) return ui_theme::icon_inactive();
+  // Unavailable: the light theme's faint grey, the dark theme's inactive one.
+  if (!state.available) return ui_theme::light() ? ui_theme::icon_unavailable() : ui_theme::icon_inactive();
   return climate_visuals::state_foreground_color(
       state.hvac_mode, state.hvac_action);
 }
@@ -2400,6 +2405,8 @@ static void update_climate_tile_state(
   ClimateState* states = tile_renderer_get_climate_states(grid_type);
   if (!states) return;
   ClimateTileWidgets& widget = widgets[grid_index];
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(widget.icon_label ? widget.icon_label : widget.value_label);
 
   const uint32_t payload_hash = fnv1a_hash(payload);
   if (widget.last_payload_hash == payload_hash) {
@@ -2540,6 +2547,8 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
   if (!widgets.icon_label && !widgets.temp_label && !widgets.condition_label && !widgets.location_label) {
     return;
   }
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(widgets.icon_label ? widgets.icon_label : widgets.temp_label);
 
   uint32_t payload_hash = fnv1a_hash(payload);
   if (widgets.last_payload_hash == payload_hash) {
@@ -4425,6 +4434,9 @@ void update_media_tile_state(GridType grid_type, uint8_t grid_index, const char*
       !widgets.media_subtitle_label && !widgets.state_label) {
     return;
   }
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface =
+      tile_surface::scope(widgets.icon_label ? widgets.icon_label : widgets.media_title_label);
 
   const char* payload_start = payload;
   while (*payload_start == ' ' || *payload_start == '\t' ||
@@ -4997,24 +5009,51 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
   Serial.printf("[TileRenderer] Minimum free heap since boot: %u KB\n", ESP.getMinFreeHeap() / 1024);
 }
 
+// The surface a tile draws on (tile_surface in tile_icon_disc.h, user 2026-10-10): Media and
+// Weather show the dark design in the light theme; a tile in its own color
+// follows that color's lightness. Global and "From icon" colors keep the
+// theme, and so does the screensaver (a photo frame).
+static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
+  if (grid_type == GridType::SCREENSAVER) return tile_surface::kNone;
+  if (ui_theme::theme_light() && (tile.type == TILE_MEDIA || tile.type == TILE_WEATHER)) {
+    return tile_surface::kDarkDesign;
+  }
+  if (!tileBgColorIsSet(tile) || tileBgColorFollowsDefault(tile.bg_color) ||
+      tile_icon_colors::fill_of(tile.icon_colors.c_str())) {
+    return tile_surface::kNone;
+  }
+  // A black tile is the light theme's screen (tileBgColorOrDefault).
+  const uint32_t own = tileBgColorRgb(tile);
+  if (!own) return tile_surface::kNone;
+  return tone_color::light_surface(own) ? tile_surface::kLight : tile_surface::kDark;
+}
+
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {
   // Serial.printf("[render_tile] Index=%d, Type=%d, Title='%s'\n", index, tile.type, tile.title.c_str());
 
   const TileTypeDescriptor* desc = get_tile_type_descriptor(tile.type);
   if (desc && desc->render) {
+    // The whole tile draws with its surface's rules; its card keeps the
+    // surface for every later color change (tile_surface::scope).
+    const uint8_t surface = tile_surface_of(tile, grid_type);
+    const ui_theme::SurfaceScope scope(tile_surface::theme_of(surface));
     lv_obj_t* tile_obj =
         desc->render(parent, col, row, tile, index, grid_type, scene_cb);
+    tile_surface::set(tile_obj, surface);
+    if (surface == tile_surface::kDarkDesign) tile_icon_source::apply_dark_design(tile_obj);
     apply_fractional_tile_geometry(tile_obj, tile);
     // Rules (forced icon color, tile tint) from the cached states, before the
     // discs take the icon color and the background.
     tile_icon_source::refresh_card(tile_obj, tile);
     tile_icon_disc::apply_tile_options(tile_obj, tile.icon_disc_mode, tile.icon_glow);
     disable_pressed_recolor(tile_obj);
-    if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
+    // The dark design has no hairline, like the dark theme (lab 2026-10-10).
+    const bool dark_design = surface == tile_surface::kDarkDesign;
+    if (!tileBorderEnabled(tile) || dark_design) ui_surface_style::disable_tile_border(tile_obj);
     // Normal grids use the global display option. The screensaver has its
     // own setting and applies it after rendering in image_screensaver.cpp.
     if (tile_obj && grid_type != GridType::SCREENSAVER &&
-        tile.type != TILE_EMPTY) {
+        tile.type != TILE_EMPTY && !dark_design) {
       ui_surface_style::apply_global_tile_border(tile_obj);
     }
     return tile_obj;
@@ -5032,6 +5071,8 @@ void update_sensor_tile_value(GridType grid_type, uint8_t grid_index, const char
   if (!value_label) {
     return;
   }
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(value_label);
 
   if (target[grid_index].gauge && value) {
     float numeric = 0.0f;

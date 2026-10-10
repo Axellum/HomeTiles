@@ -244,6 +244,65 @@ inline Fill fill(uint32_t card, uint32_t icon, bool tinted, uint8_t percent, boo
   return result;
 }
 
+// The light theme: a tint this pale (OKLCH chroma) counts as no color
+// (readable_icon).
+inline constexpr float kNoColorChroma = 0.08f;
+
+// An icon color without a color: white, almost white or grey-white (a white
+// light, the dark theme's default icon color).
+inline bool no_color(uint32_t rgb) {
+  rgb &= 0xFFFFFF;
+  const Oklch seed = from_rgb(rgb);
+  return seed.L > 0.9f && (!tile_tint::has_hue(rgb) || seed.C < kNoColorChroma);
+}
+
+// Whether text, icons and circles on `rgb` follow the light theme's rules
+// (ui_theme::kLightSurfaceL).
+inline bool light_surface(uint32_t rgb) { return from_rgb(rgb & 0xFFFFFF).L > ui_theme::kLightSurfaceL; }
+
+// The dark design in the light theme: the dark theme's card a little lighter
+// (ui_theme::kDarkDesignLift).
+inline uint32_t dark_design(uint32_t dark_card) {
+  const Oklch card = from_rgb(dark_card & 0xFFFFFF);
+  return to_rgb(card.L + ui_theme::kDarkDesignLift, card.C, card.h);
+}
+
+// A mark on a colored surface (the power symbol, a slider notch): dark on a
+// light surface, white on a dark one (lab 2026-10-10). The dark theme keeps
+// its card-colored cut-out on light surfaces.
+inline uint32_t mark_on(uint32_t surface, uint32_t cutout) {
+  if (light_surface(surface)) return ui_theme::light() ? ui_theme::text() : cutout & 0xFFFFFF;
+  return 0xFFFFFF;
+}
+
+// A light's color as its fill and power button show it in the light theme:
+// a light without a color (white) shows Home Assistant's light grey (HSV value
+// 225), so it never vanishes on the light card (user 2026-10-10).
+inline uint32_t light_accent(uint32_t rgb) {
+  rgb &= 0xFFFFFF;
+  if (!ui_theme::light() || !no_color(rgb)) return rgb;
+  uint32_t max = 0;
+  for (int shift = 16; shift >= 0; shift -= 8) {
+    const uint32_t channel = (rgb >> shift) & 0xFF;
+    if (channel > max) max = channel;
+  }
+  if (!max) return rgb;
+  uint32_t out = 0;
+  for (int shift = 16; shift >= 0; shift -= 8) {
+    out |= ((((rgb >> shift) & 0xFF) * 225 + max / 2) / max) << shift;
+  }
+  return out;
+}
+
+// `icon` on a light circle: unchanged while kIconMinStep below the circle,
+// else darkened to that step in its own hue (the popup header of a white
+// light shows a mid grey, as on the panel today).
+inline uint32_t below_circle(uint32_t circle, uint32_t icon) {
+  const float maximum = from_rgb(circle & 0xFFFFFF).L - kIconMinStep;
+  const Oklch seed = from_rgb(icon & 0xFFFFFF);
+  return seed.L <= maximum ? icon & 0xFFFFFF : to_rgb(maximum, seed.C, seed.h);
+}
+
 // The tile color "From icon" at its default strength
 // (tile_icon_colors::kTintDefault).
 inline constexpr uint8_t kReferenceTint = 20;
@@ -276,28 +335,54 @@ inline uint32_t readable_icon(uint32_t icon) {
     if (cached_icon[i] == key) return cached_shown[i];
   }
   const bool tinted = tile_tint::has_hue(icon);
-  const uint32_t base = light ? ui_theme::card() : tile_color::kDefault;
-  const uint32_t card = tinted ? tile_tint::background(base, icon, kReferenceTint) : base;
-  const uint32_t circle = lifted(card, icon, tinted, icon_glow::kDefault * kStepPerPercent);
   const Oklch seed = from_rgb(icon);
   uint32_t shown = icon;
   if (!light) {
+    const uint32_t base = tile_color::kDefault;
+    const uint32_t card = tinted ? tile_tint::background(base, icon, kReferenceTint) : base;
+    const uint32_t circle = lifted(card, icon, tinted, icon_glow::kDefault * kStepPerPercent);
     const float minimum = from_rgb(circle).L + kIconMinStep;
     if (seed.L < minimum) shown = to_rgb(minimum, seed.C, seed.h);
-  } else if (!tinted && (seed.L > 0.9f || icon == ui_theme::text())) {
-    // The dark theme's white icon is the light theme's icon grey.
+  } else if (icon == ui_theme::text() || no_color(icon)) {
+    // The light theme shows an icon's own color, like Home Assistant (and
+    // the bars, sliders and circles that follow it). Only an icon without a
+    // color - white, almost white or the text color - takes the icon grey
+    // (user 2026-10-10: "Icons haben eine Farbe oder eben nicht").
     shown = ui_theme::icon();
-  } else {
-    // Mirrored: a light icon is lowered until it sits kIconMinStep below
-    // its circle.
-    const float maximum = from_rgb(circle).L - kIconMinStep;
-    if (seed.L > maximum) shown = to_rgb(maximum, seed.C, seed.h);
   }
   cached_icon[next] = key;
   cached_shown[next] = shown;
   next = static_cast<uint8_t>((next + 1) % 4);
   if (used < 4) ++used;
   return shown;
+}
+
+// The light theme's tile circle and controls (lab 2026-10-10, like Home
+// Assistant): the shown icon color at kLightCircleShare of the Circle
+// strength over the card (20 % at 25 %), a raised control twice that. Opaque
+// cards only; see-through screensaver tiles keep fill().
+inline Fill tile_fill(uint32_t card, uint32_t shown, bool tinted, uint8_t percent) {
+  card &= 0xFFFFFF;
+  shown &= 0xFFFFFF;
+  if (percent > 100) percent = 100;
+  const float share = percent * ui_theme::kLightCircleShare / 100.0f;
+  // Controls stay visible without a circle (kControlMinStep's role).
+  const float control = share > 0.1f ? share : 0.1f;
+  auto over = [&](float amount) {
+    const float clamped = amount > 1.0f ? 1.0f : amount;
+    return blend(card, shown, static_cast<uint8_t>(clamped * 255.0f + 0.5f));
+  };
+  Fill result{};
+  result.tinted = tinted;
+  result.disc_opa = disc_opa(percent);
+  result.control_opa = 255;
+  result.disc = percent ? over(share) : card;
+  result.control = over(control);
+  result.raised = over(2.0f * control);
+  result.disc_color = result.disc;
+  result.control_color = result.control;
+  result.raised_color = result.raised;
+  return result;
 }
 
 }  // namespace tone_color

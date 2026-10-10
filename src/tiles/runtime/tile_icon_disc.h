@@ -8,6 +8,52 @@
 #include "src/types/climate/layout.h"
 #include "src/ui/shared/ui_theme.h"
 
+// The surface a tile card draws on (user 2026-10-10: "the tile decides"). A
+// tile in its own color follows that color's lightness - its text, icons and
+// circles take the dark theme's rules on a dark color and the light theme's on
+// a light one, in either theme - and Media and Weather show the dark design in
+// the light theme (the dark theme's card, ui_theme::kDarkDesignLift lighter).
+// tile_renderer::render_tile marks the card; every later color path opens a
+// ui_theme::SurfaceScope for it (scope()), so state updates draw like the
+// first render.
+namespace tile_surface {
+
+enum : uint8_t { kNone = 0, kDark = 1, kLight = 2, kDarkDesign = 3 };
+
+// Kept as a local style value in a state selector the card never takes.
+inline constexpr lv_style_selector_t kStore = LV_PART_MAIN | LV_STATE_USER_1 | LV_STATE_USER_4;
+
+inline uint8_t get(lv_obj_t* card) {
+  lv_style_value_t value;
+  if (!card || lv_obj_get_local_style_prop(card, LV_STYLE_BG_OPA, &value, kStore) != LV_STYLE_RES_FOUND) return kNone;
+  return static_cast<uint8_t>(value.num);
+}
+
+inline void set(lv_obj_t* card, uint8_t surface) {
+  if (!card || get(card) == surface) return;
+  if (surface == kNone) lv_obj_remove_local_style_prop(card, LV_STYLE_BG_OPA, kStore);
+  else lv_obj_set_style_bg_opa(card, surface, kStore);
+}
+
+// The surface marked on `obj` or the card it sits in.
+inline uint8_t find(lv_obj_t* obj) {
+  for (int depth = 0; obj && depth < 5; ++depth, obj = lv_obj_get_parent(obj)) {
+    const uint8_t surface = get(obj);
+    if (surface != kNone) return surface;
+  }
+  return kNone;
+}
+
+// The theme a surface draws with: 0 dark, 1 light, -1 the theme.
+inline int8_t theme_of(uint8_t surface) {
+  return surface == kLight ? 1 : (surface == kDark || surface == kDarkDesign) ? 0 : -1;
+}
+
+// Opens the surface of `obj`'s card for the colors computed while it lives.
+inline ui_theme::SurfaceScope scope(lv_obj_t* obj) { return ui_theme::SurfaceScope(theme_of(find(obj))); }
+
+}  // namespace tile_surface
+
 // One translucent disc behind every tile icon. Half-height tiles hold the icon
 // in a disc that is concentric with the tile corner. Taller tiles keep their
 // icon exactly where it is and get a slightly larger disc centered on the
@@ -87,6 +133,15 @@ inline void mark_surface(lv_obj_t* obj) {
 }
 inline bool is_control(lv_obj_t* obj) { return obj && lv_obj_get_user_data(obj) == &kControlTags[0]; }
 inline bool is_surface(lv_obj_t* obj) { return obj && lv_obj_get_user_data(obj) == &kControlTags[1]; }
+
+// A label drawn as a cut-out in its card's color (the Media play glyph on its
+// circle): tile_icon_source::refresh_discs gives it the card's current color
+// after every tint.
+inline constexpr char kCutoutTag[1] = {};
+inline void mark_cutout(lv_obj_t* label) {
+  if (label) lv_obj_set_user_data(label, const_cast<char*>(&kCutoutTag[0]));
+}
+inline bool is_cutout(lv_obj_t* obj) { return obj && lv_obj_get_user_data(obj) == &kCutoutTag[0]; }
 
 inline void set_tag(lv_obj_t* disc, Mode mode, bool glow) {
   lv_obj_set_user_data(
@@ -270,9 +325,25 @@ inline uint32_t circle_card(lv_obj_t* host, uint32_t card, uint32_t rgb, bool ti
   return tone_color::g_from_icon_card(rgb, pressed, 0);
 }
 
+// The fill of a tile's circle and controls over `card` (at rest or pressed):
+// in the light theme the shown icon color over the card itself
+// (tone_color::tile_fill, lab 2026-10-10, like Home Assistant; a colored icon
+// without "Circle in icon color" takes the neutral icon grey), else the steps
+// of the "From icon" circle (circle_card, tone_color::fill). See-through
+// screensaver tiles keep the steps' veil.
+inline tone_color::Fill tile_fill(lv_obj_t* host, uint32_t card, uint32_t rgb, bool tinted, bool pressed,
+                                  bool see_through_card, uint8_t percent) {
+  if (ui_theme::light() && !see_through_card) {
+    const uint32_t shown = tone_color::readable_icon(rgb);
+    const uint32_t over = tinted || !icon_color_tints(shown) ? shown : ui_theme::icon();
+    return tone_color::tile_fill(card, over, tinted, percent);
+  }
+  return tone_color::fill(circle_card(host, card, rgb, tinted, pressed, see_through_card), rgb, tinted, percent,
+                          see_through_card);
+}
+
 // The fill of a disc for the card behind it (at rest or pressed) and its
-// icon's color (tone_color::fill, circle_card); `card` and
-// `see_through_card` report that card.
+// icon's color (tile_fill); `card` and `see_through_card` report that card.
 inline tone_color::Fill disc_fill(lv_obj_t* disc, bool pressed, uint32_t& card, bool& see_through_card) {
   lv_obj_t* icon = icon_of(disc);
   const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();
@@ -280,8 +351,24 @@ inline tone_color::Fill disc_fill(lv_obj_t* disc, bool pressed, uint32_t& card, 
   lv_obj_t* host = card_of(disc);
   card = card_state_color(host, pressed);
   see_through_card = see_through(host);
-  return tone_color::fill(circle_card(host, card, rgb, tinted, pressed, see_through_card), rgb, tinted,
-                          ui_surface_style::icon_glow_percent(), see_through_card);
+  return tile_fill(host, card, rgb, tinted, pressed, see_through_card, ui_surface_style::icon_glow_percent());
+}
+
+// The cut-outs of a card take its current resting color (mark_cutout).
+inline void refresh_cutouts(lv_obj_t* card) {
+  if (!card) return;
+  const lv_color_t color = lv_color_hex(card_state_color(card, false));
+  const uint32_t count = lv_obj_get_child_count(card);
+  for (uint32_t i = 0; i < count; ++i) {
+    lv_obj_t* child = lv_obj_get_child(card, static_cast<int32_t>(i));
+    const uint32_t inner = lv_obj_get_child_count(child);
+    for (uint32_t j = 0; j < inner; ++j) {
+      lv_obj_t* label = lv_obj_get_child(child, static_cast<int32_t>(j));
+      if (is_cutout(label) && !lv_color_eq(lv_obj_get_style_text_color(label, LV_PART_MAIN), color)) {
+        lv_obj_set_style_text_color(label, color, 0);
+      }
+    }
+  }
 }
 
 // Color and opacity of a disc from its mode, glow option, the card (at rest
@@ -290,6 +377,8 @@ inline tone_color::Fill disc_fill(lv_obj_t* disc, bool pressed, uint32_t& card, 
 // discs stay transparent. The icon is shown readable (show_readable).
 inline void apply_fill(lv_obj_t* disc) {
   if (!is_disc(disc)) return;
+  // The circle and its icon follow the card's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(disc);
   const Mode mode = mode_of(disc);
   lv_obj_t* icon = icon_of(disc);
   const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();

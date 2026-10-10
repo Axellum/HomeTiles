@@ -257,13 +257,17 @@ void apply_tint_choice(lv_obj_t* card, const tile_tint::Choice& choice) {
 
 void follow_open_popup(lv_obj_t* card);
 
-// Disc opacity and glow follow the (tinted) background.
+// Disc opacity and glow follow the (tinted) background, and so do the
+// card-colored cut-outs (the Media play glyph, tile_icon_disc::mark_cutout):
+// the renderer set them before a tint arrived (user 2026-10-10: the play
+// glyph stayed black on a tinted Media tile).
 void refresh_discs(lv_obj_t* card) {
   const uint32_t count = lv_obj_get_child_count(card);
   for (uint32_t i = 0; i < count; ++i) {
     lv_obj_t* child = lv_obj_get_child(card, static_cast<int32_t>(i));
     if (tile_icon_disc::is_disc(child)) tile_icon_disc::apply_fill(child);
   }
+  tile_icon_disc::refresh_cutouts(card);
 }
 
 // tile_icon_disc::g_icon_color_hook: an icon color change retints a card with
@@ -330,11 +334,15 @@ void apply_card_background(lv_obj_t* card, uint32_t rgb) {
 // press step lighter after every on/off.
 void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) {
   if (!card) return;
+  // A tile on its own surface tints with that surface's rules.
+  const ui_theme::SurfaceScope surface = tile_surface::scope(card);
   lv_style_value_t stored;
   if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) != LV_STYLE_RES_FOUND) {
     lv_obj_set_style_bg_color(card, lv_color_hex(tile_icon_disc::card_state_color(card, false)), kTintStore);
   }
-  const uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);
+  uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);
+  // The dark design: the dark theme's tint, a little lighter.
+  if (tile_surface::get(card) == tile_surface::kDarkDesign) tint = tone_color::dark_design(tint);
   if (tile_icon_disc::card_state_color(card, false) == tint) return;
   apply_card_background(card, tint);
 }
@@ -382,6 +390,11 @@ String layer_entity(const Tile& tile, const tile_icon_colors::Source& layer) {
 }
 
 }  // namespace
+
+void apply_dark_design(lv_obj_t* card) {
+  if (!card || tile_surface::get(card) != tile_surface::kDarkDesign) return;
+  apply_card_background(card, tone_color::dark_design(tile_icon_disc::card_state_color(card, false)));
+}
 
 bool cached_payload(const String& entity, String& payload) {
   payload = "";
@@ -502,6 +515,7 @@ uint32_t popup_background(lv_obj_t* obj, uint32_t fallback) {
 namespace {
 // Styles a card's controls from its resting and pressed color.
 void style_controls(lv_obj_t* card) {
+  const ui_theme::SurfaceScope surface_scope = tile_surface::scope(card);
   bool known = false;
   bool see_through = false;
   lv_color_t color = lv_color_hex(ui_theme::text());
@@ -526,15 +540,15 @@ void style_controls(lv_obj_t* card) {
       const uint8_t percent = ui_surface_style::icon_glow_percent();
       const uint32_t rest_card = tile_icon_disc::card_state_color(card, false);
       const uint32_t down_card = tile_icon_disc::card_state_color(card, true);
-      const tone_color::Fill fill = tone_color::fill(
-          tile_icon_disc::circle_card(card, rest_card, rgb, tinted, false, see_through), rgb, tinted, percent,
-          see_through);
+      // Like the circle (tile_icon_disc::disc_fill): the light theme's tile
+      // fill, else the steps.
+      const tone_color::Fill fill = tile_icon_disc::tile_fill(card, rest_card, rgb, tinted, false, see_through,
+                                                              percent);
       color = lv_color_hex(fill.control_color);
       raised = lv_color_hex(fill.raised_color);
       // A resting surface keeps its step above the pressed card too.
-      surface_pressed = tone_color::fill(tile_icon_disc::circle_card(card, down_card, rgb, tinted, true, see_through),
-                                         rgb, tinted, percent, see_through)
-                            .control_color;
+      surface_pressed =
+          tile_icon_disc::tile_fill(card, down_card, rgb, tinted, true, see_through, percent).control_color;
     }
     const bool on_surface = press && tile_icon_disc::is_surface(lv_obj_get_parent(obj));
     ui_surface_style::apply_control_fill(obj, on_surface ? raised : color,

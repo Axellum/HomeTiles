@@ -175,7 +175,7 @@ const reports = between(model, 'static void refresh_lines_now_and_then() {', 'vo
 assert.match(reports, /if \(last_ms != 0 && now - last_ms < 1000\) return;/);
 assert.match(reports, /void settings_update_wifi_status_ap\(const char\*, const char\*\) \{ refresh_lines_now_and_then\(\); \}/);
 assert.match(reports, /void settings_update_ap_mode\(bool running\) \{\s*if \(running == ap_mode_active\) return;/);
-const lines = between(screen, 'void refresh_lines() {', 'void sync_rotation()');
+const lines = between(screen, 'void refresh_line(uint8_t index) {', 'void sync_rotation()');
 assert.match(lines, /if \(!lv_color_eq\(lv_obj_get_style_text_color\(view\.line, LV_PART_MAIN\), color\)\)/);
 assert.match(lines, /if \(lv_obj_get_style_text_opa\(view\.line, LV_PART_MAIN\) != opa\)/);
 

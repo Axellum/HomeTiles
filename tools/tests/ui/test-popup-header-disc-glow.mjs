@@ -26,7 +26,9 @@ for (const marker of [
   'return tone_color::fill(circle_card, rgb, tinted, ui_surface_style::icon_glow_percent());',
   '(!options.off && (!options.follows_global || ui_surface_style::icon_discs_shown()));',
   'const lv_opa_t opa = shown ? fill.disc_opa : static_cast<lv_opa_t>(LV_OPA_TRANSP);',
-  'lv_color_hex(tone_color::readable_icon(rgb));',
+  // A white light below its circle in the light theme (user 2026-10-10).
+  'lv_color_hex(ui_theme::light() && tone_color::no_color(rgb) ? tone_color::below_circle(fill.disc, rgb)',
+  ': tone_color::readable_icon(rgb));',
   'ui_surface_style::apply_popup_border(shell.frame, lv_color_hex(ui_theme::text()),',
   'static_cast<lv_opa_t>(popup_layout::kPopupBorderOpa));',
 ]) assert.ok(tint.includes(marker), `header tint: ${marker}`);

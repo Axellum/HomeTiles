@@ -41,8 +41,11 @@ assert.match(tab.source, /<div class=\\"settings-parking-texts\\"><div id=\\"set
 // slot; no footer carries them.
 assert.match(tab.source, /\} else if \(!screensaver_mode\) \{[\s\S]{0,400}settings-hidden-parking folder-side[\s\S]{0,200}html \+= tr\.admin_tile_hint;[\s\S]{0,200}btn-delete-folder[\s\S]{0,200}tr\.admin_delete_folder_tab;/,
   'folders show the hint and Delete Folder beside or below the grid');
-assert.equal((tab.source.match(/tr\.admin_tile_hint/g) || []).length, 2,
-  'the hint appears once for Home and once for folders, never in a footer');
+// The third: the settings panel's "Tile" tab without a selected tile
+// (test-settings-panel-tabs.mjs).
+assert.equal((tab.source.match(/tr\.admin_tile_hint/g) || []).length, 3,
+  'the hint appears for Home, for folders and in the panel, never in a footer');
+assert.ok(tab.source.includes('html += "</button></div><p class=\\"hint panel-tile-hint\\">";\n  html += tr.admin_tile_hint;'));
 assert.equal((tab.source.match(/btn-delete-folder/g) || []).length, 1, 'one Delete Folder button');
 
 // Real layout on the smallest grid (S3 480x480, 4x4 cells of 116 px): the

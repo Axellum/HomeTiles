@@ -184,6 +184,12 @@
     } else {
       tileElem.style.background = tileBg;
     }
+    // The tile's surface (tile_surface): own colors and the dark design.
+    if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
+      const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
+      const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
+      applyTileSurface(tileElem, tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+    }
 
     let html = '';
     const locked = typeof previewTileLocked === 'function' && previewTileLocked(type, tileElem);

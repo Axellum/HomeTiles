@@ -42,6 +42,11 @@ lv_obj_t* card_icon(lv_obj_t* card);
 // discs that follow the background. Skips unchanged values.
 void refresh_card(lv_obj_t* card, const Tile& tile);
 
+// A card marked with the dark design (tile_surface in tile_icon_disc.h; Media and Weather in the
+// light theme): its rendered dark card, ui_theme::kDarkDesignLift lighter.
+// Tints of such a card are lifted the same way (set_tile_tint).
+void apply_dark_design(lv_obj_t* card);
+
 // The Media renderer reports the color of the cover a card shows (`known`
 // false without a cover or without a clear color, media/cover_color.h). A
 // card with "From cover" (icon color and/or tile color) follows it right

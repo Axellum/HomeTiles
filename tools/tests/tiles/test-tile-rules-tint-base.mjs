@@ -48,5 +48,5 @@ assert.equal(tint('rgb(139, 0, 0)', ''), context.tileTintBackground('#1A1A1A', '
 
 // Firmware: the same base.
 assert.ok(read('src/tiles/runtime/tile_icon_source.cpp')
-  .includes('const uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);'));
+  .includes('uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);'));
 console.log('Tile rules tint replaces the tile color from the global base');

@@ -108,6 +108,9 @@ void update_media_popup_from_widgets(GridType,uint8_t,MediaTileWidgets&,const St
 namespace bridge_images{struct Picture{char entity_id[72]="";char key[17]="";uint8_t*jpeg=nullptr;size_t length=0;uint16_t width=0,height=0;uint32_t used=0;};Picture stored;bool has=false;const Picture* find(const char*){return has?&stored:nullptr;}}
 bool link_configured=false;struct{bool linkConfigured()const{return link_configured;}}networkManager;
 ${['bridge_pictures_enabled','show_media_picture','update_media_cover_from_picture','tile_renderer_media_picture_arrived'].map(fn).join('\n')}
+// The tile's surface (tile_icon_disc.h) does not change what updates.
+namespace ui_theme{struct SurfaceScope{explicit SurfaceScope(int){}};}
+namespace tile_surface{inline ui_theme::SurfaceScope scope(lv_obj_t*){return ui_theme::SurfaceScope(-1);}}
 ${fn('update_media_tile_state')}
 ${runtime.match(/struct MediaUpdate \{[\s\S]*?\n};/)[0]}
 constexpr int MEDIA_QUEUE_SIZE=24;MediaUpdate g_media_queue[24];uint8_t g_media_head=0,g_media_tail=0;

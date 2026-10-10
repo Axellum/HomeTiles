@@ -254,6 +254,9 @@ static lv_obj_t* create_media_control_button(lv_obj_t* parent,
   lv_obj_t* label = lv_label_create(btn);
   if (label) {
     set_label_style(label, primary ? lv_color_hex(tile_bg_color) : lv_color_hex(ui_theme::icon()), FONT_MDI_ICONS);
+    // Play is cut out of its circle in the card's color, also after a tint
+    // (tile_icon_source::refresh_discs).
+    if (primary) tile_icon_disc::mark_cutout(label);
     String icon_char = getMdiChar(icon_name);
     lv_label_set_text(label, icon_char.length() ? icon_char.c_str() : "");
     lv_obj_align(label, LV_ALIGN_CENTER, 0, primary ? 0 : 0);
