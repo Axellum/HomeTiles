@@ -92,6 +92,10 @@ assert.ok(popup.includes('ctx->brightness_draw_color = tone_color::light_accent(
 const shell = read('src/ui/popups/popup_shell.cpp');
 assert.ok(shell.includes('tile_icon_source::popup_tile_circle(rgb, tile_circle, tile_circle_opa, shown_icon)') &&
   shell.includes('const lv_color_t readable = lv_color_hex(shown_icon);'), 'the header circle and icon are the tile\'s');
+// On its tile's card the tile's circle; on the neutral popup card (Light,
+// Climate, Cover) exactly the controls' fill, the selected mode button.
+assert.ok(shell.includes('const bool on_tile_card = popup_surface::g_open_surface != ui_theme::kThemeSurface;') &&
+  shell.includes('fill.disc_color = fill.control_color;'), 'the header circle on a neutral popup: its controls\' fill');
 assert.ok(read('src/types/media/renderer.cpp').includes('if (primary) tile_icon_disc::mark_cutout(label);') &&
   source.includes('tile_icon_disc::refresh_cutouts(card);'), 'the play glyph follows the tinted card');
 

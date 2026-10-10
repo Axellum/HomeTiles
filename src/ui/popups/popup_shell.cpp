@@ -383,17 +383,20 @@ void apply_header_disc_tint(lv_obj_t* disc, lv_obj_t* icon, lv_obj_t* source) {
   // popup, tone_color::light_icon), readable like a tile's; on a tile's
   // circle exactly the tile's icon.
   uint32_t shown_icon = tone_color::readable_icon(rgb);
-  if (options.from_tile && tile_icon_source::popup_tile_circle(rgb, tile_circle, tile_circle_opa, shown_icon)) {
-    // Exactly the opening tile's circle for this icon color (user
-    // 2026-10-10: "immer das, was sie draußen haben").
+  // A popup on its tile's card (its color, popup_surface::g_open_surface)
+  // shows exactly the tile's circle and icon (user 2026-10-10: "immer das,
+  // was sie draußen haben").
+  const bool on_tile_card = popup_surface::g_open_surface != ui_theme::kThemeSurface;
+  if (options.from_tile && on_tile_card &&
+      tile_icon_source::popup_tile_circle(rgb, tile_circle, tile_circle_opa, shown_icon)) {
     fill.disc_color = tile_circle;
     fill.disc_opa = tile_circle_opa;
   } else if (ui_theme::light()) {
-    // The light theme: the circle takes the icon's color over the card like
-    // a tile's (tone_color::tile_fill, like Home Assistant: 20 % of the icon).
-    const uint32_t shown_rgb = tone_color::readable_icon(rgb);
-    const uint32_t over = fill.tinted || !tile_tint::has_hue(shown_rgb) ? shown_rgb : ui_theme::icon();
-    fill = tone_color::tile_fill(card, over, fill.tinted, ui_surface_style::icon_glow_percent());
+    // On the light theme's neutral popup card (Light, Climate, Cover) the
+    // circle is exactly its controls' fill, the selected mode button's color
+    // (user 2026-10-10), also while a color is dragged.
+    fill.disc_color = fill.control_color;
+    fill.disc_opa = fill.control_opa;
   }
   const lv_color_t color = lv_color_hex(fill.disc_color);
   const lv_opa_t opa = shown ? fill.disc_opa : static_cast<lv_opa_t>(LV_OPA_TRANSP);
