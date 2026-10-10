@@ -3421,11 +3421,15 @@ input[data-entity-picker].hidden + .entity-picker { display:none; }
 }
 .setup-stage { display:flex; justify-content:center; align-items:flex-start; margin:0 auto; }
 /* The head over the layout's screen, in the middle of the area. */
-/* The editor's area: the layout's screen in black, the rest is outside. */
+/* The editor's area: the layout's screen in the screen color, the rest is
+   outside (the storage). The light theme's storage is a light grey a little
+   darker than its screen (user 2026-10-10: the dark storage was too hard). */
 .tile-grid.setup-grid {
   background-color:var(--panel, #141414); background-repeat:no-repeat; background-position:0 0;
   border:1px dashed var(--line-strong);
 }
+html[data-panel-theme="light"] .tile-grid.setup-grid { background-color:#DCDFE3; }
+html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { color:var(--pv-text-secondary); }
 /* No new tiles in the window. */
 .tile-grid.setup-grid > .tile.empty { display:none !important; }
 .tile-grid.setup-grid.setup-head-ghost > .head-bar-preview { opacity:0.35; }
