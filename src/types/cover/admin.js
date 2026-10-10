@@ -95,7 +95,7 @@
   function coverPreviewColor(state) {
     const value = String(state?.state || 'unknown').toLowerCase();
     if (state?.available === false || value === 'unknown' || value === 'unavailable') {
-      return '#9e9e9e';
+      return panelRoleHex('icon-rest', '#9e9e9e');
     }
     return '#926bc7';
   }

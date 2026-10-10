@@ -898,6 +898,7 @@
     .global-settings-grid .tile-color-row { margin:0; grid-template-columns:minmax(72px,1fr) 32px; }
     .global-settings-grid .tile-color-row input[type="color"] { height:32px; margin-bottom:0; }
     .global-settings-grid .tile-color-reset-btn { flex:0 0 32px; width:32px; height:32px; }
+    html[data-panel-theme="light"] .global-tile-color-field { display:none; }
     .global-settings-grid select.global-theme { flex:1 1 auto; min-width:0; height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
     @media (max-width:520px) { .global-settings-grid { grid-template-columns:minmax(0, 1fr); } }
     .global-radius-field { display:flex; align-items:center; gap:8px; height:32px; }
@@ -942,7 +943,7 @@
         calc(var(--preview-frame, 0px) + var(--preview-pad-bottom, var(--preview-pad)))
         calc(var(--preview-frame, 0px) + var(--preview-pad-left, var(--preview-pad)));
 
-      background:#000000;
+      background:var(--pv-screen, #000000);
       border:1px solid var(--line);
       border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + var(--preview-frame, 0px) + 1px);
       width:fit-content;
@@ -1177,7 +1178,7 @@
     /* The hairline sits on the outer card edge. A child overlay would be
        visibly indented by the transparent 3px editor border. */
     .tile-grid.tiles-bordered > .tile:not(.empty):not(.tile-border-hidden) {
-      outline:1px solid var(--tile-border-tint, rgba(255,255,255,0.20));
+      outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));
       outline-offset:-1px;
     }
 
@@ -1422,7 +1423,7 @@
     /* The free slot may lie over a selected empty new tile; it takes the click. */
     .tile.empty.free-slot-hover:not([data-selected="1"]) { z-index:1; }
     .tile-title {
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-weight:normal;
       font-size:var(--fs20, 10px);
       text-align:left;
@@ -1434,7 +1435,7 @@
 
     /* Tile Icons (MDI) */
     .tile-icon {
-      color:#fff;
+      color:var(--pv-icon, #fff);
       font-size:var(--icon-size, 24px);
       line-height:1;
       /* Anchor for the round icon disc; header icons stay absolute. */
@@ -1816,7 +1817,7 @@
       top:50%;
       transform:translateY(calc(-50% + var(--value-dy, 14px)));
       margin:0;
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs28, 14px);
       font-weight:normal;
       text-align:center;
@@ -1845,14 +1846,14 @@
        positions, each as tall as its LVGL line height. */
     .tile.weather > .weather-preview-row {
       position:absolute; left:0; right:0; display:flex; justify-content:center; align-items:center;
-      color:#fff; white-space:nowrap; pointer-events:none;
+      color:var(--pv-text, #fff); white-space:nowrap; pointer-events:none;
     }
     .tile.weather > .weather-preview-row > span { position:relative; display:block; white-space:nowrap; }
     .tile.weather > .weather-preview-row > .weather-preview-condition { overflow:hidden; text-overflow:ellipsis; min-width:0; }
     /* The separator in the text color like on the device (user 2026-10-09). */
     .tile.weather > .weather-preview-row > .weather-preview-separator { color:inherit; }
     .tile.weather > :is(.weather-preview-day, .weather-preview-icon, .weather-preview-temp-value, .weather-preview-temp-unit) {
-      position:absolute; color:#fff; white-space:nowrap; pointer-events:none;
+      position:absolute; color:var(--pv-text, #fff); white-space:nowrap; pointer-events:none;
     }
     .tile.weather > .weather-preview-day { text-align:center; overflow:hidden; text-overflow:ellipsis; }
     .tile.weather > .weather-preview-icon { display:flex; justify-content:center; font-size:var(--icon-size, 24px); line-height:1; }
@@ -1865,11 +1866,11 @@
       position:absolute; pointer-events:none;
     }
     .tile.media > :is(.media-preview-title, .media-preview-subtitle) { white-space:nowrap; overflow:hidden; text-overflow:clip; }
-    .tile.media > .media-preview-title { color:#fff; }
+    .tile.media > .media-preview-title { color:var(--pv-text, #fff); }
     .tile.media > .media-preview-title.media-preview-state { text-overflow:ellipsis; }
-    .tile.media > .media-preview-subtitle { color:#D8DEE9; }
-    .tile.media > .media-preview-control { border-radius:50%; color:#fff; }
-    .tile.media > .media-preview-control.media-preview-play { background:#fff; }
+    .tile.media > .media-preview-subtitle { color:var(--pv-text-secondary, #D8DEE9); }
+    .tile.media > .media-preview-control { border-radius:50%; color:var(--pv-icon, #fff); }
+    .tile.media > .media-preview-control.media-preview-play { background:var(--pv-icon, #fff); }
     .tile.media > .media-preview-control.media-preview-disabled { opacity:.3; }
     .tile.media > .media-preview-control > .mdi {
       position:absolute; left:0; right:0; display:block; text-align:center;
@@ -2061,7 +2062,7 @@
       align-items:center; justify-content:center;
       border-radius:inherit;
       background:var(--switch-thumb-off, #555);
-      color:#B0B0B0;
+      color:var(--pv-icon-off, #B0B0B0);
     }
     .tile-switch[data-bar="toggle"] .tile-switch-knob { display:flex; }
     .tile-switch.is-on .tile-switch-knob {
@@ -2084,7 +2085,7 @@
     .tile-device-part {
       flex:1 1 0; display:flex; align-items:center; justify-content:center;
       border-radius:var(--climate-control-radius, 8px);
-      color:#fff; font-size:calc(var(--switch-bar-height, 30px) * .45); line-height:1;
+      color:var(--pv-text, #fff); font-size:calc(var(--switch-bar-height, 30px) * .45); line-height:1;
     }
     .tile-device-part.button { background:var(--device-button, rgba(255,255,255,0.18)); }
     .tile-device-part.lit { background:var(--switch-accent, #9E9E9E); color:var(--switch-card, #1A1A1A); }
@@ -2115,7 +2116,7 @@
       top:50%;
       transform:translateY(calc(-50% + var(--value-dy, 14px)));
       margin:0;
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs28, 14px);
       font-weight:normal;
       text-align:center;
@@ -2148,7 +2149,7 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      color:#fff;
+      color:var(--pv-text, #fff);
       line-height:1;
       overflow:hidden;
       cursor:pointer;
@@ -2210,7 +2211,7 @@
     .tile.climate .climate-slot-control small {
       min-width:0;
       overflow:hidden;
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs20, 10px);
       font-weight:400;
       line-height:1.2;
@@ -2298,7 +2299,7 @@
       box-sizing:border-box;
       display:flex;
       align-items:center;
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs20, 10px);
       pointer-events:none;
     }
@@ -2676,7 +2677,7 @@
     .tile-clock-time {
       position:relative;
       top:var(--ldy40, 0px);
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs40, 20px);
       font-weight:400;
       line-height:var(--lh40, 1.27);
@@ -2684,7 +2685,7 @@
     .tile-clock-date {
       position:relative;
       top:var(--ldy20, 0px);
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs20, 10px);
       font-weight:400;
       line-height:var(--lh20, 1.35);
@@ -2715,7 +2716,7 @@
       right:calc(var(--text-header-pad-h, 9px) - 3px);
       top:50%;
       transform:translateY(-50%);
-      color:#fff;
+      color:var(--pv-text, #fff);
       font-size:var(--fs28, 14px);
       line-height:var(--lh28, 1.32);
       text-align:center;
@@ -2809,7 +2810,7 @@
   width:var(--head-screen-w);
   height:var(--head-top);
   pointer-events:none;
-  color:#ffffff;
+  color:var(--pv-text, #ffffff);
 }
 .head-bar-preview > * { position:absolute; }
 .head-bar-preview .head-disc {
@@ -2860,7 +2861,7 @@
 /* The gear's icon box for its lock (home_bar.cpp gear_lock_event_cb), over
    the black screen. */
 .head-bar-preview .head-gear > i {
-  position:relative; display:inline-block; width:1em; height:1em; line-height:1; --icon-lock-rim:#000000;
+  position:relative; display:inline-block; width:1em; height:1em; line-height:1; --icon-lock-rim:var(--pv-screen, #000000);
 }
 .head-bar-preview .head-button {
   left:var(--head-close-x);

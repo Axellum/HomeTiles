@@ -149,6 +149,6 @@ assert.ok(iconSource.includes('if (icon_fill_marker(obj, marker)) return marker;
   iconSource.includes('tile_icon_disc::glow_of(disc), popup_shows_tile_color && from_icon > 0,\n                            from_icon);'),
   'The opening tile passes its From icon strength');
 assert.match(read('src/web/assets/admin.css'),
-  /\.tile-switch \.tile-switch-knob \{[^}]*background:var\(--switch-thumb-off, #555\);\s*color:#B0B0B0;/,
+  /\.tile-switch \.tile-switch-knob \{[^}]*background:var\(--switch-thumb-off, #555\);\s*color:var\(--pv-icon-off, #B0B0B0\);/,
   'Web preview: grey off symbol');
 console.log('Light popup circle, track, buttons and switch match the tile');

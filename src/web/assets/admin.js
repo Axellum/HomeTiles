@@ -271,11 +271,35 @@ async function saveDefaultTileColor(value) {
 // field shows the saved choice.
 let themeSaveSequence = 0;
 let themeChosen = null;
+// The preview follows the theme at once: the roles (--pv-*) switch with
+// html[data-panel-theme], and what the script computes from them (circles,
+// tints, readable icons, bars, the head circle) is computed again.
+function applyPanelThemePreview(theme) {
+  document.documentElement.dataset.panelTheme = theme === '1' ? 'light' : 'dark';
+  const glow = currentIconGlow();
+  const parse = hex => /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
+  const card = parse(panelVar('--tile-card', '')) || [26, 26, 26];
+  // The neutral circle for tiles the script does not tint (web_admin_styles).
+  const disc = toneFill(card, [255, 255, 255], false, glow, false);
+  document.documentElement.style.setProperty('--icon-disc-bg',
+    'rgba(' + disc.discColor.join(',') + ',' + (disc.discOpa / 255).toFixed(3) + ')');
+  // The head's circle: the gear's circle over the screen (light) or the tile
+  // color (dark), like home_bar.cpp.
+  const headBase = panelLight() ? (panelRole('screen') || card) : card;
+  document.documentElement.style.setProperty('--head-disc-color',
+    toneHex(toneFill(headBase, [0x9E, 0x9E, 0x9E], false, glow, false).disc));
+  tileDataLoadedTabs.forEach(tab => {
+    getTilesData(tab).forEach((tile, index) => { if (tile) renderTileFromData(tab, index, tile, sensorMetaCache); });
+  });
+  document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
+  if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
+}
 async function saveTheme(value) {
   const theme = String(value) === '1' ? '1' : '0';
   const previous = theme === '1' ? '0' : '1';
   themeChosen = theme;
   document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
+  applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
     const response = await fetch('/api/display/theme', {
@@ -288,6 +312,7 @@ async function saveTheme(value) {
     if (sequence !== themeSaveSequence) return;
     themeChosen = previous;
     document.querySelectorAll('.global-theme').forEach(select => { select.value = previous; });
+    applyPanelThemePreview(previous);
     showNotification(t('networkErrorSave'), false);
   }
 }
@@ -4676,7 +4701,7 @@ function syncTileRadiusControls(tabEl) {
     if (ICON_COLOR_SWITCH_DOMAINS.includes(domain) && typeof parseSwitchPayload === 'function') {
       const state = parseSwitchPayload(text);
       if (!state || state.available === false || !state.hasState) return '';
-      return state.isOn ? (state.hasColor ? state.color : '#FFD54F') : '#B0B0B0';
+      return state.isOn ? (state.hasColor ? state.color : '#FFD54F') : panelRoleHex('icon-off', '#B0B0B0');
     }
     if (domain === 'binary_sensor' && typeof parseBinarySensorPreviewPayload === 'function') {
       const state = parseBinarySensorPreviewPayload(text);
@@ -4808,16 +4833,27 @@ function syncTileRadiusControls(tabEl) {
     const contrast = rgb => 1.05 / (0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]) + 0.05);
     const from = parse(base);
     const to = parse(color);
-    let out = from.map((v, i) => Math.floor((v * (100 - percent) + to[i] * percent + 50) / 100));
+    const mix = (under, p) => under.map((v, i) => Math.floor((v * (100 - p) + to[i] * p + 50) / 100));
+    const hex = rgb => '#' + rgb.map(v => v.toString(16).toUpperCase().padStart(2, '0')).join('');
+    if (typeof panelLight === 'function' && panelLight()) {
+      // The light theme: the tint on the light card at --pv-light-tint of its
+      // strength, never darkened (its text is dark); a default grey base is
+      // the light card.
+      const greyDefault = ['#1A1A1A', '#2A2A2A', '#222222'].includes(hex(from));
+      const scale = Number(panelVar('--pv-light-tint', '0.8'));
+      const p = Math.floor(percent * (Number.isFinite(scale) ? scale : 0.8) + 1e-6);
+      return hex(mix(greyDefault ? (panelRole('card') || [255, 255, 255]) : from, p));
+    }
+    let out = mix(from, percent);
     for (let i = 0; i < 40 && contrast(out) < 4.5; i++) out = out.map(v => Math.floor((v * 95 + 50) / 100));
-    return '#' + out.map(v => v.toString(16).toUpperCase().padStart(2, '0')).join('');
+    return hex(out);
   }
   // Tints a preview card from the global tile color. A screensaver card keeps
   // its own opacity (data-bg-opacity): the panel sets bg_opa after the tint
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
   function setTileTintBackground(el, color, percent) {
-    const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+    const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
     const hex = tileTintBackground(base || '#1A1A1A', color, percent);
     const opacity = el.dataset.bgOpacity;
     el.style.background = opacity === undefined ? hex : hex + Number(opacity).toString(16).padStart(2, '0');
@@ -7626,8 +7662,8 @@ function syncTileRadiusControls(tabEl) {
         Number(document.getElementById(prefix + '_clock_date_font')?.value || 20));
       const clockTimeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
       const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
-      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
-      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, '#fff') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
     }
 
     if (previewKind === 'text') {
@@ -9089,12 +9125,16 @@ function syncTileRadiusControls(tabEl) {
   // Tiles without their own color follow the global default tile color. The
   // preview paints them through one root variable, so a change of that color
   // repaints loaded, cached and lazily inserted grids at once.
+  // The card is --tile-card: the global tile color in the dark theme, the
+  // light card in the light one (tileDefaultBgColor); a black tile shows the
+  // light theme's screen color (tileBgColorOrDefault).
   function tileBackgroundCss(meta, isDefault, hex, opacity = null) {
     const shared = !!isDefault && !!meta?.sharedBg;
-    const sharedCss = 'var(--tile-default-bg, #2A2A2A)';
-    if (opacity === null || opacity === undefined) return shared ? sharedCss : hex;
-    if (shared) {
-      return 'color-mix(in srgb, ' + sharedCss + ' ' +
+    const black = !shared && /^#0{6}$/.test(String(hex));
+    const cardCss = shared ? 'var(--tile-card, #2A2A2A)' : black ? 'var(--pv-black-tile, #000000)' : hex;
+    if (opacity === null || opacity === undefined) return cardCss;
+    if (shared || black) {
+      return 'color-mix(in srgb, ' + cardCss + ' ' +
         (opacity * 100 / 255).toFixed(2) + '%, transparent)';
     }
     return hex + opacity.toString(16).padStart(2, '0');
@@ -9183,7 +9223,8 @@ function syncTileRadiusControls(tabEl) {
   function toneFill(card, icon, tinted, percent, seeThrough) {
     percent = Math.min(100, Math.max(0, percent));
     const base = toneOklch(card), seed = toneOklch(icon);
-    const lift = step => tinted ? toneRgb(base.L + step, seed.C * 0.55, seed.h) : toneRgb(base.L + step, base.C, base.h);
+    const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)
+      : toneRgb(base.L + toneStep(step), base.C, base.h);
     const discStep = percent * 0.0024;
     if (!seeThrough) {
       const control = lift(Math.max(discStep, 0.03));
@@ -9209,6 +9250,22 @@ function syncTileRadiusControls(tabEl) {
   // strength never change an icon's color.
   function toneReadableIcon(icon) {
     const tinted = icon[0] !== icon[1] || icon[1] !== icon[2];
+    if (panelLight()) {
+      // Mirrored on the light card: white or the text color is the icon grey,
+      // any other icon is lowered until it sits 0.22 L below its circle.
+      const seed = toneOklch(icon);
+      if (!tinted && (seed.L > 0.9 || toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase())) {
+        return panelRole('icon') || icon;
+      }
+      const cardHex = toneHex(panelRole('card') || [255, 255, 255]);
+      const tintHex = tinted && typeof tileTintBackground === 'function'
+        ? tileTintBackground(cardHex, toneHex(icon), ICON_FILL_DEFAULT) : cardHex;
+      const base = toneOklch([1, 3, 5].map(i => parseInt(tintHex.slice(i, i + 2), 16)));
+      const step = toneStep(0.06);
+      const circle = tinted ? toneRgb(base.L + step, seed.C * 0.55, seed.h) : toneRgb(base.L + step, base.C, base.h);
+      const maximum = toneOklch(circle).L - 0.22;
+      return seed.L <= maximum ? icon : toneRgb(maximum, seed.C, seed.h);
+    }
     const linear = v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     const contrast = c => 1.05 / (0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2]) + 0.05);
     let card = [26, 26, 26];
@@ -9223,6 +9280,31 @@ function syncTileRadiusControls(tabEl) {
   }
   function toneHex(rgb) {
     return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  // The panel's theme (html[data-panel-theme], ui_theme.h) and its roles
+  // (--pv-*, written from ui_theme.h by web_admin_styles.cpp).
+  function panelLight() {
+    return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
+  }
+  function panelVar(name, fallback) {
+    if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return fallback;
+    const value = String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim();
+    return value || fallback;
+  }
+  function panelRole(name) {
+    const hex = panelVar('--pv-' + name, '');
+    return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
+  }
+  function panelRoleHex(name, fallback) {
+    const rgb = panelRole(name);
+    return rgb ? toneHex(rgb) : fallback;
+  }
+  // tone_color::lifted(): the light theme steps down by --pv-light-step of
+  // the dark step.
+  function toneStep(step) {
+    if (!panelLight()) return step;
+    const scale = Number(panelVar('--pv-light-step', '0.833333'));
+    return -step * (Number.isFinite(scale) ? scale : 5 / 6);
   }
   // Default tile color "From icon" strength (tile_icon_colors::kTintDefault).
   const ICON_FILL_DEFAULT = 20;
@@ -9273,12 +9355,14 @@ function syncTileRadiusControls(tabEl) {
     const tinted = glow && !!given && iconDiscTinted('rgb(' + given.join(',') + ')');
     icon.classList.toggle('tile-icon-tinted', tinted);
     // Mirrors ui_surface_style::border_hint(): a glowing icon gives the tile
-    // outline its hue halfway to white (lv_color_mix(white, icon, 128)) at the
-    // hairline's 20 %, mostly the tile with a hint of the icon.
+    // outline its hue halfway to the text color (lv_color_mix(text, icon,
+    // 128); white in the dark theme) at the hairline's 20 %, mostly the tile
+    // with a hint of the icon.
     // Only a card in the tile color From icon (tile_icon_disc
     // apply_tile_options); Global and Custom keep the neutral hairline.
     if (tinted && fill > 0) {
-      const hint = given.map(v => Math.floor(((255 * 128 + v * 127) * 0x8081) / 0x800000));
+      const text = panelRole('text') || [255, 255, 255];
+      const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));
       tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');
     } else {
       tileElem.style.removeProperty('--tile-border-tint');
@@ -9296,7 +9380,7 @@ function syncTileRadiusControls(tabEl) {
     // for the card From icon would give at its default strength.
     let circleCard = card;
     if (tinted && !(fill > 0) && !seeThrough && typeof tileTintBackground === 'function') {
-      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
       const familyHex = tileTintBackground(base || '#1A1A1A', givenHex, ICON_FILL_DEFAULT);
       circleCard = [1, 3, 5].map(i => parseInt(familyHex.slice(i, i + 2), 16));
     }
@@ -9722,8 +9806,8 @@ function syncTileRadiusControls(tabEl) {
         const clockDateFont = Math.min(72, Number(tile.key_modifier || 20));
         const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
         const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
-        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, '#fff') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
       }
       if (previewKind === 'text') {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
@@ -13529,7 +13613,7 @@ function maybeFillTitleFromSensor(tab) {
 
   function binarySensorPreviewColor(state) {
     return state?.valid === true && state?.available === true &&
-      state?.state === 'on' ? '#ffc107' : '#9e9e9e';
+      state?.state === 'on' ? '#ffc107' : panelRoleHex('icon-rest', '#9e9e9e');
   }
 
   function binarySensorPreviewStateText(state) {
@@ -14226,7 +14310,7 @@ function maybeFillTitleFromWeather(tab) {
         if (!state) dayText = '';
         html += '<div class="weather-preview-day" style="' + at(left, contentTop + L.dayTop * scale + dayFont.shift) +
           'width:' + contentW.toFixed(2) + 'px;' + fontCss(dayFont) +
-          'color:' + (slot || !state ? '#FFFFFF' : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
+          'color:' + (slot || !state ? panelRoleHex('text', '#FFFFFF') : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
         if (!slot) continue;
         if (slot.icon) {
           const svg = colored ? weatherIconSvg(slot.icon, false) : '';
@@ -14864,12 +14948,12 @@ function maybeFillTitleFromSwitch(tab) {
     const iconEl = tileElem.querySelector('.tile-icon');
     if (!iconEl) return;
     if (state.available === false) {
-      iconEl.style.color = SWITCH_ICON_OFF;
+      iconEl.style.color = panelRoleHex('icon-off', SWITCH_ICON_OFF);
       return;
     }
     if (!state.hasState && !state.hasColor) return;
     const isOn = state.hasState ? state.isOn : state.hasColor;
-    iconEl.style.color = isOn ? (state.hasColor ? state.color : SWITCH_ICON_ON) : SWITCH_ICON_OFF;
+    iconEl.style.color = isOn ? (state.hasColor ? state.color : SWITCH_ICON_ON) : panelRoleHex('icon-off', SWITCH_ICON_OFF);
   }
 
   // show_state_text(): the same words as the device, from the central
@@ -14912,7 +14996,7 @@ function maybeFillTitleFromSwitch(tab) {
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {
       const base = toneOklch(control);
-      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + 0.06, base.C, base.h)));
+      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + toneStep(0.06), base.C, base.h)));
     }
     const symbol = bar.querySelector('.tile-switch-symbol');
     if (symbol) symbol.className = 'mdi ' + (on ? 'mdi-power' : 'mdi-circle-outline') + ' tile-switch-symbol';
@@ -15125,7 +15209,7 @@ function maybeFillTitleFromSwitch(tab) {
   function coverPreviewColor(state) {
     const value = String(state?.state || 'unknown').toLowerCase();
     if (state?.available === false || value === 'unknown' || value === 'unavailable') {
-      return '#9e9e9e';
+      return panelRoleHex('icon-rest', '#9e9e9e');
     }
     return '#926bc7';
   }
@@ -15307,7 +15391,7 @@ function maybeFillTitleFromSwitch(tab) {
   function devicePreviewVisual(kind, d) {
     const words = typeof DEVICE_I18N === 'object' ? (DEVICE_I18N[kind] || {}) : {};
     const out = {label: '--', icon: kind === 'lock' ? 'lock' : (kind === 'alarm' ? 'shield' : 'fan-off'),
-      color: DEVICE_COLORS.grey, waiting: false};
+      color: panelRoleHex('icon-inactive', DEVICE_COLORS.grey), waiting: false};
     if (!d.valid) return out;
     const state = d.available ? d.state : 'unavailable';
     if (kind === 'lock') {
@@ -15340,7 +15424,7 @@ function maybeFillTitleFromSwitch(tab) {
       const look = looks[state];
       if (look) {
         out.icon = look[0];
-        out.color = DEVICE_COLORS[look[1]];
+        out.color = look[1] === 'grey' ? panelRoleHex('icon-inactive', DEVICE_COLORS.grey) : DEVICE_COLORS[look[1]];
         out.waiting = look[1] === 'orange' || state === 'triggered';
       }
       return out;
@@ -15410,8 +15494,8 @@ function maybeFillTitleFromSwitch(tab) {
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {
       const base = toneOklch(control);
-      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + 0.06, base.C, base.h)));
-      bar.style.setProperty('--device-button', toneHex(toneRgb(base.L + 0.04, base.C, base.h)));
+      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + toneStep(0.06), base.C, base.h)));
+      bar.style.setProperty('--device-button', toneHex(toneRgb(base.L + toneStep(0.04), base.C, base.h)));
     }
     bar.classList.toggle('is-unavailable', !d.valid || !d.available);
     bar.classList.remove('is-on', 'knob-accent');
@@ -15745,7 +15829,7 @@ function maybeFillTitleFromMedia(tab) {
     if (entity) {
       const unavailable = String(state?.state || '').trim().toLowerCase() === 'unavailable';
       const playing = String(state?.state || '').trim().toLowerCase() === 'playing';
-      const cardColor = el.style.background || 'var(--tile-default-bg, #1A1A1A)';
+      const cardColor = el.style.background || 'var(--tile-card, #1A1A1A)';
       const buttonY = height - L.button + L.buttonBottom;
       const iconTop = (Math.trunc((L.button - L.iconLine) / 2) + L.iconEmDy) * scale;
       for (const [offset, icon, primary] of [[-L.buttonSide, 'skip-previous', false],
@@ -17859,14 +17943,14 @@ function maybeFillTitleFromMedia(tab) {
     const mode = String(state?.mode || '').toLowerCase();
     // Unknown is inactive like unavailable (climate_visuals: 0x9E9E9E).
     if (state?.available === false || mode === 'unavailable' || mode === 'unknown') {
-      return '#9e9e9e';
+      return panelRoleHex('icon-rest', '#9e9e9e');
     }
     if (action === 'heating' || action === 'preheating') return '#ff8a3d';
     if (action === 'cooling') return '#4fc3f7';
     if (action === 'drying') return '#ffd54f';
     if (action === 'fan') return '#4db6ac';
     if (action === 'defrosting') return '#81d4fa';
-    if (mode === 'off' || action === 'idle' || action === 'off') return '#9e9e9e';
+    if (mode === 'off' || action === 'idle' || action === 'off') return panelRoleHex('icon-rest', '#9e9e9e');
     if (!action && mode === 'heat') return '#ff8a3d';
     if (!action && mode === 'cool') return '#4fc3f7';
     if (!action && mode === 'dry') return '#ffd54f';
@@ -18483,7 +18567,7 @@ function getClockPreviewLanguage() {
   function getClockPreviewTextStyle(raw, fallback, color) {
     const font = normalizeClockPreviewFont(raw, fallback);
     const size = getClockPreviewCssPx(raw, fallback);
-    const safeColor = color || '#fff';
+    const safeColor = color || panelRoleHex('text', '#fff');
     return 'data-clock-font="' + font + '" style="font-size:' + size + 'px; ' +
       clockPreviewLineCss(font) + ' color:' + safeColor + ';"';
   }
@@ -18493,7 +18577,7 @@ function getClockPreviewLanguage() {
     const font = normalizeClockPreviewFont(raw, fallback);
     el.dataset.clockFont = String(font);
     applyClockPreviewLine(el, font, getClockPreviewCssPx(raw, fallback, el));
-    el.style.color = color || '#fff';
+    el.style.color = color || panelRoleHex('text', '#fff');
   }
 
   function normalizeClockFlags(raw) {
@@ -18595,11 +18679,11 @@ function getClockPreviewLanguage() {
 
     if (timeEl) {
       timeEl.textContent = getClockPreviewTime(timeFormat);
-      applyClockPreviewTextStyle(timeEl, timeFont, 40, '#fff');
+      applyClockPreviewTextStyle(timeEl, timeFont, 40, panelRoleHex('text', '#fff'));
     }
     if (dateEl) {
       dateEl.textContent = getClockPreviewDate(dateFormat);
-      applyClockPreviewTextStyle(dateEl, dateFont, 20, '#fff');
+      applyClockPreviewTextStyle(dateEl, dateFont, 20, panelRoleHex('text', '#fff'));
     }
     fitCompactClockPreview(tileElem);
   }

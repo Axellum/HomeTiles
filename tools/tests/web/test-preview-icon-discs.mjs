@@ -18,7 +18,7 @@ assert.match(html, /if \(tile\.type == TILE_SCENE && !iconName\.length\(\) &&[\s
 assert.match(html, /tile_icon_disc::icon_color_tints\(binary_sensor_visual_color\(binary_sensor_state\)\)/);
 
 const page = `<!doctype html><html lang="en"><head><style>${readRepoFile('src/web/assets/admin.css')}
-:root{--icon-size:24px;--icon-disc-round:30px;--icon-disc-corner:34px;--compact-inset:2px;--tile-radius:11px;--preview-cell-w:84px;--preview-cell-h:72px;--preview-gap:5px;}
+:root{--icon-size:24px;--icon-disc-round:30px;--icon-disc-corner:34px;--compact-inset:2px;--tile-radius:11px;--preview-cell-w:84px;--preview-cell-h:72px;--preview-gap:5px;--tile-card:var(--tile-default-bg, #2A2A2A);}
 </style></head><body>
 <div id="tab-tiles-test" class="tile-tab"><div class="tile-grid">
 <div class="tile" id="test-tile-0" data-index="0" style="width:84px;height:72px"></div>

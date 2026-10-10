@@ -50,7 +50,8 @@ inline uint32_t background(uint32_t base, uint32_t color, unsigned percent) {
     // darkened for white text; a default grey base is the light card.
     const uint32_t rgb = base & 0xFFFFFF;
     const bool grey_default = rgb == 0x1A1A1A || rgb == 0x2A2A2A || rgb == 0x222222;
-    return mix(grey_default ? ui_theme::card() : rgb, color & 0xFFFFFF, percent * 4 / 5);
+    return mix(grey_default ? ui_theme::card() : rgb, color & 0xFFFFFF,
+               percent * ui_theme::kLightTintNum / ui_theme::kLightTintDen);
   }
   uint32_t out = mix(base & 0xFFFFFF, color & 0xFFFFFF, percent);
   for (int i = 0; i < 40 && white_contrast(out) < 4.5; ++i) out = scale(out, 95);

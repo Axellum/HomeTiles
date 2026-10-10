@@ -33,7 +33,7 @@ function tint(ownBackground, globalColor) {
   const el = {style: {background: ''}, dataset: {}};
   context.getComputedStyle = target => target === el
     ? {backgroundColor: ownBackground}
-    : {getPropertyValue: name => (name === '--tile-default-bg' ? globalColor : '')};
+    : {getPropertyValue: name => (name === '--tile-card' ? globalColor : '')};
   context.applyTileRulesTint(el, '12', 'v2\n\nsrc auto self tile=20', 'climate.test', {});
   return el.style.background;
 }

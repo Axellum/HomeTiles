@@ -275,8 +275,8 @@
         Number(document.getElementById(prefix + '_clock_date_font')?.value || 20));
       const clockTimeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
       const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
-      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
-      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, '#fff') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
     }
 
     if (previewKind === 'text') {

@@ -29,7 +29,9 @@ for (const marker of [
 ]) assert.ok(tone.includes(marker), `tone_color.h: ${marker}`);
 
 // The preview functions, exactly as delivered to the browser.
-const js = new Function(['toneToLinear', 'toneToSrgb', 'toneOklch', 'toneLinear', 'toneRgb', 'toneBlend', 'toneFill',
+// (The panel theme helpers: no document here, so the dark theme.)
+const js = new Function(['toneToLinear', 'toneToSrgb', 'toneOklch', 'toneLinear', 'toneRgb', 'toneBlend', 'toneHex',
+  'panelLight', 'panelVar', 'panelRole', 'panelRoleHex', 'toneStep', 'toneFill',
   'toneReadableIcon'].map(extractDeliveredFunction).join('\n') + '; return {toneFill, toneReadableIcon, toneOklch};')();
 
 // The tile card of Tile color "From icon" at 20 % (tile_tint::background).

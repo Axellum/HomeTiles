@@ -61,7 +61,7 @@
   function devicePreviewVisual(kind, d) {
     const words = typeof DEVICE_I18N === 'object' ? (DEVICE_I18N[kind] || {}) : {};
     const out = {label: '--', icon: kind === 'lock' ? 'lock' : (kind === 'alarm' ? 'shield' : 'fan-off'),
-      color: DEVICE_COLORS.grey, waiting: false};
+      color: panelRoleHex('icon-inactive', DEVICE_COLORS.grey), waiting: false};
     if (!d.valid) return out;
     const state = d.available ? d.state : 'unavailable';
     if (kind === 'lock') {
@@ -94,7 +94,7 @@
       const look = looks[state];
       if (look) {
         out.icon = look[0];
-        out.color = DEVICE_COLORS[look[1]];
+        out.color = look[1] === 'grey' ? panelRoleHex('icon-inactive', DEVICE_COLORS.grey) : DEVICE_COLORS[look[1]];
         out.waiting = look[1] === 'orange' || state === 'triggered';
       }
       return out;
@@ -164,8 +164,8 @@
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {
       const base = toneOklch(control);
-      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + 0.06, base.C, base.h)));
-      bar.style.setProperty('--device-button', toneHex(toneRgb(base.L + 0.04, base.C, base.h)));
+      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + toneStep(0.06), base.C, base.h)));
+      bar.style.setProperty('--device-button', toneHex(toneRgb(base.L + toneStep(0.04), base.C, base.h)));
     }
     bar.classList.toggle('is-unavailable', !d.valid || !d.available);
     bar.classList.remove('is-on', 'knob-accent');

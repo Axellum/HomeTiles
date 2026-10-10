@@ -49,9 +49,10 @@ assert.ok(!shell.includes('ui_surface_style::apply_global_tile_border(parts.card
 // Preview: the same hint through --tile-border-tint at 20 %.
 const preview = read('src/web/admin/tiles/grid-preview.js');
 assert.ok(preview.includes("tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');"));
-assert.ok(preview.includes('const hint = given.map(v => Math.floor(((255 * 128 + v * 127) * 0x8081) / 0x800000));'));
+// (Halfway to the theme's text color: white in the dark theme.)
+assert.ok(preview.includes('const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));'));
 const css = read('src/web/assets/admin.css');
-assert.ok(css.includes('outline:1px solid var(--tile-border-tint, rgba(255,255,255,0.20));'));
+assert.ok(css.includes('outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));'));
 assert.equal((css.match(/background:var\(--icon-disc-bg, rgba\(255,255,255,0\.149\)\);/g) || []).length, 2,
   'Discs take the circle color per tile, neutral by default');
 // LVGL mix == preview hint.

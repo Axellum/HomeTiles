@@ -206,11 +206,35 @@ async function saveDefaultTileColor(value) {
 // field shows the saved choice.
 let themeSaveSequence = 0;
 let themeChosen = null;
+// The preview follows the theme at once: the roles (--pv-*) switch with
+// html[data-panel-theme], and what the script computes from them (circles,
+// tints, readable icons, bars, the head circle) is computed again.
+function applyPanelThemePreview(theme) {
+  document.documentElement.dataset.panelTheme = theme === '1' ? 'light' : 'dark';
+  const glow = currentIconGlow();
+  const parse = hex => /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
+  const card = parse(panelVar('--tile-card', '')) || [26, 26, 26];
+  // The neutral circle for tiles the script does not tint (web_admin_styles).
+  const disc = toneFill(card, [255, 255, 255], false, glow, false);
+  document.documentElement.style.setProperty('--icon-disc-bg',
+    'rgba(' + disc.discColor.join(',') + ',' + (disc.discOpa / 255).toFixed(3) + ')');
+  // The head's circle: the gear's circle over the screen (light) or the tile
+  // color (dark), like home_bar.cpp.
+  const headBase = panelLight() ? (panelRole('screen') || card) : card;
+  document.documentElement.style.setProperty('--head-disc-color',
+    toneHex(toneFill(headBase, [0x9E, 0x9E, 0x9E], false, glow, false).disc));
+  tileDataLoadedTabs.forEach(tab => {
+    getTilesData(tab).forEach((tile, index) => { if (tile) renderTileFromData(tab, index, tile, sensorMetaCache); });
+  });
+  document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
+  if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
+}
 async function saveTheme(value) {
   const theme = String(value) === '1' ? '1' : '0';
   const previous = theme === '1' ? '0' : '1';
   themeChosen = theme;
   document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
+  applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
     const response = await fetch('/api/display/theme', {
@@ -223,6 +247,7 @@ async function saveTheme(value) {
     if (sequence !== themeSaveSequence) return;
     themeChosen = previous;
     document.querySelectorAll('.global-theme').forEach(select => { select.value = previous; });
+    applyPanelThemePreview(previous);
     showNotification(t('networkErrorSave'), false);
   }
 }

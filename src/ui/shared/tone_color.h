@@ -131,7 +131,7 @@ inline uint32_t lifted(uint32_t card, uint32_t icon, bool tinted, float step) {
   const Oklch base = from_rgb(card);
   // The light theme steps down from its light cards, by 5/6 of the step
   // (light mockup: -0.05 L for +0.06 L).
-  if (ui_theme::light()) step = -step * 5.0f / 6.0f;
+  if (ui_theme::light()) step = -step * ui_theme::kLightStepNum / ui_theme::kLightStepDen;
   if (!tinted) return to_rgb(base.L + step, base.C, base.h);
   const Oklch seed = from_rgb(icon);
   return to_rgb(base.L + step, seed.C * kCircleChroma, seed.h);

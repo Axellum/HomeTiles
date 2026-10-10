@@ -17,7 +17,7 @@ const modeColor = visuals.slice(visuals.indexOf('inline uint32_t mode_foreground
 assert.match(modeColor, /if \(equals\(mode, "unknown"\)\) return ui_theme::icon_rest\(\);\s*return 0xFFFFFF;/);
 assert.match(visuals, /!equals\(mode, "unknown"\)/, 'unknown stays inactive (no tile tint)');
 assert.match(read('src/types/climate/admin-preview.js'),
-  /state\?\.available === false \|\| mode === 'unavailable' \|\| mode === 'unknown'\) \{\s*return '#9e9e9e';/);
+  /state\?\.available === false \|\| mode === 'unavailable' \|\| mode === 'unknown'\) \{\s*return panelRoleHex\('icon-rest', '#9e9e9e'\);/);
 
 // Media tile: the state label and disabled controls.
 const renderer = read('src/tiles/runtime/tile_renderer.cpp');

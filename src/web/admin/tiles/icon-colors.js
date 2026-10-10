@@ -465,7 +465,7 @@
     if (ICON_COLOR_SWITCH_DOMAINS.includes(domain) && typeof parseSwitchPayload === 'function') {
       const state = parseSwitchPayload(text);
       if (!state || state.available === false || !state.hasState) return '';
-      return state.isOn ? (state.hasColor ? state.color : '#FFD54F') : '#B0B0B0';
+      return state.isOn ? (state.hasColor ? state.color : '#FFD54F') : panelRoleHex('icon-off', '#B0B0B0');
     }
     if (domain === 'binary_sensor' && typeof parseBinarySensorPreviewPayload === 'function') {
       const state = parseBinarySensorPreviewPayload(text);
@@ -597,16 +597,27 @@
     const contrast = rgb => 1.05 / (0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]) + 0.05);
     const from = parse(base);
     const to = parse(color);
-    let out = from.map((v, i) => Math.floor((v * (100 - percent) + to[i] * percent + 50) / 100));
+    const mix = (under, p) => under.map((v, i) => Math.floor((v * (100 - p) + to[i] * p + 50) / 100));
+    const hex = rgb => '#' + rgb.map(v => v.toString(16).toUpperCase().padStart(2, '0')).join('');
+    if (typeof panelLight === 'function' && panelLight()) {
+      // The light theme: the tint on the light card at --pv-light-tint of its
+      // strength, never darkened (its text is dark); a default grey base is
+      // the light card.
+      const greyDefault = ['#1A1A1A', '#2A2A2A', '#222222'].includes(hex(from));
+      const scale = Number(panelVar('--pv-light-tint', '0.8'));
+      const p = Math.floor(percent * (Number.isFinite(scale) ? scale : 0.8) + 1e-6);
+      return hex(mix(greyDefault ? (panelRole('card') || [255, 255, 255]) : from, p));
+    }
+    let out = mix(from, percent);
     for (let i = 0; i < 40 && contrast(out) < 4.5; i++) out = out.map(v => Math.floor((v * 95 + 50) / 100));
-    return '#' + out.map(v => v.toString(16).toUpperCase().padStart(2, '0')).join('');
+    return hex(out);
   }
   // Tints a preview card from the global tile color. A screensaver card keeps
   // its own opacity (data-bg-opacity): the panel sets bg_opa after the tint
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
   function setTileTintBackground(el, color, percent) {
-    const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+    const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
     const hex = tileTintBackground(base || '#1A1A1A', color, percent);
     const opacity = el.dataset.bgOpacity;
     el.style.background = opacity === undefined ? hex : hex + Number(opacity).toString(16).padStart(2, '0');

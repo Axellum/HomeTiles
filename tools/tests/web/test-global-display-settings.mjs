@@ -74,7 +74,9 @@ for (const marker of [
   'oninput=\\"previewDefaultTileColor(this.value)\\"',
   'onchange=\\"saveDefaultTileColor(this.value)\\"',
   'html += "\\" class=\\"icon-discs-off";',
-  'tileStyle = "background:var(--tile-default-bg)";',
+  // Through --tile-card: the global color in the dark theme, the light card
+  // in the light theme (appendPanelThemeVars).
+  'tileStyle = "background:var(--tile-card)";',
 ]) assert.ok(html.includes(marker), `admin HTML: ${marker}`);
 assert.ok(read('src/web/server/render/web_admin_styles.cpp').includes('html += "--tile-default-bg:";'));
 
@@ -110,7 +112,10 @@ for (const marker of [
 ]) assert.ok(display.includes(marker), `display settings: ${marker}`);
 assert.ok(read('src/web/admin/folders/navigation.js').includes('syncGlobalDisplayControls(tabEl);'));
 const preview = read('src/web/admin/tiles/grid-preview.js');
-assert.ok(preview.includes("const sharedCss = 'var(--tile-default-bg, #2A2A2A)';"));
+assert.ok(preview.includes("const cardCss = shared ? 'var(--tile-card, #2A2A2A)' : black ? 'var(--pv-black-tile, #000000)' : hex;"));
+const styles = read('src/web/server/render/web_admin_styles.cpp');
+assert.ok(styles.includes('html += "--tile-card:var(--tile-default-bg);--pv-black-tile:#000000;";'),
+  'The dark theme paints tiles in the global tile color');
 assert.match(read('src/web/admin/tiles/live-preview.js'), /tileBackgroundCss\(meta, isDefaultBg,/);
 assert.match(read('src/web/assets/admin.css'), /\.icon-discs-off \.tile\.sensor-compact:not\(\[data-icon-disc="1"\]\) > \.tile-icon/);
 // The global block uses the Tile Settings style in two compact columns:
@@ -128,7 +133,7 @@ for (const marker of [
   'appendHtmlEscaped(html, tr.icon_glow);',
   '"\\" oninput=\\"previewIconGlowLive(this.value)\\" onchange=\\"saveIconGlow(this.value)\\">"',
   '"onclick=\\"saveIconGlow(" + String(icon_glow::kDefault) + ")\\"><i class=\\"mdi mdi-restore\\"></i></button>"',
-  'html += "<div class=\\"global-settings-field\\"><label for=\\"" + color_id + "\\">";',
+  'html += "<div class=\\"global-settings-field global-tile-color-field\\"><label for=\\"" + color_id + "\\">";',
   'html += "</label><div class=\\"tile-color-row\\"><input class=\\"global-tile-color\\" id=\\"" + color_id +',
   '"<button type=\\"button\\" class=\\"tile-color-reset-btn\\" title=\\"Reset\\" "',
   'static_cast<unsigned>(tile_color::kDefault));',

@@ -533,11 +533,11 @@ static void appendTileTabHTML(
       // Tiles without their own color follow the global default tile color
       // through one CSS variable, so the preview repaints them live.
       if (screensaver_mode) {
-        tileStyle = "background:color-mix(in srgb,var(--tile-default-bg) ";
+        tileStyle = "background:color-mix(in srgb,var(--tile-card) ";
         tileStyle += String(screensaverConfig.get().tile_opacity * 100.0f / 255.0f, 2);
         tileStyle += "%,transparent)";
       } else {
-        tileStyle = "background:var(--tile-default-bg)";
+        tileStyle = "background:var(--tile-card)";
       }
     } else if (tile.type != TILE_EMPTY) {
       uint32_t bg_color = tileBgColorIsSet(tile)
@@ -998,11 +998,13 @@ static void appendTileTabHTML(
             "<button type=\"button\" class=\"tile-color-reset-btn global-icon-glow-reset\" title=\"Reset\" "
             "onclick=\"saveIconGlow(" + String(icon_glow::kDefault) + ")\"><i class=\"mdi mdi-restore\"></i></button>"
             "</div></div>";
-    html += "<div class=\"global-settings-field\"><label for=\"" + color_id + "\">";
+    html += "<div class=\"global-settings-field global-tile-color-field\"><label for=\"" + color_id + "\">";
     appendHtmlEscaped(html, tr.default_tile_color);
     char default_color_hex[8];
+    // The stored setting (the dark theme's card); the light theme keeps its
+    // own card and hides the field (admin.css).
     snprintf(default_color_hex, sizeof(default_color_hex), "#%06X",
-             static_cast<unsigned>(tileDefaultBgColor()));
+             static_cast<unsigned>(tile_color::normalize(display.default_tile_color)));
     char factory_color_hex[8];
     snprintf(factory_color_hex, sizeof(factory_color_hex), "#%06X",
              static_cast<unsigned>(tile_color::kDefault));
@@ -2245,6 +2247,9 @@ String WebAdminServer::getAdminPage() {
   html.reserve(192 * 1024);
   html += "<!DOCTYPE html>\n<html lang=\"";
   html += tr.html_lang;
+  // The panel's theme (ui_theme.h): the preview paints with its roles
+  // (appendPanelThemeVars); the theme field switches it.
+  html += ui_theme::light() ? "\" data-panel-theme=\"light" : "\" data-panel-theme=\"dark";
   // The global icon disc option is a root class, so every preview grid,
   // including lazily inserted folders, follows it without re-rendering.
   if (!configManager.getConfig().icon_discs) html += "\" class=\"icon-discs-off";

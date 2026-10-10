@@ -209,7 +209,7 @@ function maybeFillTitleFromMedia(tab) {
     if (entity) {
       const unavailable = String(state?.state || '').trim().toLowerCase() === 'unavailable';
       const playing = String(state?.state || '').trim().toLowerCase() === 'playing';
-      const cardColor = el.style.background || 'var(--tile-default-bg, #1A1A1A)';
+      const cardColor = el.style.background || 'var(--tile-card, #1A1A1A)';
       const buttonY = height - L.button + L.buttonBottom;
       const iconTop = (Math.trunc((L.button - L.iconLine) / 2) + L.iconEmDy) * scale;
       for (const [offset, icon, primary] of [[-L.buttonSide, 'skip-previous', false],

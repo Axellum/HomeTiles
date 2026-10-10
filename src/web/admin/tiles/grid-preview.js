@@ -23,12 +23,16 @@
   // Tiles without their own color follow the global default tile color. The
   // preview paints them through one root variable, so a change of that color
   // repaints loaded, cached and lazily inserted grids at once.
+  // The card is --tile-card: the global tile color in the dark theme, the
+  // light card in the light one (tileDefaultBgColor); a black tile shows the
+  // light theme's screen color (tileBgColorOrDefault).
   function tileBackgroundCss(meta, isDefault, hex, opacity = null) {
     const shared = !!isDefault && !!meta?.sharedBg;
-    const sharedCss = 'var(--tile-default-bg, #2A2A2A)';
-    if (opacity === null || opacity === undefined) return shared ? sharedCss : hex;
-    if (shared) {
-      return 'color-mix(in srgb, ' + sharedCss + ' ' +
+    const black = !shared && /^#0{6}$/.test(String(hex));
+    const cardCss = shared ? 'var(--tile-card, #2A2A2A)' : black ? 'var(--pv-black-tile, #000000)' : hex;
+    if (opacity === null || opacity === undefined) return cardCss;
+    if (shared || black) {
+      return 'color-mix(in srgb, ' + cardCss + ' ' +
         (opacity * 100 / 255).toFixed(2) + '%, transparent)';
     }
     return hex + opacity.toString(16).padStart(2, '0');
@@ -117,7 +121,8 @@
   function toneFill(card, icon, tinted, percent, seeThrough) {
     percent = Math.min(100, Math.max(0, percent));
     const base = toneOklch(card), seed = toneOklch(icon);
-    const lift = step => tinted ? toneRgb(base.L + step, seed.C * 0.55, seed.h) : toneRgb(base.L + step, base.C, base.h);
+    const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)
+      : toneRgb(base.L + toneStep(step), base.C, base.h);
     const discStep = percent * 0.0024;
     if (!seeThrough) {
       const control = lift(Math.max(discStep, 0.03));
@@ -143,6 +148,22 @@
   // strength never change an icon's color.
   function toneReadableIcon(icon) {
     const tinted = icon[0] !== icon[1] || icon[1] !== icon[2];
+    if (panelLight()) {
+      // Mirrored on the light card: white or the text color is the icon grey,
+      // any other icon is lowered until it sits 0.22 L below its circle.
+      const seed = toneOklch(icon);
+      if (!tinted && (seed.L > 0.9 || toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase())) {
+        return panelRole('icon') || icon;
+      }
+      const cardHex = toneHex(panelRole('card') || [255, 255, 255]);
+      const tintHex = tinted && typeof tileTintBackground === 'function'
+        ? tileTintBackground(cardHex, toneHex(icon), ICON_FILL_DEFAULT) : cardHex;
+      const base = toneOklch([1, 3, 5].map(i => parseInt(tintHex.slice(i, i + 2), 16)));
+      const step = toneStep(0.06);
+      const circle = tinted ? toneRgb(base.L + step, seed.C * 0.55, seed.h) : toneRgb(base.L + step, base.C, base.h);
+      const maximum = toneOklch(circle).L - 0.22;
+      return seed.L <= maximum ? icon : toneRgb(maximum, seed.C, seed.h);
+    }
     const linear = v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     const contrast = c => 1.05 / (0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2]) + 0.05);
     let card = [26, 26, 26];
@@ -157,6 +178,31 @@
   }
   function toneHex(rgb) {
     return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  // The panel's theme (html[data-panel-theme], ui_theme.h) and its roles
+  // (--pv-*, written from ui_theme.h by web_admin_styles.cpp).
+  function panelLight() {
+    return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
+  }
+  function panelVar(name, fallback) {
+    if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return fallback;
+    const value = String(getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim();
+    return value || fallback;
+  }
+  function panelRole(name) {
+    const hex = panelVar('--pv-' + name, '');
+    return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
+  }
+  function panelRoleHex(name, fallback) {
+    const rgb = panelRole(name);
+    return rgb ? toneHex(rgb) : fallback;
+  }
+  // tone_color::lifted(): the light theme steps down by --pv-light-step of
+  // the dark step.
+  function toneStep(step) {
+    if (!panelLight()) return step;
+    const scale = Number(panelVar('--pv-light-step', '0.833333'));
+    return -step * (Number.isFinite(scale) ? scale : 5 / 6);
   }
   // Default tile color "From icon" strength (tile_icon_colors::kTintDefault).
   const ICON_FILL_DEFAULT = 20;
@@ -207,12 +253,14 @@
     const tinted = glow && !!given && iconDiscTinted('rgb(' + given.join(',') + ')');
     icon.classList.toggle('tile-icon-tinted', tinted);
     // Mirrors ui_surface_style::border_hint(): a glowing icon gives the tile
-    // outline its hue halfway to white (lv_color_mix(white, icon, 128)) at the
-    // hairline's 20 %, mostly the tile with a hint of the icon.
+    // outline its hue halfway to the text color (lv_color_mix(text, icon,
+    // 128); white in the dark theme) at the hairline's 20 %, mostly the tile
+    // with a hint of the icon.
     // Only a card in the tile color From icon (tile_icon_disc
     // apply_tile_options); Global and Custom keep the neutral hairline.
     if (tinted && fill > 0) {
-      const hint = given.map(v => Math.floor(((255 * 128 + v * 127) * 0x8081) / 0x800000));
+      const text = panelRole('text') || [255, 255, 255];
+      const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));
       tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');
     } else {
       tileElem.style.removeProperty('--tile-border-tint');
@@ -230,7 +278,7 @@
     // for the card From icon would give at its default strength.
     let circleCard = card;
     if (tinted && !(fill > 0) && !seeThrough && typeof tileTintBackground === 'function') {
-      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
       const familyHex = tileTintBackground(base || '#1A1A1A', givenHex, ICON_FILL_DEFAULT);
       circleCard = [1, 3, 5].map(i => parseInt(familyHex.slice(i, i + 2), 16));
     }
@@ -656,8 +704,8 @@
         const clockDateFont = Math.min(72, Number(tile.key_modifier || 20));
         const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
         const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
-        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, '#fff') + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, '#fff') + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
       }
       if (previewKind === 'text') {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';

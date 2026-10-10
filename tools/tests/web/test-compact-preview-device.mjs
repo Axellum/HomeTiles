@@ -56,7 +56,7 @@ class String:public std::string{public:using std::string::string;using std::stri
 constexpr int SCREEN_WIDTH=Device::kScreenWidth,SCREEN_HEIGHT=Device::kScreenHeight;
 ${radiusPolicyHost(root, 'Device::kGridCellH', 'Device::kGridGap')}
 #include "src/core/config/icon_glow.h"
-struct TestConfig { int tile_radius = tile_radius::kMinimum; bool tile_borders = true; bool icon_discs = true; uint8_t icon_glow = icon_glow::kDefault; const char* language = "en"; };
+struct TestConfig { int tile_radius = tile_radius::kMinimum; bool tile_borders = true; bool icon_discs = true; uint8_t icon_glow = icon_glow::kDefault; uint32_t default_tile_color = 0x1A1A1A; const char* language = "en"; };
 struct TestConfigManager { TestConfig config; const TestConfig& getConfig() const { return config; } } configManager;
 ${surfaceStyleHost(root)}
 ${strip(read('src/tiles/runtime/tile_renderer_fonts.h'))}

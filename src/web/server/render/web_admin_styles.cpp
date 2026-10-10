@@ -311,11 +311,13 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   emit("value-dy", 28);
 #endif
   {
-    // Tiles without their own color paint with this variable, so a change of
-    // the global default tile color repaints every preview grid at once.
+    // The stored global default tile color (the dark theme's card). Tiles
+    // without their own color paint with --tile-card, which is this color in
+    // the dark theme (appendPanelThemeVars), so a change of it repaints every
+    // preview grid at once.
     char color_hex[8];
     snprintf(color_hex, sizeof(color_hex), "#%06X",
-             static_cast<unsigned>(tileDefaultBgColor()));
+             static_cast<unsigned>(tile_color::normalize(configManager.getConfig().default_tile_color)));
     html += "--tile-default-bg:";
     html += color_hex;
     html += ";";
@@ -402,7 +404,52 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
 
 static void appendHeadBarVars(String& html);
 
+// The panel's color roles for both themes (ui_theme.h, the one place they are
+// set) and the light theme's step and tint factors: the preview CSS paints
+// with --pv-*, the preview script mirrors tone_color and tile_tint with them.
+// html[data-panel-theme] picks the theme; switching it repaints the preview.
+static void appendPanelThemeVars(String& html) {
+  auto emit_roles = [&html](const ui_theme::Roles& roles) {
+    const struct {
+      const char* name;
+      uint32_t rgb;
+    } entries[] = {
+        {"screen", roles.screen},       {"card", roles.card},
+        {"text", roles.text},           {"icon", roles.icon},
+        {"icon-off", roles.icon_off},   {"icon-inactive", roles.icon_inactive},
+        {"icon-rest", roles.icon_rest}, {"text-secondary", roles.text_secondary},
+        {"text-soft", roles.text_soft},
+    };
+    char value[48];
+    for (const auto& entry : entries) {
+      snprintf(value, sizeof(value), "--pv-%s:#%06X;", entry.name, static_cast<unsigned>(entry.rgb));
+      html += value;
+    }
+    snprintf(value, sizeof(value), "--pv-text-rgb:%u,%u,%u;", static_cast<unsigned>((roles.text >> 16) & 0xFF),
+             static_cast<unsigned>((roles.text >> 8) & 0xFF), static_cast<unsigned>(roles.text & 0xFF));
+    html += value;
+  };
+  html += "<style>:root{";
+  emit_roles(ui_theme::kDark);
+  // The dark theme's tile card is the global tile color; a black tile stays black.
+  html += "--tile-card:var(--tile-default-bg);--pv-black-tile:#000000;";
+  char factors[96];
+  snprintf(factors, sizeof(factors), "--pv-light-step:%.6f;--pv-light-tint:%.6f;",
+           static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,
+           static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen);
+  html += factors;
+  html += "}html[data-panel-theme=\"light\"]{";
+  emit_roles(ui_theme::kLight);
+  // The light theme keeps its light card (tileDefaultBgColor) and shows a
+  // black tile in the screen color (tileBgColorOrDefault).
+  char card[24];
+  snprintf(card, sizeof(card), "--tile-card:#%06X;", static_cast<unsigned>(ui_theme::kLight.card));
+  html += card;
+  html += "--pv-black-tile:var(--pv-screen);}</style>\n";
+}
+
 void appendAdminStyles(String& html) {
+  appendPanelThemeVars(html);
   appendPreviewScaleVars(html, ":root", true);
   // The layout window shows the other layouts with their own sizes (cells,
   // circles, text places): the same variables per layout. The page is built
@@ -464,7 +511,8 @@ static void appendHeadBarVars(String& html) {
   emit_scaled("head-icon", kPreviewIconSize);
   char color[40];
   snprintf(color, sizeof(color), "--head-disc-color:#%06X;",
-           static_cast<unsigned>(settings_style::tone(tileDefaultBgColor(), settings_style::kGearColor).disc));
+           static_cast<unsigned>(settings_style::tone(ui_theme::light() ? ui_theme::screen() : tileDefaultBgColor(),
+                                                      settings_style::kGearColor).disc));
   html += color;
   html += "}</style>\n";
 }

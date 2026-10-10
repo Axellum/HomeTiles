@@ -127,14 +127,14 @@
     const mode = String(state?.mode || '').toLowerCase();
     // Unknown is inactive like unavailable (climate_visuals: 0x9E9E9E).
     if (state?.available === false || mode === 'unavailable' || mode === 'unknown') {
-      return '#9e9e9e';
+      return panelRoleHex('icon-rest', '#9e9e9e');
     }
     if (action === 'heating' || action === 'preheating') return '#ff8a3d';
     if (action === 'cooling') return '#4fc3f7';
     if (action === 'drying') return '#ffd54f';
     if (action === 'fan') return '#4db6ac';
     if (action === 'defrosting') return '#81d4fa';
-    if (mode === 'off' || action === 'idle' || action === 'off') return '#9e9e9e';
+    if (mode === 'off' || action === 'idle' || action === 'off') return panelRoleHex('icon-rest', '#9e9e9e');
     if (!action && mode === 'heat') return '#ff8a3d';
     if (!action && mode === 'cool') return '#4fc3f7';
     if (!action && mode === 'dry') return '#ffd54f';

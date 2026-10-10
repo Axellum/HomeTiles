@@ -349,12 +349,12 @@ function maybeFillTitleFromSwitch(tab) {
     const iconEl = tileElem.querySelector('.tile-icon');
     if (!iconEl) return;
     if (state.available === false) {
-      iconEl.style.color = SWITCH_ICON_OFF;
+      iconEl.style.color = panelRoleHex('icon-off', SWITCH_ICON_OFF);
       return;
     }
     if (!state.hasState && !state.hasColor) return;
     const isOn = state.hasState ? state.isOn : state.hasColor;
-    iconEl.style.color = isOn ? (state.hasColor ? state.color : SWITCH_ICON_ON) : SWITCH_ICON_OFF;
+    iconEl.style.color = isOn ? (state.hasColor ? state.color : SWITCH_ICON_ON) : panelRoleHex('icon-off', SWITCH_ICON_OFF);
   }
 
   // show_state_text(): the same words as the device, from the central
@@ -397,7 +397,7 @@ function maybeFillTitleFromSwitch(tab) {
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {
       const base = toneOklch(control);
-      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + 0.06, base.C, base.h)));
+      bar.style.setProperty('--switch-thumb-off', toneHex(toneRgb(base.L + toneStep(0.06), base.C, base.h)));
     }
     const symbol = bar.querySelector('.tile-switch-symbol');
     if (symbol) symbol.className = 'mdi ' + (on ? 'mdi-power' : 'mdi-circle-outline') + ' tile-switch-symbol';

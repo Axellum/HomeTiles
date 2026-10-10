@@ -49,6 +49,8 @@ const context = vm.createContext({
   window: {}, navigator: {language: 'en'}, TextEncoder, TextDecoder, Number, Math, String, Array, JSON,
   // Icon names are not under test (tiles/state.js).
   normalizeMdiIconName: value => String(value || ''),
+  // The dark theme's roles (tiles/grid-preview.js panelRoleHex).
+  panelRoleHex: (name, fallback) => fallback,
 });
 for (const file of ['src/web/admin/core/localization.js', 'src/types/switch/admin.js',
   'src/types/binary_sensor/admin-state.js', 'src/types/climate/admin-preview.js', 'src/types/cover/admin.js',

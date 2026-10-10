@@ -10,6 +10,7 @@ const helpers = [
   'tileColorInputIsDefault', 'tileBgToHex', 'tileBgValueIsSet', 'tileBackgroundCss',
   'applyIconDiscTint', 'iconDiscTinted', 'cssColorMatch', 'cssColorChannels', 'cssColorAlpha', 'toneToLinear', 'toneToSrgb', 'toneOklch',
   'toneLinear', 'toneRgb', 'toneBlend', 'toneFill', 'toneReadableIcon', 'toneHex',
+  'panelLight', 'panelVar', 'panelRole', 'panelRoleHex', 'toneStep',
   'tileBgFollowsDefault', 'tileColorHexIsDefaultGrey',
   'isDefaultTileGrey', 'tileColorMode', 'syncTileColorMode', 'previewIconColor', 'iconColorRuleState',
   'tileTypeHasDiscToggle', 'tileTypeHasColoredIcon',

@@ -15,15 +15,26 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '
 
 // Dark roles = the former constants.
 const theme = read('src/ui/shared/ui_theme.h');
-for (const [role, light, dark] of [
-  ['screen', '0xE9EBEE', '0x000000'], ['card', '0xFFFFFF', '0x1A1A1A'], ['text', '0x1A1A1A', '0xFFFFFF'],
-  ['icon', '0x464646', '0xFFFFFF'], ['icon_off', '0x8B8B8B', '0xB0B0B0'], ['icon_inactive', '0x8B8B8B', '0x9E9E9E'],
-  ['icon_rest', '0x464646', '0x9E9E9E'],
-  ['text_secondary', '0x5F6368', '0xD8DEE9'], ['text_soft', '0x3A3A3A', '0xD8D8D8'],
-]) {
-  assert.ok(theme.includes(`inline uint32_t ${role}() { return light() ? ${light} : ${dark}; }`), `ui_theme::${role}`);
+// One table per theme (the firmware and the Web Admin preview read both).
+const roleNames = ['screen', 'card', 'popup_card', 'text', 'icon', 'icon_off', 'icon_inactive', 'icon_rest',
+  'text_secondary', 'text_soft'];
+const table = name => theme.match(new RegExp(`inline constexpr Roles ${name} = \\{([^}]*)\\};`))[1]
+  .split(',').map(value => value.trim());
+assert.deepEqual(table('kDark'), ['0x000000', '0x1A1A1A', '0x2A2A2A', '0xFFFFFF', '0xFFFFFF', '0xB0B0B0', '0x9E9E9E',
+  '0x9E9E9E', '0xD8DEE9', '0xD8D8D8'], 'dark roles = the former constants');
+assert.deepEqual(table('kLight'), ['0xE9EBEE', '0xFFFFFF', '0xFFFFFF', '0x1A1A1A', '0x464646', '0x8B8B8B', '0x8B8B8B',
+  '0x464646', '0x5F6368', '0x3A3A3A'], 'light roles as set in the simulator');
+for (const role of roleNames) {
+  assert.ok(theme.includes(`inline uint32_t ${role}() { return roles().${role}; }`), `ui_theme::${role}`);
+  assert.match(theme, new RegExp(`  uint32_t ${role};`), `Roles::${role}`);
 }
-assert.ok(theme.includes('inline uint32_t popup_card() { return light() ? card() : 0x2A2A2A; }'), 'ui_theme::popup_card');
+for (const factor of ['kLightStepNum = 5;', 'kLightStepDen = 6;', 'kLightTintNum = 4;', 'kLightTintDen = 5;']) {
+  assert.ok(theme.includes('inline constexpr int ' + factor), factor);
+}
+assert.ok(read('src/ui/shared/tone_color.h').includes(
+  'if (ui_theme::light()) step = -step * ui_theme::kLightStepNum / ui_theme::kLightStepDen;'));
+assert.ok(read('src/tiles/config/tile_tint.h').includes(
+  'percent * ui_theme::kLightTintNum / ui_theme::kLightTintDen);'));
 assert.ok(read('src/ui/popups/popup_surface.h')
   .includes('inline uint32_t default_card() { return ui_theme::popup_card(); }'));
 const style = read('src/ui/tabs/settings/settings_style.h');
@@ -149,6 +160,30 @@ const tone = read('src/ui/shared/tone_color.h');
 assert.ok(tone.includes('entry.see_through == see_through && entry.light == light') &&
   tone.includes('const uint32_t key = icon | (light ? 0x1000000u : 0u);'));
 assert.ok(read('src/tiles/runtime/tile_icon_source.cpp').includes('entry.percent == percent && entry.light == light'));
+
+// The Web Admin preview takes both role tables and the light factors from
+// ui_theme.h (one place for every light value) and switches with the field.
+const styles = read('src/web/server/render/web_admin_styles.cpp');
+for (const marker of ['emit_roles(ui_theme::kDark);', 'emit_roles(ui_theme::kLight);',
+  'static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,',
+  'static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen);',
+  '  appendPanelThemeVars(html);']) {
+  assert.ok(styles.includes(marker), 'web_admin_styles: ' + marker);
+}
+assert.ok(html.includes('html += ui_theme::light() ? "\\" data-panel-theme=\\"light" : "\\" data-panel-theme=\\"dark";'));
+const previewJs = read('src/web/admin/tiles/grid-preview.js');
+for (const marker of ["return -step * (Number.isFinite(scale) ? scale : 5 / 6);",
+  "const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)",
+  "if (!tinted && (seed.L > 0.9 || toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase())) {"]) {
+  assert.ok(previewJs.includes(marker), 'grid-preview: ' + marker);
+}
+assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("const scale = Number(panelVar('--pv-light-tint', '0.8'));"));
+assert.ok(admin.includes('  applyPanelThemePreview(theme);'), 'The preview switches with the field');
+const adminCss = read('src/web/assets/admin.css');
+for (const marker of ['background:var(--pv-screen, #000000);', 'color:var(--pv-icon, #fff);',
+  'html[data-panel-theme="light"] .global-tile-color-field { display:none; }']) {
+  assert.ok(adminCss.includes(marker), 'admin.css: ' + marker);
+}
 
 const host = await lvglHost(root);
 if (!host) {

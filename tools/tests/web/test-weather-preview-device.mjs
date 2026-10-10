@@ -106,7 +106,7 @@ constexpr int SCREEN_WIDTH=Device::kScreenWidth,SCREEN_HEIGHT=Device::kScreenHei
 String getMdiChar(const String&){return "\xF3\xB0\x96\xAD";}
 ${radiusPolicyHost(root, 'Device::kGridCellH', 'Device::kGridGap')}
 #include "src/core/config/icon_glow.h"
-struct TestConfig { int tile_radius = tile_radius::kMinimum; bool tile_borders = true; bool icon_discs = true; uint8_t icon_glow = icon_glow::kDefault; const char* language = "en"; };
+struct TestConfig { int tile_radius = tile_radius::kMinimum; bool tile_borders = true; bool icon_discs = true; uint8_t icon_glow = icon_glow::kDefault; uint32_t default_tile_color = 0x1A1A1A; const char* language = "en"; };
 struct TestConfigManager { TestConfig config; const TestConfig& getConfig() const { return config; } } configManager;
 ${surfaceStyleHost(root)}
 constexpr int MALLOC_CAP_SPIRAM=1,MALLOC_CAP_8BIT=2;
@@ -228,6 +228,9 @@ const preview = [
   extractFunction('escapeHtml', read('src/web/admin/tiles/state.js')),
   extractFunction('normalizeMdiIconName', read('src/web/admin/tiles/state.js')),
   extractFunction('formatLocalizedNumber', read('src/web/admin/core/localization.js')),
+  // The panel theme's roles (no data-panel-theme here: the dark theme).
+  ...['toneHex', 'panelLight', 'panelVar', 'panelRole', 'panelRoleHex']
+    .map(name => extractFunction(name, read('src/web/admin/tiles/grid-preview.js'))),
 ].join('\n');
 const fontUrl = pathToFileURL(path.join(root, 'docs/assets/fonts/inter-4.1-regular.woff2')).href;
 const css = readRepoFile('src/web/assets/admin.css').replace(/\r\n/g, '\n')

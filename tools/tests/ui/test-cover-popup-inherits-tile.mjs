@@ -113,8 +113,9 @@ const constant = name => Number(surface.match(new RegExp(`${name} = (0x[0-9A-Fa-
 const mix = (step, channel) => Math.floor((255 * step + channel * (255 - step)) * 0x8081 / 2 ** 23);
 // The dark theme's default card (the light theme has its own light card).
 assert.ok(surface.includes('inline uint32_t default_card() { return ui_theme::popup_card(); }'));
+// (Roles: screen, card, popup_card, ...)
 const card = Number(read('src/ui/shared/ui_theme.h')
-  .match(/popup_card\(\) \{ return light\(\) \? card\(\) : (0x[0-9A-Fa-f]+); \}/)[1]) & 0xFF;
+  .match(/inline constexpr Roles kDark = \{[^,]+,[^,]+,\s*(0x[0-9A-Fa-f]+),/)[1]) & 0xFF;
 assert.equal(card, 0x2A);
 assert.equal(mix(constant('kDisabled'), card), 0x6B, 'kDisabled step keeps 0x6B6B6B on 0x2A2A2A');
 

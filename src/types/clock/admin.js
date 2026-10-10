@@ -93,7 +93,7 @@ function getClockPreviewLanguage() {
   function getClockPreviewTextStyle(raw, fallback, color) {
     const font = normalizeClockPreviewFont(raw, fallback);
     const size = getClockPreviewCssPx(raw, fallback);
-    const safeColor = color || '#fff';
+    const safeColor = color || panelRoleHex('text', '#fff');
     return 'data-clock-font="' + font + '" style="font-size:' + size + 'px; ' +
       clockPreviewLineCss(font) + ' color:' + safeColor + ';"';
   }
@@ -103,7 +103,7 @@ function getClockPreviewLanguage() {
     const font = normalizeClockPreviewFont(raw, fallback);
     el.dataset.clockFont = String(font);
     applyClockPreviewLine(el, font, getClockPreviewCssPx(raw, fallback, el));
-    el.style.color = color || '#fff';
+    el.style.color = color || panelRoleHex('text', '#fff');
   }
 
   function normalizeClockFlags(raw) {
@@ -205,11 +205,11 @@ function getClockPreviewLanguage() {
 
     if (timeEl) {
       timeEl.textContent = getClockPreviewTime(timeFormat);
-      applyClockPreviewTextStyle(timeEl, timeFont, 40, '#fff');
+      applyClockPreviewTextStyle(timeEl, timeFont, 40, panelRoleHex('text', '#fff'));
     }
     if (dateEl) {
       dateEl.textContent = getClockPreviewDate(dateFormat);
-      applyClockPreviewTextStyle(dateEl, dateFont, 20, '#fff');
+      applyClockPreviewTextStyle(dateEl, dateFont, 20, panelRoleHex('text', '#fff'));
     }
     fitCompactClockPreview(tileElem);
   }
