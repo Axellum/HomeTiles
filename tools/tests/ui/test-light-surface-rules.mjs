@@ -101,7 +101,14 @@ assert.ok(shell.includes('const bool on_tile_card = popup_surface::g_open_surfac
 const visual = read('src/types/device/device_visual.h');
 assert.equal((visual.match(/v\.color = ui_theme::unavailable_icon\(v\.color\);/g) || []).length, 3, 'lock, alarm, fan unavailable');
 assert.ok(read('src/types/cover/renderer.cpp').includes(
-  'if (state.valid && !state.available) return ui_theme::unavailable_icon(cover_inactive());'), 'cover unavailable');
+  'if (state.valid && !state.available) return ui_theme::unavailable_icon(cover_inactive());') &&
+  read('src/ui/popups/cover/cover_popup.cpp').includes(
+  'if (state.valid && !state.available) return ui_theme::unavailable_icon(ha_cover_inactive());'),
+  'cover unavailable: tile and popup');
+// An unavailable Lock or Alarm shows no "unlock is off" hint.
+assert.match(read('src/ui/popups/device/device_popup.cpp'),
+  /if \(d\.valid && !d\.available\) return nullptr;\s+return device_control::blocked_reason\(pop\.target\.type, d, nullptr\);/,
+  'no permission hint while unavailable');
 assert.ok(theme.includes('inline uint32_t unavailable_icon(uint32_t dark_grey) { return theme_light() ? icon_unavailable() : dark_grey; }') &&
   grid.includes("return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;") &&
   read('src/types/device/admin.js').includes('if (!d.available && typeof unavailableIconHex === \'function\') out.color = unavailableIconHex(out.color);') &&

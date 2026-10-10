@@ -101,6 +101,17 @@ for (const name of ['update_light_popup', 'light_popup_follow_tile_color']) {
 const shell = read('src/ui/popups/popup_shell.cpp');
 assert.ok(shell.includes('void popup_follow_surface(lv_obj_t* root) {') &&
   shell.includes('tile_icon_source::recolor_surface(root, mark->surface, want);'), 'popup texts follow the open surface');
+// Remembered objects clear themselves when deleted (crash b364): a popup
+// body's surface mark, the opening tile's circle.
+assert.ok(shell.includes('lv_obj_add_event_cb(root, surface_root_deleted, LV_EVENT_DELETE, nullptr);') &&
+  source.includes('if (disc) lv_obj_add_event_cb(disc, forget_popup_disc, LV_EVENT_DELETE, nullptr);'),
+  'remembered objects clear themselves on delete');
+// LVGL 9.6's lv_obj_is_valid walks the object's own parents: it reads a freed
+// object instead of rejecting it, so it never guards a remembered pointer.
+const srcFiles = fs.readdirSync(path.join(root, 'src'), {recursive: true})
+  .filter(f => /\.(c|cpp|h)$/.test(f));
+const validChecks = srcFiles.filter(f => /\blv_obj_is_valid\s*\(/.test(read(path.join('src', f))));
+assert.deepEqual(validChecks, [], 'no lv_obj_is_valid on remembered pointers');
 
 const host = await lvglHost(root);
 if (!host) {
@@ -150,6 +161,8 @@ ${fn('recolor_roles')}
 ${fn('change_surface')}
 ${fn('set_card_base')}
 lv_obj_t* g_popup_disc = nullptr;
+${fn('forget_popup_disc')}
+${fn('set_popup_disc')}
 ${fn('popup_tile_circle')}
 }
 static uint32_t rgb(lv_color_t c) { return lv_color_to_u32(c) & 0xFFFFFF; }
@@ -320,6 +333,20 @@ int main() {
   lv_obj_t* plain_title = label(plain, "Lamp", ui_theme::kLight.text);
   tile_icon_source::set_tile_tint(plain, amber, 20);
   expect(tile_surface::get(plain) == tile_surface::kNone && text(plain_title) == ui_theme::kLight.text, "no rule: light");
+
+  // Crash b364: a grid rebuild (a PIN change, a folder switch) deletes the
+  // opening tile's circle; the next popup header must not read it.
+  lv_obj_t* gone = lv_obj_create(lv_screen_active());
+  lv_obj_t* gone_icon = lv_label_create(gone);
+  lv_obj_t* gone_disc = tile_icon_disc::add_round(gone, gone_icon);
+  tile_icon_source::set_popup_disc(gone_disc);
+  expect(tile_icon_source::g_popup_disc == gone_disc, "the popup keeps its tile's circle");
+  lv_obj_delete(gone);
+  expect(tile_icon_source::g_popup_disc == nullptr, "a deleted tile's circle clears itself");
+  uint32_t no_circle = 0, no_icon = 0;
+  uint8_t no_opa = 0;
+  expect(!tile_icon_source::popup_tile_circle(ui_theme::kLight.icon, no_circle, no_opa, no_icon),
+         "no circle after the tile is gone");
 
   if (failures) return 1;
   std::printf("OK\n");

@@ -22,7 +22,7 @@ const body = (source, start) => {
 
 // Popup: one state color for icon, slider fill, tracks and buttons.
 assert.match(body(popup, 'uint32_t cover_accent('),
-  /return cover_icon_is_active\(state\) \? kHaCoverActive : ha_cover_inactive\(\);/);
+  /if \(state\.valid && !state\.available\) return ui_theme::unavailable_icon\(ha_cover_inactive\(\)\);\s+return cover_icon_is_active\(state\) \? kHaCoverActive : ha_cover_inactive\(\);/);
 const apply = body(popup, 'void apply_accent(');
 assert.ok(apply.includes('if (!ctx || ctx->accent == accent) return;'), 'only a change restyles');
 assert.ok(apply.includes('{ctx->position_slider.track, ctx->tilt_slider.track}') &&

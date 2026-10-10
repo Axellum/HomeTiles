@@ -140,7 +140,17 @@ void update_value(PinPopupContext* ctx) {
   lv_obj_set_style_text_color(ctx->prompt_label,
                               ctx->show_error ? lv_color_hex(error_color()) : lv_color_hex(ui_theme::text()), 0);
   const size_t circles = ctx->length > pin_access::kUserPinMinDigits ? ctx->length : pin_access::kUserPinMinDigits;
+  // The dots take the open surface's roles like the prompt (preloaded with
+  // the theme's, dark on a filled tile's card otherwise).
+  const lv_color_t ring = lv_color_hex(ui_theme::text());
+  const lv_color_t inside = lv_color_hex(ui_theme::icon());
   for (size_t i = 0; i < pin_access::kInputMaxDigits; ++i) {
+    if (!lv_color_eq(lv_obj_get_style_border_color(ctx->dots[i], LV_PART_MAIN), ring)) {
+      lv_obj_set_style_border_color(ctx->dots[i], ring, 0);
+    }
+    if (!lv_color_eq(lv_obj_get_style_bg_color(ctx->dots[i], LV_PART_MAIN), inside)) {
+      lv_obj_set_style_bg_color(ctx->dots[i], inside, 0);
+    }
     lv_obj_set_flag(ctx->dots[i], LV_OBJ_FLAG_HIDDEN, i >= circles);
     lv_obj_set_style_bg_opa(ctx->dots[i], i < ctx->length ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
   }

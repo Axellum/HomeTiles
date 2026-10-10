@@ -47,6 +47,11 @@ for (const marker of [
   'const char* error = ctx->error.length() ? ctx->error.c_str() : tr.pin_popup_incorrect;',
   'lv_label_set_text(ctx->prompt_label, ctx->show_error ? error : prompt);',
   'lv_obj_set_flag(ctx->dots[i], LV_OBJ_FLAG_HIDDEN, i >= circles);',
+  // The dots follow the open surface like the prompt (white on a filled
+  // tile's card in the light theme, not the preloaded dark ring).
+  'const lv_color_t ring = lv_color_hex(ui_theme::text());',
+  'lv_obj_set_style_border_color(ctx->dots[i], ring, 0);',
+  'lv_obj_set_style_bg_color(ctx->dots[i], inside, 0);',
   'lv_obj_set_style_bg_opa(ctx->dots[i], i < ctx->length ? LV_OPA_COVER : LV_OPA_TRANSP, 0);',
   'const int size_limit = popup_layout::kCardHeight * popup_layout::kKeypadKeyMaxPermille / 1000;',
   'lv_obj_align(ctx->dots_row, LV_ALIGN_TOP_MID, 0, g.dots_y);',

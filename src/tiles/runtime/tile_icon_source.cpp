@@ -625,13 +625,28 @@ uint8_t tile_color_from_icon(lv_obj_t* obj) {
 // Climate, Light and Cover with the global background) for the card "From
 // icon" gives at the tile's strength, so header circle and controls are
 // exactly the tile's (popup_shell.cpp header_fill).
-// The circle of the tile that opened the popup (popup_tile_circle).
+// The circle of the tile that opened the popup (popup_tile_circle): null or
+// a live object. A grid rebuild deletes it while the pointer is kept (a PIN
+// change, a folder switch), and LVGL 9.6's lv_obj_is_valid walks the
+// object's own parents, so it cannot check a freed one: the circle clears
+// the pointer when it is deleted.
 lv_obj_t* g_popup_disc = nullptr;
+
+void forget_popup_disc(lv_event_t* e) {
+  if (lv_event_get_target(e) == g_popup_disc) g_popup_disc = nullptr;
+}
+
+void set_popup_disc(lv_obj_t* disc) {
+  if (g_popup_disc == disc) return;
+  if (g_popup_disc) lv_obj_remove_event_cb(g_popup_disc, forget_popup_disc);
+  g_popup_disc = disc;
+  if (disc) lv_obj_add_event_cb(disc, forget_popup_disc, LV_EVENT_DELETE, nullptr);
+}
 
 void pass_popup_disc(lv_obj_t* obj, bool popup_shows_tile_color) {
   lv_obj_t* disc = obj ? tile_icon_disc::disc_of(obj) : nullptr;
   if (!disc && obj) disc = find_disc(obj);
-  g_popup_disc = disc;
+  set_popup_disc(disc);
   if (!disc) return;
   const tile_icon_disc::Mode mode = tile_icon_disc::mode_of(disc);
   const uint8_t from_icon = tile_color_from_icon(obj);
@@ -663,7 +678,7 @@ void settle_filled(lv_obj_t* card) {
 
 bool popup_tile_circle(uint32_t rgb, uint32_t& circle, uint8_t& opa, uint32_t& icon) {
   lv_obj_t* disc = g_popup_disc;
-  if (!disc || !lv_obj_is_valid(disc) || !tile_icon_disc::is_disc(disc)) return false;
+  if (!disc || !tile_icon_disc::is_disc(disc)) return false;
   const ui_theme::SurfaceScope surface = tile_surface::scope(disc);
   // The popup's color is one of the theme (the popup draws on it): on the
   // tile's surface a role means that surface's role (surface_icon_color).
@@ -682,7 +697,7 @@ bool popup_tile_circle(uint32_t rgb, uint32_t& circle, uint8_t& opa, uint32_t& i
 
 void open_popup_without_tile() {
   popup_surface::g_open_surface = ui_theme::kThemeSurface;
-  g_popup_disc = nullptr;
+  set_popup_disc(nullptr);
   remember_popup_source(nullptr);
   popup_shell_use_no_tile_disc();
 }

@@ -276,6 +276,9 @@ lv_obj_t* value_label(const char* value) {
 
 const char* hint_text(const Detail& d) {
   if (time_before(pop.notice_until)) return pop.notice.c_str();
+  // An unavailable entity says so in its value; the Bridge reports no
+  // unlock/disarm permission for it, so "unlock is off" would be wrong.
+  if (d.valid && !d.available) return nullptr;
   return device_control::blocked_reason(pop.target.type, d, nullptr);
 }
 

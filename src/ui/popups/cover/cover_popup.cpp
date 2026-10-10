@@ -178,8 +178,11 @@ bool cover_icon_is_active(const CoverState& state) {
 
 // Home Assistant colors the whole Cover by its state (stateColorCss: icon,
 // sliders and buttons alike): the cover color for every known state, the
-// inactive grey for unknown and unavailable, like the tile's icon and bar.
+// inactive grey for unknown and unavailable, like the tile's icon and bar
+// (cover renderer cover_icon_color: unavailable is the theme's one
+// unavailable grey, so header, sliders and buttons match the tile).
 uint32_t cover_accent(const CoverState& state) {
+  if (state.valid && !state.available) return ui_theme::unavailable_icon(ha_cover_inactive());
   return cover_icon_is_active(state) ? kHaCoverActive : ha_cover_inactive();
 }
 

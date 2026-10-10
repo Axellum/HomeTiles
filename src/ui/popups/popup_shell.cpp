@@ -478,6 +478,15 @@ struct SurfaceMark {
 };
 constexpr int kSurfaceMarks = 16;
 SurfaceMark g_surface_marks[kSurfaceMarks] = {};
+
+// A deleted body frees its mark (a new body at the same address must not
+// inherit the old surface, and the table must not fill up).
+void surface_root_deleted(lv_event_t* event) {
+  const lv_obj_t* root = static_cast<const lv_obj_t*>(lv_event_get_target(event));
+  for (SurfaceMark& entry : g_surface_marks) {
+    if (entry.root == root) entry = {};
+  }
+}
 }  // namespace
 
 void popup_follow_surface(lv_obj_t* root) {
@@ -491,6 +500,8 @@ void popup_follow_surface(lv_obj_t* root) {
     for (SurfaceMark& entry : g_surface_marks) {
       if (!entry.root) {
         entry = {root, -1};
+        lv_obj_remove_event_cb(root, surface_root_deleted);  // once, after popup_shell_delete_popups
+        lv_obj_add_event_cb(root, surface_root_deleted, LV_EVENT_DELETE, nullptr);
         mark = &entry;
         break;
       }
