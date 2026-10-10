@@ -18,10 +18,18 @@
 // first render.
 namespace tile_surface {
 
-enum : uint8_t { kNone = 0, kDark = 1, kLight = 2, kDarkDesign = 3 };
+// kTintDark: the dark design of a tinted tile while it is tinted (global
+// option "Tinted tiles dark"); it draws with ui_theme::kDarkTinted.
+enum : uint8_t { kNone = 0, kDark = 1, kLight = 2, kDarkDesign = 3, kTintDark = 4 };
 
-// Kept as a local style value in a state selector the card never takes.
+// Kept as a local style value in a state selector the card never takes. Every
+// tile card carries it (kNone too), so its scopes know their card.
 inline constexpr lv_style_selector_t kStore = LV_PART_MAIN | LV_STATE_USER_1 | LV_STATE_USER_4;
+
+inline bool marked(lv_obj_t* obj) {
+  lv_style_value_t value;
+  return obj && lv_obj_get_local_style_prop(obj, LV_STYLE_BG_OPA, &value, kStore) == LV_STYLE_RES_FOUND;
+}
 
 inline uint8_t get(lv_obj_t* card) {
   lv_style_value_t value;
@@ -30,9 +38,16 @@ inline uint8_t get(lv_obj_t* card) {
 }
 
 inline void set(lv_obj_t* card, uint8_t surface) {
-  if (!card || get(card) == surface) return;
-  if (surface == kNone) lv_obj_remove_local_style_prop(card, LV_STYLE_BG_OPA, kStore);
-  else lv_obj_set_style_bg_opa(card, surface, kStore);
+  if (!card || (marked(card) && get(card) == surface)) return;
+  lv_obj_set_style_bg_opa(card, surface, kStore);
+}
+
+// The card `obj` sits in (or is): the first one carrying a surface.
+inline lv_obj_t* card_of(lv_obj_t* obj) {
+  for (int depth = 0; obj && depth < 5; ++depth, obj = lv_obj_get_parent(obj)) {
+    if (marked(obj)) return obj;
+  }
+  return nullptr;
 }
 
 // The surface marked on `obj` or the card it sits in.
@@ -44,13 +59,53 @@ inline uint8_t find(lv_obj_t* obj) {
   return kNone;
 }
 
-// The theme a surface draws with: 0 dark, 1 light, -1 the theme.
+// The theme a surface draws with (ui_theme::g_surface): 0 dark, 1 light,
+// 2 dark for a tinted tile, -1 the theme.
 inline int8_t theme_of(uint8_t surface) {
+  if (surface == kTintDark) return ui_theme::kDarkTintedSurface;
   return surface == kLight ? 1 : (surface == kDark || surface == kDarkDesign) ? 0 : -1;
 }
 
+// The dark design on the light theme (no hairline, the lifted dark card).
+inline bool dark_design(uint8_t surface) { return surface == kDarkDesign || surface == kTintDark; }
+
 // Opens the surface of `obj`'s card for the colors computed while it lives.
-inline ui_theme::SurfaceScope scope(lv_obj_t* obj) { return ui_theme::SurfaceScope(theme_of(find(obj))); }
+inline ui_theme::SurfaceScope scope(lv_obj_t* obj) {
+  lv_obj_t* card = card_of(obj);
+  return ui_theme::SurfaceScope(theme_of(card ? get(card) : find(obj)), card);
+}
+
+// The rule of a card whose surface changes while it runs (render_tile): the
+// surface it shows without a tint or playback (BORDER_OPA) and its flags
+// (OUTLINE_OPA). kFollowTint: the dark design while tinted; kPlaying: a Media
+// tile playing shows the dark design.
+inline constexpr uint8_t kFollowTint = 1;
+inline constexpr uint8_t kPlaying = 2;
+inline constexpr uint8_t kMedia = 4;
+
+inline void set_rule(lv_obj_t* card, uint8_t base, uint8_t flags) {
+  if (!card) return;
+  lv_obj_set_style_border_opa(card, base, kStore);
+  lv_obj_set_style_outline_opa(card, flags, kStore);
+}
+
+inline bool rule_of(lv_obj_t* card, uint8_t& base, uint8_t& flags) {
+  lv_style_value_t b, f;
+  if (!card || lv_obj_get_local_style_prop(card, LV_STYLE_BORDER_OPA, &b, kStore) != LV_STYLE_RES_FOUND ||
+      lv_obj_get_local_style_prop(card, LV_STYLE_OUTLINE_OPA, &f, kStore) != LV_STYLE_RES_FOUND) {
+    return false;
+  }
+  base = static_cast<uint8_t>(b.num);
+  flags = static_cast<uint8_t>(f.num);
+  return true;
+}
+
+// The surface a card with a rule shows now.
+inline uint8_t wanted(uint8_t base, uint8_t flags, bool tinted) {
+  if (flags & kPlaying) return kDarkDesign;
+  if ((flags & kFollowTint) && tinted) return kTintDark;
+  return base;
+}
 
 }  // namespace tile_surface
 

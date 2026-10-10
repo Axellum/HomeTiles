@@ -60,6 +60,8 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.layout == b.layout &&
          a.head_gear == b.head_gear &&
          a.theme == b.theme &&
+         a.theme_auto_last == b.theme_auto_last &&
+         a.dark_tinted == b.dark_tinted &&
          a.icon_glow == b.icon_glow &&
          a.default_tile_color == b.default_tile_color &&
          a.display_rotated_180 == b.display_rotated_180 &&
@@ -235,6 +237,8 @@ ConfigManager::ConfigManager() {
   config.layout = 0;
   config.head_gear = false;
   config.theme = 0;
+  config.theme_auto_last = 0;
+  config.dark_tinted = false;
   config.icon_glow = icon_glow::kDefault;
   config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;
@@ -375,7 +379,9 @@ bool ConfigManager::load() {
   config.head_gear = prefs.getBool("head_gear", false);
   if (config.layout > 2) config.layout = 0;
   config.theme = prefs.getUChar("theme", 0);
-  if (config.theme > 1) config.theme = 0;
+  if (config.theme > 2) config.theme = 0;
+  config.theme_auto_last = prefs.getUChar("theme_al", 0) == 1 ? 1 : 0;
+  config.dark_tinted = prefs.getBool("dark_tint", false);
   config.icon_glow = icon_glow::clamp(prefs.getUChar("icon_glow", icon_glow::kDefault));
   config.default_tile_color =
       tile_color::normalize(prefs.getUInt("tile_color", tile_color::kDefault));
@@ -572,7 +578,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   normalized.icon_glow = icon_glow::clamp(normalized.icon_glow);
   normalized.default_tile_color = tile_color::normalize(normalized.default_tile_color);
   if (normalized.keyboard_layout > 3) normalized.keyboard_layout = 0;
-  if (normalized.theme > 1) normalized.theme = 0;
+  if (normalized.theme > 2) normalized.theme = 0;
+  if (normalized.theme_auto_last > 1) normalized.theme_auto_last = 0;
   if (normalized.settings_reveal_edge >
       static_cast<uint8_t>(SettingsRevealEdge::Bottom)) {
     normalized.settings_reveal_edge =
@@ -670,6 +677,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putUChar("layout", normalized.layout);
   prefs.putBool("head_gear", normalized.head_gear);
   prefs.putUChar("theme", normalized.theme);
+  prefs.putUChar("theme_al", normalized.theme_auto_last);
+  prefs.putBool("dark_tint", normalized.dark_tinted);
   prefs.putUChar("icon_glow", normalized.icon_glow);
   prefs.putUInt("tile_color", normalized.default_tile_color);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
@@ -980,7 +989,7 @@ bool ConfigManager::saveLayout(uint8_t layout) {
 }
 
 bool ConfigManager::saveTheme(uint8_t theme) {
-  if (theme > 1) return false;
+  if (theme > 2) return false;
   if (config.theme == theme) return true;
   Device::ScopedStorageWrite storage_write(
       BatchedNvsWrite::kNeedsDisplayGuard);
@@ -993,6 +1002,37 @@ bool ConfigManager::saveTheme(uint8_t theme) {
   if (!BatchedNvsWrite::finish(prefs)) return false;
 
   config.theme = theme;
+  return true;
+}
+
+bool ConfigManager::saveThemeAutoLast(uint8_t theme) {
+  theme = theme == 1 ? 1 : 0;
+  if (config.theme_auto_last == theme) return true;
+  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("ConfigManager: Failed to open automatic theme preferences");
+    return false;
+  }
+  const bool written = prefs.putUChar("theme_al", theme) == sizeof(uint8_t);
+  const bool committed = BatchedNvsWrite::finish(prefs);
+  if (!written || !committed) return false;
+  config.theme_auto_last = theme;
+  return true;
+}
+
+bool ConfigManager::saveDarkTinted(bool enabled) {
+  if (config.dark_tinted == enabled) return true;
+  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("ConfigManager: Failed to open tinted tile preferences");
+    return false;
+  }
+  const bool written = prefs.putBool("dark_tint", enabled) == sizeof(uint8_t);
+  const bool committed = BatchedNvsWrite::finish(prefs);
+  if (!written || !committed) return false;
+  config.dark_tinted = enabled;
   return true;
 }
 
@@ -1127,6 +1167,8 @@ void ConfigManager::clear() {
   config.layout = 0;
   config.head_gear = false;
   config.theme = 0;
+  config.theme_auto_last = 0;
+  config.dark_tinted = false;
   config.icon_glow = icon_glow::kDefault;
   config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;

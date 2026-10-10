@@ -31,28 +31,57 @@ inline Theme g_theme = Theme::Dark;
 
 // A surface that draws with the other theme's rules (user 2026-10-10: "the
 // tile decides"): a tile in its own dark color in the light theme or in its
-// own light color in the dark theme, and the dark design of Media and Weather
-// in the light theme (tile_surface, tile_icon_disc.h). While a SurfaceScope is open, light()
-// and every role answer for that surface; theme_light() stays the screen's.
-inline int8_t g_surface = -1;  // -1: the theme, 0: dark, 1: light
+// own light color in the dark theme, and the dark design in the light theme
+// (Media while it plays, Weather, a tile's own Design "Dark", tinted tiles
+// with the global option; tile_surface, tile_icon_disc.h). While a
+// SurfaceScope is open, light() and every role answer for that surface;
+// theme_light() stays the screen's.
+//   -1 the theme, 0 dark, 1 light, 2 dark for a tinted tile (kDarkTinted)
+inline int8_t g_surface = -1;
+inline constexpr int8_t kDarkTintedSurface = 2;
+// The card whose surface the innermost tile scope opened
+// (tile_surface::scope): a card that changes its surface while its scopes are
+// open (a tint arriving in the middle of a state update) draws the rest of
+// that update with the new one (follow_surface).
+inline const void* g_surface_owner = nullptr;
 
 inline bool theme_light() { return g_theme == Theme::Light; }
 inline bool light() { return g_surface >= 0 ? g_surface == 1 : theme_light(); }
 inline void set(uint8_t stored) { g_theme = stored == 1 ? Theme::Light : Theme::Dark; }
 
+// SurfaceScope(kThemeSurface) draws with the theme again inside a surface.
+inline constexpr int8_t kThemeSurface = -2;
+
 class SurfaceScope {
  public:
-  // -1 keeps the surface that is open (or the theme).
-  explicit SurfaceScope(int8_t surface) : saved_(g_surface) {
+  // -1 keeps the surface that is open (or the theme). `owner`: the tile card
+  // whose surface this is (tile_surface::scope).
+  explicit SurfaceScope(int8_t surface, const void* owner = nullptr)
+      : saved_(g_surface), saved_owner_(g_surface_owner), owner_(owner) {
     if (surface >= 0) g_surface = surface;
+    else if (surface == kThemeSurface) g_surface = -1;
+    if (owner) g_surface_owner = owner;
   }
-  ~SurfaceScope() { g_surface = saved_; }
+  ~SurfaceScope() {
+    // Inside an outer scope of the same card the surface stays: it may have
+    // changed since (follow_surface).
+    if (!(owner_ && saved_owner_ == owner_)) g_surface = saved_;
+    g_surface_owner = saved_owner_;
+  }
   SurfaceScope(const SurfaceScope&) = delete;
   SurfaceScope& operator=(const SurfaceScope&) = delete;
 
  private:
   int8_t saved_;
+  const void* saved_owner_;
+  const void* owner_;
 };
+
+// A card changed its surface (tile_surface::change): its open scopes draw
+// with the new one from here on. -1 is the theme.
+inline void follow_surface(const void* owner, int8_t surface) {
+  if (owner && g_surface_owner == owner) g_surface = surface < 0 ? -1 : surface;
+}
 
 // The roles of one theme.
 struct Roles {
@@ -88,6 +117,15 @@ inline constexpr Roles kDark = {0x000000, 0x1A1A1A, 0x2A2A2A, 0xFFFFFF, 0xFFFFFF
                                 0xB0B0B0, 0x9E9E9E, 0x9E9E9E, 0xD8DEE9, 0xD8D8D8, 0xB0B0B0};
 inline constexpr Roles kLight = {0xE9EBEE, 0xFFFFFF, 0xFFFFFF, 0x1A1A1A, 0x464646,
                                  0x8B8B8B, 0x8B8B8B, 0x464646, 0x5F6368, 0x3A3A3A, 0xBDBDBD};
+// A tinted tile in the dark design (global option "Tinted tiles dark"): the
+// dark roles, but the off, inactive, resting and unavailable greys of the
+// light theme. Such a tile is dark only while its icon has a color; the grey a
+// state update gives its icon untints it, so the tile is light again when the
+// grey shows (tile_surface::change).
+inline constexpr Roles kDarkTinted = {kDark.screen,          kDark.card,          kDark.popup_card,
+                                      kDark.text,            kDark.icon,          kLight.icon_off,
+                                      kLight.icon_inactive,  kLight.icon_rest,    kDark.text_secondary,
+                                      kDark.text_soft,       kLight.icon_unavailable};
 
 // The light theme's steps against the dark ones: a circle or control step
 // goes down by kLightStepNum / kLightStepDen of the dark step
@@ -112,7 +150,31 @@ inline constexpr float kLightCircleShare = 0.8f;
 // (OKLCH L).
 inline constexpr float kDarkDesignLift = 0.24f;
 
-inline const Roles& roles() { return light() ? kLight : kDark; }
+inline const Roles& roles_of(int8_t surface) {
+  if (surface == kDarkTintedSurface) return kDarkTinted;
+  if (surface < 0) return theme_light() ? kLight : kDark;
+  return surface == 1 ? kLight : kDark;
+}
+inline const Roles& roles() { return roles_of(g_surface); }
+
+// The same role on another surface: a label colored with a role of `from`
+// takes that role of `to` (tile_surface::change). Icon glyphs prefer the
+// icon roles where two roles share a color; colors that are no role (an
+// entity's color) stay.
+inline uint32_t map_role(uint32_t rgb, const Roles& from, const Roles& to, bool icon_glyph) {
+  using Role = uint32_t Roles::*;
+  static constexpr Role kTextFirst[] = {&Roles::text,     &Roles::text_secondary, &Roles::text_soft,
+                                        &Roles::icon,     &Roles::icon_off,       &Roles::icon_inactive,
+                                        &Roles::icon_rest, &Roles::icon_unavailable};
+  static constexpr Role kIconFirst[] = {&Roles::icon,          &Roles::icon_off,  &Roles::icon_inactive,
+                                        &Roles::icon_rest,     &Roles::icon_unavailable, &Roles::text,
+                                        &Roles::text_secondary, &Roles::text_soft};
+  rgb &= 0xFFFFFF;
+  for (const Role role : icon_glyph ? kIconFirst : kTextFirst) {
+    if (from.*role == rgb) return to.*role;
+  }
+  return rgb;
+}
 
 inline uint32_t screen() { return roles().screen; }
 inline uint32_t card() { return roles().card; }

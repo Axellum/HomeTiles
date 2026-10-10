@@ -13,6 +13,7 @@
 #include "src/tiles/config/tile_geometry.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
+#include "src/ui/shared/theme_schedule.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/types/clock/clock_format.h"
@@ -843,22 +844,53 @@ void WebAdminServer::handleSaveDefaultTileColor() {
   server.send(200, "application/json", response);
 }
 
-// The theme (ui_theme.h, 0 dark, 1 light): stored, then the UI loop applies
-// it while running (UIManager::processThemeChange).
+// The theme (ui_theme.h, 0 dark, 1 light, 2 automatic): stored, then the UI
+// loop applies it while running (UIManager::processThemeChange). The answer
+// names the theme shown now ("effective"), which Automatic picks by the time
+// of day (theme_schedule.h).
 void WebAdminServer::handleSaveTheme() {
   webAdminMarkActivity();
   const String value = server.arg("theme");
-  if (value != "0" && value != "1") {
+  if (value != "0" && value != "1" && value != "2") {
     sendJsonError(server, 400, "Invalid theme");
     return;
   }
-  if (!configManager.saveTheme(static_cast<uint8_t>(value.toInt()))) {
+  const uint8_t stored = static_cast<uint8_t>(value.toInt());
+  if (!configManager.saveTheme(stored)) {
     sendJsonError(server, 500, "Could not save the theme");
     return;
   }
+  const uint8_t shown = theme_schedule::effective(stored);
+  // The next boot before the clock runs starts with this theme.
+  if (stored == theme_schedule::kAutomatic) configManager.saveThemeAutoLast(shown);
   uiManager.requestThemeChange();
   server.send(200, "application/json",
-              String("{\"success\":true,\"theme\":") + static_cast<int>(configManager.getConfig().theme) + "}");
+              String("{\"success\":true,\"theme\":") + static_cast<int>(stored) +
+                  ",\"effective\":" + static_cast<int>(shown) + "}");
+}
+
+// Light theme: tinted tiles show the dark design while tinted (tile_surface).
+// Every grid rebuilds like after a default tile color change.
+void WebAdminServer::handleSaveDarkTinted() {
+  webAdminMarkActivity();
+  if (!server.hasArg("enabled")) {
+    sendJsonError(server, 400, "Missing enabled value");
+    return;
+  }
+  String value = server.arg("enabled");
+  value.trim();
+  value.toLowerCase();
+  const bool enabled = value == "1" || value == "true" || value == "on";
+  if (!configManager.saveDarkTinted(enabled)) {
+    sendJsonError(server, 500, "Could not save the tinted tile design");
+    return;
+  }
+  tiles_invalidate_folder(tileConfig.rootFolderId());
+  tiles_request_reload_all();
+  image_screensaver_tiles_changed();
+  server.send(200, "application/json",
+              enabled ? "{\"success\":true,\"enabled\":true}"
+                      : "{\"success\":true,\"enabled\":false}");
 }
 
 void WebAdminServer::handleSaveTileBorders() {

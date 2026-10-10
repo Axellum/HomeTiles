@@ -628,6 +628,8 @@ static void appendTileTabHTML(
     html += String(tile.icon_disc_mode);
     html += "\" data-icon-glow=\"";
     html += tile.icon_glow ? "1" : "0";
+    html += "\" data-design=\"";
+    html += String(tile.design);
     // A PIN-protected Folder or Settings tile shows a lock in its icon
     // (navigate renderer, previewTileLocked in the browser).
     const bool tile_locked =
@@ -945,6 +947,7 @@ static void appendTileTabHTML(
     const String color_id = tab_id + "_global_tile_color";
     const String glow_id = tab_id + "_global_icon_glow";
     const String theme_id = tab_id + "_global_theme";
+    const String dark_tinted_id = tab_id + "_global_dark_tinted";
     const String glow_value = String(icon_glow::clamp(display.icon_glow));
     global_panel += "<section class=\"global-settings-panel\"><h3>";
     appendHtmlEscaped(global_panel, tr.global_settings_heading);
@@ -959,6 +962,12 @@ static void appendTileTabHTML(
     if (display.icon_discs) global_panel += " checked";
     global_panel += "> ";
     appendHtmlEscaped(global_panel, tr.icon_discs);
+    // Light theme: tinted tiles in the dark design while tinted (tile_surface).
+    global_panel += "</label><label class=\"inline-checkbox\"><input class=\"global-dark-tinted-toggle\" id=\"" +
+            dark_tinted_id + "\" type=\"checkbox\" onchange=\"saveDarkTinted(this.checked)\"";
+    if (display.dark_tinted) global_panel += " checked";
+    global_panel += "> ";
+    appendHtmlEscaped(global_panel, tr.dark_tinted_tiles);
     // The layout (grid_layout.h): a field like the tile color, its pen opens
     // the layout window (tiles/layout-window.js).
     {
@@ -979,11 +988,12 @@ static void appendTileTabHTML(
     global_panel += "<div class=\"global-settings-field\"><label for=\"" + theme_id + "\">";
     appendHtmlEscaped(global_panel, tr.theme_label);
     global_panel += "</label><select class=\"global-theme\" id=\"" + theme_id + "\" onchange=\"saveTheme(this.value)\">";
-    for (uint8_t theme = 0; theme < 2; ++theme) {
+    // Dark, Light, Automatic (theme_schedule.h: light by day).
+    for (uint8_t theme = 0; theme < 3; ++theme) {
       global_panel += "<option value=\"" + String(theme) + "\"";
       if (display.theme == theme) global_panel += " selected";
       global_panel += ">";
-      appendHtmlEscaped(global_panel, theme ? tr.theme_light : tr.theme_dark);
+      appendHtmlEscaped(global_panel, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);
       global_panel += "</option>";
     }
     global_panel += "</select></div>";
@@ -1377,6 +1387,29 @@ static void appendTileTabHTML(
   html += R"html(            </div>
 )html";
   append_tile_color_from_icon_html(html, tab_id);
+  // The tile's Design in the light theme (TileDesign; grid-preview.js
+  // setTileDesign): Automatic, Light, Dark. The screensaver keeps the theme.
+  if (!screensaver_mode) {
+    html += "<div class=\"tile-design-field\" id=\"" + tab_id + "_tile_design_row\">"
+            "<div class=\"tile-color-label-row no-reset\"><span>";
+    appendHtmlEscaped(html, tr.theme_label);
+    html += "</span></div><div class=\"icon-color-segmented choice-row tile-design-modes\" role=\"group\" id=\"" +
+            tab_id + "_tile_design_modes\">";
+    const struct {
+      const char* value;
+      const char* label;
+    } designs[] = {{"0", tr.theme_auto}, {"1", tr.theme_light}, {"2", tr.theme_dark}};
+    for (const auto& entry : designs) {
+      html += "<button type=\"button\" data-tile-design=\"";
+      html += entry.value;
+      html += "\" onclick=\"setTileDesign('" + tab_id + "', '";
+      html += entry.value;
+      html += "')\">";
+      appendHtmlEscaped(html, entry.label);
+      html += "</button>";
+    }
+    html += "</div><input type=\"hidden\" id=\"" + tab_id + "_tile_design\" value=\"0\"></div>\n";
+  }
   // Position and size: dragging and resizing in the grid edit them; the
   // values stay in hidden inputs for drafts, undo, copy and saving.
   html += R"html(
@@ -2268,7 +2301,9 @@ String WebAdminServer::getAdminPage() {
   html += tr.html_lang;
   // The panel's theme (ui_theme.h): the preview paints with its roles
   // (appendPanelThemeVars); the theme field switches it.
-  html += ui_theme::light() ? "\" data-panel-theme=\"light" : "\" data-panel-theme=\"dark";
+  html += ui_theme::theme_light() ? "\" data-panel-theme=\"light" : "\" data-panel-theme=\"dark";
+  // Tinted tiles in the dark design (grid-preview.js tileSurfaceOf).
+  if (configManager.getConfig().dark_tinted) html += "\" data-dark-tinted=\"1";
   // The global icon disc option is a root class, so every preview grid,
   // including lazily inserted folders, follows it without re-rendering.
   if (!configManager.getConfig().icon_discs) html += "\" class=\"icon-discs-off";

@@ -54,6 +54,8 @@ ${read('src/tiles/runtime/tile_icon_disc.h').replace(/^#.*$/gm, '')}
 static uint32_t tileDefaultBgColor() { return 0x1A1A1A; }
 namespace tile_icon_source {
 ${tintStore}
+// Cards without a surface rule (tile_surface::set_rule) keep their surface.
+void follow_tint(lv_obj_t*, bool) {}
 ${fn('apply_card_background')}
 ${fn('set_tile_tint')}
 ${fn('clear_tile_tint')}

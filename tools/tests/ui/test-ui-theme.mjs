@@ -76,12 +76,13 @@ const header = read('src/core/config/config_manager.h');
 const config = read('src/core/config/config_manager.cpp');
 assert.ok(header.includes('  uint8_t theme = 0;') && header.includes('  bool saveTheme(uint8_t theme);'));
 assert.equal((config.match(/  config\.theme = 0;\n/g) || []).length, 2, 'defaults and reset');
-assert.ok(config.includes('  config.theme = prefs.getUChar("theme", 0);\n  if (config.theme > 1) config.theme = 0;'));
+assert.ok(config.includes('  config.theme = prefs.getUChar("theme", 0);\n  if (config.theme > 2) config.theme = 0;'));
 assert.ok(config.includes('  prefs.putUChar("theme", normalized.theme);') && config.includes('         a.theme == b.theme &&'));
-assert.match(config, /bool ConfigManager::saveTheme\(uint8_t theme\) \{\n  if \(theme > 1\) return false;[\s\S]*?prefs\.putUChar\("theme", theme\);/);
+assert.match(config, /bool ConfigManager::saveTheme\(uint8_t theme\) \{\n  if \(theme > 2\) return false;[\s\S]*?prefs\.putUChar\("theme", theme\);/);
 const ino = read('HomeTiles.ino');
-assert.ok(ino.indexOf('ui_theme::set(configManager.getConfig().theme);') > ino.indexOf('bool has_config = configManager.load();') &&
-  ino.indexOf('ui_theme::set(configManager.getConfig().theme);') < ino.indexOf('tileConfig.load();'),
+const bootTheme = 'ui_theme::set(theme_schedule::at_boot(configManager.getConfig().theme));';
+assert.ok(ino.indexOf(bootTheme) > ino.indexOf('bool has_config = configManager.load();') &&
+  ino.indexOf(bootTheme) < ino.indexOf('tileConfig.load();'),
   'the theme is set after loading the config, before the tiles');
 
 // The theme switches while running (user 2026-10-09: "warum muss neugestartet
@@ -90,14 +91,14 @@ assert.ok(ino.indexOf('ui_theme::set(configManager.getConfig().theme);') > ino.i
 const handlers = read('src/web/server/handlers/web_admin_handlers.cpp');
 const saveTheme = handlers.slice(handlers.indexOf('void WebAdminServer::handleSaveTheme() {'),
   handlers.indexOf('void WebAdminServer::handleSaveTileBorders() {'));
-assert.ok(saveTheme.includes('if (value != "0" && value != "1") {') &&
+assert.ok(saveTheme.includes('if (value != "0" && value != "1" && value != "2") {') &&
   saveTheme.indexOf('configManager.saveTheme(') < saveTheme.indexOf('uiManager.requestThemeChange();'),
   'The theme is validated, stored, then requested');
 assert.ok(read('src/web/server/web_admin.cpp').includes('server.on("/api/display/theme", HTTP_POST,'));
 const html = read('src/web/server/render/web_admin_html.cpp');
 assert.ok(html.includes('<select class=\\"global-theme\\" id=\\"" + theme_id + "\\" onchange=\\"saveTheme(this.value)\\">') &&
   html.includes('if (display.theme == theme) global_panel += " selected";') &&
-  html.includes('appendHtmlEscaped(global_panel, theme ? tr.theme_light : tr.theme_dark);') &&
+  html.includes('appendHtmlEscaped(global_panel, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);') &&
   html.includes('appendHtmlEscaped(global_panel, tr.theme_label);'), 'Global settings: the theme field');
 const admin = read('src/web/admin/settings/display-borders.js');
 assert.ok(admin.includes("const response = await fetch('/api/display/theme', {") && admin.includes("body: 'theme=' + theme"));
@@ -181,7 +182,7 @@ for (const marker of ['emit_roles(ui_theme::kDark, "pv");', 'emit_roles(ui_theme
   '  appendPanelThemeVars(html);']) {
   assert.ok(styles.includes(marker), 'web_admin_styles: ' + marker);
 }
-assert.ok(html.includes('html += ui_theme::light() ? "\\" data-panel-theme=\\"light" : "\\" data-panel-theme=\\"dark";'));
+assert.ok(html.includes('html += ui_theme::theme_light() ? "\\" data-panel-theme=\\"light" : "\\" data-panel-theme=\\"dark";'));
 const previewJs = read('src/web/admin/tiles/grid-preview.js');
 for (const marker of ["return -step * (Number.isFinite(scale) ? scale : 5 / 6);",
   "const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)",
@@ -189,7 +190,9 @@ for (const marker of ["return -step * (Number.isFinite(scale) ? scale : 5 / 6);"
   assert.ok(previewJs.includes(marker), 'grid-preview: ' + marker);
 }
 assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("const scale = Number(panelVar('--pv-light-tint', '0.8'));"));
-assert.ok(admin.includes('  applyPanelThemePreview(theme);'), 'The preview switches with the field');
+assert.ok(admin.includes("  if (theme !== '2') applyPanelThemePreview(theme);") &&
+  admin.includes("if (shown !== shownPanelTheme()) applyPanelThemePreview(shown === '1' ? '1' : '0');"),
+  'The preview switches with the field; Automatic shows the theme the panel picked');
 const adminCss = read('src/web/assets/admin.css');
 for (const marker of ['background:var(--pv-screen, #000000);', 'color:var(--pv-icon, #fff);',
   'html[data-panel-theme="light"] .global-tile-color-field { display:none; }']) {

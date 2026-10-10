@@ -81,6 +81,7 @@ public:
   void handleSaveIconGlow();
   void handleSaveDefaultTileColor();
   void handleSaveTheme();
+  void handleSaveDarkTinted();
   void handleTileRadius();
   void handleLocalCamera();
   void handleGetScreensaverWallpaper();

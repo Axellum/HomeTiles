@@ -617,18 +617,23 @@
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
   function setTileTintBackground(el, color, percent) {
+    // A tile that follows its tint enters the dark design first
+    // (tile_surface::change in set_tile_tint).
+    if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'darktint' && typeof applyTileSurface === 'function') {
+      applyTileSurface(el, 'darktint');
+    }
     // A tile on its own surface tints with that surface's rules, from that
     // theme's card; the dark design a little lighter (set_tile_tint).
     const surface = el?.dataset?.surface || '';
     const theme = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
     const pageLight = typeof panelThemeLight === 'function' ? panelThemeLight() : false;
     let base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
-    if (theme === 0 && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+    if ((theme === 0 || theme === 2) && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
     if (theme === 1 && !pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--pvl-card') || '').trim();
     let hex = typeof withSurface === 'function'
       ? withSurface(theme, () => tileTintBackground(base || '#1A1A1A', color, percent))
       : tileTintBackground(base || '#1A1A1A', color, percent);
-    if (surface === 'darkdesign' && typeof toneDarkDesign === 'function') {
+    if ((surface === 'darkdesign' || surface === 'darktint') && typeof toneDarkDesign === 'function') {
       hex = toneHex(toneDarkDesign([1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)))).toUpperCase();
     }
     const opacity = el.dataset.bgOpacity;

@@ -1,5 +1,13 @@
 
+  // globalThis.hometilesPreviewForcedSurface: the second pass of a preview
+  // whose tint changed its surface (tile_surface::change), drawn from the
+  // start with that surface.
   function updateTilePreview(tab) {
+    // The edited tile draws with its surface's rules (tile_surface), set
+    // below once its color is known; restored at the end.
+    const surfaceSaved = globalThis.hometilesPreviewSurface;
+    let surfaceDrawn = null;
+    try {
     if (currentTileIndex === -1) return;
     if (currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX) {
       const snapshot = buildTileSnapshotFromInputs(tab);
@@ -188,7 +196,15 @@
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      applyTileSurface(tileElem, tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      const design = typeof tileDesignValue === 'function' ? tileDesignValue(prefix) : '0';
+      const playing = previewKind === 'media' && mediaPreviewPlaying(mediaEntity ? (sensorMetaCache.mediaValues?.[mediaEntity] ?? '') : '');
+      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record, design, playing);
+      if (tileFollowsTint(tab, meta.preview || '', bgValue, record, design)) tileElem.dataset.followTint = '1';
+      else delete tileElem.dataset.followTint;
+      surfaceDrawn = surface;
+      applyTileSurface(tileElem, surface);
+      const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
+      if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
     }
 
     let html = '';
@@ -348,4 +364,14 @@
     }
     // The automatic icon of the head follows what the preview draws.
     if (typeof renderTileIconButton === 'function') renderTileIconButton(tab);
+    } finally {
+      globalThis.hometilesPreviewSurface = surfaceSaved;
+    }
+    // Its tint changed the surface: drawn again on it from the start.
+    const tileElem = currentTileIndex >= 0 ? document.getElementById(tab + '-tile-' + currentTileIndex) : null;
+    if (!globalThis.hometilesPreviewForcedSurface && surfaceDrawn !== null && surfaceDrawn !== 'darktint' &&
+        tileElem?.dataset.surface === 'darktint') {
+      globalThis.hometilesPreviewForcedSurface = 'darktint';
+      try { updateTilePreview(tab); } finally { delete globalThis.hometilesPreviewForcedSurface; }
+    }
   }

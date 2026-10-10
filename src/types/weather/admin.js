@@ -346,7 +346,10 @@ function maybeFillTitleFromWeather(tab) {
         if (!state) dayText = '';
         html += '<div class="weather-preview-day" style="' + at(left, contentTop + L.dayTop * scale + dayFont.shift) +
           'width:' + contentW.toFixed(2) + 'px;' + fontCss(dayFont) +
-          'color:' + (slot || !state ? panelRoleHex('text', '#FFFFFF') : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
+          // The text role through CSS: a tile on its own surface (the dark
+          // design) carries its role values, also when a live edit draws the
+          // days outside that tile's surface (they turned black, 2026-10-10).
+          'color:' + (slot || !state ? 'var(--pv-text, #FFFFFF)' : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
         if (!slot) continue;
         if (slot.icon) {
           const svg = colored ? weatherIconSvg(slot.icon, false) : '';

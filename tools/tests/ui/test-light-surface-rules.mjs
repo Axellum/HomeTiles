@@ -28,7 +28,7 @@ const theme = read('src/ui/shared/ui_theme.h');
 for (const marker of ['inline constexpr float kLightSurfaceL = 0.72f;', 'inline constexpr float kLightCircleShare = 0.8f;',
   'inline constexpr float kDarkDesignLift = 0.24f;',
   'inline bool light() { return g_surface >= 0 ? g_surface == 1 : theme_light(); }',
-  '~SurfaceScope() { g_surface = saved_; }'])
+  'if (!(owner_ && saved_owner_ == owner_)) g_surface = saved_;'])
   assert.ok(theme.includes(marker), `ui_theme.h: ${marker}`);
 
 // Every tile renders inside its surface; later color paths reopen it.
@@ -37,9 +37,10 @@ assert.ok(renderer.includes('const ui_theme::SurfaceScope scope(tile_surface::th
   renderer.includes('tile_surface::set(tile_obj, surface);') &&
   renderer.includes('if (surface == tile_surface::kDarkDesign) tile_icon_source::apply_dark_design(tile_obj);'),
   'render_tile opens and marks the surface');
-assert.ok(renderer.includes('if (ui_theme::theme_light() && (tile.type == TILE_MEDIA || tile.type == TILE_WEATHER)) {') &&
+assert.ok(renderer.includes('if (tile.design == TILE_DESIGN_DARK || tile.type == TILE_WEATHER) return tile_surface::kDarkDesign;') &&
+  renderer.includes('if (media_playing) return tile_surface::kDarkDesign;') &&
   renderer.includes('return tone_color::light_surface(own) ? tile_surface::kLight : tile_surface::kDark;'),
-  'Media and Weather: dark design; own colors: by their lightness');
+  'Weather, Media while playing and Design Dark: dark design; own colors: by their lightness');
 assert.ok(renderer.includes('if (!tileBorderEnabled(tile) || dark_design) ui_surface_style::disable_tile_border(tile_obj);'),
   'the dark design has no hairline');
 const disc = read('src/tiles/runtime/tile_icon_disc.h');
@@ -47,7 +48,7 @@ assert.ok(disc.includes('const ui_theme::SurfaceScope surface = tile_surface::sc
 assert.ok(disc.includes('if (ui_theme::light() && !see_through_card) {') &&
   disc.includes('return tone_color::tile_fill(card, over, tinted, percent);'), 'the light theme tile circle');
 const source = read('src/tiles/runtime/tile_icon_source.cpp');
-assert.ok(source.includes('if (tile_surface::get(card) == tile_surface::kDarkDesign) tint = tone_color::dark_design(tint);'),
+assert.ok(source.includes('if (tile_surface::dark_design(tile_surface::get(card))) tint = tone_color::dark_design(tint);'),
   'tints of the dark design are lifted');
 for (const [file, count] of [['src/tiles/runtime/tile_renderer.cpp', 5], ['src/types/binary_sensor/renderer.cpp', 1],
   ['src/types/cover/renderer.cpp', 1]]) {
@@ -67,7 +68,7 @@ assert.ok(renderer.includes('if (!state.available) return ui_theme::icon_unavail
 
 // The preview's functions, exactly as delivered.
 const names = ['toneToLinear', 'toneToSrgb', 'toneOklch', 'toneLinear', 'toneRgb', 'toneBlend', 'toneHex', 'panelVar',
-  'panelLight', 'panelRole', 'toneLightSurface', 'toneDarkDesign', 'toneNoColor', 'toneLightAccent', 'toneMarkOn'];
+  'panelLight', 'panelRole', 'surfaceRoleTable', 'toneLightSurface', 'toneDarkDesign', 'toneNoColor', 'toneLightAccent', 'toneMarkOn'];
 const js = new Function(names.map(extractDeliveredFunction).join('\n') +
   '; return {toneLightSurface, toneDarkDesign, toneLightAccent, toneMarkOn, toneBlend};')();
 const light = run => { globalThis.hometilesPreviewSurface = 1; try { return run(); } finally { delete globalThis.hometilesPreviewSurface; } };
@@ -157,10 +158,12 @@ assert.ok(Math.abs(rgb(pure)[0] - rgb(almost)[0]) <= 3 && rgb(pure)[0] < 0xC0 &&
 
 // The preview marks the surface and draws it like the device.
 const grid = read('src/web/admin/tiles/grid-preview.js');
-assert.ok(grid.includes("if (panelThemeLight() && (previewKind === 'media' || previewKind === 'weather')) return 'darkdesign';") &&
-  grid.includes("if (flip) el.style.setProperty('--pv-' + name, 'var(--pv' + (theme === 1 ? 'l' : 'd') + '-' + name + ')');"),
+assert.ok(grid.includes("if (chosen === '2' || previewKind === 'weather') return 'darkdesign';") &&
+  grid.includes("if (previewKind === 'media' && playing) return 'darkdesign';") &&
+  grid.includes("if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');"),
   'preview surfaces');
-assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("if (surface === 'darkdesign' && typeof toneDarkDesign === 'function') {"),
+assert.ok(read('src/web/admin/tiles/icon-colors.js').includes(
+  "if ((surface === 'darkdesign' || surface === 'darktint') && typeof toneDarkDesign === 'function') {"),
   'preview tints of the dark design');
 assert.ok(read('src/web/assets/admin.css').includes('color:var(--tile-cut, var(--tile-card, #1A1A1A)); }'), 'preview play cut-out');
 console.log('Light surface rules: tile surfaces, dark design, marks, white light accent, tile circle, device == preview');

@@ -47,6 +47,22 @@ void refresh_card(lv_obj_t* card, const Tile& tile);
 // Tints of such a card are lifted the same way (set_tile_tint).
 void apply_dark_design(lv_obj_t* card);
 
+// A new own color of a card (a tile entering or leaving the dark design):
+// kept behind a tint, else shown at once; refresh_card tints again.
+void set_card_base(lv_obj_t* card, uint32_t rgb);
+
+// A card with a rule (tile_surface::set_rule) changes its surface while it
+// runs: Media entering the dark design when it plays, a tinted tile with the
+// global option "Tinted tiles dark" while it is tinted. Its card color,
+// hairline and every role-colored text and icon switch in place, without a
+// rebuild; its open scopes draw the rest of the running update with the new
+// surface (ui_theme::follow_surface). `tile` gives an own card color (Media);
+// without it the card takes the default card of the new surface.
+void change_surface(lv_obj_t* card, uint8_t surface, const Tile* tile = nullptr);
+
+// Media: the player started or stopped playing (tile_surface::kPlaying).
+void set_playing(lv_obj_t* card, bool playing, const Tile& tile);
+
 // The Media renderer reports the color of the cover a card shows (`known`
 // false without a cover or without a clear color, media/cover_color.h). A
 // card with "From cover" (icon color and/or tile color) follows it right

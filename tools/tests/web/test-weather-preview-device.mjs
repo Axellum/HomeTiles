@@ -151,6 +151,8 @@ inline const char* weather_today_button_label(const char*){return "Today";}
 ${strip(read('src/types/weather/weather_icon_table.h'))}
 ${strip(read('src/types/weather/weather_icons.h'))}
 ${strip(read('src/types/weather/weather_icons.cpp'))}
+// The theme Automatic notes the sun times (its own test).
+namespace theme_schedule { inline void note_sun(const weather_icons::SunTimes&) {} }
 void set_label_style(lv_obj_t*o,lv_color_t c,const lv_font_t*f){lv_obj_set_style_text_color(o,c,0);lv_obj_set_style_text_font(o,f,0);}
 void set_tile_grid_cell(lv_obj_t*o,int col,int row,int w,int h){lv_obj_set_size(o,w*GRID_CELL_W+(w-1)*GRID_GAP,h*GRID_CELL_H+(h-1)*GRID_GAP);lv_obj_set_pos(o,Device::kGridPad+col*(GRID_CELL_W+GRID_GAP),Device::kGridPad+row*(GRID_CELL_H+GRID_GAP));}
 WeatherTileWidgets widgets[TILES_PER_GRID];WeatherTileWidgets* tile_renderer_get_weather_widgets(GridType){return widgets;}
@@ -229,7 +231,7 @@ const preview = [
   extractFunction('normalizeMdiIconName', read('src/web/admin/tiles/state.js')),
   extractFunction('formatLocalizedNumber', read('src/web/admin/core/localization.js')),
   // The panel theme's roles (no data-panel-theme here: the dark theme).
-  ...['toneHex', 'panelLight', 'panelVar', 'panelRole', 'panelRoleHex']
+  ...['toneHex', 'panelLight', 'panelVar', 'panelRole', 'surfaceRoleTable', 'panelRoleHex']
     .map(name => extractFunction(name, read('src/web/admin/tiles/grid-preview.js'))),
 ].join('\n');
 const fontUrl = pathToFileURL(path.join(root, 'docs/assets/fonts/inter-4.1-regular.woff2')).href;

@@ -292,6 +292,9 @@ void on_icon_color(lv_obj_t* disc) {
 // An open popup of this card takes the card's current background.
 void follow_open_popup(lv_obj_t* card) {
   if (!card || !popup_shell_active()) return;
+  // Its popup keeps the neutral card (popup_background).
+  const int8_t surface = tile_surface::theme_of(tile_surface::find(card));
+  if (surface >= 0 && (surface == 1) != ui_theme::theme_light()) return;
   bool opened_here = false;
   for (lv_obj_t* source : g_popup_source) opened_here = opened_here || source == card;
   if (!opened_here) return;
@@ -332,8 +335,18 @@ void apply_card_background(lv_obj_t* card, uint32_t rgb) {
 // a Light tile tints while the card is still pressed or fading back, so the
 // shown color is the lighter press color: storing that made the tile one
 // press step lighter after every on/off.
+// A card with a rule (tile_surface::set_rule) shows the dark design while it
+// is tinted (global option "Tinted tiles dark").
+void follow_tint(lv_obj_t* card, bool tinted) {
+  uint8_t base = 0, flags = 0;
+  if (!tile_surface::rule_of(card, base, flags)) return;
+  change_surface(card, tile_surface::wanted(base, flags, tinted));
+}
+
 void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) {
   if (!card) return;
+  // A tile in the dark design while tinted enters it before the tint.
+  follow_tint(card, true);
   // A tile on its own surface tints with that surface's rules.
   const ui_theme::SurfaceScope surface = tile_surface::scope(card);
   lv_style_value_t stored;
@@ -342,13 +355,15 @@ void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) {
   }
   uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);
   // The dark design: the dark theme's tint, a little lighter.
-  if (tile_surface::get(card) == tile_surface::kDarkDesign) tint = tone_color::dark_design(tint);
+  if (tile_surface::dark_design(tile_surface::get(card))) tint = tone_color::dark_design(tint);
   if (tile_icon_disc::card_state_color(card, false) == tint) return;
   apply_card_background(card, tint);
 }
 
 void clear_tile_tint(lv_obj_t* card) {
   if (!card) return;
+  // A tile in the dark design while tinted leaves it with its tint.
+  follow_tint(card, false);
   lv_style_value_t stored;
   if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) != LV_STYLE_RES_FOUND) return;
   lv_obj_remove_local_style_prop(card, LV_STYLE_BG_COLOR, kTintStore);
@@ -392,8 +407,100 @@ String layer_entity(const Tile& tile, const tile_icon_colors::Source& layer) {
 }  // namespace
 
 void apply_dark_design(lv_obj_t* card) {
-  if (!card || tile_surface::get(card) != tile_surface::kDarkDesign) return;
+  if (!card || !tile_surface::dark_design(tile_surface::get(card))) return;
   apply_card_background(card, tone_color::dark_design(tile_icon_disc::card_state_color(card, false)));
+}
+
+namespace {
+
+// An MDI glyph (Supplementary Private Use Area: UTF-8 lead byte 0xF3).
+bool icon_glyph(lv_obj_t* obj) {
+  if (!lv_obj_check_type(obj, &lv_label_class)) return false;
+  const char* text = lv_label_get_text(obj);
+  return text && static_cast<uint8_t>(text[0]) == 0xF3;
+}
+
+// Every text color of `obj` and its children that is a role of `from` takes
+// that role of `to`; the graph line of a Sensor tile too. Colors that are no
+// role (an entity's color, a rule's) stay.
+void recolor_roles(lv_obj_t* obj, const ui_theme::Roles& from, const ui_theme::Roles& to, int depth) {
+  lv_style_value_t value;
+  if (lv_obj_get_local_style_prop(obj, LV_STYLE_TEXT_COLOR, &value, LV_PART_MAIN) == LV_STYLE_RES_FOUND) {
+    const uint32_t rgb = lv_color_to_u32(value.color) & 0xFFFFFF;
+    const uint32_t mapped = ui_theme::map_role(rgb, from, to, icon_glyph(obj));
+    if (mapped != rgb) lv_obj_set_style_text_color(obj, lv_color_hex(mapped), LV_PART_MAIN);
+  }
+  if (lv_obj_check_type(obj, &lv_chart_class)) {
+    if (lv_obj_get_local_style_prop(obj, LV_STYLE_LINE_COLOR, &value, LV_PART_ITEMS) == LV_STYLE_RES_FOUND) {
+      const uint32_t rgb = lv_color_to_u32(value.color) & 0xFFFFFF;
+      const uint32_t mapped = ui_theme::map_role(rgb, from, to, false);
+      if (mapped != rgb) lv_obj_set_style_line_color(obj, lv_color_hex(mapped), LV_PART_ITEMS);
+    }
+    for (lv_chart_series_t* series = lv_chart_get_series_next(obj, nullptr); series;
+         series = lv_chart_get_series_next(obj, series)) {
+      const uint32_t rgb = lv_color_to_u32(lv_chart_get_series_color(obj, series)) & 0xFFFFFF;
+      const uint32_t mapped = ui_theme::map_role(rgb, from, to, false);
+      if (mapped != rgb) lv_chart_set_series_color(obj, series, lv_color_hex(mapped));
+    }
+  }
+  if (depth >= 5) return;
+  const uint32_t count = lv_obj_get_child_count(obj);
+  for (uint32_t i = 0; i < count; ++i) {
+    lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
+    // Circles keep their own fills (refresh_discs); their icons are labels.
+    recolor_roles(child, from, to, depth + 1);
+  }
+}
+
+}  // namespace
+
+void change_surface(lv_obj_t* card, uint8_t surface, const Tile* tile) {
+  if (!card || !tile_surface::marked(card)) return;
+  const uint8_t before = tile_surface::get(card);
+  if (before == surface) return;
+  const ui_theme::Roles& from = ui_theme::roles_of(tile_surface::theme_of(before));
+  tile_surface::set(card, surface);
+  const int8_t theme = tile_surface::theme_of(surface);
+  // An update of this card that is running draws on with the new surface.
+  ui_theme::follow_surface(card, theme);
+  const ui_theme::SurfaceScope scope(theme >= 0 ? theme : ui_theme::kThemeSurface, card);
+  const bool dark = tile_surface::dark_design(surface);
+  uint32_t base = tile ? tileBgColorOrDefault(*tile, tileDefaultBgColor()) : tileDefaultBgColor();
+  if (dark) base = tone_color::dark_design(base);
+  set_card_base(card, base);
+  ui_surface_style::set_tile_border_hidden(card, dark);
+  recolor_roles(card, from, ui_theme::roles(), 0);
+  // Circles, controls and card-colored cut-outs: refresh_discs and
+  // refresh_controls of the caller (the tint that changed the surface) or of
+  // set_playing.
+}
+
+void set_playing(lv_obj_t* card, bool playing, const Tile& tile) {
+  uint8_t base = 0, flags = 0;
+  if (!card || !tile_surface::rule_of(card, base, flags)) return;
+  const uint8_t next = playing ? static_cast<uint8_t>(flags | tile_surface::kPlaying)
+                               : static_cast<uint8_t>(flags & ~tile_surface::kPlaying);
+  if (next == flags) return;
+  tile_surface::set_rule(card, base, next);
+  lv_style_value_t stored;
+  const bool tinted =
+      lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) == LV_STYLE_RES_FOUND;
+  const uint8_t before = tile_surface::get(card);
+  change_surface(card, tile_surface::wanted(base, next, tinted), &tile);
+  if (tile_surface::get(card) == before) return;
+  // The tint takes the new surface's rules; circles and controls follow.
+  refresh_card(card, tile);
+  refresh_controls(card);
+}
+
+void set_card_base(lv_obj_t* card, uint32_t rgb) {
+  if (!card) return;
+  lv_style_value_t stored;
+  if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) == LV_STYLE_RES_FOUND) {
+    lv_obj_set_style_bg_color(card, lv_color_hex(rgb & 0xFFFFFF), kTintStore);
+  } else {
+    apply_card_background(card, rgb & 0xFFFFFF);
+  }
 }
 
 bool cached_payload(const String& entity, String& payload) {
@@ -500,6 +607,11 @@ void open_popup_without_tile() {
 uint32_t popup_background(lv_obj_t* obj, uint32_t fallback) {
   remember_popup_source(obj);
   pass_popup_disc(obj, true);
+  // A tile on the other theme's surface (an own dark color or the dark design
+  // in the light theme, user 2026-10-10) opens its popup on the theme's
+  // neutral card: the popup draws with the theme's rules.
+  const int8_t surface = tile_surface::theme_of(tile_surface::find(obj));
+  if (surface >= 0 && (surface == 1) != ui_theme::theme_light()) return ui_theme::popup_card();
   for (int depth = 0; obj && depth < 4; ++depth, obj = lv_obj_get_parent(obj)) {
     lv_style_value_t value;
     if (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, kTintStore) != LV_STYLE_RES_FOUND) continue;

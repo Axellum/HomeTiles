@@ -36,6 +36,7 @@
 
 #include "src/core/hardware/board_hal.h"
 #include "src/ui/shared/ui_theme.h"
+#include "src/ui/shared/theme_schedule.h"
 
 static const lv_font_t* get_status_time_font() {
   const DeviceConfig& cfg = configManager.getConfig();
@@ -214,10 +215,13 @@ void UIManager::processThemeChange() {
   // The camera owns the screen, or a popup is drawing its first frame: later.
   if (camera_popup_is_busy() || PopupFirstFrame::any_pending()) return;
   theme_change_pending.store(false);
-  const uint8_t theme = configManager.getConfig().theme;
-  if ((theme == 1) == ui_theme::light()) return;
+  // Automatic: light by day, dark by night (theme_schedule.h).
+  const uint8_t stored = configManager.getConfig().theme;
+  const uint8_t theme = theme_schedule::effective(stored);
+  if ((theme == 1) == ui_theme::theme_light()) return;
   const uint32_t started = millis();
   ui_theme::set(theme);
+  if (stored == theme_schedule::kAutomatic) configManager.saveThemeAutoLast(theme);
   // Popups and the shell were built in the old colors: closed, deleted and
   // built again (their fixed labels take the colors when created).
   viewNavigationClosePopups();
@@ -973,6 +977,7 @@ void UIManager::serviceNtpSync() {
   configTzTime(timezone_spec_for_code(cfg.timezone), "pool.ntp.org", "time.nist.gov", "time.cloudflare.com");
 
   tz_configured = true;
+  theme_schedule::note_time_zone();
 
   Serial.printf("[NTP] Configuration complete (%u ms)\n",
                 static_cast<unsigned>(millis() - started_ms));

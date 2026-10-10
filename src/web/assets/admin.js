@@ -298,12 +298,21 @@ function applyPanelThemePreview(theme) {
   document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
   if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
 }
+// Automatic ('2', theme_schedule.h) shows what the panel picked for the time
+// of day: the answer's "effective" theme.
+function shownPanelTheme() {
+  return document.documentElement.dataset.panelTheme === 'light' ? '1' : '0';
+}
 async function saveTheme(value) {
-  const theme = String(value) === '1' ? '1' : '0';
-  const previous = theme === '1' ? '0' : '1';
+  const theme = ['0', '1', '2'].includes(String(value)) ? String(value) : '0';
+  const previous = themeChosen !== null ? themeChosen
+    : (document.querySelector('.global-theme option[selected]')?.value || shownPanelTheme());
+  const previousShown = shownPanelTheme();
   themeChosen = theme;
   document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
-  applyPanelThemePreview(theme);
+  // The tile's Design field shows while the panel can be light.
+  if (typeof syncTileDesign === 'function' && typeof currentTileTab === 'string' && currentTileTab) syncTileDesign(currentTileTab);
+  if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
     const response = await fetch('/api/display/theme', {
@@ -312,11 +321,47 @@ async function saveTheme(value) {
       body: 'theme=' + theme
     });
     if (!response.ok) throw new Error('HTTP ' + response.status);
+    const answer = await response.json().catch(() => null);
+    if (sequence !== themeSaveSequence) return;
+    const shown = String(answer?.effective ?? (theme === '2' ? previousShown : theme));
+    if (shown !== shownPanelTheme()) applyPanelThemePreview(shown === '1' ? '1' : '0');
   } catch (error) {
     if (sequence !== themeSaveSequence) return;
     themeChosen = previous;
     document.querySelectorAll('.global-theme').forEach(select => { select.value = previous; });
-    applyPanelThemePreview(previous);
+    if (previousShown !== shownPanelTheme()) applyPanelThemePreview(previousShown);
+    showNotification(t('networkErrorSave'), false);
+  }
+}
+// Light theme: tinted tiles in the dark design while tinted (tile_surface);
+// html[data-dark-tinted] tells the preview (grid-preview.js tileSurfaceOf).
+let darkTintedSaveSequence = 0;
+function darkTintedEnabled() {
+  return document.documentElement.dataset.darkTinted === '1';
+}
+function applyDarkTintedPreview(enabled) {
+  if (enabled) document.documentElement.dataset.darkTinted = '1';
+  else delete document.documentElement.dataset.darkTinted;
+  document.querySelectorAll('.global-dark-tinted-toggle').forEach(input => { input.checked = !!enabled; });
+  tileDataLoadedTabs.forEach(tab => {
+    getTilesData(tab).forEach((tile, index) => { if (tile) renderTileFromData(tab, index, tile, sensorMetaCache); });
+  });
+  if (typeof currentTileTab === 'string' && currentTileTab) updateTilePreview(currentTileTab);
+}
+async function saveDarkTinted(enabled) {
+  const wanted = !!enabled;
+  const sequence = ++darkTintedSaveSequence;
+  applyDarkTintedPreview(wanted);
+  try {
+    const response = await fetch('/api/display/dark-tinted', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'enabled=' + (wanted ? '1' : '0')
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+  } catch (error) {
+    if (sequence !== darkTintedSaveSequence) return;
+    applyDarkTintedPreview(!wanted);
     showNotification(t('networkErrorSave'), false);
   }
 }
@@ -330,6 +375,7 @@ function syncGlobalDisplayControls(tabEl) {
   tabEl.querySelectorAll('.global-icon-glow').forEach(input => { input.value = String(glow); });
   tabEl.querySelectorAll('.global-icon-glow-value').forEach(output => { output.textContent = glow + ' %'; });
   if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
+  tabEl.querySelectorAll('.global-dark-tinted-toggle').forEach(input => { input.checked = darkTintedEnabled(); });
 }
 
 // The shared root variables also reach cached and lazily inserted folder grids.
@@ -4033,6 +4079,10 @@ function syncTileRadiusControls(tabEl) {
     };
   }
   function loadIconDiscFields(tab, data) {
+    // The tile's Design (TileDesign) loads with its icon options.
+    const design = document.getElementById(tab + '_tile_design');
+    if (design) design.value = ['0', '1', '2'].includes(String(data?.design)) ? String(data.design) : '0';
+    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     const box = document.getElementById(tab + '_tile_icon_disc');
     if (box) box.checked = String(data?.icon_disc) !== '2';
     const glow = document.getElementById(tab + '_tile_icon_glow');
@@ -4040,6 +4090,9 @@ function syncTileRadiusControls(tabEl) {
     syncIconDiscFields(tab);
   }
   function resetIconDiscFields(tab) {
+    const design = document.getElementById(tab + '_tile_design');
+    if (design) design.value = '0';
+    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     const box = document.getElementById(tab + '_tile_icon_disc');
     if (box) box.checked = true;
     const glow = document.getElementById(tab + '_tile_icon_glow');
@@ -4062,6 +4115,8 @@ function syncTileRadiusControls(tabEl) {
     const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
     const meta = getTileTypeMeta(typeValue);
     const out = collectIconDiscFields(prefix, typeValue);
+    // The Design of every tile (TileDesign), 0 for an empty slot.
+    if (typeValue !== '0') out.design = typeof tileDesignValue === 'function' ? tileDesignValue(prefix) : '0';
     if (!meta.save) return out;
     const fd = new FormData();
     callTypeHandler(meta, 'save', prefix, fd);
@@ -4125,7 +4180,7 @@ function syncTileRadiusControls(tabEl) {
     // data, its entity and options returned with the next tile in the slot.
     const tile = Number(snapshot?.type) === 0 ? {} : Object.assign({}, prev);
     const layout = normalizeSnapshotLayout(snapshot, index, tab);
-    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'sensor_gauge_min', 'sensor_gauge_max', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier', 'background_opacity', 'icon_disc', 'icon_glow'];
+    const numericFields = ['type', 'sensor_decimals', 'sensor_value_font', 'sensor_display_mode', 'sensor_gauge_min', 'sensor_gauge_max', 'switch_style', 'navigate_target', 'popup_open_mode', 'key_code', 'key_modifier', 'background_opacity', 'icon_disc', 'icon_glow', 'design'];
 
     tile.type = clampInt(snapshot?.type, 0, 255, Number(prev.type) || 0);
     tile.title = snapshot?.title || '';
@@ -4857,18 +4912,23 @@ function syncTileRadiusControls(tabEl) {
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
   function setTileTintBackground(el, color, percent) {
+    // A tile that follows its tint enters the dark design first
+    // (tile_surface::change in set_tile_tint).
+    if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'darktint' && typeof applyTileSurface === 'function') {
+      applyTileSurface(el, 'darktint');
+    }
     // A tile on its own surface tints with that surface's rules, from that
     // theme's card; the dark design a little lighter (set_tile_tint).
     const surface = el?.dataset?.surface || '';
     const theme = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
     const pageLight = typeof panelThemeLight === 'function' ? panelThemeLight() : false;
     let base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
-    if (theme === 0 && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
+    if ((theme === 0 || theme === 2) && pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-default-bg') || '').trim();
     if (theme === 1 && !pageLight) base = String(getComputedStyle(document.documentElement).getPropertyValue('--pvl-card') || '').trim();
     let hex = typeof withSurface === 'function'
       ? withSurface(theme, () => tileTintBackground(base || '#1A1A1A', color, percent))
       : tileTintBackground(base || '#1A1A1A', color, percent);
-    if (surface === 'darkdesign' && typeof toneDarkDesign === 'function') {
+    if ((surface === 'darkdesign' || surface === 'darktint') && typeof toneDarkDesign === 'function') {
       hex = toneHex(toneDarkDesign([1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)))).toUpperCase();
     }
     const opacity = el.dataset.bgOpacity;
@@ -7421,7 +7481,15 @@ function syncTileRadiusControls(tabEl) {
     if (event.target?.classList?.contains('tile-settings-body')) trimSettingsScrollSpacer(event.target);
   }, true);
 
+  // globalThis.hometilesPreviewForcedSurface: the second pass of a preview
+  // whose tint changed its surface (tile_surface::change), drawn from the
+  // start with that surface.
   function updateTilePreview(tab) {
+    // The edited tile draws with its surface's rules (tile_surface), set
+    // below once its color is known; restored at the end.
+    const surfaceSaved = globalThis.hometilesPreviewSurface;
+    let surfaceDrawn = null;
+    try {
     if (currentTileIndex === -1) return;
     if (currentTileIndex === HIDDEN_SETTINGS_TILE_INDEX) {
       const snapshot = buildTileSnapshotFromInputs(tab);
@@ -7610,7 +7678,15 @@ function syncTileRadiusControls(tabEl) {
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      applyTileSurface(tileElem, tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      const design = typeof tileDesignValue === 'function' ? tileDesignValue(prefix) : '0';
+      const playing = previewKind === 'media' && mediaPreviewPlaying(mediaEntity ? (sensorMetaCache.mediaValues?.[mediaEntity] ?? '') : '');
+      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record, design, playing);
+      if (tileFollowsTint(tab, meta.preview || '', bgValue, record, design)) tileElem.dataset.followTint = '1';
+      else delete tileElem.dataset.followTint;
+      surfaceDrawn = surface;
+      applyTileSurface(tileElem, surface);
+      const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
+      if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
     }
 
     let html = '';
@@ -7770,6 +7846,16 @@ function syncTileRadiusControls(tabEl) {
     }
     // The automatic icon of the head follows what the preview draws.
     if (typeof renderTileIconButton === 'function') renderTileIconButton(tab);
+    } finally {
+      globalThis.hometilesPreviewSurface = surfaceSaved;
+    }
+    // Its tint changed the surface: drawn again on it from the start.
+    const tileElem = currentTileIndex >= 0 ? document.getElementById(tab + '-tile-' + currentTileIndex) : null;
+    if (!globalThis.hometilesPreviewForcedSurface && surfaceDrawn !== null && surfaceDrawn !== 'darktint' &&
+        tileElem?.dataset.surface === 'darktint') {
+      globalThis.hometilesPreviewForcedSurface = 'darktint';
+      try { updateTilePreview(tab); } finally { delete globalThis.hometilesPreviewForcedSurface; }
+    }
   }
 
   function applyTileDataToEditor(index, tab, data) {
@@ -8961,6 +9047,9 @@ function syncTileRadiusControls(tabEl) {
     if (tile.icon_glow !== undefined && tile.icon_glow !== null) {
       fd.append('icon_glow', ['0', 'false'].includes(String(tile.icon_glow)) ? '0' : '1');
     }
+    if (tile.design !== undefined && tile.design !== null) {
+      fd.append('design', ['1', '2'].includes(String(tile.design)) ? String(tile.design) : '0');
+    }
     const parsedBgColor = parseBgColorValue(tile.bg_color);
     if (parsedBgColor !== 0 || (typeof tile.bg_color === 'string' && tile.bg_color.trim().startsWith('#'))) {
       fd.append('bg_color', parsedBgColor);
@@ -9317,22 +9406,34 @@ function syncTileRadiusControls(tabEl) {
   // (--pv-*, written from ui_theme.h by web_admin_styles.cpp; --pvd-* and
   // --pvl-* keep the dark and the light table).
   // tile_surface (tile_icon_disc.h): a tile in its own color follows that
-  // color's lightness, Media and Weather show the dark design in the light
-  // theme. While withSurface() runs, panelLight() and panelRole() answer for
-  // that surface (globalThis.hometilesPreviewSurface: 0 dark, 1 light,
-  // unset the page's theme; each function reads it by itself).
+  // color's lightness; in the light theme a tile's Design shows the dark
+  // design (Weather, Media while it plays, Design Dark, tinted tiles with the
+  // global option). While withSurface() runs, panelLight() and panelRole()
+  // answer for that surface (globalThis.hometilesPreviewSurface: 0 dark,
+  // 1 light, 2 dark with the light greys (ui_theme::kDarkTinted), unset the
+  // page's theme; each function reads it by itself).
   function panelThemeLight() {
     return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
   }
   function panelLight() {
     const surface = globalThis.hometilesPreviewSurface;
-    if (surface === 0 || surface === 1) return surface === 1;
+    if (surface === 0 || surface === 1 || surface === 2) return surface === 1;
     return typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
   }
   function withSurface(surface, run) {
     const saved = globalThis.hometilesPreviewSurface;
-    if (surface === 0 || surface === 1) globalThis.hometilesPreviewSurface = surface;
+    if (surface === 0 || surface === 1 || surface === 2) globalThis.hometilesPreviewSurface = surface;
     try { return run(); } finally { globalThis.hometilesPreviewSurface = saved; }
+  }
+  // The role table a surface reads a role from: 'd' dark, 'l' light, '' the
+  // page's. Surface 2 (ui_theme::kDarkTinted) takes the light theme's greys.
+  function surfaceRoleTable(theme, name, pageLight) {
+    if (theme === 2) {
+      const grey = ['icon-off', 'icon-inactive', 'icon-rest', 'icon-unavailable'].includes(name);
+      return grey ? (pageLight ? '' : 'l') : (pageLight ? 'd' : '');
+    }
+    if ((theme === 0 || theme === 1) && (theme === 1) !== pageLight) return theme === 1 ? 'l' : 'd';
+    return '';
   }
   function panelVar(name, fallback) {
     if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return fallback;
@@ -9342,8 +9443,8 @@ function syncTileRadiusControls(tabEl) {
   function panelRole(name) {
     const surface = globalThis.hometilesPreviewSurface;
     const pageLight = typeof document !== 'undefined' && document.documentElement?.dataset?.panelTheme === 'light';
-    const prefix = (surface === 0 || surface === 1) && (surface === 1) !== pageLight
-      ? (surface === 1 ? '--pvl-' : '--pvd-') : '--pv-';
+    const table = surfaceRoleTable(surface, name, pageLight);
+    const prefix = table ? '--pv' + table + '-' : '--pv-';
     const hex = panelVar(prefix + name, '');
     return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : null;
   }
@@ -9351,7 +9452,12 @@ function syncTileRadiusControls(tabEl) {
   const SURFACE_ROLES = ['screen', 'card', 'text', 'icon', 'icon-off', 'icon-inactive', 'icon-rest',
     'text-secondary', 'text-soft', 'icon-unavailable', 'text-rgb'];
   function surfaceTheme(surface) {
+    if (surface === 'darktint') return 2;
     return surface === 'light' ? 1 : surface === 'dark' || surface === 'darkdesign' ? 0 : -1;
+  }
+  // The dark design on the light theme (no hairline, the lifted dark card).
+  function surfaceDarkDesign(surface) {
+    return surface === 'darkdesign' || surface === 'darktint';
   }
   // tone_color::light_surface(): text, icons and circles on a color above
   // --pv-light-surface (OKLCH L) follow the light theme's rules.
@@ -9370,15 +9476,39 @@ function syncTileRadiusControls(tabEl) {
     const hex = String(panelVar('--tile-default-bg', '#1A1A1A'));
     return /^#[0-9a-f]{6}$/i.test(hex) ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : [26, 26, 26];
   }
-  // tile_surface_of() (tile_renderer.cpp): the surface of a tile.
-  function tileSurfaceOf(tab, previewKind, bgValue, iconColors) {
-    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
-    if (panelThemeLight() && (previewKind === 'media' || previewKind === 'weather')) return 'darkdesign';
+  // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
+  function tileHasOwnColor(bgValue, iconColors) {
     const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
-    if (!tileBgValueIsSet(bgValue) || tileBgFollowsDefault(bgValue) || fill) return '';
-    const own = Number(bgValue) & 0xFFFFFF;
-    if (!own) return '';
-    return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
+    return tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue) && !fill;
+  }
+  // tile_surface_of() (tile_renderer.cpp): the surface of a tile. `design`:
+  // the tile's Design (0 Automatic, 1 Light, 2 Dark); `playing`: a Media
+  // player plays.
+  function tileSurfaceOf(tab, previewKind, bgValue, iconColors, design, playing) {
+    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
+    if (tileHasOwnColor(bgValue, iconColors)) {
+      const own = Number(bgValue) & 0xFFFFFF;
+      if (!own) return '';
+      return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
+    }
+    const chosen = String(design ?? '0');
+    if (!panelThemeLight() || chosen === '1') return '';
+    if (chosen === '2' || previewKind === 'weather') return 'darkdesign';
+    if (previewKind === 'media' && playing) return 'darkdesign';
+    return '';
+  }
+  // tile_surface_rule_of() (tile_renderer.cpp): with the global option
+  // "Tinted tiles dark" (html[data-dark-tinted]) a tile shows the dark design
+  // while it is tinted (setTileTintBackground, applyIconDiscTint).
+  function tileFollowsTint(tab, previewKind, bgValue, iconColors, design) {
+    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return false;
+    return panelThemeLight() && document.documentElement?.dataset?.darkTinted === '1' &&
+      String(design ?? '0') === '0' && previewKind !== 'weather' && !tileHasOwnColor(bgValue, iconColors);
+  }
+  // A Media preview's player plays (media_cached_playing).
+  function mediaPreviewPlaying(raw) {
+    const payload = typeof parseMediaPreviewPayload === 'function' ? parseMediaPreviewPayload(raw) : null;
+    return String(payload?.state || '').trim().toLowerCase() === 'playing';
   }
   // Marks a tile with its surface: the other theme's roles on it (CSS) and,
   // for the dark design, its card.
@@ -9387,12 +9517,13 @@ function syncTileRadiusControls(tabEl) {
     if (surface) el.dataset.surface = surface;
     else delete el.dataset.surface;
     const theme = surfaceTheme(surface);
-    const flip = theme >= 0 && (theme === 1) !== panelThemeLight();
+    const pageLight = panelThemeLight();
     for (const name of SURFACE_ROLES) {
-      if (flip) el.style.setProperty('--pv-' + name, 'var(--pv' + (theme === 1 ? 'l' : 'd') + '-' + name + ')');
+      const table = surfaceRoleTable(theme, name, pageLight);
+      if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');
       else el.style.removeProperty('--pv-' + name);
     }
-    if (surface === 'darkdesign') el.style.background = toneHex(toneDarkDesign(darkThemeCard()));
+    if (surfaceDarkDesign(surface)) el.style.background = toneHex(toneDarkDesign(darkThemeCard()));
   }
   // tone_color::no_color(): white, almost white or grey-white.
   function toneNoColor(rgb) {
@@ -9471,8 +9602,12 @@ function syncTileRadiusControls(tabEl) {
       if (choice) {
         setTileTintBackground(tileElem, choice.color, choice.percent);
       } else if (tileElem.dataset.baseBg !== undefined) {
+        if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'darktint') applyTileSurface(tileElem, '');
         tileElem.style.background = tileElem.dataset.baseBg;
       }
+      // The surface may have changed with the tint (tile_surface::change).
+      const nowMode = surfaceTheme(tileElem.dataset?.surface || '');
+      globalThis.hometilesPreviewSurface = nowMode >= 0 ? nowMode : undefined;
     }
     // An unset Icon color field of the edited tile shows the color the icon
     // has now (the entity's own color, e.g. a light or a detected Binary
@@ -9610,7 +9745,35 @@ function syncTileRadiusControls(tabEl) {
     const strength = document.getElementById(tab + '_tile_icon_fill_strength');
     const output = document.getElementById(tab + '_tile_icon_fill_strength_value');
     if (strength && output) output.textContent = strength.value + ' %';
+    if (typeof syncTileDesign === 'function') syncTileDesign(tab);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
+  }
+  // The tile's Design (TileDesign): only for tiles without an own color, and
+  // only while the panel can show the light theme.
+  function tileDesignValue(tab) {
+    const value = String(document.getElementById(tab + '_tile_design')?.value || '0');
+    return ['0', '1', '2'].includes(value) ? value : '0';
+  }
+  function syncTileDesign(tab) {
+    const value = tileDesignValue(tab);
+    document.getElementById(tab + '_tile_design_modes')?.querySelectorAll('[data-tile-design]').forEach(button => {
+      const active = button.dataset.tileDesign === value;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
+    const theme = document.querySelector('.global-theme')?.value || (panelThemeLight() ? '1' : '0');
+    const shown = typeValue !== '0' && tileColorMode(tab) !== 'custom' && (theme !== '0' || panelThemeLight());
+    document.getElementById(tab + '_tile_design_row')?.classList.toggle('hidden', !shown);
+  }
+  function setTileDesign(tab, value) {
+    const input = document.getElementById(tab + '_tile_design');
+    if (!input) return;
+    input.value = ['0', '1', '2'].includes(String(value)) ? String(value) : '0';
+    syncTileDesign(tab);
+    updateTilePreview(tab);
+    updateDraft(tab);
+    scheduleAutoSave(tab);
   }
   function setTileColorMode(tab, mode) {
     const input = document.getElementById(tab + '_tile_color');
@@ -9763,13 +9926,24 @@ function syncTileRadiusControls(tabEl) {
     scheduleAutoSave(tab);
   }
 
-  function renderTileFromData(tab, index, tile, sensorMeta) {
+  // `forcedSurface`: the second pass of a tile whose tint changed its surface
+  // (tile_surface::change), drawn from the start with that surface.
+  function renderTileFromData(tab, index, tile, sensorMeta, forcedSurface) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return;
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
-    const surface = surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
-      : tileSurfaceOf(tab, getTileTypeMeta(surfaceType).preview || '', tile?.bg_color, tile?.icon_colors);
+    const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
+    const surface = forcedSurface || (surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
+      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, tile?.design,
+        surfaceKind === 'media' && mediaPreviewPlaying(sensorMeta?.mediaValues?.[tile?.sensor_entity || ''] ?? '')));
+    if (surfaceType !== '0' && typeof tileFollowsTint === 'function' &&
+        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, tile?.design)) {
+      el.dataset.followTint = '1';
+    } else {
+      delete el.dataset.followTint;
+    }
+    el.dataset.design = String(tile?.design ?? '0');
     const surfaceSaved = globalThis.hometilesPreviewSurface;
     const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
     if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
@@ -10019,6 +10193,10 @@ function syncTileRadiusControls(tabEl) {
     }
     } finally {
       globalThis.hometilesPreviewSurface = surfaceSaved;
+    }
+    // Its tint changed the surface: drawn again on it from the start.
+    if (!forcedSurface && el.dataset.surface === 'darktint' && surface !== 'darktint') {
+      renderTileFromData(tab, index, tile, sensorMeta, 'darktint');
     }
   }
 
@@ -14470,7 +14648,10 @@ function maybeFillTitleFromWeather(tab) {
         if (!state) dayText = '';
         html += '<div class="weather-preview-day" style="' + at(left, contentTop + L.dayTop * scale + dayFont.shift) +
           'width:' + contentW.toFixed(2) + 'px;' + fontCss(dayFont) +
-          'color:' + (slot || !state ? panelRoleHex('text', '#FFFFFF') : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
+          // The text role through CSS: a tile on its own surface (the dark
+          // design) carries its role values, also when a live edit draws the
+          // days outside that tile's surface (they turned black, 2026-10-10).
+          'color:' + (slot || !state ? 'var(--pv-text, #FFFFFF)' : '#7F8BAA') + '">' + escapeHtml(dayText || '--') + '</div>';
         if (!slot) continue;
         if (slot.icon) {
           const svg = colored ? weatherIconSvg(slot.icon, false) : '';

@@ -20,6 +20,9 @@ inline lv_color_t border_hint(lv_color_t icon) {
 }
 
 void disable_tile_border(lv_obj_t* obj);
+// The dark design hides a tile's hairline; leaving it, the tile takes the
+// global hairline option again (a Media tile that stops playing).
+void set_tile_border_hidden(lv_obj_t* obj, bool hidden);
 void apply_tile_border(lv_obj_t* obj, bool enabled);
 void apply_global_tile_border(lv_obj_t* obj);
 

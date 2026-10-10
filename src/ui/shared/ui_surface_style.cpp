@@ -148,6 +148,17 @@ void disable_tile_border(lv_obj_t* obj) {
   apply_style(obj, false);
 }
 
+void set_tile_border_hidden(lv_obj_t* obj, bool hidden) {
+  if (!obj) return;
+  if (hidden) {
+    lv_obj_clear_flag(obj, kGlobalTileBorderFlag);
+    disable_tile_border(obj);
+    return;
+  }
+  lv_obj_clear_flag(obj, kHiddenTileBorderFlag);
+  apply_global_tile_border(obj);
+}
+
 void apply_tile_border(lv_obj_t* obj, bool enabled) {
   apply_style(obj, enabled);
 }

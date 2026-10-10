@@ -1178,7 +1178,7 @@
     }
     /* The hairline sits on the outer card edge. A child overlay would be
        visibly indented by the transparent 3px editor border. */
-    .tile-grid.tiles-bordered > .tile:not(.empty):not(.tile-border-hidden) {
+    .tile-grid.tiles-bordered > .tile:not(.empty):not(.tile-border-hidden):not([data-surface="darkdesign"]):not([data-surface="darktint"]) {
       outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));
       outline-offset:-1px;
     }

@@ -27,6 +27,7 @@
 #include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/ui_theme.h"
+#include "src/ui/shared/theme_schedule.h"
 #include "src/ui/popups/sensor/sensor_popup.h"
 #include "src/ui/popups/popup_first_frame.h"
 #include "src/ui/popups/popup_open.h"
@@ -783,7 +784,7 @@ void setup() {
   grid_layout::apply(configManager.getConfig().layout);
   // The UI theme of this boot (ui_theme.h), before anything builds or colors
   // the UI.
-  ui_theme::set(configManager.getConfig().theme);
+  ui_theme::set(theme_schedule::at_boot(configManager.getConfig().theme));
   Serial.printf("[Setup] Layout %s, grid %ux%u, cells %dx%d\n", grid_layout::key(grid_layout::active()),
                 static_cast<unsigned>(grid_layout::shown().cols), static_cast<unsigned>(grid_layout::shown().rows),
                 grid_layout::shown().cell_w, grid_layout::shown().cell_h);
@@ -1414,6 +1415,7 @@ void loop() {
   // Retain navigation/layout/style reload flags while the camera covers them;
   // rebuilding invisible content could otherwise cost a complete camera frame.
   if (!camera_popup_busy && !PopupFirstFrame::any_pending()) {
+    theme_schedule::poll();
     uiManager.processThemeChange();
     tiles_process_reload_requests();
   }

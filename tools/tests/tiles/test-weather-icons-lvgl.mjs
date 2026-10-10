@@ -111,7 +111,7 @@ assert.match(tileBuild, /init\.colored_icons = data->colored_icons;/);
 assert.doesNotMatch(tileBuild, /getMdiChar\(/);
 const tileState = fn(tileRenderer, 'update_weather_tile_state');
 assert.equal(tileState.match(/weather_icons::text\(/g)?.length, 2, 'tile state header and forecast icons');
-assert.match(tileState, /weather_icons::parse_sun\(json\.c_str\(\), sun\);\s*icon_name = weather_icons::for_now\(icon_name, sun\);/);
+assert.match(tileState, /weather_icons::parse_sun\(json\.c_str\(\), sun\);\s*theme_schedule::note_sun\(sun\);\s*icon_name = weather_icons::for_now\(icon_name, sun\);/);
 assert.match(tileState, /icon_forced\s*\? weather_icons::Style::Single/);
 assert.match(tileState, /tile_icon_disc::set_icon_color\(widgets\.icon_label, lv_color_hex\(tint \? tint : ui_theme::text\(\)\)\)/);
 assert.doesNotMatch(tileState, /getMdiChar\(/);
@@ -121,7 +121,7 @@ for (const name of ['update_forecast_graph', 'update_detail_view']) {
   assert.doesNotMatch(body, /getMdiChar\(/, name);
 }
 const header = fn(popup, 'apply_weather_header');
-assert.match(header, /weather_icons::parse_sun\(json\.c_str\(\), ctx->sun\);\s*icon_name = weather_icons::for_now\(icon_name, ctx->sun\);/);
+assert.match(header, /weather_icons::parse_sun\(json\.c_str\(\), ctx->sun\);\s*theme_schedule::note_sun\(ctx->sun\);\s*icon_name = weather_icons::for_now\(icon_name, ctx->sun\);/);
 assert.match(header, /weather_icons::text\(icon_name, header_icon_style\(ctx\)\)/);
 assert.match(fn(popup, 'parse_hourly_weather_object'),
   /weather_icons::is_night\(ctx->sun, hour\.date_local\.c_str\(\), hour\.hour_local \* 60 \+ 30\)/);

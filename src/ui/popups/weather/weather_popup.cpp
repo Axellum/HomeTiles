@@ -20,6 +20,7 @@
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/types/weather/weather_icons.h"
+#include "src/ui/shared/theme_schedule.h"
 #include "src/tiles/config/tile_config.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_renderer.h"
@@ -2595,6 +2596,7 @@ static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
   // Home Assistant reports partly cloudy and sunny at night too; the bridge
   // sun times switch them (and the hourly icons) to their night icons.
   weather_icons::parse_sun(json.c_str(), ctx->sun);
+  theme_schedule::note_sun(ctx->sun);
   icon_name = weather_icons::for_now(icon_name, ctx->sun);
 
   float temperature = 0.0f;

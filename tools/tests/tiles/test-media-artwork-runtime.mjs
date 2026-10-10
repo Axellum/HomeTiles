@@ -111,6 +111,8 @@ ${['bridge_pictures_enabled','show_media_picture','update_media_cover_from_pictu
 // The tile's surface (tile_icon_disc.h) does not change what updates.
 namespace ui_theme{struct SurfaceScope{explicit SurfaceScope(int){}};}
 namespace tile_surface{inline ui_theme::SurfaceScope scope(lv_obj_t*){return ui_theme::SurfaceScope(-1);}}
+// The dark design while playing (light theme) has its own tests.
+static void media_follow_playback(GridType,uint8_t,MediaTileWidgets&,bool){}
 ${fn('update_media_tile_state')}
 ${runtime.match(/struct MediaUpdate \{[\s\S]*?\n};/)[0]}
 constexpr int MEDIA_QUEUE_SIZE=24;MediaUpdate g_media_queue[24];uint8_t g_media_head=0,g_media_tail=0;
