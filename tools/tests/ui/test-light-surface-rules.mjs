@@ -96,6 +96,17 @@ assert.ok(shell.includes('tile_icon_source::popup_tile_circle(rgb, tile_circle, 
 // Climate, Cover) exactly the controls' fill, the selected mode button.
 assert.ok(shell.includes('const bool on_tile_card = popup_surface::g_open_surface != ui_theme::kThemeSurface;') &&
   shell.includes('fill.disc_color = fill.control_color;'), 'the header circle on a neutral popup: its controls\' fill');
+// Unavailable: one grey for every domain in the light theme, like Home
+// Assistant; the dark theme keeps each type's grey (device == preview).
+const visual = read('src/types/device/device_visual.h');
+assert.equal((visual.match(/v\.color = ui_theme::unavailable_icon\(v\.color\);/g) || []).length, 3, 'lock, alarm, fan unavailable');
+assert.ok(read('src/types/cover/renderer.cpp').includes(
+  'if (state.valid && !state.available) return ui_theme::unavailable_icon(cover_inactive());'), 'cover unavailable');
+assert.ok(theme.includes('inline uint32_t unavailable_icon(uint32_t dark_grey) { return theme_light() ? icon_unavailable() : dark_grey; }') &&
+  grid.includes("return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;") &&
+  read('src/types/device/admin.js').includes('if (!d.available && typeof unavailableIconHex === \'function\') out.color = unavailableIconHex(out.color);') &&
+  read('src/types/cover/admin.js').includes("return typeof unavailableIconHex === 'function' ? unavailableIconHex(rest) : rest;"),
+  'preview: the same unavailable grey');
 // The light popup's controls are a white card tile's circle (20 % of the icon).
 assert.ok(shell.includes('const uint32_t over = tone_color::circle_source(tinted || !tile_tint::has_hue(shown) ? shown : ui_theme::icon());') &&
   shell.includes('return tone_color::tile_fill(card, over, tinted, ui_surface_style::icon_glow_percent());'),

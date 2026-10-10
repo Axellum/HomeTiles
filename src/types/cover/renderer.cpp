@@ -256,6 +256,7 @@ bool cover_icon_active(const CoverState& state) {
 }
 
 uint32_t cover_icon_color(const CoverState& state) {
+  if (state.valid && !state.available) return ui_theme::unavailable_icon(cover_inactive());
   return cover_icon_active(state) ? kCoverActive : cover_inactive();
 }
 

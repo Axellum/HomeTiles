@@ -9506,6 +9506,11 @@ function syncTileRadiusControls(tabEl) {
     }
 
   }
+  // ui_theme::unavailable_icon(): the light theme's one unavailable grey for
+  // every domain, the dark theme each type's own `darkGrey`.
+  function unavailableIconHex(darkGrey) {
+    return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;
+  }
   // tone_color::no_color(): white, almost white or grey-white.
   function toneNoColor(rgb) {
     const seed = toneOklch(rgb);
@@ -15571,9 +15576,11 @@ function maybeFillTitleFromSwitch(tab) {
   // unavailable take the inactive grey.
   function coverPreviewColor(state) {
     const value = String(state?.state || 'unknown').toLowerCase();
-    if (state?.available === false || value === 'unknown' || value === 'unavailable') {
-      return panelRoleHex('icon-rest', '#9e9e9e');
+    if (state?.available === false || value === 'unavailable') {
+      const rest = panelRoleHex('icon-rest', '#9e9e9e');
+      return typeof unavailableIconHex === 'function' ? unavailableIconHex(rest) : rest;
     }
+    if (value === 'unknown') return panelRoleHex('icon-rest', '#9e9e9e');
     return '#926bc7';
   }
 
@@ -15757,6 +15764,8 @@ function maybeFillTitleFromSwitch(tab) {
       color: panelRoleHex('icon-inactive', DEVICE_COLORS.grey), waiting: false};
     if (!d.valid) return out;
     const state = d.available ? d.state : 'unavailable';
+    // Unavailable: the light theme's one unavailable grey (unavailable_icon).
+    if (!d.available && typeof unavailableIconHex === 'function') out.color = unavailableIconHex(out.color);
     if (kind === 'lock') {
       out.label = words[state] || words.unknown || state;
       if (!d.available) return out;

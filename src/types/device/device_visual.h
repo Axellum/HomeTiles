@@ -99,6 +99,7 @@ inline Visual visual(TileType type, const Detail& d) {
     v.icon = "lock";
     if (!d.available) {
       v.label = i18n::lock_state_label(lang, "unavailable");
+      v.color = ui_theme::unavailable_icon(v.color);
       return v;
     }
     v.label = i18n::lock_state_label(lang, d.state);
@@ -122,6 +123,7 @@ inline Visual visual(TileType type, const Detail& d) {
     v.icon = "shield";
     if (!d.available) {
       v.label = i18n::alarm_state_label(lang, "unavailable");
+      v.color = ui_theme::unavailable_icon(v.color);
       return v;
     }
     v.label = i18n::alarm_state_label(lang, d.state);
@@ -154,6 +156,7 @@ inline Visual visual(TileType type, const Detail& d) {
   v.icon = "fan-off";
   if (!d.available) {
     v.label = i18n::entity_state_label(lang, "unavailable");
+    v.color = ui_theme::unavailable_icon(v.color);
     return v;
   }
   if (is(d, "unknown")) {

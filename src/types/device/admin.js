@@ -64,6 +64,8 @@
       color: panelRoleHex('icon-inactive', DEVICE_COLORS.grey), waiting: false};
     if (!d.valid) return out;
     const state = d.available ? d.state : 'unavailable';
+    // Unavailable: the light theme's one unavailable grey (unavailable_icon).
+    if (!d.available && typeof unavailableIconHex === 'function') out.color = unavailableIconHex(out.color);
     if (kind === 'lock') {
       out.label = words[state] || words.unknown || state;
       if (!d.available) return out;

@@ -94,9 +94,11 @@
   // unavailable take the inactive grey.
   function coverPreviewColor(state) {
     const value = String(state?.state || 'unknown').toLowerCase();
-    if (state?.available === false || value === 'unknown' || value === 'unavailable') {
-      return panelRoleHex('icon-rest', '#9e9e9e');
+    if (state?.available === false || value === 'unavailable') {
+      const rest = panelRoleHex('icon-rest', '#9e9e9e');
+      return typeof unavailableIconHex === 'function' ? unavailableIconHex(rest) : rest;
     }
+    if (value === 'unknown') return panelRoleHex('icon-rest', '#9e9e9e');
     return '#926bc7';
   }
 

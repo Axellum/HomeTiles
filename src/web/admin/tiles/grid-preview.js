@@ -302,6 +302,11 @@
     }
 
   }
+  // ui_theme::unavailable_icon(): the light theme's one unavailable grey for
+  // every domain, the dark theme each type's own `darkGrey`.
+  function unavailableIconHex(darkGrey) {
+    return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;
+  }
   // tone_color::no_color(): white, almost white or grey-white.
   function toneNoColor(rgb) {
     const seed = toneOklch(rgb);

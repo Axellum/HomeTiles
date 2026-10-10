@@ -208,6 +208,10 @@ inline uint32_t icon_rest() { return roles().icon_rest; }
 inline uint32_t text_secondary() { return roles().text_secondary; }
 inline uint32_t text_soft() { return roles().text_soft; }
 inline uint32_t icon_unavailable() { return roles().icon_unavailable; }
+// The icon of an unavailable entity: in the light theme the same unavailable
+// grey for every domain, like Home Assistant (user 2026-10-10); the dark
+// theme keeps each tile type's own grey (`dark_grey`).
+inline uint32_t unavailable_icon(uint32_t dark_grey) { return theme_light() ? icon_unavailable() : dark_grey; }
 
 }  // namespace ui_theme
 
