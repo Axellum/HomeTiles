@@ -512,6 +512,13 @@ void popup_follow_surface(lv_obj_t* root) {
   mark->surface = want;
 }
 
+int8_t popup_drawn_surface(lv_obj_t* root) {
+  for (const SurfaceMark& entry : g_surface_marks) {
+    if (root && entry.root == root) return entry.surface < 0 ? ui_theme::kThemeSurface : entry.surface;
+  }
+  return ui_theme::kThemeSurface;
+}
+
 void register_popup_background(lv_obj_t* root) {
   if (!root) return;
   lv_obj_add_event_cb(root, draw_popup_background,

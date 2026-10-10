@@ -87,3 +87,7 @@ void register_popup_background(lv_obj_t* root);
 // (popup_surface::g_open_surface): its fixed texts and icons, colored when it
 // was built, take that surface's roles (and back on the next opening).
 void popup_follow_surface(lv_obj_t* root);
+// The surface `root`'s content was last shown with (kThemeSurface before its
+// first show): a hidden popup that refreshes draws with it, so the next show
+// recolors it like the rest of its content.
+int8_t popup_drawn_surface(lv_obj_t* root);

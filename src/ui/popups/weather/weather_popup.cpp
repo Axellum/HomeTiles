@@ -4294,7 +4294,13 @@ void queue_weather_popup_payload(const char* entity_id, const char* payload) {
 }
 
 void process_weather_popup_queue() {
-  const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
+  // Shown or opening: the open surface; a hidden refresh: the surface the
+  // popup was last shown with, not the one of a popup opened since (V2 b366:
+  // black day names on a filled Weather tile's popup).
+  const bool shown = g_weather_popup_ctx && (g_weather_open_pending || is_popup_visible(g_weather_popup_ctx));
+  const ui_theme::SurfaceScope popup_scope(shown || !g_weather_popup_ctx
+                                               ? popup_surface::g_open_surface
+                                               : popup_drawn_surface(g_weather_popup_ctx->card));
   if (!g_weather_popup_ctx || !g_weather_popup_ctx->card) {
     reset_pending_weather_update();
     return;

@@ -127,6 +127,15 @@ assert.match(read('src/ui/ui_manager.cpp'), /pending_access_kind = PendingAccess
   'Settings PIN: never the last popup\'s surface');
 assert.match(read('src/ui/navigation/view_navigation.cpp'), /tile_icon_source::open_popup_without_tile\(\);\s*uiManager\.requestFolderAccess\(next, folder->name, folder->icon_name\);/,
   'folder PIN from view navigation: the theme');
+// A hidden popup that refreshes draws with the surface it was last shown with
+// (V2 b366: black day names on a filled Weather tile's popup after a forecast
+// arrived while another popup's surface was open).
+assert.match(read('src/ui/popups/popup_shell.cpp'),
+  /int8_t popup_drawn_surface\(lv_obj_t\* root\) \{\s*for \(const SurfaceMark& entry : g_surface_marks\) \{\s*if \(root && entry\.root == root\) return entry\.surface < 0 \? ui_theme::kThemeSurface : entry\.surface;/,
+  'the surface a popup was last shown with');
+assert.match(read('src/ui/popups/weather/weather_popup.cpp'),
+  /void process_weather_popup_queue\(\) \{(?:\s*\/\/[^\n]*)*\s*const bool shown = g_weather_popup_ctx && \(g_weather_open_pending \|\| is_popup_visible\(g_weather_popup_ctx\)\);\s*const ui_theme::SurfaceScope popup_scope\(shown \|\| !g_weather_popup_ctx\s*\? popup_surface::g_open_surface\s*: popup_drawn_surface\(g_weather_popup_ctx->card\)\);/,
+  'a hidden Weather refresh: its own last surface');
 assert.ok(theme.includes('inline uint32_t unavailable_icon(uint32_t dark_grey) { return theme_light() ? icon_unavailable() : dark_grey; }') &&
   grid.includes("return panelThemeLight() ? panelRoleHex('icon-unavailable', '#BDBDBD') : darkGrey;") &&
   read('src/types/device/admin.js').includes('if (!d.available && typeof unavailableIconHex === \'function\') out.color = unavailableIconHex(out.color);') &&
