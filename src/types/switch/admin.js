@@ -355,7 +355,9 @@ function maybeFillTitleFromSwitch(tab) {
     }
     if (!state.hasState && !state.hasColor) return;
     const isOn = state.hasState ? state.isOn : state.hasColor;
-    iconEl.style.color = isOn ? (state.hasColor ? state.color : SWITCH_ICON_ON) : panelRoleHex('icon-off', SWITCH_ICON_OFF);
+    const onColor = state.hasColor ? state.color : SWITCH_ICON_ON;
+    iconEl.style.color = isOn ? (typeof toneLightShown === 'function' ? toneLightShown(onColor) : onColor)
+      : panelRoleHex('icon-off', SWITCH_ICON_OFF);
   }
 
   // show_state_text(): the same words as the device, from the central
@@ -404,6 +406,7 @@ function maybeFillTitleFromSwitch(tab) {
       bar.style.setProperty('--switch-accent', accent);
       bar.style.setProperty('--switch-card', toneHex(card));
       bar.style.setProperty('--switch-mark', toneHex(accentRgb ? toneMarkOn(accentRgb, card) : card));
+      bar.style.setProperty('--switch-notch', toneHex(accentRgb ? toneNotchOn(accentRgb, card) : card));
     });
     const control = cssColorChannels(getComputedStyle(bar).backgroundColor);
     if (control) {

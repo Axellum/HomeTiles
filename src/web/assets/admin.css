@@ -1179,8 +1179,8 @@
     /* The hairline sits on the outer card edge. A child overlay would be
        visibly indented by the transparent 3px editor border. */
     .tile-grid.tiles-bordered > .tile:not(.empty):not(.tile-border-hidden) {
-      /* A filled tile of the light theme: its solid rim (tone_color::jewel_rim). */
-      outline:1px solid var(--tile-rim, var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20)));
+      /* A filled tile of the light theme: the dark theme's hairline (its --pv-text-rgb). */
+      outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));
       outline-offset:-1px;
     }
 
@@ -2073,7 +2073,7 @@
       width:var(--switch-handle-w, 3px); height:var(--switch-handle-h, 42%);
       transform:translate(50%, -50%);
       border-radius:999px;
-      background:var(--switch-mark, var(--switch-card, #1A1A1A));
+      background:var(--switch-notch, var(--switch-card, #1A1A1A));
     }
     /* Switch: a half-width thumb flush with the bar like the Light popup
        switch, the power symbol on it; off in the grey of an off icon

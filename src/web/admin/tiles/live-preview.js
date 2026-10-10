@@ -199,10 +199,18 @@
       const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record);
       if (tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
+      // A Media tile and a tile "From icon" show the neutral grey without a
+      // tint (kNeutralIdle).
+      if (tileElem.dataset.followTint === '1' && (meta.preview === 'media' || tileFillOf(record))) {
+        tileElem.dataset.neutralIdle = '1';
+      } else {
+        delete tileElem.dataset.neutralIdle;
+      }
       surfaceDrawn = surface;
       applyTileSurface(tileElem, surface);
       const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
-      if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
+      // 0 dark, 1 light, 2 a filled tile (ui_theme::kDarkTinted): its rules everywhere.
+      if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;
     }
 
     let html = '';
@@ -339,6 +347,9 @@
     }
     if (previewKind === 'media' && typeof collectIconColorRecord === 'function') {
       applyMediaCoverTint(tileElem, collectIconColorRecord(prefix), sensorMetaCache.mediaCoverColors?.[mediaEntity] || '');
+      if (tileElem.dataset.neutralIdle === '1' && tileElem.dataset.surface !== 'jewel') {
+        setTileTintBackground(tileElem, '#FFFFFF', 0, true);
+      }
     }
     applyIconDiscTint(tileElem);
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);

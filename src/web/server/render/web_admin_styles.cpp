@@ -430,6 +430,7 @@ static void appendPanelThemeVars(String& html) {
   emit_roles(ui_theme::kDark, "pv");
   emit_roles(ui_theme::kDark, "pvd");
   emit_roles(ui_theme::kLight, "pvl");
+  emit_roles(ui_theme::kDarkTinted, "pvj");
   // The dark theme's tile card is the global tile color; a black tile stays black.
   html += "--tile-card:var(--tile-default-bg);--pv-black-tile:#000000;";
   char factors[384];
@@ -437,16 +438,14 @@ static void appendPanelThemeVars(String& html) {
   snprintf(factors, sizeof(factors),
            "--pv-light-step:%.6f;--pv-light-tint:%.6f;--pv-light-surface:%.3f;--pv-light-circle:%.3f;"
            "--pv-jewel-below:%.3f;--pv-jewel-max:%.3f;--pv-jewel-chroma:%.3f;--pv-jewel-card-share:%.3f;"
-           "--pv-jewel-step:%.3f;--pv-jewel-circle-share:%.3f;--pv-jewel-circle-cap:%.3f;--pv-jewel-rim:%.3f;"
-           "--pv-jewel-rim-chroma:%.3f;",
+           "--pv-jewel-step:%.3f;--pv-jewel-circle-share:%.3f;--pv-jewel-circle-cap:%.3f;--pv-jewel-neutral:%.3f;--pv-jewel-idle:%.3f;",
            static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,
            static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen,
            static_cast<double>(ui_theme::kLightSurfaceL), static_cast<double>(ui_theme::kLightCircleShare),
            static_cast<double>(ui_theme::kJewelBelowIcon), static_cast<double>(ui_theme::kJewelCardMaxL),
            static_cast<double>(ui_theme::kJewelChroma), static_cast<double>(ui_theme::kJewelCardChromaShare),
            static_cast<double>(ui_theme::kJewelCircleStep), static_cast<double>(ui_theme::kJewelCircleChromaShare),
-           static_cast<double>(ui_theme::kJewelCircleChromaCap), static_cast<double>(ui_theme::kJewelRimStep),
-           static_cast<double>(ui_theme::kJewelRimChroma));
+           static_cast<double>(ui_theme::kJewelCircleChromaCap), static_cast<double>(ui_theme::kJewelNeutralL), static_cast<double>(ui_theme::kJewelIdleL));
   html += factors;
   html += "}html[data-panel-theme=\"light\"]{";
   emit_roles(ui_theme::kLight, "pv");

@@ -36,6 +36,10 @@ inline constexpr float kControlMinStep = 0.03f;
 inline constexpr uint8_t kControlMinOpa = 32;
 // The icon stays at least this far above the circle.
 inline constexpr float kIconMinStep = 0.22f;
+// The light theme shows an icon above this lightness without a hue (white) in
+// the icon grey; Home Assistant's light grey of a white light (HSV value 225,
+// OKLCH L 0.91) stays.
+inline constexpr float kWhiteIconL = 0.95f;
 // The circle keeps this share of the icon's chroma, like a container tone.
 inline constexpr float kCircleChroma = 0.55f;
 
@@ -268,24 +272,27 @@ inline uint32_t mark_on(uint32_t surface, uint32_t cutout) {
   return 0xFFFFFF;
 }
 
-// The HSV saturation of a color (0..1).
-inline float hsv_saturation(uint32_t rgb) {
-  const int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-  const int max = r > g ? (r > b ? r : b) : (g > b ? g : b);
-  const int min = r < g ? (r < b ? r : b) : (g < b ? g : b);
-  return max ? static_cast<float>(max - min) / max : 0.0f;
+// A slider's handle line on its fill: the card's color cut out of a light
+// fill, in both themes (user 2026-10-10: "der müsste den Untergrund von der
+// Karte haben"; Home Assistant's white handle on its white card), white on a
+// dark fill.
+inline uint32_t notch_on(uint32_t fill, uint32_t card) {
+  return light_surface(fill) ? card & 0xFFFFFF : 0xFFFFFF;
 }
 
-// White light by Home Assistant's rule: HSV saturation below 0.1.
-inline bool white_light(uint32_t rgb) { return hsv_saturation(rgb & 0xFFFFFF) < 0.1f; }
+// The color a light tile circle and control track are made of (light theme):
+// a white light's light grey would vanish on the light card, so a color
+// without a hue that light takes Home Assistant's neutral control grey
+// (--disabled-color #BDBDBD at the same share, user 2026-10-10).
+inline uint32_t circle_source(uint32_t shown) {
+  return no_color(shown) ? ui_theme::kLight.icon_unavailable : shown & 0xFFFFFF;
+}
 
-// A light's color as Home Assistant shows it (ha-state-control-light-brightness),
-// in the light theme its fill, power button and popup icon: an HSV saturation
-// below 0.4 is raised to 0.4; white (below 0.1) becomes a grey of value 225,
-// so it never vanishes on the light card (user 2026-10-10).
-inline uint32_t light_accent(uint32_t rgb) {
+// A light's color as Home Assistant shows it (ha-state-control-light-brightness):
+// an HSV saturation below 0.4 is raised to 0.4; white (below 0.1) becomes a
+// grey of value 225, so it never vanishes on the light card.
+inline uint32_t ha_light_color(uint32_t rgb) {
   rgb &= 0xFFFFFF;
-  if (!ui_theme::light()) return rgb;
   const float r = ((rgb >> 16) & 0xFF) / 255.0f, g = ((rgb >> 8) & 0xFF) / 255.0f, b = (rgb & 0xFF) / 255.0f;
   const float max = r > g ? (r > b ? r : b) : (g > b ? g : b);
   const float min = r < g ? (r < b ? r : b) : (g < b ? g : b);
@@ -313,14 +320,19 @@ inline uint32_t light_accent(uint32_t rgb) {
   return (channel(5.0f) << 16) | (channel(3.0f) << 8) | channel(1.0f);
 }
 
-// The icon of a light (its popup header, user 2026-10-10: "das Icon muss
-// immer die richtige Farbe haben"): in the light theme exactly its power
-// button's color (light_accent); white is no color and takes the icon grey,
-// like every icon without one.
+// In the light theme a light's fill, power button and popup icon
+// (user 2026-10-10).
+inline uint32_t light_accent(uint32_t rgb) {
+  rgb &= 0xFFFFFF;
+  return ui_theme::light() ? ha_light_color(rgb) : rgb;
+}
+
+// The icon of a light (its popup header, user 2026-10-10: "genau so wie in
+// HA"): in the light theme exactly its power button's color (light_accent),
+// white light Home Assistant's light grey too.
 inline uint32_t light_icon(uint32_t rgb) {
   rgb &= 0xFFFFFF;
-  if (!ui_theme::light()) return rgb;
-  return white_light(rgb) ? ui_theme::icon() : light_accent(rgb);
+  return ui_theme::light() ? light_accent(rgb) : rgb;
 }
 
 // The tile color "From icon" at its default strength
@@ -335,10 +347,15 @@ inline uint32_t off_icon() { return ui_theme::icon_off(); }
 inline constexpr float kThumbStep = 0.06f;
 inline uint32_t switch_thumb_off(uint32_t track) { return lifted(track, track, false, kThumbStep); }
 
+// A filled tile without a color in the light theme (off, unavailable, idle):
+// the idle grey (ui_theme::kJewelIdleL).
+inline uint32_t jewel_idle_card() { return to_rgb(ui_theme::kJewelIdleL, 0.0f, 0.0f); }
+
 // A tinted tile in the light theme (ui_theme kJewel*): its card from the
 // icon's own color at `strength` percent (tile color "From icon" strength,
 // 0 = the default 20 %).
 inline uint32_t jewel_card(uint32_t icon, uint8_t strength) {
+  if (no_color(icon)) return to_rgb(ui_theme::kJewelNeutralL, 0.0f, 0.0f);
   const Oklch seed = from_rgb(icon & 0xFFFFFF);
   float L = seed.L - ui_theme::kJewelBelowIcon;
   if (L > ui_theme::kJewelCardMaxL) L = ui_theme::kJewelCardMaxL;
@@ -356,7 +373,7 @@ inline Fill jewel_fill(uint32_t card, uint32_t icon, uint8_t percent, uint8_t st
   if (percent > 100) percent = 100;
   const Oklch base = from_rgb(card), seed = from_rgb(icon);
   const float cap = ui_theme::kJewelChroma * ui_theme::kJewelCircleChromaCap * (strength ? strength : 20) / 20.0f;
-  float C = seed.C * ui_theme::kJewelCircleChromaShare;
+  float C = no_color(icon) ? 0.0f : seed.C * ui_theme::kJewelCircleChromaShare;
   if (C > cap) C = cap;
   const float step = ui_theme::kJewelCircleStep * percent / icon_glow::kDefault;
   const float control = step > kControlMinStep ? step : kControlMinStep;
@@ -373,12 +390,6 @@ inline Fill jewel_fill(uint32_t card, uint32_t icon, uint8_t percent, uint8_t st
   return result;
 }
 
-// Its 1 px rim: a lighter edge in the icon's hue (ui_theme kJewelRim*).
-inline uint32_t jewel_rim(uint32_t card, uint32_t icon) {
-  const Oklch base = from_rgb(card & 0xFFFFFF), seed = from_rgb(icon & 0xFFFFFF);
-  const float C = seed.C * ui_theme::kJewelCardChromaShare;
-  return to_rgb(base.L + ui_theme::kJewelRimStep, C < ui_theme::kJewelRimChroma ? C : ui_theme::kJewelRimChroma, seed.h);
-}
 
 // The icon as shown: unchanged while it is at least kIconMinStep above the
 // circle it gets with the default settings (the default tile color, tile
@@ -390,9 +401,10 @@ inline uint32_t jewel_rim(uint32_t card, uint32_t icon) {
 // a dark icon is lifted the same everywhere.
 inline uint32_t readable_icon(uint32_t icon) {
   icon &= 0xFFFFFF;
-  // A tinted tile in the light theme keeps its icon's own color: its card
-  // and circle are made from it (jewel_card).
-  if (ui_theme::g_surface == ui_theme::kDarkTintedSurface && tile_tint::has_hue(icon)) return icon;
+  // The light theme shows every colored icon in its own color, on every
+  // surface (user 2026-10-10: "wir haben doch die echten Farben"): filled
+  // tiles and tiles in an own dark color too.
+  if (ui_theme::theme_light() && tile_tint::has_hue(icon)) return icon;
   const bool light = ui_theme::light();
   // Tiles and popups restyle often: keep the last few results, keyed with the
   // theme (bit 24; the theme switches while running).
@@ -411,7 +423,7 @@ inline uint32_t readable_icon(uint32_t icon) {
     const uint32_t circle = lifted(card, icon, tinted, icon_glow::kDefault * kStepPerPercent);
     const float minimum = from_rgb(circle).L + kIconMinStep;
     if (seed.L < minimum) shown = to_rgb(minimum, seed.C, seed.h);
-  } else if (icon == ui_theme::text() || no_color(icon)) {
+  } else if (icon == ui_theme::text() || (no_color(icon) && seed.L > kWhiteIconL)) {
     // The light theme shows an icon's own color, like Home Assistant (and
     // the bars, sliders and circles that follow it). Only an icon without a
     // color - white, almost white or the text color - takes the icon grey

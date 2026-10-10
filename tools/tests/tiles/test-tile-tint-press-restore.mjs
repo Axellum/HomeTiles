@@ -21,7 +21,7 @@ const fn = name => {
   return found.source;
 };
 
-assert.match(fn('set_tile_tint'), /lv_color_hex\(tile_icon_disc::card_state_color\(card, false\)\), kTintStore\)/,
+assert.match(fn('tint_card'), /lv_color_hex\(tile_icon_disc::card_state_color\(card, false\)\), kTintStore\)/,
   'the tint keeps the resting color, not the color shown during a press');
 
 const host = await lvglHost(root);
@@ -58,6 +58,7 @@ ${tintStore}
 void follow_tint(lv_obj_t*, bool) {}
 void clear_tile_tint(lv_obj_t* card);
 ${fn('apply_card_background')}
+${fn('tint_card')}
 ${fn('set_tile_tint')}
 ${fn('clear_tile_tint')}
 }

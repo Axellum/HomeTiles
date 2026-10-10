@@ -148,11 +148,11 @@ namespace Device { constexpr int kGridGap = SCREEN_WIDTH == 480 ? 10 : 16; }  //
 ${strip(read('src/ui/popups/popup_layout.h'))}
 ${strip(read('src/ui/popups/popup_open.h'))}
 ${strip(read('src/ui/popups/popup_shell.h'))}
+${popupSurfaceHost(root)}
 ${strip(read('src/ui/popups/popup_open.cpp'))}
 ${strip(read('src/ui/shared/ui_pulse.h'))}
 ${strip(read('src/tiles/icons/mdi_bar_icons.h'))}
 ${strip(read('src/ui/shared/icon_lock_mark.h'))}
-${popupSurfaceHost(root)}
 ${strip(read('src/ui/popups/popup_shell.cpp'))}
 int flushed=0;lv_area_t flushed_area{};
 struct Body{PopupShellParts parts;lv_obj_t* value=nullptr;};

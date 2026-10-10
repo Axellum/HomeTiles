@@ -334,6 +334,11 @@ void copy_label(lv_obj_t* target, lv_obj_t* source, bool title,
 tone_color::Fill header_fill(const HeaderDisc& options, uint32_t card, uint32_t rgb) {
   const uint8_t r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
   const bool tinted = (r != g || g != b) && (!options.from_tile || options.glow);
+  // A popup on a filled tile of the light theme: the tile's circle, one step
+  // above the card in the icon's hue (tone_color::jewel_fill).
+  if (tinted && ui_theme::g_surface == ui_theme::kDarkTintedSurface) {
+    return tone_color::jewel_fill(card, rgb, ui_surface_style::icon_glow_percent(), options.tile_tint);
+  }
   // The circle of the tile color "From icon" like on the tiles
   // (tile_icon_disc::circle_card): only a popup that shows that tile color
   // computes it for its own card; every other one for the card "From icon"
@@ -371,15 +376,31 @@ void apply_header_disc_tint(lv_obj_t* disc, lv_obj_t* icon, lv_obj_t* source) {
   const HeaderDisc& options = shell.disc;
   const bool shown = !options.from_tile ||
                      (!options.off && (!options.follows_global || ui_surface_style::icon_discs_shown()));
-  const tone_color::Fill fill = header_fill(options, card, rgb);
+  tone_color::Fill fill = header_fill(options, card, rgb);
+  uint32_t tile_circle = 0;
+  uint8_t tile_circle_opa = 0;
+  // The icon as its popup gives it (a light's icon is resolved by the Light
+  // popup, tone_color::light_icon), readable like a tile's; on a tile's
+  // circle exactly the tile's icon.
+  uint32_t shown_icon = tone_color::readable_icon(rgb);
+  if (options.from_tile && tile_icon_source::popup_tile_circle(rgb, tile_circle, tile_circle_opa, shown_icon)) {
+    // Exactly the opening tile's circle for this icon color (user
+    // 2026-10-10: "immer das, was sie draußen haben").
+    fill.disc_color = tile_circle;
+    fill.disc_opa = tile_circle_opa;
+  } else if (ui_theme::light()) {
+    // The light theme: the circle takes the icon's color over the card like
+    // a tile's (tone_color::tile_fill, like Home Assistant: 20 % of the icon).
+    const uint32_t shown_rgb = tone_color::readable_icon(rgb);
+    const uint32_t over = fill.tinted || !tile_tint::has_hue(shown_rgb) ? shown_rgb : ui_theme::icon();
+    fill = tone_color::tile_fill(card, over, fill.tinted, ui_surface_style::icon_glow_percent());
+  }
   const lv_color_t color = lv_color_hex(fill.disc_color);
   const lv_opa_t opa = shown ? fill.disc_opa : static_cast<lv_opa_t>(LV_OPA_TRANSP);
   if (!lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN), color))
     lv_obj_set_style_bg_color(disc, color, 0);
   if (lv_obj_get_style_bg_opa(disc, LV_PART_MAIN) != opa) lv_obj_set_style_bg_opa(disc, opa, 0);
-  // The icon as its popup gives it (a light's icon is resolved by the Light
-  // popup, tone_color::light_icon), readable like a tile's.
-  const lv_color_t readable = lv_color_hex(tone_color::readable_icon(rgb));
+  const lv_color_t readable = lv_color_hex(shown_icon);
   if (!lv_color_eq(lv_obj_get_style_text_color(icon, LV_PART_MAIN), readable))
     lv_obj_set_style_text_color(icon, readable, 0);
   // The pressed close button has exactly the control color of the popup
@@ -676,6 +697,17 @@ void sync_popup_shell() {
   copy_label(shell.title, shell.active->title, true,
              with_value ? popup_layout::headerCompactTitleFont() : nullptr);
   set_title_single_line(shell.title, with_value);
+  // The header's title and value take the text of the open popup's surface
+  // (white on a filled tile's color in the light theme).
+  const lv_color_t header_text = lv_color_hex(ui_theme::text());
+  if (lv_color_eq(lv_obj_get_style_text_color(shell.title, LV_PART_MAIN),
+                  lv_color_hex(ui_theme::roles_of(ui_theme::kThemeSurface).text)) &&
+      !lv_color_eq(header_text, lv_obj_get_style_text_color(shell.title, LV_PART_MAIN))) {
+    lv_obj_set_style_text_color(shell.title, header_text, 0);
+  }
+  if (!lv_color_eq(lv_obj_get_style_text_color(shell.value, LV_PART_MAIN), header_text)) {
+    lv_obj_set_style_text_color(shell.value, header_text, 0);
+  }
   copy_label(shell.icon, shell.active->icon, false, nullptr, false);
   apply_header_disc_tint(shell.icon_disc, shell.icon, shell.active->icon);
   // The disc appears only behind a visible header icon.

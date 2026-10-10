@@ -324,7 +324,9 @@ void bar_draw_cb(lv_event_t* e) {
   const lv_color_t mark = lv_color_hex(tone_color::mark_on(accent_rgb, lv_color_to_u32(card) & 0xFFFFFF));
 
   if (view->bar_kind == static_cast<uint8_t>(Bar::Dimmer)) {
-    level_bar::draw_fill(layer, view->bar, view->level, view->bar_base, accent, mark);
+    // The handle line: the card's color (tone_color::notch_on).
+    const lv_color_t notch = lv_color_hex(tone_color::notch_on(accent_rgb, lv_color_to_u32(card) & 0xFFFFFF));
+    level_bar::draw_fill(layer, view->bar, view->level, view->bar_base, accent, notch);
     return;
   }
 

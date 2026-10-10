@@ -33,6 +33,7 @@ export function surfaceStyleHost(root) {
 export function popupSurfaceHost(root, {recolor = true, surface = true} = {}) {
   return '#ifndef HOMETILES_POPUP_SURFACE_HOST\n#define HOMETILES_POPUP_SURFACE_HOST\n' +
     (surface ? strip(read(root, 'src/ui/popups/popup_surface.h')) : '') +
-    (recolor ? '\nnamespace tile_icon_source { inline void recolor_surface(lv_obj_t*, int8_t, int8_t) {} }\n' : '\n') +
+    (recolor ? '\nnamespace tile_icon_source { inline void recolor_surface(lv_obj_t*, int8_t, int8_t) {}\n' +
+      'inline bool popup_tile_circle(uint32_t, uint32_t&, uint8_t&, uint32_t&) { return false; } }\n' : '\n') +
     '#endif\n';
 }

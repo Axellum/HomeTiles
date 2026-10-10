@@ -132,9 +132,9 @@ assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("return tileTintCh
 // tile_tint::choose; icon color changes reach the hook through apply_fill().
 const source = read('src/tiles/runtime/tile_icon_source.cpp');
 for (const marker of [
-  'tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card)));',
+  'with_white(card, tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card))), fill,',
   'set_icon_fill_marker(card, fill);',
-  'apply_tint_choice(card, tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc)));',
+  'apply_tint_choice(card, with_white(card, tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc)), marker, disc));',
   'if (!card || !marker) return;',
   'tile_icon_disc::g_icon_color_hook = &on_icon_color;',
 ]) assert.ok(source.includes(marker), 'tile_icon_source: ' + marker);

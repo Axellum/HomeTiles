@@ -79,8 +79,10 @@ inline ui_theme::SurfaceScope scope(lv_obj_t* obj) {
 
 // The rule of a card whose surface changes while it runs (render_tile): the
 // surface it shows without a tint (BORDER_OPA) and its flags (OUTLINE_OPA).
-// kFollowTint: filled (kJewel) while tinted.
+// kFollowTint: filled (kJewel) while tinted. kNeutralIdle: without a tint
+// the neutral grey fill (a Media tile, tone_color::jewel_card of white).
 inline constexpr uint8_t kFollowTint = 1;
+inline constexpr uint8_t kNeutralIdle = 2;
 
 inline void set_rule(lv_obj_t* card, uint8_t base, uint8_t flags) {
   if (!card) return;
@@ -407,18 +409,27 @@ inline tone_color::Fill tile_fill(lv_obj_t* host, uint32_t card, uint32_t rgb, b
   }
   if (ui_theme::light() && !see_through_card) {
     const uint32_t shown = tone_color::readable_icon(rgb);
-    const uint32_t over = tinted || !icon_color_tints(shown) ? shown : ui_theme::icon();
+    const uint32_t over = tone_color::circle_source(tinted || !icon_color_tints(shown) ? shown : ui_theme::icon());
     return tone_color::tile_fill(card, over, tinted, percent);
   }
   return tone_color::fill(circle_card(host, card, rgb, tinted, pressed, see_through_card), rgb, tinted, percent,
                           see_through_card);
 }
 
+// The color an icon was given, read on the surface that is open: a role of
+// the theme (the icon grey, an off grey, set by an update outside the card's
+// surface) is that role of this surface (user 2026-10-10: a dark icon on a
+// grey tile). Other colors stay.
+inline uint32_t surface_icon_color(lv_obj_t* icon) {
+  const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();
+  return ui_theme::map_role(rgb, ui_theme::roles_of(ui_theme::kThemeSurface), ui_theme::roles(), true);
+}
+
 // The fill of a disc for the card behind it (at rest or pressed) and its
 // icon's color (tile_fill); `card` and `see_through_card` report that card.
 inline tone_color::Fill disc_fill(lv_obj_t* disc, bool pressed, uint32_t& card, bool& see_through_card) {
   lv_obj_t* icon = icon_of(disc);
-  const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();
+  const uint32_t rgb = surface_icon_color(icon);
   const bool tinted = glow_of(disc) && icon_color_tints(rgb);
   lv_obj_t* host = card_of(disc);
   card = card_state_color(host, pressed);
@@ -453,7 +464,7 @@ inline void apply_fill(lv_obj_t* disc) {
   const ui_theme::SurfaceScope surface = tile_surface::scope(disc);
   const Mode mode = mode_of(disc);
   lv_obj_t* icon = icon_of(disc);
-  const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();
+  const uint32_t rgb = surface_icon_color(icon);
   uint32_t card = 0, card_pressed = 0;
   bool see_through_card = false;
   const tone_color::Fill fill = disc_fill(disc, false, card, see_through_card);

@@ -55,7 +55,7 @@ for (const marker of [
 ]) assert.ok(tabs.includes(marker), `dispatch: ${marker}`);
 assert.ok(read('src/types/value/value_control.cpp').includes('tiles_request_rule_refresh(grid, index);'), 'Editable values reapply rules');
 assert.match(read('src/tiles/runtime/tile_renderer.cpp'),
-  /tile_icon_source::refresh_card\(tile_obj, tile\);\s*tile_icon_disc::apply_tile_options\(tile_obj, tile\.icon_disc_mode, tile\.icon_glow\);/);
+  /tile_icon_source::refresh_card\(tile_obj, tile\);\s*tile_icon_source::settle_filled\(tile_obj\);\s*tile_icon_disc::apply_tile_options\(tile_obj, tile\.icon_disc_mode, tile\.icon_glow\);/);
 const saver = read('src/ui/screensaver/image_screensaver.cpp');
 assert.ok(saver.includes('const String rule_entity = tile_icon_source::rule_entity(tile);') &&
   saver.includes('if (rule_payload != st->slot_rule_payloads[i]) {'));
@@ -70,7 +70,7 @@ for (const marker of [
   'tile_icon_disc::force_icon_color(icon, lv_color_hex(rgb));',
   'tile_icon_disc::force_icon_color(icon, lv_color_hex(fixed));',
   'tile_icon_disc::release_icon_color(icon);',
-  'tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card)));',
+  'with_white(card, tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card))), fill,',
   'apply_tint_choice(card, choice);',
   'uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);',
 ]) assert.ok(source.includes(marker), `tile_icon_source: ${marker}`);

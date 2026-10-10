@@ -16,11 +16,9 @@ constexpr lv_obj_flag_t kHiddenTileBorderFlag = LV_OBJ_FLAG_USER_4;
 // The tile border hairline at about 20 %: white, or the hint of a glowing
 // icon (border_hint), so it stays a slightly lighter step of the tile.
 constexpr lv_opa_t kTileBorderOpa = 51;
-// A glowing icon's border hint is kept as a local style value under a state
-// tiles never enter, so border refreshes can restore it.
+// A glowing icon's color for the border hint is kept as a local style value
+// under a state tiles never enter, so border refreshes can restore it.
 constexpr lv_style_selector_t kBorderTintStore = LV_PART_MAIN | LV_STATE_USER_4;
-// A filled tile's solid rim (set_tile_border_rim), in another unused state.
-constexpr lv_style_selector_t kBorderRimStore = LV_PART_MAIN | LV_STATE_USER_2 | LV_STATE_USER_4;
 volatile bool g_global_tile_border_refresh_pending = false;
 std::atomic<bool> g_radius_refresh_pending{false};
 std::atomic<int> g_preview_radius{-1};
@@ -63,6 +61,17 @@ lv_opa_t control_fill_opa(bool see_through) {
   return tone_color::control_opa(icon_glow_percent(), see_through);
 }
 
+// A filled tile of the light theme (tile_surface::kJewel: BG_OPA 3 under
+// LV_STATE_USER_1 | LV_STATE_USER_4, tile_icon_disc.h) draws the dark theme's
+// hairline: white at 20 %, or with a glowing icon its hint halfway to white
+// (user 2026-10-10: "nimm den von den dunklen").
+bool filled_card(lv_obj_t* obj) {
+  lv_style_value_t value;
+  return lv_obj_get_local_style_prop(obj, LV_STYLE_BG_OPA, &value, LV_PART_MAIN | LV_STATE_USER_1 | LV_STATE_USER_4) ==
+             LV_STYLE_RES_FOUND &&
+         value.num == 3;
+}
+
 void apply_style(lv_obj_t* obj, bool enabled) {
   if (!obj) return;
 
@@ -81,16 +90,12 @@ void apply_style(lv_obj_t* obj, bool enabled) {
   };
   // A tile whose icon disc glows keeps the icon's border hint
   // (set_tile_border_tint); every other tile uses white.
-  lv_color_t color = lv_color_hex(ui_theme::text());
-  lv_opa_t opa = kTileBorderOpa;
+  const lv_color_t text = lv_color_hex(filled_card(obj) ? ui_theme::kDarkTinted.text : ui_theme::text());
+  lv_color_t color = text;
+  const lv_opa_t opa = kTileBorderOpa;
   lv_style_value_t stored{};
-  if (lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderRimStore) == LV_STYLE_RES_FOUND) {
-    // A filled tile's rim: solid.
-    color = stored.color;
-    opa = LV_OPA_COVER;
-  } else if (lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderTintStore) ==
-             LV_STYLE_RES_FOUND) {
-    color = stored.color;
+  if (lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderTintStore) == LV_STYLE_RES_FOUND) {
+    color = border_hint(text, stored.color);
   }
   // Border width is constant. State-specific copies force a full descendant
   // layout refresh on every press/release, even when they are all zero.
@@ -190,35 +195,15 @@ void store_border_color(lv_obj_t* host, lv_color_t color, bool keep) {
 }  // namespace
 
 void set_tile_border_tint(lv_obj_t* obj, lv_color_t icon) {
-  if (lv_obj_t* host = border_host(obj)) store_border_color(host, border_hint(icon), true);
+  if (lv_obj_t* host = border_host(obj)) store_border_color(host, icon, true);
 }
 
 void clear_tile_border_tint(lv_obj_t* obj) {
-  if (lv_obj_t* host = border_host(obj)) store_border_color(host, lv_color_hex(ui_theme::text()), false);
+  if (lv_obj_t* host = border_host(obj)) store_border_color(host, lv_color_white(), false);
 }
 
-void set_tile_border_rim(lv_obj_t* obj, lv_color_t rim) {
-  // The first tint arrives before render_tile marks the border: the card.
-  lv_obj_t* host = border_host(obj);
-  if (!host) host = obj;
-  if (!host) return;
-  lv_style_value_t stored{};
-  if (lv_obj_get_local_style_prop(host, LV_STYLE_OUTLINE_COLOR, &stored, kBorderRimStore) == LV_STYLE_RES_FOUND &&
-      lv_color_eq(stored.color, rim)) {
-    return;
-  }
-  lv_obj_set_style_outline_color(host, rim, kBorderRimStore);
-  apply_style(host, lv_obj_get_style_outline_width(host, LV_PART_MAIN) > 0);
-}
-
-void clear_tile_border_rim(lv_obj_t* obj) {
-  lv_obj_t* host = border_host(obj);
-  if (!host) host = obj;
-  if (!host) return;
-  lv_style_value_t stored{};
-  if (lv_obj_get_local_style_prop(host, LV_STYLE_OUTLINE_COLOR, &stored, kBorderRimStore) != LV_STYLE_RES_FOUND) return;
-  lv_obj_remove_local_style_prop(host, LV_STYLE_OUTLINE_COLOR, kBorderRimStore);
-  apply_style(host, lv_obj_get_style_outline_width(host, LV_PART_MAIN) > 0);
+void refresh_tile_border(lv_obj_t* obj) {
+  if (obj && lv_obj_has_flag(obj, kGlobalTileBorderFlag)) apply_style(obj, configManager.getConfig().tile_borders);
 }
 
 void apply_global_tile_border(lv_obj_t* obj) {

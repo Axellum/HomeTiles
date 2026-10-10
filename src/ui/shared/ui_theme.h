@@ -117,15 +117,17 @@ inline constexpr Roles kDark = {0x000000, 0x1A1A1A, 0x2A2A2A, 0xFFFFFF, 0xFFFFFF
                                 0xB0B0B0, 0x9E9E9E, 0x9E9E9E, 0xD8DEE9, 0xD8D8D8, 0xB0B0B0};
 inline constexpr Roles kLight = {0xE9EBEE, 0xFFFFFF, 0xFFFFFF, 0x1A1A1A, 0x464646,
                                  0x8B8B8B, 0x8B8B8B, 0x464646, 0x5F6368, 0x3A3A3A, 0xBDBDBD};
-// A tinted tile in the light theme (tile_surface::kJewel): the dark roles
-// (white text), but the off, inactive, resting and unavailable greys of the
-// light theme. Such a tile is filled only while its icon has a color; the grey
-// a state update gives its icon untints it, so the tile is white again when
-// the grey shows (tile_icon_source::change_surface).
-inline constexpr Roles kDarkTinted = {kDark.screen,          kDark.card,          kDark.popup_card,
-                                      kDark.text,            kDark.icon,          kLight.icon_off,
-                                      kLight.icon_inactive,  kLight.icon_rest,    kDark.text_secondary,
-                                      kDark.text_soft,       kLight.icon_unavailable};
+// A filled tile in the light theme (tile_surface::kJewel: its color or the
+// neutral grey, kJewelNeutralL): the dark roles (white text), its off,
+// inactive, resting and unavailable greys lighter than its circle like the
+// dark theme's above its card (user 2026-10-10: grey icons vanished on the
+// grey tiles). Off OKLCH L 0.89, inactive and resting 0.85; unavailable
+// fainter, just above the circle, like Home Assistant (user 2026-10-10: off
+// and unavailable looked the same).
+inline constexpr Roles kDarkTinted = {kDark.screen,         kDark.card,      kDark.popup_card,
+                                      kDark.text,           kDark.icon,      0xDBDBDB,
+                                      0xCECECE,             0xCECECE,        kDark.text_secondary,
+                                      kDark.text_soft,      0xA6A6A6};
 
 // The light theme's steps against the dark ones: a circle or control step
 // goes down by kLightStepNum / kLightStepDen of the dark step
@@ -159,10 +161,15 @@ inline constexpr float kJewelCardChromaShare = 0.85f;
 inline constexpr float kJewelCircleStep = 0.05f;
 inline constexpr float kJewelCircleChromaShare = 0.75f;
 inline constexpr float kJewelCircleChromaCap = 1.3f;
-// Its rim (the 1 px tile hairline): kJewelRimStep above the card in the
-// icon's hue, the dark theme's lighter edge (lab 2026-10-10 "Hellkante").
-inline constexpr float kJewelRimStep = 0.12f;
-inline constexpr float kJewelRimChroma = 0.12f;
+// White and almost white light fill in a neutral grey of this lightness
+// (user 2026-10-10: the dark theme's grey card, lighter; the Desk tile of
+// b343), its circle kJewelCircleStep above it. A Media tile without a tint
+// shows it too.
+inline constexpr float kJewelNeutralL = 0.63f;
+// A tile "From icon" without a color (off, unavailable, a Media tile that
+// does not play) a little darker (user 2026-10-10: "für Geräte die aus sind
+// eine minimal dunklere Farbe").
+inline constexpr float kJewelIdleL = 0.59f;
 
 inline const Roles& roles_of(int8_t surface) {
   if (surface == kDarkTintedSurface) return kDarkTinted;

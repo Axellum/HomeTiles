@@ -465,7 +465,9 @@
     if (ICON_COLOR_SWITCH_DOMAINS.includes(domain) && typeof parseSwitchPayload === 'function') {
       const state = parseSwitchPayload(text);
       if (!state || state.available === false || !state.hasState) return '';
-      return state.isOn ? (state.hasColor ? state.color : '#FFD54F') : panelRoleHex('icon-off', '#B0B0B0');
+      const onColor = state.hasColor ? state.color : '#FFD54F';
+      return state.isOn ? (typeof toneLightShown === 'function' ? toneLightShown(onColor) : onColor)
+        : panelRoleHex('icon-off', '#B0B0B0');
     }
     if (domain === 'binary_sensor' && typeof parseBinarySensorPreviewPayload === 'function') {
       const state = parseBinarySensorPreviewPayload(text);
@@ -616,15 +618,9 @@
   // its own opacity (data-bg-opacity): the panel sets bg_opa after the tint
   // (image_screensaver build_slot_tile); the opaque tint hid the wallpaper
   // in the preview (user 2026-10-02).
-  function setTileTintBackground(el, color, percent) {
-    // White and almost white never fill a tile (set_tile_tint): it keeps its
-    // untinted background.
+  // `idle`: the idle grey of a tile without a color (kNeutralIdle).
+  function setTileTintBackground(el, color, percent, idle = false) {
     const given = [1, 3, 5].map(i => parseInt(String(color).slice(i, i + 2), 16));
-    if (el?.dataset?.followTint === '1' && typeof toneNoColor === 'function' && toneNoColor(given)) {
-      if (el.dataset.surface === 'jewel' && typeof applyTileSurface === 'function') applyTileSurface(el, '');
-      if (el.dataset.baseBg !== undefined) el.style.background = el.dataset.baseBg;
-      return;
-    }
     // A tile filled while tinted (light theme) enters that surface first
     // (tile_icon_source::change_surface in set_tile_tint).
     if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'jewel' && typeof applyTileSurface === 'function') {
@@ -642,15 +638,16 @@
       ? withSurface(theme, () => tileTintBackground(base || '#1A1A1A', color, percent))
       : tileTintBackground(base || '#1A1A1A', color, percent);
     if (surface === 'jewel' && typeof toneJewelCard === 'function') {
-      // Filled (tone_color::jewel_card): from the icon's own color; its rim a
-      // step lighter (jewel_rim), its strength for the circle.
-      const card = toneJewelCard(given, Number(percent) || 20);
+      // Filled (tone_color::jewel_card): from the icon's own color, white
+      // light in the neutral grey; its strength for the circle.
+      const card = idle ? toneJewelIdleCard() : toneJewelCard(given, Number(percent) || 20);
       hex = toneHex(card).toUpperCase();
-      el.style.setProperty('--tile-rim', toneHex(toneJewelRim(card, given)));
       el.dataset.jewelStrength = String(Number(percent) || 20);
     }
     const opacity = el.dataset.bgOpacity;
     el.style.background = opacity === undefined ? hex : hex + Number(opacity).toString(16).padStart(2, '0');
+    // Cut-outs (the Media play glyph) take the new card color.
+    el.style.setProperty?.('--tile-cut', hex);
   }
 
   // Entities offered as a source: the states the Bridge publishes to tiles.

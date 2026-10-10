@@ -250,6 +250,25 @@ uint32_t disc_icon_rgb(lv_obj_t* disc) {
   return icon ? tile_icon_disc::icon_color(icon) : ui_theme::text();
 }
 
+// The light theme fills a tile "From icon" in the neutral grey while its
+// icon shows white or almost white light (user 2026-10-10); tile_tint::choose
+// gives no tint for a color without a hue.
+tile_tint::Choice with_white(lv_obj_t* card, tile_tint::Choice choice, uint8_t fill, lv_obj_t* disc) {
+  uint8_t base = 0, flags = 0;
+  if (choice.percent || !fill || !disc || !tile_icon_disc::icon_of(disc) || !tile_surface::rule_of(card, base, flags) ||
+      !(flags & tile_surface::kFollowTint)) {
+    return choice;
+  }
+  const uint32_t icon = disc_icon_rgb(disc);
+  // Home Assistant's light grey of a white light; a pure white icon (a
+  // renderer's own white) has no color: the idle grey.
+  if (tone_color::no_color(icon) && tone_color::from_rgb(icon).L <= tone_color::kWhiteIconL) {
+    choice.color = icon;
+    choice.percent = fill;
+  }
+  return choice;
+}
+
 // Shows the tint tile_tint::choose() picked, or the card's own color.
 void apply_tint_choice(lv_obj_t* card, const tile_tint::Choice& choice) {
   if (choice.percent) set_tile_tint(card, choice.color, choice.percent);
@@ -284,7 +303,7 @@ void on_icon_color(lv_obj_t* disc) {
   }
   if (!card || !marker) return;
   const uint32_t before = lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF;
-  apply_tint_choice(card, tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc)));
+  apply_tint_choice(card, with_white(card, tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc)), marker, disc));
   if ((lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF) == before) return;
   follow_open_popup(card);
   refresh_discs(card);
@@ -352,15 +371,10 @@ void follow_tint(lv_obj_t* card, bool tinted) {
   change_surface(card, tile_surface::wanted(base, flags, tinted));
 }
 
-void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) {
+// Tints `card` with `color` at `percent`; `idle`: a filled tile without a
+// color (kNeutralIdle) in the idle grey (tone_color::jewel_idle_card).
+void tint_card(lv_obj_t* card, uint32_t color, uint8_t percent, bool idle) {
   if (!card) return;
-  // White and almost white never fill a tile (user 2026-10-10; the rule only
-  // exists in the light theme).
-  uint8_t base = 0, flags = 0;
-  if (tile_surface::rule_of(card, base, flags) && (flags & tile_surface::kFollowTint) && tone_color::no_color(color)) {
-    clear_tile_tint(card);
-    return;
-  }
   // A tile filled while tinted (light theme) enters that surface first.
   follow_tint(card, true);
   // A tile on its own surface tints with that surface's rules.
@@ -371,18 +385,26 @@ void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) {
   }
   uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);
   if (tile_surface::get(card) == tile_surface::kJewel) {
-    // Filled in the light theme: the card from the icon's own color, its rim
-    // one step lighter (the dark theme's recipe, user 2026-10-10).
-    tint = tone_color::jewel_card(color, percent);
+    // Filled in the light theme: the card from the icon's own color, white
+    // light in the neutral grey (the dark theme's recipe, user 2026-10-10).
+    tint = idle ? tone_color::jewel_idle_card() : tone_color::jewel_card(color, percent);
     tile_surface::set_strength(card, percent);
-    ui_surface_style::set_tile_border_rim(card, lv_color_hex(tone_color::jewel_rim(tint, color)));
   }
   if (tile_icon_disc::card_state_color(card, false) == tint) return;
   apply_card_background(card, tint);
 }
 
+void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) { tint_card(card, color, percent, false); }
+
 void clear_tile_tint(lv_obj_t* card) {
   if (!card) return;
+  // A Media tile of the light theme shows the neutral grey without a tint
+  // (user 2026-10-10: "wenn nix abgespielt ... das Grau").
+  uint8_t base = 0, flags = 0;
+  if (tile_surface::rule_of(card, base, flags) && (flags & tile_surface::kNeutralIdle)) {
+    tint_card(card, 0xFFFFFF, 0, true);
+    return;
+  }
   // A tile filled while tinted leaves that surface with its tint.
   follow_tint(card, false);
   lv_style_value_t stored;
@@ -442,10 +464,34 @@ bool icon_glyph(lv_obj_t* obj) {
 void recolor_roles(lv_obj_t* obj, const ui_theme::Roles& from, const ui_theme::Roles& to, int depth,
                    int max_depth = 5) {
   lv_style_value_t value;
-  if (lv_obj_get_local_style_prop(obj, LV_STYLE_TEXT_COLOR, &value, LV_PART_MAIN) == LV_STYLE_RES_FOUND) {
+  // The shown color and the colors an icon keeps (given, shown, requested,
+  // forced: tile_icon_disc kIcon*), so no later refresh brings back a role
+  // of the old surface (user 2026-10-10: dark icons on the grey tiles).
+  // Also a control's selected row, arrow and items (a roller, a dropdown).
+  static constexpr lv_style_selector_t kTexts[] = {
+      LV_PART_MAIN, tile_icon_disc::kIconGiven, tile_icon_disc::kIconShown, tile_icon_disc::kIconRequested,
+      tile_icon_disc::kIconForced, LV_PART_SELECTED, LV_PART_INDICATOR, LV_PART_ITEMS};
+  const bool glyph = icon_glyph(obj);
+  for (const lv_style_selector_t selector : kTexts) {
+    if (lv_obj_get_local_style_prop(obj, LV_STYLE_TEXT_COLOR, &value, selector) != LV_STYLE_RES_FOUND) continue;
     const uint32_t rgb = lv_color_to_u32(value.color) & 0xFFFFFF;
-    const uint32_t mapped = ui_theme::map_role(rgb, from, to, icon_glyph(obj));
-    if (mapped != rgb) lv_obj_set_style_text_color(obj, lv_color_hex(mapped), LV_PART_MAIN);
+    const uint32_t mapped = ui_theme::map_role(rgb, from, to, glyph);
+    if (mapped != rgb) lv_obj_set_style_text_color(obj, lv_color_hex(mapped), selector);
+  }
+  // Fills in a role (the Media play circle, a popup's play button and slider
+  // knobs: the icon role, pressed the soft text) follow too; the card itself
+  // and the circles keep theirs (refresh_discs).
+  if (depth > 0 && !tile_icon_disc::is_disc(obj)) {
+    static constexpr lv_style_selector_t kFills[] = {
+        LV_PART_MAIN | LV_STATE_DEFAULT, LV_PART_MAIN | LV_STATE_PRESSED, LV_PART_KNOB | LV_STATE_DEFAULT,
+        LV_PART_KNOB | LV_STATE_PRESSED};
+    for (const lv_style_selector_t selector : kFills) {
+      if (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, selector) != LV_STYLE_RES_FOUND) continue;
+      const uint32_t rgb = lv_color_to_u32(value.color) & 0xFFFFFF;
+      const uint32_t mapped = rgb == from.icon ? to.icon : rgb == from.text ? to.text
+                              : rgb == from.text_soft ? to.text_soft : rgb;
+      if (mapped != rgb) lv_obj_set_style_bg_color(obj, lv_color_hex(mapped), selector);
+    }
   }
   if (lv_obj_check_type(obj, &lv_chart_class)) {
     if (lv_obj_get_local_style_prop(obj, LV_STYLE_LINE_COLOR, &value, LV_PART_ITEMS) == LV_STYLE_RES_FOUND) {
@@ -482,9 +528,9 @@ void change_surface(lv_obj_t* card, uint8_t surface, const Tile* tile) {
   ui_theme::follow_surface(card, theme);
   const ui_theme::SurfaceScope scope(theme >= 0 ? theme : ui_theme::kThemeSurface, card);
   // The card's base behind the tint (the tint itself follows in
-  // set_tile_tint); a card leaving the filled look drops its rim.
+  // set_tile_tint); its hairline follows the surface.
   set_card_base(card, tile ? tileBgColorOrDefault(*tile, tileDefaultBgColor()) : tileDefaultBgColor());
-  if (surface != tile_surface::kJewel) ui_surface_style::clear_tile_border_rim(card);
+  ui_surface_style::refresh_tile_border(card);
   recolor_roles(card, from, ui_theme::roles(), 0);
   // Circles, controls and card-colored cut-outs: refresh_discs and
   // refresh_controls of the caller (the tint that changed the surface).
@@ -579,9 +625,13 @@ uint8_t tile_color_from_icon(lv_obj_t* obj) {
 // Climate, Light and Cover with the global background) for the card "From
 // icon" gives at the tile's strength, so header circle and controls are
 // exactly the tile's (popup_shell.cpp header_fill).
+// The circle of the tile that opened the popup (popup_tile_circle).
+lv_obj_t* g_popup_disc = nullptr;
+
 void pass_popup_disc(lv_obj_t* obj, bool popup_shows_tile_color) {
   lv_obj_t* disc = obj ? tile_icon_disc::disc_of(obj) : nullptr;
   if (!disc && obj) disc = find_disc(obj);
+  g_popup_disc = disc;
   if (!disc) return;
   const tile_icon_disc::Mode mode = tile_icon_disc::mode_of(disc);
   const uint8_t from_icon = tile_color_from_icon(obj);
@@ -603,8 +653,36 @@ void forget_popup_source(lv_obj_t* obj) {
   pass_popup_disc(obj, false);
 }
 
+void settle_filled(lv_obj_t* card) {
+  uint8_t base = 0, flags = 0;
+  if (!card || !tile_surface::rule_of(card, base, flags) || !(flags & tile_surface::kNeutralIdle)) return;
+  lv_style_value_t stored;
+  if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) == LV_STYLE_RES_FOUND) return;
+  clear_tile_tint(card);
+}
+
+bool popup_tile_circle(uint32_t rgb, uint32_t& circle, uint8_t& opa, uint32_t& icon) {
+  lv_obj_t* disc = g_popup_disc;
+  if (!disc || !lv_obj_is_valid(disc) || !tile_icon_disc::is_disc(disc)) return false;
+  const ui_theme::SurfaceScope surface = tile_surface::scope(disc);
+  // The popup's color is one of the theme (the popup draws on it): on the
+  // tile's surface a role means that surface's role (surface_icon_color).
+  rgb = ui_theme::map_role(rgb & 0xFFFFFF, ui_theme::roles_of(ui_theme::kThemeSurface), ui_theme::roles(), true);
+  lv_obj_t* host = tile_icon_disc::card_of(disc);
+  const uint32_t card = tile_icon_disc::card_state_color(host, false);
+  const bool see_through = tile_icon_disc::see_through(host);
+  const bool tinted = tile_icon_disc::glow_of(disc) && tile_icon_disc::icon_color_tints(rgb);
+  const tone_color::Fill fill = tile_icon_disc::tile_fill(host, card, rgb & 0xFFFFFF, tinted, false, see_through,
+                                                          ui_surface_style::icon_glow_percent());
+  circle = fill.disc_color;
+  opa = fill.disc_opa;
+  icon = tone_color::readable_icon(rgb);
+  return true;
+}
+
 void open_popup_without_tile() {
   popup_surface::g_open_surface = ui_theme::kThemeSurface;
+  g_popup_disc = nullptr;
   remember_popup_source(nullptr);
   popup_shell_use_no_tile_disc();
 }
@@ -773,7 +851,8 @@ void refresh_card(lv_obj_t* card, const Tile& tile) {
   const uint32_t before = lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF;
   const uint8_t fill = tile_icon_colors::fill_of(tile.icon_colors.c_str());
   const tile_tint::Choice choice =
-      tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card)));
+      with_white(card, tile_tint::choose(colored && active, rgb, layer.tile, fill, disc_icon_rgb(find_disc(card))), fill,
+                 find_disc(card));
   set_icon_fill_marker(card, fill);
   // "From cover" tints below an active rule and never with "From icon".
   const uint8_t cover_tint = cover.tile && !choice.percent ? cover.tile : 0;

@@ -610,6 +610,14 @@ static void follow_mode_button_fill(LightPopupContext* ctx, uint32_t icon_rgb, b
   }
 }
 
+// The power button's glyph: in the light theme always the text color (user
+// 2026-10-10: "einfach nur schwarz"); in the dark theme, while on, a mark on
+// the accent (dark on a light accent, else the card's cut-out or white).
+static lv_color_t power_glyph_color(const LightPopupContext* ctx, uint32_t accent, bool on) {
+  if (ui_theme::light() || !on) return lv_color_hex(ui_theme::text());
+  return lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(popup_surface::card(ctx->card_bg))));
+}
+
 static void update_header_and_power_visuals(LightPopupContext* ctx, uint32_t icon_rgb) {
   if (!ctx) return;
   const bool visual_on = ctx->available && ctx->is_on;
@@ -643,13 +651,7 @@ static void update_header_and_power_visuals(LightPopupContext* ctx, uint32_t ico
     lv_obj_set_style_border_opa(ctx->power_button, LV_OPA_TRANSP, LV_STATE_PRESSED);
   }
   if (ctx->power_button_icon) {
-    // While on, the glyph is a mark on the accent: dark on a light accent,
-    // white on a dark one (tone_color::mark_on; the dark theme keeps its
-    // card-colored cut-out on light accents).
-    const lv_color_t glyph_color =
-        visual_on ? lv_color_hex(tone_color::mark_on(tone_color::light_accent(icon_rgb),
-                                                     lv_color_to_u32(popup_surface::card(ctx->card_bg))))
-                  : lv_color_hex(ui_theme::text());
+    const lv_color_t glyph_color = power_glyph_color(ctx, tone_color::light_accent(icon_rgb), visual_on);
     lv_obj_set_style_text_color(ctx->power_button_icon, glyph_color, 0);
     lv_obj_set_style_text_color(ctx->power_button_icon, glyph_color, LV_STATE_PRESSED);
   }
@@ -675,8 +677,7 @@ static void update_live_accent_visuals(LightPopupContext* ctx,
         ctx->power_button, power_color, LV_STATE_PRESSED);
     // A dragged color can cross from a light to a dark accent.
     if (ctx->power_button_icon) {
-      const lv_color_t glyph =
-          lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(popup_surface::card(ctx->card_bg))));
+      const lv_color_t glyph = power_glyph_color(ctx, accent, true);
       if (!lv_color_eq(lv_obj_get_style_text_color(ctx->power_button_icon, LV_PART_MAIN), glyph)) {
         lv_obj_set_style_text_color(ctx->power_button_icon, glyph, 0);
         lv_obj_set_style_text_color(ctx->power_button_icon, glyph, LV_STATE_PRESSED);
@@ -923,7 +924,7 @@ static void on_brightness_slider_draw(lv_event_t* e) {
   // The notch is read at draw time, so a new card color needs no rebuild; a
   // mark on the fill (dark on a light fill, else the card's cut-out or white).
   dash_dsc.bg_color =
-      lv_color_hex(tone_color::mark_on(ctx->brightness_draw_color, lv_color_to_u32(brightness_dash_color(ctx))));
+      lv_color_hex(tone_color::notch_on(ctx->brightness_draw_color, lv_color_to_u32(brightness_dash_color(ctx))));
   dash_dsc.bg_opa = LV_OPA_COVER;
   dash_dsc.border_opa = LV_OPA_TRANSP;
   dash_dsc.radius = LV_RADIUS_CIRCLE;
@@ -981,6 +982,7 @@ static void update_temperature_handle(LightPopupContext* ctx) {
   // Its notch is a mark on it: dark on the light Kelvin colors in the light
   // theme, the card's cut-out in the dark one (tone_color::mark_on).
   if (ctx->temp_handle_dash) {
+    // The Kelvin knob's line: dark on the light knob (user 2026-10-10).
     const lv_color_t notch = lv_color_hex(tone_color::mark_on(
         lv_color_to_u32(handle_color) & 0xFFFFFF, lv_color_to_u32(popup_surface::card(ctx->card_bg))));
     if (!lv_color_eq(lv_obj_get_style_bg_color(ctx->temp_handle_dash, LV_PART_MAIN), notch)) {
@@ -1539,9 +1541,11 @@ static lv_obj_t* create_color_field_panel(lv_obj_t* parent,
   lv_obj_set_size(cursor, kColorFieldCursorSize, kColorFieldCursorSize);
   lv_obj_set_style_radius(cursor, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_opa(cursor, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(cursor, lv_color_hex(ui_theme::icon()), 0);
+  // Exactly the dark theme's cursor in both themes (user 2026-10-10): a white
+  // ring around the picked color.
+  lv_obj_set_style_bg_color(cursor, lv_color_hex(ui_theme::kDark.icon), 0);
   lv_obj_set_style_border_width(cursor, 3, 0);
-  lv_obj_set_style_border_color(cursor, lv_color_hex(ui_theme::text()), 0);
+  lv_obj_set_style_border_color(cursor, lv_color_hex(ui_theme::kDark.text), 0);
   lv_obj_set_style_outline_width(cursor, 1, 0);
   lv_obj_set_style_outline_color(cursor, lv_color_hex(0x111111), 0);
   lv_obj_set_style_shadow_width(cursor, 12, 0);

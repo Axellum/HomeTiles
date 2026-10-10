@@ -178,7 +178,7 @@ for (const marker of ['emit_roles(ui_theme::kDark, "pv");', 'emit_roles(ui_theme
   'static_cast<double>(ui_theme::kLightStepNum) / ui_theme::kLightStepDen,',
   'static_cast<double>(ui_theme::kLightTintNum) / ui_theme::kLightTintDen,',
   'static_cast<double>(ui_theme::kLightSurfaceL), static_cast<double>(ui_theme::kLightCircleShare),',
-  'static_cast<double>(ui_theme::kJewelRimChroma));',
+  'static_cast<double>(ui_theme::kJewelNeutralL), static_cast<double>(ui_theme::kJewelIdleL));',
   '  appendPanelThemeVars(html);']) {
   assert.ok(styles.includes(marker), 'web_admin_styles: ' + marker);
 }
@@ -186,7 +186,7 @@ assert.ok(html.includes('html += ui_theme::theme_light() ? "\\" data-panel-theme
 const previewJs = read('src/web/admin/tiles/grid-preview.js');
 for (const marker of ["return -step * (Number.isFinite(scale) ? scale : 5 / 6);",
   "const lift = step => tinted ? toneRgb(base.L + toneStep(step), seed.C * 0.55, seed.h)",
-  "return text || (seed.L > 0.9 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;"]) {
+  "return text || (seed.L > 0.95 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;"]) {
   assert.ok(previewJs.includes(marker), 'grid-preview: ' + marker);
 }
 assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("const scale = Number(panelVar('--pv-light-tint', '0.8'));"));

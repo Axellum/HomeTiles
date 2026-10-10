@@ -1756,10 +1756,15 @@ static bool switch_state_has_update(const SwitchState& state) {
 uint32_t switch_state_icon_color(const SwitchState& state) {
   if (!state.available) return ui_theme::icon_unavailable();
   if (state.has_state && !state.is_on) return ui_theme::icon_off();
+  uint32_t rgb = state.has_color ? state.color : 0xFFD54F;
   if (state.supports_temperature && !state.supports_color && state.has_color_temp) {
-    return lv_color_to_u32(light_color_from_temperature_kelvin(state.color_temp_kelvin)) & 0xFFFFFF;
+    rgb = lv_color_to_u32(light_color_from_temperature_kelvin(state.color_temp_kelvin)) & 0xFFFFFF;
   }
-  return state.has_color ? state.color : 0xFFD54F;
+  // The light theme shows a light's color as Home Assistant does, the same
+  // on the tile and in its popup, white light in its light grey
+  // (tone_color::ha_light_color, user 2026-10-10: "genau so wie in HA").
+  if (ui_theme::theme_light()) rgb = tone_color::ha_light_color(rgb);
+  return rgb;
 }
 
 bool switch_payload_icon_color(const char* payload, uint32_t& rgb, bool* active) {
@@ -5021,7 +5026,14 @@ static bool tile_has_own_color(const Tile& tile) {
 // a tile in its own color follows that color's lightness (a black tile is the
 // light theme's screen: the theme); every other tile, and the screensaver (a
 // photo frame), keeps the theme.
+static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type);
+
 static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
+  // A tile that is always filled in the light theme (kNeutralIdle: its icon's
+  // color or the idle grey) is drawn filled from the start: a later tint only
+  // changes its card color, like the dark theme (user 2026-10-10: colors
+  // built up late while the tile switched from white to filled).
+  if (tile_surface_rule_of(tile, grid_type) & tile_surface::kNeutralIdle) return tile_surface::kJewel;
   if (grid_type == GridType::SCREENSAVER || !tile_has_own_color(tile)) return tile_surface::kNone;
   const uint32_t own = tileBgColorRgb(tile);
   if (!own) return tile_surface::kNone;
@@ -5031,14 +5043,17 @@ static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
 // The rule of a tile whose surface changes while it runs (tile_surface
 // set_rule, 0 = none): in the light theme a tile without an own color is
 // filled with its icon's color while it is tinted (user 2026-10-10, the dark
-// theme's recipe lighter: tile_surface::kJewel). Weather and Media follow the
-// same rule.
+// theme's recipe lighter: tile_surface::kJewel). Weather follows the same
+// rule. A tile in the tile color "From icon" and a Media tile show the
+// neutral grey without a tint (kNeutralIdle; user 2026-10-10: a light that is
+// off is grey, like the dark theme's grey card).
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
       tile_has_own_color(tile)) {
     return 0;
   }
-  return tile_surface::kFollowTint;
+  const bool neutral_idle = tile.type == TILE_MEDIA || tile_icon_colors::fill_of(tile.icon_colors.c_str());
+  return neutral_idle ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : tile_surface::kFollowTint;
 }
 
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {
@@ -5055,18 +5070,20 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
         desc->render(parent, col, row, tile, index, grid_type, scene_cb);
     tile_surface::set(tile_obj, surface);
     if (const uint8_t rule = tile_surface_rule_of(tile, grid_type)) {
-      tile_surface::set_rule(tile_obj, tile_surface::kNone, rule);
+      // A tile filled from the start stays filled (its base is kJewel).
+      tile_surface::set_rule(tile_obj, surface == tile_surface::kJewel ? tile_surface::kJewel : tile_surface::kNone,
+                             rule);
     }
     apply_fractional_tile_geometry(tile_obj, tile);
     // Rules (forced icon color, tile tint) from the cached states, before the
     // discs take the icon color and the background. A tint may change the
     // surface (tile_surface rule).
     tile_icon_source::refresh_card(tile_obj, tile);
+    tile_icon_source::settle_filled(tile_obj);
     tile_icon_disc::apply_tile_options(tile_obj, tile.icon_disc_mode, tile.icon_glow);
     disable_pressed_recolor(tile_obj);
     if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
-    // Normal grids use the global display option (a filled tile draws it as
-    // its rim, set_tile_border_rim). The screensaver has its own setting and
+    // Normal grids use the global display option. The screensaver has its own setting and
     // applies it after rendering in image_screensaver.cpp.
     if (tile_obj && grid_type != GridType::SCREENSAVER && tile.type != TILE_EMPTY) {
       ui_surface_style::apply_global_tile_border(tile_obj);

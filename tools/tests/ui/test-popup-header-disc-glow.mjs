@@ -27,7 +27,10 @@ for (const marker of [
   '(!options.off && (!options.follows_global || ui_surface_style::icon_discs_shown()));',
   'const lv_opa_t opa = shown ? fill.disc_opa : static_cast<lv_opa_t>(LV_OPA_TRANSP);',
   // The icon as its popup gives it (a light's: tone_color::light_icon).
-  'const lv_color_t readable = lv_color_hex(tone_color::readable_icon(rgb));',
+  // On the opening tile's circle exactly the tile's icon (popup_tile_circle).
+  'uint32_t shown_icon = tone_color::readable_icon(rgb);',
+  'tile_icon_source::popup_tile_circle(rgb, tile_circle, tile_circle_opa, shown_icon)',
+  'const lv_color_t readable = lv_color_hex(shown_icon);',
   'ui_surface_style::apply_popup_border(shell.frame, lv_color_hex(ui_theme::text()),',
   'static_cast<lv_opa_t>(popup_layout::kPopupBorderOpa));',
 ]) assert.ok(tint.includes(marker), `header tint: ${marker}`);

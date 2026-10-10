@@ -180,6 +180,9 @@ void bar_draw_cb(lv_event_t* e) {
   View* view = static_cast<View*>(lv_event_get_user_data(e));
   lv_layer_t* layer = lv_event_get_layer(e);
   if (!view || !view->bar || !layer || !view->available || view->kind == BarKind::None) return;
+  // Drawn later than the tile's updates: its symbols take the card's surface
+  // (white on a filled tile of the light theme, tile_surface).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(view->card);
   lv_area_t area;
   lv_obj_get_coords(view->bar, &area);
   const int32_t width = lv_area_get_width(&area);
@@ -511,6 +514,8 @@ void bar_model(View* view, const Detail& d, const device_visual::Visual& v) {
 
 void show(View* view) {
   if (!view) return;
+  // State colors follow the tile's surface (tile_surface, tile_icon_disc.h).
+  const ui_theme::SurfaceScope surface = tile_surface::scope(view->card);
   const Detail d = device_control::detail(view->entity);
   device_visual::Visual v = device_visual::visual(view->type, d);
   const char* target = device_control::pending_target(view->entity);

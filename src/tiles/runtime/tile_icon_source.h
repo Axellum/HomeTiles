@@ -94,4 +94,14 @@ void forget_popup_source(lv_obj_t* obj);
 // and the header disc keeps its default.
 void open_popup_without_tile();
 
+// A tile filled from the start (tile_surface::kNeutralIdle) that got no tint
+// from its rules takes the idle grey before it is drawn.
+void settle_filled(lv_obj_t* card);
+
+// The circle and the shown icon of the tile that opened the popup for its
+// icon in `rgb`, computed exactly like the tile's own on the tile's surface
+// (tile_icon_disc::disc_fill; user 2026-10-10: the popup's circle and icon are
+// always the tile's). False without one.
+bool popup_tile_circle(uint32_t rgb, uint32_t& circle, uint8_t& opa, uint32_t& icon);
+
 }  // namespace tile_icon_source

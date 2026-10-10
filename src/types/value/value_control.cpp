@@ -679,6 +679,7 @@ void apply_control_colors(EditableControl* c) {
   lv_opa_t opa;
   popup_nav_style::fill(base, icon, fill, opa);
   if (c->colors_initialized && lv_color_eq(base, c->colors.base) && lv_color_eq(fill, c->colors.fill) &&
+      lv_color_eq(lv_color_hex(ui_theme::text()), c->colors.text) &&
       opa == c->colors.opa) {
     return;
   }

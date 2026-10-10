@@ -148,15 +148,15 @@
   // strength never change an icon's color.
   function toneReadableIcon(icon) {
     const tinted = icon[0] !== icon[1] || icon[1] !== icon[2];
-    // A filled tile of the light theme keeps its icon's own color
-    // (tone_color::readable_icon in ui_theme::kDarkTintedSurface).
-    if (globalThis.hometilesPreviewSurface === 2 && tinted) return icon;
+    // The light theme shows every colored icon in its own color, on every
+    // surface (tone_color::readable_icon).
+    if (panelThemeLight() && tinted) return icon;
     if (panelLight()) {
       // The icon's own color, like Home Assistant; only an icon without a
       // color (white, almost white, the text color) takes the icon grey.
       const seed = toneOklch(icon);
       const text = toneHex(icon) === panelRoleHex('text', '#1a1a1a').toLowerCase();
-      return text || (seed.L > 0.9 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;
+      return text || (seed.L > 0.95 && (!tinted || seed.C < 0.08)) ? (panelRole('icon') || icon) : icon;
     }
     const linear = v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     const contrast = c => 1.05 / (0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2]) + 0.05);
@@ -197,11 +197,12 @@
     try { return run(); } finally { globalThis.hometilesPreviewSurface = saved; }
   }
   // The role table a surface reads a role from: 'd' dark, 'l' light, '' the
-  // page's. Surface 2 (ui_theme::kDarkTinted) takes the light theme's greys.
+  // page's. Surface 2 (ui_theme::kDarkTinted) has its own greys ('j').
   function surfaceRoleTable(theme, name, pageLight) {
+    // Surface 2 (ui_theme::kDarkTinted): the dark roles, its own lighter greys.
     if (theme === 2) {
       const grey = ['icon-off', 'icon-inactive', 'icon-rest', 'icon-unavailable'].includes(name);
-      return grey ? (pageLight ? '' : 'l') : (pageLight ? 'd' : '');
+      return grey ? 'j' : (pageLight ? 'd' : '');
     }
     if ((theme === 0 || theme === 1) && (theme === 1) !== pageLight) return theme === 1 ? 'l' : 'd';
     return '';
@@ -239,7 +240,12 @@
   }
   // tone_color::jewel_card(): the card below its icon's own lightness, in its
   // hue, with chroma up to the strength's cap.
+  // tone_color::jewel_idle_card(): a filled tile without a color.
+  function toneJewelIdleCard() {
+    return toneRgb(jewelVar('idle', 0.59), 0, 0);
+  }
   function toneJewelCard(icon, strength) {
+    if (toneNoColor(icon)) return toneRgb(jewelVar('neutral', 0.63), 0, 0);
     const seed = toneOklch(icon);
     const L = Math.min(jewelVar('max', 0.7), seed.L - jewelVar('below', 0.16));
     const cap = jewelVar('chroma', 0.07) * (strength || 20) / 20;
@@ -249,17 +255,16 @@
   function toneJewelFill(card, icon, glowPct, strength) {
     const base = toneOklch(card), seed = toneOklch(icon);
     const cap = jewelVar('chroma', 0.07) * jewelVar('circle-cap', 1.3) * (strength || 20) / 20;
-    const C = Math.min(seed.C * jewelVar('circle-share', 0.75), cap);
+    const C = toneNoColor(icon) ? 0 : Math.min(seed.C * jewelVar('circle-share', 0.75), cap);
     const step = jewelVar('step', 0.05) * glowPct / 25;
     const control = Math.max(step, 0.03);
     const disc = glowPct ? toneRgb(base.L + step, C, seed.h) : card.slice();
     return {discColor: disc, controlColor: toneRgb(base.L + control, C, seed.h), discOpa: glowPct ? 255 : 0,
       controlOpa: 255, disc, control: toneRgb(base.L + control, C, seed.h), tinted: true};
   }
-  // tone_color::jewel_rim(): the 1 px rim, a lighter edge in the icon's hue.
-  function toneJewelRim(card, icon) {
-    const base = toneOklch(card), seed = toneOklch(icon);
-    return toneRgb(base.L + jewelVar('rim', 0.12), Math.min(seed.C * jewelVar('card-share', 0.85), jewelVar('rim-chroma', 0.12)), seed.h);
+  // tile_icon_colors::fill_of(): the tile color "From icon" strength, 0 without.
+  function tileFillOf(iconColors) {
+    return iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
   }
   // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
   function tileHasOwnColor(bgValue, iconColors) {
@@ -295,7 +300,7 @@
       if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');
       else el.style.removeProperty('--pv-' + name);
     }
-    if (surface !== 'jewel') el.style.removeProperty('--tile-rim');
+
   }
   // tone_color::no_color(): white, almost white or grey-white.
   function toneNoColor(rgb) {
@@ -303,11 +308,21 @@
     const hue = rgb[0] !== rgb[1] || rgb[1] !== rgb[2];
     return seed.L > 0.9 && (!hue || seed.C < 0.08);
   }
-  // tone_color::light_accent(): a light's color as Home Assistant shows it in
-  // the light theme: an HSV saturation below 0.4 raised to 0.4, white (below
-  // 0.1) a grey of value 225.
+  // tone_color::light_accent(): the light theme's light color.
   function toneLightAccent(rgb) {
-    if (!panelLight()) return rgb;
+    return panelLight() ? toneHaLightColor(rgb) : rgb;
+  }
+  // switch_state_icon_color() (tile_renderer.cpp): the light theme shows a
+  // light's color as Home Assistant does, white light in its light grey.
+  function toneLightShown(hex) {
+    if (!panelThemeLight() || !/^#[0-9a-f]{6}$/i.test(String(hex))) return hex;
+    const rgb = [1, 3, 5].map(i => parseInt(String(hex).slice(i, i + 2), 16));
+    return toneHex(toneHaLightColor(rgb)).toUpperCase();
+  }
+  // tone_color::ha_light_color(): a light's color as Home Assistant shows
+  // it: an HSV saturation below 0.4 raised to 0.4, white (below 0.1) a grey
+  // of value 225.
+  function toneHaLightColor(rgb) {
     const [r, g, b] = rgb.map(v => v / 255);
     const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
     let sat = max > 0 ? d / max : 0, value = max;
@@ -328,6 +343,10 @@
       return Math.floor((value - value * sat * m) * 255 + 0.5);
     };
     return [channel(5), channel(3), channel(1)];
+  }
+  // tone_color::notch_on(): a handle line, the card's color on a light fill.
+  function toneNotchOn(fill, card) {
+    return toneLightSurface(fill) ? card : [255, 255, 255];
   }
   // tone_color::mark_on(): dark on a light surface (the dark theme keeps its
   // card cut-out there), white on a dark one.
@@ -365,7 +384,8 @@
     // The tile's surface rules (tile_surface) while its colors are computed.
     const surfaceSaved = globalThis.hometilesPreviewSurface;
     const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(tileElem.dataset?.surface || '') : -1;
-    if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
+    // 0 dark, 1 light, 2 a filled tile (ui_theme::kDarkTinted): its rules everywhere.
+    if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;
     try {
     // Cut-outs in the card's color (the Media play glyph,
     // tile_icon_disc::refresh_cutouts) follow the card after every tint.
@@ -389,9 +409,15 @@
     const fill = Number(tileElem.dataset.iconFill || 0);
     if (fill && tileElem.dataset.ruleTint !== '1' && typeof tileTintBackground === 'function' &&
         typeof tileTintChoice === 'function') {
-      const choice = given ? tileTintChoice(false, '', 0, fill, givenHex) : null;
+      let choice = given ? tileTintChoice(false, '', 0, fill, givenHex) : null;
+      // White light fills in the neutral grey (tile_icon_source with_white).
+      if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {
+        choice = { color: givenHex.toUpperCase(), percent: fill };
+      }
       if (choice) {
         setTileTintBackground(tileElem, choice.color, choice.percent);
+      } else if (tileElem.dataset.neutralIdle === '1') {
+        setTileTintBackground(tileElem, '#FFFFFF', 0, true);
       } else if (tileElem.dataset.baseBg !== undefined) {
         if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');
         tileElem.style.background = tileElem.dataset.baseBg;
@@ -416,7 +442,8 @@
     // Only a card in the tile color From icon (tile_icon_disc
     // apply_tile_options); Global and Custom keep the neutral hairline.
     if (tinted && fill > 0) {
-      const text = panelRole('text') || [255, 255, 255];
+      // A filled tile: the dark theme's hint, halfway to white.
+      const text = tileElem.dataset.surface === 'jewel' ? [255, 255, 255] : (panelRole('text') || [255, 255, 255]);
       const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));
       tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');
     } else {
@@ -446,7 +473,9 @@
     const lightCircle = panelLight() && !seeThrough;
     if (lightCircle) {
       const shown = toneReadableIcon(given || [255, 255, 255]);
-      const over = tinted || !iconDiscTinted('rgb(' + shown.join(',') + ')') ? shown : (panelRole('icon') || shown);
+      const picked = tinted || !iconDiscTinted('rgb(' + shown.join(',') + ')') ? shown : (panelRole('icon') || shown);
+      // tone_color::circle_source(): a white light's grey takes the neutral #BDBDBD.
+      const over = toneNoColor(picked) ? [189, 189, 189] : picked;
       const share = Number(panelVar('--pv-light-circle', '0.8'));
       const amount = glowPct * (Number.isFinite(share) ? share : 0.8) / 100;
       const blendOver = value => toneBlend(card, over, Math.round(Math.min(1, value) * 255));
@@ -710,9 +739,17 @@
     } else {
       delete el.dataset.followTint;
     }
+    // A Media tile and a tile "From icon" show the neutral grey without a
+    // tint (kNeutralIdle).
+    if (el.dataset.followTint === '1' && (surfaceKind === 'media' || tileFillOf(tile?.icon_colors))) {
+      el.dataset.neutralIdle = '1';
+    } else {
+      delete el.dataset.neutralIdle;
+    }
     const surfaceSaved = globalThis.hometilesPreviewSurface;
     const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
-    if (surfaceMode === 0 || surfaceMode === 1) globalThis.hometilesPreviewSurface = surfaceMode;
+    // 0 dark, 1 light, 2 a filled tile (ui_theme::kDarkTinted): its rules everywhere.
+    if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;
     try {
     const metaValues = sensorMeta?.values || {};
     const metaUnits = sensorMeta?.units || {};
@@ -935,6 +972,7 @@
       }
       if (previewKind === 'media') {
         applyMediaCoverTint(el, tile.icon_colors, sensorMeta?.mediaCoverColors?.[tile.sensor_entity || ''] || '');
+        if (el.dataset.neutralIdle === '1' && el.dataset.surface !== 'jewel') setTileTintBackground(el, '#FFFFFF', 0, true);
       }
       applyIconDiscTint(el);
       if (previewKind === 'cover') {

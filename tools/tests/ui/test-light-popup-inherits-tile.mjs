@@ -72,12 +72,15 @@ for (const [name, body] of [['update_light_popup', update], ['apply_init_to_cont
 
 // Neutral surfaces derive from the current card.
 for (const marker of [
-  // Marks on the accent keep the card's cut-out where it reads (tone_color::mark_on).
-  'visual_on ? lv_color_hex(tone_color::mark_on(tone_color::light_accent(icon_rgb),',
-  'lv_color_to_u32(popup_surface::card(ctx->card_bg))))',
+  // Marks on the accent keep the card's cut-out where it reads (tone_color::mark_on);
+  // the light theme's power glyph is always the text color (user 2026-10-10).
+  'const lv_color_t glyph_color = power_glyph_color(ctx, tone_color::light_accent(icon_rgb), visual_on);',
+  'if (ui_theme::light() || !on) return lv_color_hex(ui_theme::text());',
+  'return lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(popup_surface::card(ctx->card_bg))));',
   ': lv_color_hex(tone_color::switch_thumb_off(lv_color_to_u32(track) & 0xFFFFFF));',
   'ctx->is_on ? lv_color_hex(tone_color::mark_on(accent, lv_color_to_u32(brightness_dash_color(ctx))))',
-  'lv_color_hex(tone_color::mark_on(ctx->brightness_draw_color, lv_color_to_u32(brightness_dash_color(ctx))));',
+  // The handle line: the card's color on a light fill (tone_color::notch_on).
+  'lv_color_hex(tone_color::notch_on(ctx->brightness_draw_color, lv_color_to_u32(brightness_dash_color(ctx))));',
   'return popup_surface::card(ctx->card_bg);',
   'const lv_color_t disabled_color = popup_surface::lighter(card, popup_surface::kDisabled);',
 ]) assert.ok(popup.includes(marker), `derived surface: ${marker}`);

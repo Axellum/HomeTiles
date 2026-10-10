@@ -15,9 +15,7 @@ void preview_radius(int value);
 // The border hairline color for a glowing icon: its hue halfway to white. At
 // the hairline's 20 % the border stays mostly the tile, slightly lighter,
 // with only a hint of the icon.
-inline lv_color_t border_hint(lv_color_t icon) {
-  return lv_color_mix(lv_color_hex(ui_theme::text()), icon, 128);
-}
+inline lv_color_t border_hint(lv_color_t text, lv_color_t icon) { return lv_color_mix(text, icon, 128); }
 
 void disable_tile_border(lv_obj_t* obj);
 void apply_tile_border(lv_obj_t* obj, bool enabled);
@@ -35,11 +33,9 @@ bool icon_discs_shown();
 // hairline. Both keep the 20 % hairline opacity.
 void set_tile_border_tint(lv_obj_t* obj, lv_color_t icon);
 void clear_tile_border_tint(lv_obj_t* obj);
-// A filled tile in the light theme draws its hairline as a solid lighter rim
-// in its own hue (tone_color::jewel_rim); clear returns to the hint or white.
-// The rim wins over the tint hint while it is set.
-void set_tile_border_rim(lv_obj_t* obj, lv_color_t rim);
-void clear_tile_border_rim(lv_obj_t* obj);
+// Draws a tile card's hairline again after its surface changed (a filled tile
+// of the light theme takes the dark theme's hairline).
+void refresh_tile_border(lv_obj_t* obj);
 // The popup card hairline: follows the global Tile borders option, drawn like
 // the tile border.
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa);
