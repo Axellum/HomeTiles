@@ -339,6 +339,15 @@ tone_color::Fill header_fill(const HeaderDisc& options, uint32_t card, uint32_t 
   if (tinted && ui_theme::g_surface == ui_theme::kDarkTintedSurface) {
     return tone_color::jewel_fill(card, rgb, ui_surface_style::icon_glow_percent(), options.tile_tint);
   }
+  // The light theme's popup card: the circle and controls of a tile on a
+  // white card (tile_icon_disc::tile_fill, Home Assistant's 20 % of the icon),
+  // so the header circle, the selected button and the tile's circle match
+  // (user 2026-10-10).
+  if (ui_theme::light()) {
+    const uint32_t shown = tone_color::readable_icon(rgb);
+    const uint32_t over = tone_color::circle_source(tinted || !tile_tint::has_hue(shown) ? shown : ui_theme::icon());
+    return tone_color::tile_fill(card, over, tinted, ui_surface_style::icon_glow_percent());
+  }
   // The circle of the tile color "From icon" like on the tiles
   // (tile_icon_disc::circle_card): only a popup that shows that tile color
   // computes it for its own card; every other one for the card "From icon"

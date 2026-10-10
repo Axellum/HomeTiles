@@ -96,6 +96,10 @@ assert.ok(shell.includes('tile_icon_source::popup_tile_circle(rgb, tile_circle, 
 // Climate, Cover) exactly the controls' fill, the selected mode button.
 assert.ok(shell.includes('const bool on_tile_card = popup_surface::g_open_surface != ui_theme::kThemeSurface;') &&
   shell.includes('fill.disc_color = fill.control_color;'), 'the header circle on a neutral popup: its controls\' fill');
+// The light popup's controls are a white card tile's circle (20 % of the icon).
+assert.ok(shell.includes('const uint32_t over = tone_color::circle_source(tinted || !tile_tint::has_hue(shown) ? shown : ui_theme::icon());') &&
+  shell.includes('return tone_color::tile_fill(card, over, tinted, ui_surface_style::icon_glow_percent());'),
+  'light popup controls = the tile circle');
 assert.ok(read('src/types/media/renderer.cpp').includes('if (primary) tile_icon_disc::mark_cutout(label);') &&
   source.includes('tile_icon_disc::refresh_cutouts(card);'), 'the play glyph follows the tinted card');
 
