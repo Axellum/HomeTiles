@@ -185,6 +185,12 @@ for (const marker of ['background:var(--pv-screen, #000000);', 'color:var(--pv-i
   assert.ok(adminCss.includes(marker), 'admin.css: ' + marker);
 }
 
+// The screensaver is a photo frame in both themes (user 2026-10-10): its
+// shadowed clock stays white, the preview's screensaver grid black.
+const clockRenderer = read('src/types/clock/renderer.cpp');
+assert.match(clockRenderer, /if \(!label\) return nullptr;  \/\/ The stack owns and cleans up line\.\n(?:  \/\/[^\n]*\n)+  set_label_style\(label, lv_color_white\(\), font\);/);
+assert.ok(adminCss.includes('.tile-grid.screensaver-tile-grid { background:#000000; }'));
+
 const host = await lvglHost(root);
 if (!host) {
   console.log('UI theme: roles and setting pass; SKIP: color math needs a host compiler');

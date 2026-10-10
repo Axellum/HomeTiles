@@ -1045,6 +1045,9 @@
       touch-action:none;
       user-select:none;
     }
+    /* The screensaver is a photo frame in both themes: black behind its
+       picture, the clock white with its shadow (clock renderer). */
+    .tile-grid.screensaver-tile-grid { background:#000000; }
     .screensaver-grid-image-frame {
       position:absolute;
       inset:var(--screensaver-image-inset);

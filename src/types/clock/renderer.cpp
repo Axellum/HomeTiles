@@ -412,7 +412,7 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
     // text, each at its opacity in black.
     lv_obj_t* mask = lv_label_create(line);
     if (mask) {
-      set_label_style(mask, lv_color_hex(ui_theme::text()), font);
+      set_label_style(mask, lv_color_white(), font);
       lv_obj_set_style_text_align(mask, clock_text_align(alignment), 0);
       lv_obj_set_pos(mask, 0, 0);
       lv_label_set_text(mask, "");
@@ -448,7 +448,10 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
   }
   lv_obj_t* label = lv_label_create(line);
   if (!label) return nullptr;  // The stack owns and cleans up line.
-  set_label_style(label, lv_color_hex(ui_theme::text()), font);
+  // White over its dark shadow in both themes: the shadowed clock is the
+  // screensaver's, on its picture or black (a photo frame, user 2026-10-10);
+  // a clock tile on its card takes the theme's text color.
+  set_label_style(label, lv_color_white(), font);
   lv_obj_set_style_text_align(label, clock_text_align(alignment), 0);
   if (config.fill_parent) lv_obj_set_width(label, LV_PCT(100));
   lv_obj_set_pos(label, 0, 0);
