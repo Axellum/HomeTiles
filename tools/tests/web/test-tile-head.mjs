@@ -57,12 +57,14 @@ const keys = ['iconPickerAuto', 'iconPickerAutoHint', 'iconPickerNone', 'iconPic
 for (const key of [...keys, 'iconPickerSearch']) assert.ok(scripts.includes(`"${key}"`), key);
 assert.match(read('src/core/i18n/i18n.h'), /const char\* icon_picker_labels\[5\];/);
 
-// Every language: the last array of each LocaleProfile table.
+// Every language: the icon picker labels, the array before the clock's month
+// names (the last array of each LocaleProfile table).
 const i18n = read('src/core/i18n/i18n.cpp');
 function lastArray(open) {
   let depth = 0;
   let start = 0;
   let last = '';
+  let before = '';
   for (let i = open; i < i18n.length; i++) {
     const c = i18n[i];
     if (c === '"') {
@@ -72,12 +74,12 @@ function lastArray(open) {
     if (c === '/' && i18n[i + 1] === '/') { i = i18n.indexOf('\n', i); continue; }
     if (c === '{') { depth++; if (depth === 2) start = i; }
     if (c === '}') {
-      if (depth === 2) last = i18n.slice(start, i + 1);
+      if (depth === 2) { before = last; last = i18n.slice(start, i + 1); }
       depth--;
       if (depth === 0) break;
     }
   }
-  return last;
+  return before;
 }
 const labels = {};
 for (const match of i18n.matchAll(/static const LocaleProfile kLocale(\w+) = \{/g)) {

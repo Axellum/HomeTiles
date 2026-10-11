@@ -443,7 +443,9 @@
         if (!target || !target.id) return;
         if (
           target.id === (prefix + '_clock_show_time') ||
-          target.id === (prefix + '_clock_show_date')
+          target.id === (prefix + '_clock_show_date') ||
+          target.id === (prefix + '_clock_weekday') ||
+          target.id === (prefix + '_clock_align')
         ) {
           ensureClockSelection(prefix);
           updateTilePreview(tab);
@@ -455,7 +457,8 @@
           target.id === (prefix + '_clock_time_font') ||
           target.id === (prefix + '_clock_date_font') ||
           target.id === (prefix + '_clock_time_format') ||
-          target.id === (prefix + '_clock_date_format')
+          target.id === (prefix + '_clock_date_format') ||
+          target.id === (prefix + '_clock_roll')
         ) {
           updateClockValuePreview(tab);
           updateDraft(tab);

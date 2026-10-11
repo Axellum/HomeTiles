@@ -2742,6 +2742,15 @@
     .tile.clock.clock-compact .tile-icon { display:none; }
     .tile.clock.clock-compact .tile-clock-time,
     .tile.clock.clock-compact .tile-clock-date { white-space:nowrap; }
+    /* Without a title or icon the lines use the whole card height
+       (render_clock_tile pad_ver 0); the alignment option moves them. */
+    .tile.clock:not(.clock-has-header):not(.clock-compact) { padding-top:0; padding-bottom:0; }
+    .tile.clock:not(.clock-compact).clock-align-left { align-items:flex-start; }
+    .tile.clock:not(.clock-compact).clock-align-right { align-items:flex-end; }
+    .tile.clock.clock-align-left .tile-clock-time, .tile.clock.clock-align-left .tile-clock-date { text-align:left; }
+    .tile.clock.clock-align-right .tile-clock-time, .tile.clock.clock-align-right .tile-clock-date { text-align:right; }
+    .tile.clock.clock-compact.clock-align-left { justify-content:flex-start; }
+    .tile.clock.clock-compact.clock-align-right { justify-content:flex-end; }
 
 /* Text tile (types/text/renderer.cpp): its own card padding, the title top
    left and the icon top right like the Clock, the text wrapped over the

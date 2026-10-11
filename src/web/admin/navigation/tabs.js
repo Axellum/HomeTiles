@@ -141,7 +141,7 @@
     document.querySelectorAll('.tile-clock-date').forEach(el => {
       if (el.dataset.autoClock === '1' || el.textContent.trim() === '--.--.----') {
         el.dataset.autoClock = '1';
-        el.textContent = getClockPreviewDate(0);
+        setClockDigits(el, getClockPreviewDate(0));
       }
     });
     if (typeof fitCompactClockPreview === 'function') {
@@ -151,6 +151,6 @@
       const time = document.getElementById('screensaverClockTime');
       const date = document.getElementById('screensaverClockDate');
       if (time) setClockDigits(time, getClockPreviewTime(screensaverDraft.time_format));
-      if (date) date.textContent = getScreensaverClockPreviewDate(screensaverDraft);
+      if (date) setClockDigits(date, getScreensaverClockPreviewDate(screensaverDraft));
     }
   }

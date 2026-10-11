@@ -63,7 +63,8 @@ static uint8_t resolve_clock_time_format(const Tile& tile) {
 
 static uint8_t resolve_clock_date_format(const Tile& tile) {
   const DeviceConfig& cfg = configManager.getConfig();
-  return clock_tile::resolve_date_format(tile.sensor_gauge_max, cfg.global_date_format, cfg.language);
+  return clock_tile::resolve_date_format(clock_tile::unpack_date_options(tile.sensor_gauge_max).date_format,
+                                         cfg.global_date_format, cfg.language);
 }
 
 static uint8_t normalize_clock_alignment(uint8_t raw) {
@@ -260,12 +261,33 @@ struct ClockShadowSet {
   }
 };
 
+// Rolling digits (clock option, user 2026-10-11): the time as one cell per
+// character; at a new minute a changed digit rolls up once (an LVGL animation
+// of the cell's strip: the old digit leaves at the top, the new one comes in
+// from below), the others stay. The fixed-width digits keep every cell in
+// place.
+struct ClockRollLine {
+  static constexpr uint8_t kMaxChars = 12;
+  lv_obj_t* row = nullptr;
+  lv_obj_t* strips[kMaxChars] = {};
+  uint8_t count = 0;
+  char text[kMaxChars + 1] = "";
+  const lv_font_t* font = nullptr;
+  lv_coord_t line_h = 0;
+};
+
 struct ClockTileData {
   uint8_t time_format = clock_tile::TIME_FORMAT_24H;
   uint8_t date_format = clock_tile::DATE_FORMAT_DMY;
   uint8_t flags = 1;
   bool show_date_text = true;
   bool show_weekday = false;
+  bool weekday_short = false;
+  // Rolling digits: the time line is `time_roll`, animated from the second
+  // update on.
+  bool roll = false;
+  bool roll_started = false;
+  ClockRollLine time_roll;
   const char* weekday_language = nullptr;
   bool fill_parent = false;
   bool horizontal = false;
@@ -296,6 +318,101 @@ static uint8_t get_clock_flags(const Tile& tile) {
   return flags;
 }
 
+static void clock_roll_y(void* var, int32_t value) { lv_obj_set_y(static_cast<lv_obj_t*>(var), value); }
+
+// The roll ended: the incoming digit becomes the shown one, the strip back up.
+static void clock_roll_done(lv_anim_t* anim) {
+  lv_obj_t* strip = static_cast<lv_obj_t*>(anim->var);
+  lv_obj_t* shown = lv_obj_get_child(strip, 0);
+  lv_obj_t* incoming = lv_obj_get_child(strip, 1);
+  if (shown && incoming) lv_label_set_text(shown, lv_label_get_text(incoming));
+  lv_obj_set_y(strip, 0);
+}
+
+static void clock_roll_label(lv_obj_t* strip, const lv_font_t* font, lv_coord_t width, lv_coord_t y, const char* text) {
+  lv_obj_t* label = lv_label_create(strip);
+  if (!label) return;
+  set_label_style(label, lv_color_hex(ui_theme::text()), font);
+  lv_obj_set_width(label, width);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(label, 0, y);
+  lv_label_set_text(label, text);
+}
+
+// One cell per character, each as wide as its glyph (a fixed-width digit).
+static void clock_roll_rebuild(ClockRollLine& roll, const char* text) {
+  lv_obj_clean(roll.row);
+  memset(roll.strips, 0, sizeof(roll.strips));
+  size_t count = strlen(text);
+  if (count > ClockRollLine::kMaxChars) count = ClockRollLine::kMaxChars;
+  for (size_t i = 0; i < count; ++i) {
+    const char ch[2] = {text[i], '\0'};
+    const uint32_t next = i + 1 < count ? static_cast<uint8_t>(text[i + 1]) : 0;
+    const lv_coord_t width = lv_font_get_glyph_width(roll.font, static_cast<uint8_t>(text[i]), next);
+    lv_obj_t* cell = lv_obj_create(roll.row);
+    if (!cell) break;
+    lv_obj_remove_style_all(cell);
+    lv_obj_set_size(cell, width, roll.line_h);
+    lv_obj_remove_flag(cell, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(cell, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t* strip = lv_obj_create(cell);
+    if (!strip) break;
+    lv_obj_remove_style_all(strip);
+    lv_obj_set_size(strip, width, roll.line_h * 2);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
+    clock_roll_label(strip, roll.font, width, 0, ch);
+    clock_roll_label(strip, roll.font, width, roll.line_h, ch);
+    roll.strips[i] = strip;
+  }
+  roll.count = static_cast<uint8_t>(count);
+  memcpy(roll.text, text, count);
+  roll.text[count] = '\0';
+}
+
+// Returns false for unchanged text. A changed digit rolls when `animate`;
+// another length (12-hour "9:59" to "10:00") lays the cells out anew.
+static bool clock_roll_set_text(ClockRollLine& roll, const char* text, bool animate) {
+  if (!roll.row || !text) return false;
+  if (strcmp(roll.text, text) == 0) return false;
+  const size_t count = strlen(text);
+  if (count != roll.count || count > ClockRollLine::kMaxChars) {
+    clock_roll_rebuild(roll, text);
+    return true;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (text[i] == roll.text[i] || !roll.strips[i]) continue;
+    lv_obj_t* strip = roll.strips[i];
+    lv_obj_t* shown = lv_obj_get_child(strip, 0);
+    lv_obj_t* incoming = lv_obj_get_child(strip, 1);
+    if (!shown || !incoming) continue;
+    // A roll still running ends at once.
+    if (lv_anim_get(strip, clock_roll_y)) {
+      lv_anim_delete(strip, clock_roll_y);
+      lv_label_set_text(shown, lv_label_get_text(incoming));
+      lv_obj_set_y(strip, 0);
+    }
+    const char ch[2] = {text[i], '\0'};
+    lv_label_set_text(incoming, ch);
+    if (!animate) {
+      lv_label_set_text(shown, ch);
+      continue;
+    }
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, strip);
+    lv_anim_set_exec_cb(&anim, clock_roll_y);
+    lv_anim_set_values(&anim, 0, -roll.line_h);
+    lv_anim_set_duration(&anim, 450);
+    lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&anim, clock_roll_done);
+    lv_anim_start(&anim);
+  }
+  memcpy(roll.text, text, count);
+  roll.text[count] = '\0';
+  return true;
+}
+
 static void update_clock_labels(ClockTileData* data) {
   if (!data) return;
   struct tm timeinfo;
@@ -310,43 +427,17 @@ static void update_clock_labels(ClockTileData* data) {
       } else {
         snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
       }
-      changed |= data->time_shadows.set_text(buf);
+      changed |= data->roll ? clock_roll_set_text(data->time_roll, buf, data->roll_started)
+                            : data->time_shadows.set_text(buf);
     }
     if (data->date_label) {
-      char date_buf[16] = "";
-      if (data->show_date_text) {
-        switch (data->date_format) {
-          case clock_tile::DATE_FORMAT_MDY:
-            snprintf(date_buf, sizeof(date_buf), "%02d/%02d/%04d",
-                     timeinfo.tm_mon + 1,
-                     timeinfo.tm_mday,
-                     timeinfo.tm_year + 1900);
-            break;
-          case clock_tile::DATE_FORMAT_YMD:
-            snprintf(date_buf, sizeof(date_buf), "%04d/%02d/%02d",
-                     timeinfo.tm_year + 1900,
-                     timeinfo.tm_mon + 1,
-                     timeinfo.tm_mday);
-            break;
-          default:
-            snprintf(date_buf, sizeof(date_buf), "%02d.%02d.%04d",
-                     timeinfo.tm_mday,
-                     timeinfo.tm_mon + 1,
-                     timeinfo.tm_year + 1900);
-            break;
-        }
-      }
-      const char* weekday =
-          data->show_weekday
-              ? clock_tile::weekday_name(timeinfo.tm_wday,
-                                         data->weekday_language)
-              : "";
-      char buf[40];
-      if (weekday[0] && date_buf[0]) {
-        snprintf(buf, sizeof(buf), "%s, %s", weekday, date_buf);
-      } else {
-        snprintf(buf, sizeof(buf), "%s", weekday[0] ? weekday : date_buf);
-      }
+      const uint8_t weekday = !data->show_weekday   ? clock_tile::WEEKDAY_NONE
+                              : data->weekday_short ? clock_tile::WEEKDAY_SHORT
+                                                    : clock_tile::WEEKDAY_LONG;
+      char buf[96];
+      clock_tile::format_date_line(buf, sizeof(buf), timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon,
+                                   timeinfo.tm_year + 1900, data->show_date_text, data->date_format, weekday,
+                                   data->weekday_language);
       changed |= data->date_shadows.set_text(buf);
     }
     if (changed) {
@@ -463,6 +554,31 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
   return label;
 }
 
+// The time line of rolling digits: a row of cells (clock_roll_rebuild), set
+// out like the label it replaces.
+static lv_obj_t* create_clock_roll_line(lv_obj_t* stack, const ClockWidgetConfig& config, ClockRollLine* roll) {
+  const uint8_t font_size = layout_clock_font_size(clock_tile::normalize_font_size(config.time_font_size, 40));
+  roll->font = tabular_digits::font(ui_font_for_size(font_size));
+  roll->line_h = lv_font_get_line_height(roll->font);
+  lv_obj_t* row = lv_obj_create(stack);
+  if (!row) return nullptr;
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, config.fill_parent ? LV_PCT(100) : LV_SIZE_CONTENT, roll->line_h);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  const uint8_t alignment = normalize_clock_alignment(config.time_alignment);
+  lv_obj_set_flex_align(row,
+                        alignment == 0   ? LV_FLEX_ALIGN_START
+                        : alignment == 2 ? LV_FLEX_ALIGN_END
+                                         : LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_all(row, 0, 0);
+  lv_obj_set_style_pad_gap(row, 0, 0);
+  lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  roll->row = row;
+  return row;
+}
+
 lv_obj_t* create_clock_widget(lv_obj_t* parent,
                               const ClockWidgetConfig& config) {
   if (!parent ||
@@ -498,10 +614,15 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
 
   lv_obj_t* time_label = nullptr;
   if (config.show_time) {
-    time_label =
-        create_clock_line(stack, config, config.time_font_size, 40, false,
-                          config.time_alignment,
-                          &data->time_shadows);
+    if (config.roll && !config.text_shadow) {
+      time_label = create_clock_roll_line(stack, config, &data->time_roll);
+      data->roll = time_label != nullptr;
+    } else {
+      time_label =
+          create_clock_line(stack, config, config.time_font_size, 40, false,
+                            config.time_alignment,
+                            &data->time_shadows);
+    }
   }
 
   // The date line also holds a standalone weekday.
@@ -518,6 +639,7 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
   data->flags = (config.show_time ? 1 : 0) | (config.show_date ? 2 : 0);
   data->show_date_text = config.show_date;
   data->show_weekday = config.show_weekday;
+  data->weekday_short = config.weekday_short;
   data->weekday_language = config.weekday_language;
   data->fill_parent = config.fill_parent;
   data->horizontal = config.horizontal;
@@ -525,6 +647,8 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
   data->time_label = time_label;
   data->date_label = date_label;
   update_clock_labels(data);
+  // The first text appears at once; later minutes roll.
+  data->roll_started = true;
   data->timer = lv_timer_create(clock_timer_cb, 1000, data);
 
   lv_obj_add_event_cb(
@@ -579,17 +703,29 @@ static void fit_compact_clock(const Tile& tile, lv_coord_t pad, ClockWidgetConfi
   const lv_coord_t width = tile_geometry::extent(tile.col, tile.span_w, GRID_CELL_W, GRID_GAP) - pad * 2;
   const lv_coord_t cap = tile_geometry::extent(tile.row, tile.span_h, GRID_CELL_H, GRID_GAP) * 4 / 5;
   const char* time_sample = config.time_format == clock_tile::TIME_FORMAT_12H ? "88:88 PM" : "88:88";
-  const char* date_sample = config.date_format == clock_tile::DATE_FORMAT_MDY ||
-                                    config.date_format == clock_tile::DATE_FORMAT_YMD
-                                ? "88/88/8888"
-                                : "88.88.8888";
+  // Today's date line with every digit an 8: the widest of its kind, like
+  // the preview's sample (clockPreviewSample).
+  char date_sample[96] = "88.88.8888";
+  struct tm now_tm;
+  if (getLocalTime(&now_tm, 0)) {
+    const uint8_t weekday = !config.show_weekday   ? clock_tile::WEEKDAY_NONE
+                            : config.weekday_short ? clock_tile::WEEKDAY_SHORT
+                                                   : clock_tile::WEEKDAY_LONG;
+    clock_tile::format_date_line(date_sample, sizeof(date_sample), now_tm.tm_wday, now_tm.tm_mday, now_tm.tm_mon,
+                                 now_tm.tm_year + 1900, config.show_date, config.date_format, weekday,
+                                 config.weekday_language);
+    for (char* p = date_sample; *p; ++p) {
+      if (*p >= '0' && *p <= '9') *p = '8';
+    }
+  }
+  const bool date_line = config.show_date || config.show_weekday;
   const bool date_is_primary = !config.show_time;
   uint8_t& primary_size = date_is_primary ? config.date_font_size : config.time_font_size;
   lv_coord_t used = 0;
   primary_size = fit_clock_size(primary_size, cap, width, 0,
                                 date_is_primary ? date_sample : time_sample, &used);
   if (primary_size == 0) primary_size = kClockFontSizes[0];
-  if (date_is_primary || !config.show_date) return;
+  if (date_is_primary || !date_line) return;
   const uint8_t date_size =
       tile.span_w >= 2 ? fit_clock_size(min(config.date_font_size, config.time_font_size),
                                         layout_clock_font_size(config.time_font_size), width,
@@ -597,6 +733,7 @@ static void fit_compact_clock(const Tile& tile, lv_coord_t pad, ClockWidgetConfi
                        : 0;
   if (date_size == 0) {
     config.show_date = false;
+    config.show_weekday = false;
   } else {
     config.date_font_size = date_size;
   }
@@ -681,6 +818,17 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       clock_tile::normalize_date_font_size(tile.key_modifier, 20);
   widget_config.time_format = resolve_clock_time_format(tile);
   widget_config.date_format = resolve_clock_date_format(tile);
+  // The weekday and rolling digits (clock_tile::TileDateOptions).
+  const clock_tile::TileDateOptions date_options = clock_tile::unpack_date_options(tile.sensor_gauge_max);
+  widget_config.show_weekday = date_options.weekday != clock_tile::WEEKDAY_NONE;
+  widget_config.weekday_short = date_options.weekday == clock_tile::WEEKDAY_SHORT;
+  widget_config.weekday_language = configManager.getConfig().language;
+  widget_config.roll = date_options.roll;
+  widget_config.time_alignment = clock_tile::tile_alignment(date_options.align);
+  widget_config.date_alignment = widget_config.time_alignment;
+  // Without a title or icon the lines use the whole card height, centered:
+  // its top and bottom padding only cut large clock sizes (user 2026-10-12).
+  if (!compact && !has_header) lv_obj_set_style_pad_ver(card, 0, 0);
   if (compact) {
     widget_config.fill_parent = false;
     widget_config.horizontal = true;
@@ -688,7 +836,12 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   }
   lv_obj_t* stack = create_clock_widget(card, widget_config);
   if (stack) {
-    lv_obj_align(stack, LV_ALIGN_CENTER, 0,
+    // A half tile's row moves to the chosen side; a full tile's lines align
+    // their text (fill_parent).
+    const lv_align_t place = date_options.align == 1   ? LV_ALIGN_LEFT_MID
+                             : date_options.align == 2 ? LV_ALIGN_RIGHT_MID
+                                                       : LV_ALIGN_CENTER;
+    lv_obj_align(stack, place, 0,
                  has_header ? tile_layout::scale(18) : 0);
   }
 

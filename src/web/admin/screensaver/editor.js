@@ -469,7 +469,7 @@
     date.style.marginTop = !time.hidden && !date.hidden
       ? devicePx('--screensaver-clock-gap', 6) * scale + 'px' : '0px';
     setClockDigits(time, getClockPreviewTime(d.time_format));
-    date.textContent = getScreensaverClockPreviewDate(d);
+    setClockDigits(date, getScreensaverClockPreviewDate(d));
     time.style.width = 'auto';
     date.style.width = 'auto';
     time.style.textAlign = ssClockAlignmentCss(d.time_alignment);

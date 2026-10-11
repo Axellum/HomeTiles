@@ -633,7 +633,13 @@ static const Strings kStringsDe = {
     "Vollbild",
     "Ausfüllen",
     "Füllen",
-    "Farbe"};
+    "Farbe",
+    "Wochentag",
+    "Ohne",
+    "Kurz",
+    "Lang",
+    "Ziffern rollen",
+    "Ausrichtung"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1261,7 +1267,13 @@ static const Strings kStringsEn = {
     "Full screen",
     "Fill",
     "Fill",
-    "Color"};
+    "Color",
+    "Weekday",
+    "None",
+    "Short",
+    "Long",
+    "Roll digits",
+    "Alignment"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1889,7 +1901,13 @@ static const Strings kStringsFr = {
     "Plein écran",
     "Remplir",
     "Remplir",
-    "Couleur"};
+    "Couleur",
+    "Jour de la semaine",
+    "Aucun",
+    "Court",
+    "Long",
+    "Chiffres déroulants",
+    "Alignement"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2007,7 +2025,10 @@ static const LocaleProfile kLocaleDe = {
      "Mediaplayer", "Wetter", "Kamera", "Schloss", "Alarmanlage", "Zahl", "Auswahl",
      "Datum/Uhrzeit", "Szene", "Skript", "Taste", "Automation", "Luftbefeuchter",
      "Sirene", "Fernbedienung"},
-    {"Automatisch", "Icon der Entität", "Kein Icon", "Nur Titel und Wert", "Kein Icon passt zu „{query}“"}};
+    {"Automatisch", "Icon der Entität", "Kein Icon", "Nur Titel und Wert", "Kein Icon passt zu „{query}“"},
+    {"Januar", "Februar", "März", "April", "Mai", "Juni",
+     "Juli", "August", "September", "Oktober", "November", "Dezember"},
+    "{d}. {M}"};
 
 static const LocaleProfile kLocaleEn = {
     "en",
@@ -2121,7 +2142,10 @@ static const LocaleProfile kLocaleEn = {
      "Media player", "Weather", "Camera", "Lock", "Alarm panel", "Number", "Select",
      "Date/time", "Scene", "Script", "Button", "Automation", "Humidifier", "Siren",
      "Remote"},
-    {"Automatic", "The entity's icon", "No icon", "Title and value only", "No icon matches “{query}”"}};
+    {"Automatic", "The entity's icon", "No icon", "Title and value only", "No icon matches “{query}”"},
+    {"January", "February", "March", "April", "May", "June",
+     "July", "August", "September", "October", "November", "December"},
+    "{d} {M}"};
 
 static const LocaleProfile kLocaleFr = {
     "fr",
@@ -2241,7 +2265,10 @@ static const LocaleProfile kLocaleFr = {
      "Sélection", "Date/heure", "Scène", "Script", "Bouton", "Automatisation",
      "Humidificateur", "Sirène", "Télécommande"},
     {"Automatique", "Icône de l’entité", "Aucune icône", "Titre et valeur seulement",
-     "Aucune icône ne correspond à « {query} »"}};
+     "Aucune icône ne correspond à « {query} »"},
+    {"janvier", "février", "mars", "avril", "mai", "juin",
+     "juillet", "août", "septembre", "octobre", "novembre", "décembre"},
+    "{d} {M}"};
 
 // Codes and groups match LocaleProfile::timezone_labels and
 // timezone_group_labels (see i18n.h).
@@ -2872,6 +2899,12 @@ static const Strings kStringsPl = {
     "Wypełnij",
     "Wypełnij",
     "Kolor",
+    "Dzień tygodnia",
+    "Brak",
+    "Krótki",
+    "Długi",
+    "Przewijane cyfry",
+    "Wyrównanie",
 };
 
 static const LocaleProfile kLocalePl = {
@@ -2921,6 +2954,9 @@ static const LocaleProfile kLocalePl = {
      "Liczba", "Wybór", "Data/czas", "Scena", "Skrypt", "Przycisk", "Automatyzacja",
      "Nawilżacz", "Syrena", "Pilot"},
     {"Automatyczna", "Ikona encji", "Brak ikony", "Tylko tytuł i wartość", "Żadna ikona nie pasuje do „{query}”"},
+    {"stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+     "lipca", "sierpnia", "września", "października", "listopada", "grudnia"},
+    "{d} {M}",
 };
 
 const TimezoneOptionInfo& timezone_option(size_t index) {

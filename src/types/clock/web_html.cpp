@@ -2,9 +2,11 @@
 
 #include "src/core/config/config_manager.h"
 #include "src/core/i18n/i18n.h"
+#include "src/types/clock/clock_format.h"
 
 void append_clock_fields_html(String& html, const String& tab_id) {
-  const auto& tr = i18n::strings(configManager.getConfig().language);
+  const char* language = configManager.getConfig().language;
+  const auto& tr = i18n::strings(language);
   html += R"html(
             <!-- Clock Fields -->
             <div id=")html";
@@ -30,6 +32,14 @@ void append_clock_fields_html(String& html, const String& tab_id) {
   html += R"html(_clock_show_date">
                 )html";
   html += tr.show_date;
+  html += R"html(
+              </label>
+              <label class="inline-checkbox">
+                <input type="checkbox" id=")html";
+  html += tab_id;
+  html += R"html(_clock_roll">
+                )html";
+  html += tr.clock_roll_digits;
   html += R"html(
               </label>
               </div>
@@ -95,6 +105,55 @@ void append_clock_fields_html(String& html, const String& tab_id) {
                 <option value="1">DD.MM.YYYY</option>
                 <option value="2">MM/DD/YYYY</option>
                 <option value="3">YYYY/MM/DD</option>
+                <option value="4">DD/MM/YYYY</option>
+                <option value="5">DD.MM.</option>
+                <option value="6">)html";
+  // The month formats by example (issue #13: 21 August 2026).
+  char sample[48];
+  clock_tile::format_date(sample, sizeof(sample), 21, 7, 2026, clock_tile::DATE_FORMAT_D_MONTH, language);
+  html += sample;
+  html += R"html(</option>
+                <option value="7">)html";
+  clock_tile::format_date(sample, sizeof(sample), 21, 7, 2026, clock_tile::DATE_FORMAT_D_MONTH_YEAR, language);
+  html += sample;
+  html += R"html(</option>
+              </select>
+              <label>)html";
+  html += tr.clock_weekday_label;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_clock_weekday">
+                <option value="0">)html";
+  html += tr.clock_weekday_none;
+  html += R"html(</option>
+                <option value="1">)html";
+  // Saturday as the example, like the date (a Saturday too).
+  html += tr.clock_weekday_short;
+  html += " (";
+  html += clock_tile::weekday_short_name(6, language);
+  html += R"html()</option>
+                <option value="2">)html";
+  html += tr.clock_weekday_long;
+  html += " (";
+  html += clock_tile::weekday_name(6, language);
+  html += R"html()</option>
+              </select>
+              <label>)html";
+  html += tr.clock_alignment_label;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_clock_align">
+                <option value="0">)html";
+  html += tr.alignment_center;
+  html += R"html(</option>
+                <option value="1">)html";
+  html += tr.alignment_left;
+  html += R"html(</option>
+                <option value="2">)html";
+  html += tr.alignment_right;
+  html += R"html(</option>
               </select>
             </div>
 )html";

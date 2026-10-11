@@ -745,6 +745,18 @@ struct Strings {
   const char* tile_rule_fill;
   // The Tile Settings caption above the icon color, the tile color and Fill (user 2026-10-11).
   const char* tile_group_color;
+  // Clock tile (user 2026-10-11): the weekday choice and its options (none, short, long).
+  const char* clock_weekday_label;
+  // Clock tile weekday option: no weekday.
+  const char* clock_weekday_none;
+  // Clock tile weekday option: the short name (followed by an example).
+  const char* clock_weekday_short;
+  // Clock tile weekday option: the full name (followed by an example).
+  const char* clock_weekday_long;
+  // Clock tile: a changed digit rolls up once (user 2026-10-11).
+  const char* clock_roll_digits;
+  // Clock tile: the alignment of time and date (left, center, right; user 2026-10-12).
+  const char* clock_alignment_label;
 };
 
 // Locale-specific display rules and short runtime strings shared by
@@ -848,6 +860,13 @@ struct LocaleProfile {
   // Icon picker of the tile head (tiles/tile-head.js). Order: automatic,
   // automatic hint, no icon, no icon hint, no match ({query}).
   const char* icon_picker_labels[5];
+
+  // The clock's long dates (clock_tile::DATE_FORMAT_D_MONTH*, user
+  // 2026-10-11, issue #13): the month names as they stand in a date
+  // (Polish in the genitive), January first, and the order with
+  // {d}=day and {M}=month ("{d}. {M}" = "21. August").
+  const char* month_names_in_date[12];
+  const char* long_date_pattern;
 };
 
 // Index into LocaleProfile::device_labels.

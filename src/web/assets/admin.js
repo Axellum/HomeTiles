@@ -469,7 +469,7 @@ async function saveGestureEdge(select) {
     document.querySelectorAll('.tile-clock-date').forEach(el => {
       if (el.dataset.autoClock === '1' || el.textContent.trim() === '--.--.----') {
         el.dataset.autoClock = '1';
-        el.textContent = getClockPreviewDate(0);
+        setClockDigits(el, getClockPreviewDate(0));
       }
     });
     if (typeof fitCompactClockPreview === 'function') {
@@ -479,7 +479,7 @@ async function saveGestureEdge(select) {
       const time = document.getElementById('screensaverClockTime');
       const date = document.getElementById('screensaverClockDate');
       if (time) setClockDigits(time, getClockPreviewTime(screensaverDraft.time_format));
-      if (date) date.textContent = getScreensaverClockPreviewDate(screensaverDraft);
+      if (date) setClockDigits(date, getScreensaverClockPreviewDate(screensaverDraft));
     }
   }
 
@@ -7343,7 +7343,9 @@ async function saveGestureEdge(select) {
         if (!target || !target.id) return;
         if (
           target.id === (prefix + '_clock_show_time') ||
-          target.id === (prefix + '_clock_show_date')
+          target.id === (prefix + '_clock_show_date') ||
+          target.id === (prefix + '_clock_weekday') ||
+          target.id === (prefix + '_clock_align')
         ) {
           ensureClockSelection(prefix);
           updateTilePreview(tab);
@@ -7355,7 +7357,8 @@ async function saveGestureEdge(select) {
           target.id === (prefix + '_clock_time_font') ||
           target.id === (prefix + '_clock_date_font') ||
           target.id === (prefix + '_clock_time_format') ||
-          target.id === (prefix + '_clock_date_format')
+          target.id === (prefix + '_clock_date_format') ||
+          target.id === (prefix + '_clock_roll')
         ) {
           updateClockValuePreview(tab);
           updateDraft(tab);
@@ -7766,8 +7769,10 @@ async function saveGestureEdge(select) {
         Number(document.getElementById(prefix + '_clock_date_font')?.value || 20));
       const clockTimeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
       const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
+      const clockWeekday = Number(document.getElementById(prefix + '_clock_weekday')?.value || 0);
+      applyClockPreviewAlign(tileElem, document.getElementById(prefix + '_clock_align')?.value || 0);
       if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
-      if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+      if ((flags & 2) || clockWeekday) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDateFormat, clockWeekday, (flags & 2) !== 0)) + '</div>';
     }
 
     if (previewKind === 'text') {
@@ -10236,9 +10241,10 @@ async function saveGestureEdge(select) {
         const clockTimeFont = tile.key_code || 40;
         const clockDateFont = Math.min(72, Number(tile.key_modifier || 20));
         const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
-        const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
+        const clockDate = clockDateOptions(tile.sensor_gauge_max !== undefined ? tile.sensor_gauge_max : 0);
+        applyClockPreviewAlign(el, clockDate.align);
         if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
-        if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
+        if ((flags & 2) || clockDate.weekday) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDate.format, clockDate.weekday, (flags & 2) !== 0)) + '</div>';
       }
       if (previewKind === 'text') {
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
@@ -13236,7 +13242,7 @@ async function saveGestureEdge(select) {
     date.style.marginTop = !time.hidden && !date.hidden
       ? devicePx('--screensaver-clock-gap', 6) * scale + 'px' : '0px';
     setClockDigits(time, getClockPreviewTime(d.time_format));
-    date.textContent = getScreensaverClockPreviewDate(d);
+    setClockDigits(date, getScreensaverClockPreviewDate(d));
     time.style.width = 'auto';
     date.style.width = 'auto';
     time.style.textAlign = ssClockAlignmentCss(d.time_alignment);
@@ -19206,7 +19212,30 @@ function getClockPreviewLanguage() {
 
   function normalizeClockDateFormat(raw) {
     const num = Number(raw);
-    return (num === 1 || num === 2 || num === 3) ? num : 0;
+    return (Number.isInteger(num) && num >= 1 && num <= 7) ? num : 0;
+  }
+
+  // clock_tile::unpack_date_options / pack_date_options: bits 0-7 the date
+  // format, 8-9 the weekday (0 none, 1 short, 2 long), bit 10 rolling digits,
+  // 11-12 the alignment (0 centered, 1 left, 2 right).
+  function clockDateOptions(raw) {
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num < 0) return {format: 0, weekday: 0, roll: false, align: 0};
+    const weekday = (num >> 8) & 3;
+    const align = (num >> 11) & 3;
+    return {format: normalizeClockDateFormat(num & 0xFF), weekday: weekday <= 2 ? weekday : 0,
+      roll: ((num >> 10) & 1) === 1, align: align <= 2 ? align : 0};
+  }
+  function packClockDateOptions(format, weekday, roll, align = 0) {
+    const day = Number(weekday), side = Number(align);
+    return normalizeClockDateFormat(format) | ((day === 1 || day === 2 ? day : 0) << 8) | (roll ? 1024 : 0)
+      | ((side === 1 || side === 2 ? side : 0) << 11);
+  }
+  // The tile's alignment in the preview (renderer.cpp render_clock_tile).
+  function applyClockPreviewAlign(tileElem, align) {
+    if (!tileElem || !tileElem.classList) return;
+    tileElem.classList.toggle('clock-align-left', Number(align) === 1);
+    tileElem.classList.toggle('clock-align-right', Number(align) === 2);
   }
 
   // "Auto" shows the panel's format (Settings, Localization), like the
@@ -19254,15 +19283,31 @@ function getClockPreviewLanguage() {
     return hh + ':' + mm;
   }
 
-  function getClockPreviewDate(rawFormat) {
+  // clock_tile::format_date_line: the weekday (CLOCK_I18N, the panel's
+  // language) and the date in its format.
+  function getClockPreviewDate(rawFormat, weekday = 0, showDate = true) {
     const now = new Date();
     const format = resolveClockDateFormat(rawFormat);
+    const texts = typeof CLOCK_I18N === 'object' && CLOCK_I18N ? CLOCK_I18N : null;
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yyyy = String(now.getFullYear());
-    if (format === 2) return mm + '/' + dd + '/' + yyyy;
-    if (format === 3) return yyyy + '/' + mm + '/' + dd;
-    return dd + '.' + mm + '.' + yyyy;
+    let date = '';
+    if (showDate) {
+      if (format === 2) date = mm + '/' + dd + '/' + yyyy;
+      else if (format === 3) date = yyyy + '/' + mm + '/' + dd;
+      else if (format === 4) date = dd + '/' + mm + '/' + yyyy;
+      else if (format === 5) date = dd + '.' + mm + '.';
+      else if (format === 6 || format === 7) {
+        const month = (texts && texts.months && texts.months[now.getMonth()]) || mm;
+        date = String((texts && texts.pattern) || '{d} {M}').replace('{d}', String(now.getDate())).replace('{M}', month)
+          + (format === 7 ? ' ' + yyyy : '');
+      } else date = dd + '.' + mm + '.' + yyyy;
+    }
+    const day = Number(weekday);
+    const list = day === 2 ? texts?.weekdays : day === 1 ? texts?.weekdaysShort : null;
+    const name = (list && list[now.getDay()]) || '';
+    return name && date ? name + ', ' + date : (name || date);
   }
 
   function normalizeClockPreviewFont(raw, fallback) {
@@ -19374,11 +19419,17 @@ function getClockPreviewLanguage() {
       const timeFormat = (data && data.sensor_gauge_min !== undefined) ? data.sensor_gauge_min : (data ? data.clock_time_format : 0);
       timeFormatEl.value = String(timeFormat !== undefined ? timeFormat : 0);
     }
+    // The date format, the weekday and rolling digits in one value.
+    const dateOptions = clockDateOptions((data && data.sensor_gauge_max !== undefined)
+      ? data.sensor_gauge_max : (data ? data.clock_date_format : 0));
     const dateFormatEl = document.getElementById(tab + '_clock_date_format');
-    if (dateFormatEl) {
-      const dateFormat = (data && data.sensor_gauge_max !== undefined) ? data.sensor_gauge_max : (data ? data.clock_date_format : 0);
-      dateFormatEl.value = String(dateFormat !== undefined ? dateFormat : 0);
-    }
+    if (dateFormatEl) dateFormatEl.value = String(dateOptions.format);
+    const weekdayEl = document.getElementById(tab + '_clock_weekday');
+    if (weekdayEl) weekdayEl.value = String(dateOptions.weekday);
+    const rollEl = document.getElementById(tab + '_clock_roll');
+    if (rollEl) rollEl.checked = dateOptions.roll;
+    const alignEl = document.getElementById(tab + '_clock_align');
+    if (alignEl) alignEl.value = String(dateOptions.align);
     if (data && (data.clock_show_time !== undefined || data.clock_show_date !== undefined)) {
       const showTime = String(data.clock_show_time || '0') === '1';
       const showDate = String(data.clock_show_date || '0') === '1';
@@ -19408,11 +19459,13 @@ function getClockPreviewLanguage() {
       Number(document.getElementById(prefix + '_clock_date_font')?.value || 20));
     const timeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
     const dateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
+    const weekday = Number(document.getElementById(prefix + '_clock_weekday')?.value || 0);
     const timeEl = tileElem.querySelector('.tile-clock-time');
     const dateEl = tileElem.querySelector('.tile-clock-date');
 
     const needsTime = (flags & 1) !== 0;
-    const needsDate = (flags & 2) !== 0;
+    // The date line also holds a weekday alone.
+    const needsDate = (flags & 2) !== 0 || weekday !== 0;
     if ((needsTime && !timeEl) || (needsDate && !dateEl) || (!needsTime && timeEl) || (!needsDate && dateEl)) {
       updateTilePreview(tab);
       return;
@@ -19423,7 +19476,8 @@ function getClockPreviewLanguage() {
       applyClockPreviewTextStyle(timeEl, timeFont, 40, panelRoleHex('text', '#fff'));
     }
     if (dateEl) {
-      dateEl.textContent = getClockPreviewDate(dateFormat);
+      // The panel's date digits are fixed-width too (tabular_digits, both lines).
+      setClockDigits(dateEl, getClockPreviewDate(dateFormat, weekday, (flags & 2) !== 0));
       applyClockPreviewTextStyle(dateEl, dateFont, 20, panelRoleHex('text', '#fff'));
     }
     fitCompactClockPreview(tileElem);
@@ -19529,7 +19583,11 @@ function getClockPreviewLanguage() {
     formData.append('key_code', document.getElementById(tab + '_clock_time_font')?.value || '40');
     formData.append('key_modifier', document.getElementById(tab + '_clock_date_font')?.value || '20');
     formData.append('clock_time_format', document.getElementById(tab + '_clock_time_format')?.value || '0');
-    formData.append('clock_date_format', document.getElementById(tab + '_clock_date_format')?.value || '0');
+    formData.append('clock_date_format', String(packClockDateOptions(
+      document.getElementById(tab + '_clock_date_format')?.value || '0',
+      document.getElementById(tab + '_clock_weekday')?.value || '0',
+      document.getElementById(tab + '_clock_roll')?.checked === true,
+      document.getElementById(tab + '_clock_align')?.value || '0')));
   }
 
   function resetClockFields(tab) {
@@ -19545,6 +19603,12 @@ function getClockPreviewLanguage() {
     if (timeFormatEl) timeFormatEl.value = '0';
     const dateFormatEl = document.getElementById(tab + '_clock_date_format');
     if (dateFormatEl) dateFormatEl.value = '0';
+    const weekdayEl = document.getElementById(tab + '_clock_weekday');
+    if (weekdayEl) weekdayEl.value = '0';
+    const rollEl = document.getElementById(tab + '_clock_roll');
+    if (rollEl) rollEl.checked = false;
+    const alignEl = document.getElementById(tab + '_clock_align');
+    if (alignEl) alignEl.value = '0';
   }
 
 function normalizeTextValueFont(value) {
