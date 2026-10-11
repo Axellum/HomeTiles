@@ -319,6 +319,12 @@
     if (card.every(v => v === 255)) line = [221, 221, 221];
     else if (card.every(v => v === 26)) line = [41, 41, 41];
     else if (!panelThemeLight()) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
+    // frame_line_shown(): a filled card of the light theme (white words)
+    // draws no line (user 2026-10-11, b391).
+    else if (!toneLightSurface(card)) {
+      el.style.setProperty('--tile-border-tint', 'transparent');
+      return;
+    }
     else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
     el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
   }

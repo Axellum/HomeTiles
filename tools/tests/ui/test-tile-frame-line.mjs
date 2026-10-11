@@ -57,4 +57,10 @@ for (const v of [0, 26, 67, 128, 200, 255]) {
 const shell = read('src/ui/popups/popup_shell.cpp');
 assert.ok(shell.includes('ui_surface_style::apply_popup_border(shell.frame, lv_color_hex(ui_theme::text()),'), 'Popup hairline is fixed');
 assert.ok(!shell.includes('ui_surface_style::apply_global_tile_border(parts.card);'), 'One popup hairline, not two');
-console.log('Tile frame line: fixed neutral on plain cards, filled cards darker in light and lighter in dark, preview identical');
+// b391 (user 2026-10-11, "ausgefranst"): a filled card of the light theme
+// (white words) draws no line, on the panel and in the preview.
+assert.match(style, /bool frame_line_shown\(lv_obj_t\* obj\) \{\s*return !ui_theme::theme_light\(\) \|\| tone_color::light_surface\(card_color\(obj\)\);/);
+assert.match(style, /enabled = enabled && !lv_obj_has_flag\(obj, kHiddenTileBorderFlag\) && frame_line_shown\(obj\);/);
+assert.match(read('src/web/admin/tiles/grid-preview.js'),
+  /else if \(!toneLightSurface\(card\)\) \{\s*el\.style\.setProperty\('--tile-border-tint', 'transparent'\);\s*return;/);
+console.log('Tile frame line: fixed neutral on plain cards, filled cards none in light and lighter in dark, preview identical');

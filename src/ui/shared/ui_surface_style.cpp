@@ -44,6 +44,14 @@ lv_opa_t control_fill_opa(bool see_through) {
   return tone_color::control_opa(icon_glow_percent(), see_through);
 }
 
+// The card's resting color.
+uint32_t card_color(lv_obj_t* obj) {
+  lv_style_value_t value;
+  return (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, LV_PART_MAIN | LV_STATE_DEFAULT) == LV_STYLE_RES_FOUND
+              ? lv_color_to_u32(value.color)
+              : lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN))) & 0xFFFFFF;
+}
+
 // The frame line of a tile (user 2026-10-11, like Tessera's theme::LINE and
 // theme::outline): a solid line, on the theme's plain card a fixed neutral
 // (light #DDDDDD, dark #292929), on any other card (filled, an own color)
@@ -52,11 +60,7 @@ lv_opa_t control_fill_opa(bool see_through) {
 // on a filled card in the light theme looked like a frayed edge (user
 // 2026-10-11, "unsauber").
 lv_color_t frame_line(lv_obj_t* obj) {
-  lv_style_value_t value;
-  const uint32_t card =
-      (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, LV_PART_MAIN | LV_STATE_DEFAULT) == LV_STYLE_RES_FOUND
-           ? lv_color_to_u32(value.color)
-           : lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN))) & 0xFFFFFF;
+  const uint32_t card = card_color(obj);
   // The plain card of either theme (a screensaver tile in the other design
   // too) keeps that theme's fixed line.
   if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);
@@ -65,10 +69,19 @@ lv_color_t frame_line(lv_obj_t* obj) {
                                  : lv_color_mix(lv_color_white(), lv_color_hex(card), 23);
 }
 
+// A filled card of the light theme (white words) draws no line (user
+// 2026-10-11, b391): its darker line stepped along the rounded corners
+// ("ausgefranst", the strong colors of b389 showed it); the color stands off
+// the light screen by itself. White and other light cards keep theirs, the
+// dark theme keeps every line.
+bool frame_line_shown(lv_obj_t* obj) {
+  return !ui_theme::theme_light() || tone_color::light_surface(card_color(obj));
+}
+
 void apply_style(lv_obj_t* obj, bool enabled) {
   if (!obj) return;
 
-  enabled = enabled && !lv_obj_has_flag(obj, kHiddenTileBorderFlag);
+  enabled = enabled && !lv_obj_has_flag(obj, kHiddenTileBorderFlag) && frame_line_shown(obj);
 
   // An LVGL border occupies the inner box and reduces usable content space.
   // A 1 px outline with -1 px padding follows the same inset edge

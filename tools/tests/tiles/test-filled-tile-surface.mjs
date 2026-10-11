@@ -257,9 +257,10 @@ int main() {
   const uint32_t filled = tone_color::jewel_card(amber, 20);
   expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == filled, "card from the icon", bg(card), filled);
   expect(tile_surface::strength(glyph) == 20, "strength kept for the circle", tile_surface::strength(glyph), 20);
-  // The frame line follows the filled card, solid, in any scope.
-  expect(frame_line(card) == expected_line(filled) && lv_obj_get_style_outline_opa(card, LV_PART_MAIN) == LV_OPA_COVER,
-         "frame line of the filled card", frame_line(card), expected_line(filled));
+  // The frame line follows the filled card in any scope, but a filled card of
+  // the light theme draws none (b391: its darker line looked frayed).
+  expect(frame_line(card) == expected_line(filled) && lv_obj_get_style_outline_opa(card, LV_PART_MAIN) == LV_OPA_TRANSP,
+         "no frame line on the filled card", frame_line(card), expected_line(filled));
   {
     const ui_theme::SurfaceScope scope = tile_surface::scope(title);
     ui_surface_style::apply_global_tile_border(card);
