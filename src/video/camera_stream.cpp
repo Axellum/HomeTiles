@@ -10,6 +10,7 @@
 #include "src/core/i18n/i18n.h"
 #include "src/devices/device_select.h"
 #include "src/network/network_manager.h"
+#include "src/ui/shared/ui_theme.h"
 
 // The ESP32-P4 decodes with its JPEG hardware; the ESP32-S3 480 x 480 panels
 // decode the popup's frames in software (tjpgd) in the camera task, at a few
@@ -2001,7 +2002,7 @@ void camera_stream_process_ui(lv_obj_t* image,
     lv_label_set_text(status_label, status);
     lv_obj_set_style_text_color(
         status_label,
-        status_error ? lv_color_hex(0xFF6B6B) : lv_color_hex(0xD8DEE9), 0);
+        status_error ? lv_color_hex(0xFF6B6B) : lv_color_hex(ui_theme::text_secondary()), 0);
   }
 }
 

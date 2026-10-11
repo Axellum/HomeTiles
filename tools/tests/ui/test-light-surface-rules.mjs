@@ -1,6 +1,6 @@
 // The light theme's color rules (user 2026-10-10, build/analysis/2026-10-09-analyse.md):
 //   - the tile color decides the surface, fixed when the tile is drawn: Global
-//     a white card (Home Assistant's look), "From icon" and Media filled (the
+//     a white card (Home Assistant's look), "From icon" (and Media "From cover") filled (the
 //     dark theme's rules on the icon's color or a grey), an own color by its
 //     lightness (OKLCH L 0.72);
 //   - a filled card: kJewelBelowIcon below its icon's own lightness (at most
@@ -336,4 +336,9 @@ assert.ok(read('src/web/admin/tiles/icon-colors.js').includes("if (surface === '
   'preview fills a tinted tile');
 assert.doesNotMatch(grid, /darkdesign|darktint|toneDarkDesign/, 'no dark design in the preview');
 assert.ok(read('src/web/assets/admin.css').includes('color:var(--tile-cut, var(--tile-card, #1A1A1A)); }'), 'preview play cut-out');
+// The camera popup's status line (FPS, user 2026-10-11: invisible on the
+// light card) takes the popup surface's secondary text, no fixed light grey.
+const cameraStream = read('src/video/camera_stream.cpp');
+assert.ok(cameraStream.includes('status_error ? lv_color_hex(0xFF6B6B) : lv_color_hex(ui_theme::text_secondary()), 0);') &&
+  !cameraStream.includes('0xD8DEE9'), 'camera status in the secondary text role');
 console.log('Light surface rules: fixed surfaces, filled and idle cards, greys, Home Assistant light colors, circles, handle line, device == preview');

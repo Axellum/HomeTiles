@@ -58,16 +58,19 @@ assert.ok(read('src/web/admin/tiles/grid-preview.js').includes(
   "if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');"),
   'preview: off leaves it');
 // White and almost white light fill in the neutral grey (with_white, device
-// and preview); a Media tile shows it without a tint.
+// and preview); a tile "From icon" or a Media tile "From cover" shows it
+// without a tint. A Media tile in Global is a white card like every tile
+// (user 2026-10-11: no Media design left).
 // Only Home Assistant's light grey of a white light, not a pure white icon.
 assert.match(fn('with_white'), /if \(tone_color::no_color\(icon\) && tone_color::from_rgb\(icon\)\.L <= tone_color::kWhiteIconL\) \{\s*choice\.color = icon;\s*choice\.percent = fill;/);
 // Without a color the idle grey (a little darker than white light).
 assert.match(fn('clear_tile_tint'), /\(flags & tile_surface::kNeutralIdle\)\) \{\s*tint_card\(card, 0xFFFFFF, 0, true\);\s*return;/);
 assert.match(fn('tint_card'), /tint = idle \? tone_color::jewel_idle_card\(\) : tone_color::jewel_card\(color, percent\);/);
-assert.ok(renderer.includes('const bool neutral_idle = tile.type == TILE_MEDIA || tile_icon_colors::fill_of(tile.icon_colors.c_str());'));
+assert.match(renderer, /const bool neutral_idle = tile_icon_colors::fill_of\(record\) \|\|\s*\(tile\.type == TILE_MEDIA && tile_icon_colors::cover_of\(record\)\.tile > 0\);/);
+assert.doesNotMatch(renderer, /neutral_idle = tile\.type == TILE_MEDIA \|\|/, 'Media in Global is not filled');
 const gridPreview = read('src/web/admin/tiles/grid-preview.js');
 assert.ok(gridPreview.includes("if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {") &&
-  gridPreview.includes("if (el.dataset.followTint === '1' && (surfaceKind === 'media' || tileFillOf(tile?.icon_colors))) {") &&
+  /if \(el\.dataset\.followTint === '1' && \(tileFillOf\(tile\?\.icon_colors\) \|\|\s*\(surfaceKind === 'media' && tileCoverFillOf\(tile\?\.icon_colors\) > 0\)\)\) \{/.test(gridPreview) &&
   colors.includes("const card = idle ? toneJewelIdleCard() : toneJewelCard(given, Number(percent) || 20);"),
   'preview: white light grey, the idle grey without a color');
 // No solid rim: the dark theme's hairline on a filled tile (its --pv-text-rgb, user 2026-10-10).

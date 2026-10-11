@@ -5043,16 +5043,19 @@ static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
 // The rule of a tile whose surface changes while it runs (tile_surface
 // set_rule, 0 = none): in the light theme a tile without an own color is
 // filled with its icon's color while it is tinted (user 2026-10-10, the dark
-// theme's recipe lighter: tile_surface::kJewel). Weather follows the same
-// rule. A tile in the tile color "From icon" and a Media tile show the
-// neutral grey without a tint (kNeutralIdle; user 2026-10-10: a light that is
-// off is grey, like the dark theme's grey card).
+// theme's recipe lighter: tile_surface::kJewel). Weather and Media follow the
+// same rule (user 2026-10-11: Media in Global is a white card like every
+// tile). A tile in the tile color "From icon", and a Media tile "From cover",
+// show the neutral grey without a tint (kNeutralIdle; user 2026-10-10: a
+// light that is off is grey, like the dark theme's grey card).
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
       tile_has_own_color(tile)) {
     return 0;
   }
-  const bool neutral_idle = tile.type == TILE_MEDIA || tile_icon_colors::fill_of(tile.icon_colors.c_str());
+  const char* record = tile.icon_colors.c_str();
+  const bool neutral_idle = tile_icon_colors::fill_of(record) ||
+                            (tile.type == TILE_MEDIA && tile_icon_colors::cover_of(record).tile > 0);
   return neutral_idle ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : tile_surface::kFollowTint;
 }
 

@@ -9599,6 +9599,11 @@ function syncTileRadiusControls(tabEl) {
   function tileFillOf(iconColors) {
     return iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
   }
+  // tile_icon_colors::cover_of().tile: a Media tile's tile color "From cover".
+  function tileCoverFillOf(iconColors) {
+    return iconColors && typeof parseIconColorRecord === 'function'
+      ? Number(parseIconColorRecord(iconColors).cover?.tile || 0) : 0;
+  }
   // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
   function tileHasOwnColor(bgValue, iconColors) {
     const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
@@ -10077,9 +10082,10 @@ function syncTileRadiusControls(tabEl) {
     } else {
       delete el.dataset.followTint;
     }
-    // A Media tile and a tile "From icon" show the neutral grey without a
-    // tint (kNeutralIdle).
-    if (el.dataset.followTint === '1' && (surfaceKind === 'media' || tileFillOf(tile?.icon_colors))) {
+    // A tile "From icon", and a Media tile "From cover", show the neutral grey
+    // without a tint (kNeutralIdle); in Global a Media tile is white.
+    if (el.dataset.followTint === '1' && (tileFillOf(tile?.icon_colors) ||
+      (surfaceKind === 'media' && tileCoverFillOf(tile?.icon_colors) > 0))) {
       el.dataset.neutralIdle = '1';
     } else {
       delete el.dataset.neutralIdle;
