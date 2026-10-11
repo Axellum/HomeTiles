@@ -60,6 +60,23 @@ int main() {
   for (auto& p : small) p = 0x1234;
   round_corners(small, 8, 8, 10, 0x0000, wallpaper_cover::rounded_pixel_coverage);
   CHECK(small[0] == 0x1234);
+  // Rounded towards black, then the color behind turns light grey: the
+  // corners follow, fully outside pixels take the new color, the arc keeps
+  // the picture's own color, the rest stays untouched.
+  static uint16_t turned[40 * 30];
+  for (auto& p : turned) p = 0x07E0;  // green picture
+  round_corners(turned, 40, 30, 10, 0x0000, wallpaper_cover::rounded_pixel_coverage);
+  reround_corners(turned, 40, 30, 10, 0x0000, 0xE71C, wallpaper_cover::rounded_pixel_coverage);
+  static uint16_t fresh[40 * 30];
+  for (auto& p : fresh) p = 0x07E0;
+  round_corners(fresh, 40, 30, 10, 0xE71C, wallpaper_cover::rounded_pixel_coverage);
+  CHECK(turned[0] == 0xE71C && turned[39] == 0xE71C && turned[15 * 40 + 20] == 0x07E0);
+  int off = 0;
+  for (int i = 0; i < 40 * 30; ++i) {
+    const int dg = ((turned[i] >> 5) & 0x3F) - ((fresh[i] >> 5) & 0x3F);
+    if (dg > 2 || dg < -2) ++off;
+  }
+  CHECK(off == 0);
   // The title metric: whole-pixel advances per code point, a line break as a
   // space, multi-byte UTF-8 read as one character.
   size_t at = 0;
@@ -92,7 +109,7 @@ if (output !== null) {
 // ---- Web Admin: the same rule, the fields and their stored values ----
 const names = ['cameraEvery', 'cameraTransparency', 'cameraPictureOptionsOf', 'cameraPictureOptions',
   'syncCameraFields', 'loadCameraFields', 'saveCameraFields', 'resetCameraFields', 'cameraPictureHead',
-  'cameraTitleMetric', 'cameraExtent', 'cameraDarkHead'];
+  'cameraTitleMetric', 'cameraExtent', 'cameraHeadSurface', 'cameraHeadBackground', 'cameraOptionFlags'];
 const elements = new Map();
 function element(id, value = '') {
   const hidden = new Set(['hidden']);
@@ -107,14 +124,17 @@ function element(id, value = '') {
   return el;
 }
 for (const field of ['camera_entity', 'camera_display', 'camera_fit', 'camera_every', 'camera_transparency',
-                     'camera_transparency_value', 'camera_picture_fields', 'camera_every_row']) {
+                     'camera_transparency_value', 'camera_picture_fields', 'camera_every_row', 'camera_head',
+                     'camera_tap', 'camera_tap_row']) {
   element('t_' + field);
 }
 const context = {
   document: {getElementById: id => elements.get(id) || null},
   FormData, Math, Number, String,
   CAMERA_FITS: ['fill', 'fit', 'original'],
-  CAMERA_TILE_LAYOUT: {darkFrom: 50},
+  CAMERA_TAP_FULL: 1,
+  CAMERA_HEAD_LIGHT: 2,
+  CAMERA_HEAD_DARK: 4,
   loadIconColorFields() {}, saveIconColorFields() {}, resetIconColorFields() {},
   maybeFillTitleFromEntity() {}, syncSwitchChoices() {}
 };
@@ -127,9 +147,11 @@ const hidden = field => elements.get('t_' + field).classList.contains('hidden');
 // A stored picture tile: the fields show its options, the picture rows and a
 // camera's interval show.
 context.loadCameraFields('t', {sensor_entity: 'camera.door', sensor_display_mode: 1, sensor_decimals: 1,
-                               image_slideshow_sec: 5, key_code: 30});
-assert.deepEqual([value('camera_display'), value('camera_fit'), value('camera_every'), value('camera_transparency')],
-  ['1', 'fit', '5', '30']);
+                               image_slideshow_sec: 5, key_code: 30, key_modifier: 3});
+assert.deepEqual([value('camera_display'), value('camera_fit'), value('camera_every'), value('camera_transparency'),
+                  value('camera_head'), value('camera_tap')],
+  ['1', 'fit', '5', '30', 'light', '1']);
+assert.equal(hidden('camera_tap_row'), false);
 assert.equal(hidden('camera_picture_fields'), false);
 assert.equal(hidden('camera_every_row'), false);
 assert.equal(elements.get('t_camera_transparency_value').textContent, '30 %');
@@ -137,24 +159,31 @@ const form = new FormData();
 context.saveCameraFields('t', form);
 assert.deepEqual(Object.fromEntries(form.entries()), {
   camera_entity: 'camera.door', sensor_entity: 'camera.door', camera_display: '1', camera_fit: 'fit',
-  camera_every: '5', camera_transparency: '30'});
-// An image entity sends each new picture at once: no interval.
+  camera_every: '5', camera_transparency: '30', camera_head: 'light', camera_tap: '1'});
+assert.equal(context.cameraOptionFlags({head: 'light', tap: '1'}), 3);
+assert.equal(context.cameraOptionFlags({head: 'dark', tap: '0'}), 4);
+assert.equal(context.cameraOptionFlags({head: 'auto', tap: '0'}), 0);
+// An image entity sends each new picture at once and has no popup: no
+// interval, no tap choice.
 elements.get('t_camera_entity').value = 'image.vacuum_map';
 context.syncCameraFields('t');
 assert.equal(hidden('camera_every_row'), true);
+assert.equal(hidden('camera_tap_row'), true);
 // A tile from before the picture (0xFF decimals come as -1): the icon, fill,
 // 10 s, opaque; the picture rows stay hidden.
 context.loadCameraFields('t', {sensor_entity: 'camera.door', sensor_display_mode: 0, sensor_decimals: -1,
                                image_slideshow_sec: 10, key_code: 0});
-assert.deepEqual([value('camera_display'), value('camera_fit'), value('camera_every'), value('camera_transparency')],
-  ['0', 'fill', '10', '0']);
+assert.deepEqual([value('camera_display'), value('camera_fit'), value('camera_every'), value('camera_transparency'),
+                  value('camera_head'), value('camera_tap')],
+  ['0', 'fill', '10', '0', 'auto', '0']);
 assert.equal(hidden('camera_picture_fields'), true);
 assert.deepEqual(plain(context.cameraPictureOptionsOf({sensor_display_mode: 1, sensor_decimals: 2, image_slideshow_sec: 99,
                                                  key_code: 250})),
-  {picture: true, fit: 'original', every: 10, transparency: 100});
+  {picture: true, fit: 'original', every: 10, transparency: 100, head: 'auto', tap: '0'});
 context.resetCameraFields('t');
 assert.deepEqual([value('camera_entity'), value('camera_display'), value('camera_fit'), value('camera_every'),
-                  value('camera_transparency')], ['', '0', 'fill', '10', '0']);
+                  value('camera_transparency'), value('camera_head'), value('camera_tap')],
+  ['', '0', 'fill', '10', '0', 'auto', '0']);
 if (hostLines) {
   for (const [index, args] of CASES.entries()) {
     const head = context.cameraPictureHead(...args);
@@ -171,11 +200,18 @@ assert.equal(context.cameraTitleMetric(layout, 'Tür Ost'), 66);
 assert.equal(context.cameraExtent(0, 1, 194, 16), 194);
 assert.equal(context.cameraExtent(0, 2, 194, 16), 404);
 assert.equal(context.cameraExtent(1.5, 1, 194, 16), 194);
-// The dark head from 50 % transparency, only with the picture at full height.
-assert.equal(context.cameraDarkHead({picture: true, transparency: 50}, false), true);
-assert.equal(context.cameraDarkHead({picture: true, transparency: 45}, false), false);
-assert.equal(context.cameraDarkHead({picture: true, transparency: 80}, true), false);
-assert.equal(context.cameraDarkHead({picture: false, transparency: 80}, false), false);
+// The head follows the design or draws dark or light (user 2026-10-11:
+// "Automatisch / Dunkel / Hell", Automatisch by default) at every
+// transparency, only with the picture at full height.
+assert.equal(context.cameraHeadSurface({picture: true, head: 'auto'}, false), 'auto');
+assert.equal(context.cameraHeadBackground('auto'), 'var(--tile-card)');
+assert.equal(context.cameraHeadSurface({picture: true, transparency: 0, head: 'dark'}, false), 'dark');
+assert.equal(context.cameraHeadSurface({picture: true, transparency: 80, head: 'dark'}, false), 'dark');
+assert.equal(context.cameraHeadSurface({picture: true, transparency: 80, head: 'light'}, false), 'light');
+assert.equal(context.cameraHeadSurface({picture: true, head: 'dark'}, true), '');
+assert.equal(context.cameraHeadSurface({picture: false, head: 'dark'}, false), '');
+assert.equal(context.cameraHeadBackground('dark'), 'var(--tile-default-bg)');
+assert.equal(context.cameraHeadBackground('light'), 'var(--pvl-card)');
 
 // ---- The panel ----
 const options = readRepoFile('src/types/camera/picture.h');
@@ -208,6 +244,9 @@ assert.match(picture, /show\(\*tile, \*picture\);\s*break;/, 'one decode per loo
 assert.match(picture, /tile_icon_disc::mark_surface\(obj\);\s*lv_obj_set_style_bg_opa\(obj, static_cast<lv_opa_t>\(\(kTransparencyMax - transparency\) \* 255 \/ kTransparencyMax\), 0\);/,
   'circle and pill take the controls\' color at the tile\'s transparency');
 assert.match(picture, /tile_icon_disc::shrink_corner_disc\(obj\);/);
+// The corners follow the color behind the card (a theme change) at once.
+assert.match(picture, /\/\/ Every pass: a design change turns the corners with the next frame\.\s*for \(PictureTile\* tile : g_tiles\) follow_corners\(\*tile\);/);
+assert.match(picture, /g_parked\.erase\(it\);\s*follow_corners\(tile\);/);
 // A rebuilt tile (every Web Admin change) shows its pixels at once, or the
 // waiting picture right away, never the icon look in between.
 assert.match(picture, /void delete_cb\(lv_event_t\* event\) \{[\s\S]*?park\(\*tile\);/);
@@ -217,13 +256,31 @@ assert.match(picture, /if \(it->fit == tile\.fit\) memcpy\(tile\.key, it->key, s
 assert.match(picture, /while \(!g_parked\.empty\(\) && now - g_parked\.front\(\)\.since_ms >= kParkedMs\) \{/);
 // Panel and preview choose the same head: the title metric, not the kerned width.
 assert.match(picture, /text_w = title_metric\(lv_obj_get_style_text_font\(tile\.title, LV_PART_MAIN\), text\);/);
-assert.match(picture, /return wanted\(tile\) && tile\.span_h >= 1 && transparency\(tile\) >= kDarkHeadFrom &&\s*networkManager\.linkConfigured\(\);/);
+assert.match(picture, /bool head_over_picture\(const Tile& tile\) \{[\s\S]*?return wanted\(tile\) && tile\.span_h >= 1;/,
+  'drawn at boot before the link is known: not tied to it');
+assert.match(options, /inline bool light_head\(const Tile& tile\) \{ return \(tile\.key_modifier & kHeadLight\) != 0; \}/);
+assert.doesNotMatch(picture, /kDarkHeadFrom/, 'no switch at a transparency');
+// A tap can open a camera straight in full screen; a tap there closes it to
+// the tiles without the popup in between.
+assert.match(options, /return tile\.type == TILE_CAMERA && \(tile\.key_modifier & kTapFullScreen\) && is_camera\(tile\.sensor_entity\);/);
+assert.match(readRepoFile('src/types/camera/renderer.cpp'), /init\.full_screen = data->full_screen;/);
+const popup = readRepoFile('src/ui/popups/camera/camera_popup.cpp');
+assert.match(popup, /g_camera_popup->open_full = g_open_next_full \|\| init\.full_screen;\s*g_camera_popup->close_on_leave = init\.full_screen;/);
+assert.match(popup, /g_camera_popup->full_request = g_camera_popup->close_on_leave \? kFullClose : kFullLeave;/);
+assert.match(popup, /\} else if \(full_request == kFullClose\) \{\s*close_camera_popup\(\);\s*return;\s*\}/);
+assert.match(popup, /g_camera_popup->open_full = false;\s*g_camera_popup->close_on_leave = false;/, 'closing forgets it');
+// No popup on the way into it (user 2026-10-11): the card stays hidden and
+// shows only where the full screen cannot start; closing redraws the screen.
+assert.match(popup, /if \(g_camera_popup->shell_skipped\) \{\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*lv_obj_add_flag\(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN\);\s*finish_camera_popup_open\(init\);/);
+assert.match(popup, /if \(g_camera_popup->open_full && !g_camera_popup->full\) \{\s*reveal_skipped_popup\(g_camera_popup\);\s*open_popup_stream\(g_camera_popup\);/);
+assert.match(popup, /if \(shell_shown\) \{\s*hide_popup_shell\(g_camera_popup->card\);\s*\} else \{[\s\S]*?lv_obj_invalidate\(lv_screen_active\(\)\);/);
+assert.match(handler, /tile\.key_modifier = static_cast<uint8_t>\(\(server\.arg\("camera_tap"\) == "1" \? camera_picture::kTapFullScreen : 0\) \|\s*\(server\.arg\("camera_head"\) == "light"  \? camera_picture::kHeadLight\s*: server\.arg\("camera_head"\) == "dark" \? camera_picture::kHeadDark\s*: 0\)\);/);
 const tiles = readRepoFile('src/tiles/runtime/tile_renderer.cpp');
-assert.match(tiles, /if \(grid_type != GridType::SCREENSAVER && camera_picture::dark_head\(tile\)\) return tile_surface::kDark;/,
-  'the dark head draws on the dark surface in either theme');
-assert.match(tiles, /tile_has_own_color\(tile\) \|\| camera_picture::dark_head\(tile\)\) \{\s*return 0;/);
+assert.match(tiles, /if \(grid_type != GridType::SCREENSAVER && camera_picture::head_over_picture\(tile\)\) \{\s*return camera_picture::light_head\(tile\)  \? tile_surface::kLight\s*: camera_picture::dark_head\(tile\) \? tile_surface::kDark\s*: tile_surface::kNone;/,
+  'the head follows the design or draws on its fixed surface');
+assert.match(tiles, /tile_has_own_color\(tile\) \|\| camera_picture::head_over_picture\(tile\)\) \{\s*return 0;/);
 assert.match(readRepoFile('src/types/camera/renderer.cpp'),
-  /const uint32_t card_color = camera_picture::dark_head\(tile\) \? tileDefaultBgColor\(\)/);
+  /const uint32_t card_color = camera_picture::head_over_picture\(tile\)\s*\? tileDefaultBgColor\(\)/);
 const scripts = readRepoFile('src/types/camera/web_scripts.cpp');
 assert.match(scripts, /for \(uint32_t code = 0x20; code <= 0x17F; \+\+code\) \{/);
 assert.match(scripts, /lv_font_get_glyph_width\(font, code, 0\)/, 'advances without kerning, like title_metric');
@@ -258,7 +315,10 @@ assert.match(html, /appendEntityPickerField\(html, tab_id, "camera_entity", tr\.
 assert.match(html, /append_switch_choice\(html, tab_id, "camera_display", tr\.camera_show, shows, 2\);/);
 assert.match(html, /append_switch_choice\(html, tab_id, "camera_fit", tr\.screensaver_picture_fit, fits, 3\);/);
 assert.match(html, /_camera_transparency" min="0" max="100" step="5" value="0">/);
-assert.match(readRepoFile('src/types/switch/admin.js'), /'camera_display', 'camera_fit'\];/);
+assert.match(html, /append_switch_choice\(html, tab_id, "camera_head", tr\.camera_head, heads, 3\);/);
+assert.match(html, /append_switch_choice\(html, tab_id, "camera_tap", tr\.camera_tap, taps, 2\);/);
+assert.doesNotMatch(html, /class="hint"|screensaver_picture_hint/, 'no hint text under the options');
+assert.match(readRepoFile('src/types/switch/admin.js'), /'camera_display', 'camera_fit',\s*'camera_head', 'camera_tap'\];/);
 assert.match(readRepoFile('src/web/admin/tiles/live-preview.js'),
   /applyCameraPicturePreview\(tileElem, cameraPictureOptions\(tab\), halfHeight, \{\s*col: Number\(tileElem\.dataset\.col \|\| 0\),\s*span_w: Number\(document\.getElementById\(prefix \+ '_tile_span_w'\)\?\.value \|\| 1\)\}\);/);
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
@@ -275,9 +335,9 @@ assert.match(css, /\.tile\.camera\.camera-picture \{\s*display:block;\s*backgrou
   'the stand-in is a background layer, no extra layer below the head');
 assert.doesNotMatch(css, /\.tile\.camera\.camera-picture::before/);
 const live = readRepoFile('src/web/admin/tiles/live-preview.js');
-assert.match(live, /const cameraDark = meta\.preview === 'camera' && cameraDarkHead\(cameraPictureOptions\(tab\), halfHeight\);\s*if \(cameraDark\) tileElem\.style\.background = 'var\(--tile-default-bg\)';/);
+assert.match(live, /const cameraHead = meta\.preview === 'camera' \? cameraHeadSurface\(cameraPictureOptions\(tab\), halfHeight\) : '';\s*if \(cameraHead\) tileElem\.style\.background = cameraHeadBackground\(cameraHead\);/);
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
-  /el\.style\.background = cameraDark \? 'var\(--tile-default-bg\)' : bg;/);
+  /el\.style\.background = cameraHead \? cameraHeadBackground\(cameraHead\) : bg;/);
 assert.match(css, /\.tile\.camera-picture\.camera-head-shared > \.tile-icon::after \{ opacity:0; \}/);
 
 console.log('Camera tile picture: Sensor head with a title pill (shared when close), transparency, tile-size pictures');

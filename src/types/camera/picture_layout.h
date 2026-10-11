@@ -118,4 +118,40 @@ inline void round_corners(uint16_t* pixels, uint16_t w, uint16_t h, uint16_t rad
   }
 }
 
+// The corners of a picture rounded towards `old_under` turned towards
+// `new_under` instead (the color behind the card changed, e.g. the theme):
+// each corner pixel's own color is recovered from its old blend.
+template <typename Coverage>
+inline void reround_corners(uint16_t* pixels, uint16_t w, uint16_t h, uint16_t radius, uint16_t old_under,
+                            uint16_t new_under, Coverage coverage) {
+  if (!pixels || old_under == new_under || radius == 0 || w < 2 * radius || h < 2 * radius) return;
+  auto unblend = [](int value, int under, int c, int max) {
+    const int own = (value * 16 - under * (16 - c) + c / 2) / c;
+    return own < 0 ? 0 : own > max ? max : own;
+  };
+  auto turn = [&](uint16_t& px, uint8_t c) {
+    if (c >= 16) return;
+    if (c == 0) {
+      px = new_under;
+      return;
+    }
+    const int r = unblend((px >> 11) & 0x1F, (old_under >> 11) & 0x1F, c, 0x1F);
+    const int g = unblend((px >> 5) & 0x3F, (old_under >> 5) & 0x3F, c, 0x3F);
+    const int b = unblend(px & 0x1F, old_under & 0x1F, c, 0x1F);
+    px = blend565(static_cast<uint16_t>((r << 11) | (g << 5) | b), new_under, c);
+  };
+  for (uint16_t y = 0; y < h; ++y) {
+    if (y >= radius && y < h - radius) {
+      y = static_cast<uint16_t>(h - radius - 1);
+      continue;
+    }
+    uint16_t* row = pixels + static_cast<uint32_t>(y) * w;
+    for (uint16_t x = 0; x < radius; ++x) {
+      turn(row[x], coverage(x, y, w, h, radius));
+      const uint16_t right = static_cast<uint16_t>(w - 1 - x);
+      turn(row[right], coverage(right, y, w, h, radius));
+    }
+  }
+}
+
 }  // namespace camera_picture_layout

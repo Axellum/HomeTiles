@@ -10,6 +10,9 @@ struct CameraPopupInit {
   uint32_t bg_color = ui_theme::popup_card();
   // Header icon color: the tile's fixed icon color, else white.
   uint32_t icon_color = 0xFFFFFF;
+  // A tile set to open in full screen (types/camera/picture.h): straight to
+  // the full screen, and a tap there closes the popup back to the tiles.
+  bool full_screen = false;
 };
 
 void show_camera_popup(const CameraPopupInit& init);

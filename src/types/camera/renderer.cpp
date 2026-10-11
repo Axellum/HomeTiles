@@ -25,6 +25,8 @@ struct CameraEventData {
   String title;
   String icon_name;
   uint32_t bg_color = 0;  // 0: the popup takes its default card
+  // A tap opens the full screen straight away (camera_picture::tap_full_screen).
+  bool full_screen = false;
 };
 
 static String friendly_camera_name(const String& entity_id) {
@@ -55,6 +57,7 @@ static void camera_tile_event_cb(lv_event_t* event) {
   lv_obj_t* icon = tile_icon_source::card_icon(static_cast<lv_obj_t*>(lv_event_get_current_target(event)));
   init.icon_color =
       icon ? lv_color_to_u32(lv_obj_get_style_text_color(icon, LV_PART_MAIN)) & 0xFFFFFF : 0xFFFFFF;
+  init.full_screen = data->full_screen;
   show_camera_popup(init);
 }
 
@@ -75,11 +78,12 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
 
   lv_obj_t* card = lv_button_create(parent);
   if (!card) return nullptr;
-  // The dark head over a picture (picture.h) draws on the dark surface
-  // (tile_renderer.cpp tile_surface_of): its card takes the dark theme's
-  // tile color, which this scope gives, whatever the tile's own color.
-  const uint32_t card_color = camera_picture::dark_head(tile) ? tileDefaultBgColor()
-                                                              : tileBgColorOrDefault(tile, tileDefaultBgColor());
+  // The head over a picture (picture.h) draws on its fixed surface
+  // (tile_renderer.cpp tile_surface_of): its card takes that theme's tile
+  // color, which this scope gives, whatever the tile's own color.
+  const uint32_t card_color = camera_picture::head_over_picture(tile)
+                                  ? tileDefaultBgColor()
+                                  : tileBgColorOrDefault(tile, tileDefaultBgColor());
   lv_obj_set_style_bg_color(card, lv_color_hex(card_color),
                             LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE,
@@ -150,7 +154,7 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
   if (grid_type != GridType::SCREENSAVER && tile.sensor_entity.length() &&
       !camera_picture::is_image(tile.sensor_entity)) {
     CameraEventData* event_data = new CameraEventData{
-        tile.sensor_entity, title, icon_name, card_color};
+        tile.sensor_entity, title, icon_name, card_color, camera_picture::tap_full_screen(tile)};
     lv_obj_add_event_cb(card, camera_tile_event_cb, LV_EVENT_SHORT_CLICKED,
                         event_data);
     lv_obj_add_event_cb(card, camera_tile_delete_cb, LV_EVENT_DELETE,

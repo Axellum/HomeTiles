@@ -4318,6 +4318,7 @@ function syncTileRadiusControls(tabEl) {
       tile.sensor_decimals = Math.max(0, CAMERA_FITS.indexOf(String(snapshot.camera_fit)));
       tile.image_slideshow_sec = cameraEvery(snapshot.camera_every);
       tile.key_code = cameraTransparency(snapshot.camera_transparency);
+      tile.key_modifier = cameraOptionFlags({head: snapshot.camera_head, tap: snapshot.camera_tap});
     }
     for (const kind of ['lock', 'alarm', 'fan']) {
       if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, kind + '_entity')) tile.sensor_entity = snapshot[kind + '_entity'] || '';
@@ -7417,7 +7418,8 @@ function syncTileRadiusControls(tabEl) {
     });
     // The picture options (types/camera/admin.js); the slider follows live.
     for (const [field, eventName] of [['camera_display', 'change'], ['camera_fit', 'change'],
-                                      ['camera_every', 'change'], ['camera_transparency', 'input']]) {
+                                      ['camera_every', 'change'], ['camera_transparency', 'input'],
+                                      ['camera_head', 'change'], ['camera_tap', 'change']]) {
       bindLive(document.getElementById(prefix + '_' + field), eventName, field, () => {
         syncCameraFields(tab);
         updateTilePreview(tab);
@@ -7791,13 +7793,13 @@ function syncTileRadiusControls(tabEl) {
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      // A Camera tile's dark head over its picture: the dark surface on the
-      // dark theme's tile color (picture.h dark_head).
-      const cameraDark = meta.preview === 'camera' && cameraDarkHead(cameraPictureOptions(tab), halfHeight);
-      if (cameraDark) tileElem.style.background = 'var(--tile-default-bg)';
+      // A Camera tile's head over its picture: its fixed surface on that
+      // theme's tile color (picture.h head_over_picture).
+      const cameraHead = meta.preview === 'camera' ? cameraHeadSurface(cameraPictureOptions(tab), halfHeight) : '';
+      if (cameraHead) tileElem.style.background = cameraHeadBackground(cameraHead);
       const surface = globalThis.hometilesPreviewForcedSurface ||
-        (cameraDark ? 'dark' : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
-      if (!cameraDark && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).
@@ -9342,6 +9344,8 @@ function syncTileRadiusControls(tabEl) {
       fd.append('camera_fit', picture.fit);
       fd.append('camera_every', String(picture.every));
       fd.append('camera_transparency', String(picture.transparency));
+      fd.append('camera_head', picture.head);
+      fd.append('camera_tap', picture.tap);
     } else if (safeType === 16) {
       fd.append('animation_file', tile.animation_file || tile.scene_alias || '');
       fd.append('animation_fps', tile.animation_fps || tile.image_slideshow_sec || '10');
@@ -10107,11 +10111,13 @@ function syncTileRadiusControls(tabEl) {
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
-    // A Camera tile's dark head over its picture (picture.h dark_head).
-    const cameraDark = surfaceKind === 'camera' && cameraDarkHead(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5);
-    const surface = forcedSurface || (cameraDark ? 'dark' : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
+    // A Camera tile's head over its picture (picture.h head_over_picture).
+    const cameraHead = surfaceKind === 'camera'
+      ? cameraHeadSurface(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5) : '';
+    const surface = forcedSurface || (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead)
+      : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
       : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
-    if (surfaceType !== '0' && !cameraDark && typeof tileFollowsTint === 'function' &&
+    if (surfaceType !== '0' && !cameraHead && typeof tileFollowsTint === 'function' &&
         tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
       el.dataset.followTint = '1';
     } else {
@@ -10176,7 +10182,7 @@ function syncTileRadiusControls(tabEl) {
         // A fully transparent card casts no shadow (apply_slot_tile_shadows).
         el.classList.toggle('screensaver-bg-clear', opacity === 0);
       } else {
-        el.style.background = cameraDark ? 'var(--tile-default-bg)' : bg;
+        el.style.background = cameraHead ? cameraHeadBackground(cameraHead) : bg;
       }
     }
     if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);
@@ -15156,10 +15162,11 @@ function maybeFillTitleFromSwitch(tab) {
   // The segmented choices of the Switch fields (like Tile color). The hidden
   // select of each keeps the value; a button sets it and fires its change
   // event, so the existing preview, draft and autosave bindings run.
-  // The Climate tile's Layout and the Camera tile's Show and Scaling use the
-  // same segmented choice.
+  // The Climate tile's Layout and the Camera tile's choices use the same
+  // segmented choice.
   const SWITCH_CHOICE_FIELDS = ['switch_style', 'switch_value_font', 'switch_popup_open_mode', 'climate_view',
-    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font', 'camera_display', 'camera_fit'];
+    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font', 'camera_display', 'camera_fit',
+    'camera_head', 'camera_tap'];
 
   function syncSwitchChoices(tab) {
     for (const field of SWITCH_CHOICE_FIELDS) {
@@ -18936,10 +18943,15 @@ function maybeFillTitleFromMedia(tab) {
   // The Camera tile's picture (src/types/camera/picture.h), kept in fields
   // the tile does not use otherwise: sensor_display_mode 1 = the picture,
   // sensor_decimals its placement (0 fill, 1 fit, 2 original), image_slideshow_sec
-  // a camera's interval and key_code the transparency of the circle and the
-  // title pill. The form sends camera_display, camera_fit, camera_every and
-  // camera_transparency (web_handler.cpp).
+  // a camera's interval, key_code the transparency of the circle and the
+  // title pill, key_modifier bit 0 a tap opens the full screen, bit 1 the
+  // light and bit 2 the dark head (neither: the design's). The form sends camera_display, camera_fit,
+  // camera_every, camera_transparency, camera_head and camera_tap
+  // (web_handler.cpp).
   const CAMERA_FITS = ['fill', 'fit', 'original'];
+  const CAMERA_TAP_FULL = 1;
+  const CAMERA_HEAD_LIGHT = 2;
+  const CAMERA_HEAD_DARK = 4;
 
   function cameraEvery(value) {
     const seconds = Math.round(Number(value));
@@ -18953,12 +18965,21 @@ function maybeFillTitleFromMedia(tab) {
 
   // The picture options of stored tile data (GET /api/tiles, drafts, imports).
   function cameraPictureOptionsOf(tile) {
+    const flags = Number(tile?.key_modifier) || 0;
     return {
       picture: Number(tile?.sensor_display_mode) === 1,
       fit: CAMERA_FITS[Number(tile?.sensor_decimals)] || 'fill',
       every: cameraEvery(tile?.image_slideshow_sec),
-      transparency: cameraTransparency(tile?.key_code)
+      transparency: cameraTransparency(tile?.key_code),
+      head: (flags & CAMERA_HEAD_LIGHT) ? 'light' : (flags & CAMERA_HEAD_DARK) ? 'dark' : 'auto',
+      tap: (flags & CAMERA_TAP_FULL) ? '1' : '0'
     };
+  }
+
+  // key_modifier of the options (picture.h kTapFullScreen, kHeadLight, kHeadDark).
+  function cameraOptionFlags(options) {
+    return (options?.tap === '1' ? CAMERA_TAP_FULL : 0) |
+      (options?.head === 'light' ? CAMERA_HEAD_LIGHT : options?.head === 'dark' ? CAMERA_HEAD_DARK : 0);
   }
 
   // The picture options in the editor's fields.
@@ -18969,17 +18990,21 @@ function maybeFillTitleFromMedia(tab) {
       picture: value('camera_display') === '1',
       fit: CAMERA_FITS.includes(fit) ? fit : 'fill',
       every: cameraEvery(value('camera_every')),
-      transparency: cameraTransparency(value('camera_transparency'))
+      transparency: cameraTransparency(value('camera_transparency')),
+      head: ['dark', 'light'].includes(value('camera_head')) ? value('camera_head') : 'auto',
+      tap: value('camera_tap') === '1' ? '1' : '0'
     };
   }
 
-  // The rows of a picture show only with "Picture"; the interval only for a
-  // camera (an image entity sends each new picture at once).
+  // The rows of a picture show only with "Picture"; the interval and what a
+  // tap opens only for a camera (an image entity sends each new picture at
+  // once and has no popup).
   function syncCameraFields(tab) {
     const options = cameraPictureOptions(tab);
     const entity = document.getElementById(tab + '_camera_entity')?.value || '';
     document.getElementById(tab + '_camera_picture_fields')?.classList.toggle('hidden', !options.picture);
     document.getElementById(tab + '_camera_every_row')?.classList.toggle('hidden', !entity.startsWith('camera.'));
+    document.getElementById(tab + '_camera_tap_row')?.classList.toggle('hidden', entity.startsWith('image.'));
     const output = document.getElementById(tab + '_camera_transparency_value');
     if (output) output.textContent = options.transparency + ' %';
     if (typeof syncSwitchChoices === 'function') syncSwitchChoices(tab);
@@ -19001,6 +19026,8 @@ function maybeFillTitleFromMedia(tab) {
     set('camera_fit', options.fit);
     set('camera_every', options.every);
     set('camera_transparency', options.transparency);
+    set('camera_head', options.head);
+    set('camera_tap', options.tap);
     syncCameraFields(tab);
     maybeFillTitleFromEntity(tab, '_camera_entity');
   }
@@ -19014,6 +19041,8 @@ function maybeFillTitleFromMedia(tab) {
     formData.append('camera_fit', options.fit);
     formData.append('camera_every', String(options.every));
     formData.append('camera_transparency', String(options.transparency));
+    formData.append('camera_head', options.head);
+    formData.append('camera_tap', options.tap);
     saveIconColorFields(tab, formData);
   }
   function resetCameraFields(tab) {
@@ -19028,6 +19057,8 @@ function maybeFillTitleFromMedia(tab) {
     set('camera_fit', 'fill');
     set('camera_every', '10');
     set('camera_transparency', '0');
+    set('camera_head', 'auto');
+    set('camera_tap', '0');
     syncCameraFields(tab);
   }
 
@@ -19077,12 +19108,16 @@ function maybeFillTitleFromMedia(tab) {
     return edge(position + span) - edge(position) - gap;
   }
 
-  // picture.h dark_head: from CAMERA_TILE_LAYOUT.darkFrom transparency on the
-  // head draws on the dark surface (white title and icon on a dark veil) in
-  // either theme and tile color; its card takes the dark theme's tile color.
-  function cameraDarkHead(options, halfHeight) {
-    const from = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT.darkFrom : 50;
-    return !!options?.picture && !halfHeight && cameraTransparency(options.transparency) >= from;
+  // picture.h head_over_picture: the head over the picture follows the
+  // design ('auto') or draws dark or light in either design ('' without a
+  // picture); its card takes that design's tile color, never an own color
+  // (cameraHeadBackground).
+  function cameraHeadSurface(options, halfHeight) {
+    if (!options?.picture || halfHeight) return '';
+    return ['dark', 'light'].includes(options.head) ? options.head : 'auto';
+  }
+  function cameraHeadBackground(surface) {
+    return surface === 'light' ? 'var(--pvl-card)' : surface === 'dark' ? 'var(--tile-default-bg)' : 'var(--tile-card)';
   }
 
   // The preview of a Camera tile showing its picture (live and cached grid):

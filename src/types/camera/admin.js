@@ -1,10 +1,15 @@
   // The Camera tile's picture (src/types/camera/picture.h), kept in fields
   // the tile does not use otherwise: sensor_display_mode 1 = the picture,
   // sensor_decimals its placement (0 fill, 1 fit, 2 original), image_slideshow_sec
-  // a camera's interval and key_code the transparency of the circle and the
-  // title pill. The form sends camera_display, camera_fit, camera_every and
-  // camera_transparency (web_handler.cpp).
+  // a camera's interval, key_code the transparency of the circle and the
+  // title pill, key_modifier bit 0 a tap opens the full screen, bit 1 the
+  // light and bit 2 the dark head (neither: the design's). The form sends camera_display, camera_fit,
+  // camera_every, camera_transparency, camera_head and camera_tap
+  // (web_handler.cpp).
   const CAMERA_FITS = ['fill', 'fit', 'original'];
+  const CAMERA_TAP_FULL = 1;
+  const CAMERA_HEAD_LIGHT = 2;
+  const CAMERA_HEAD_DARK = 4;
 
   function cameraEvery(value) {
     const seconds = Math.round(Number(value));
@@ -18,12 +23,21 @@
 
   // The picture options of stored tile data (GET /api/tiles, drafts, imports).
   function cameraPictureOptionsOf(tile) {
+    const flags = Number(tile?.key_modifier) || 0;
     return {
       picture: Number(tile?.sensor_display_mode) === 1,
       fit: CAMERA_FITS[Number(tile?.sensor_decimals)] || 'fill',
       every: cameraEvery(tile?.image_slideshow_sec),
-      transparency: cameraTransparency(tile?.key_code)
+      transparency: cameraTransparency(tile?.key_code),
+      head: (flags & CAMERA_HEAD_LIGHT) ? 'light' : (flags & CAMERA_HEAD_DARK) ? 'dark' : 'auto',
+      tap: (flags & CAMERA_TAP_FULL) ? '1' : '0'
     };
+  }
+
+  // key_modifier of the options (picture.h kTapFullScreen, kHeadLight, kHeadDark).
+  function cameraOptionFlags(options) {
+    return (options?.tap === '1' ? CAMERA_TAP_FULL : 0) |
+      (options?.head === 'light' ? CAMERA_HEAD_LIGHT : options?.head === 'dark' ? CAMERA_HEAD_DARK : 0);
   }
 
   // The picture options in the editor's fields.
@@ -34,17 +48,21 @@
       picture: value('camera_display') === '1',
       fit: CAMERA_FITS.includes(fit) ? fit : 'fill',
       every: cameraEvery(value('camera_every')),
-      transparency: cameraTransparency(value('camera_transparency'))
+      transparency: cameraTransparency(value('camera_transparency')),
+      head: ['dark', 'light'].includes(value('camera_head')) ? value('camera_head') : 'auto',
+      tap: value('camera_tap') === '1' ? '1' : '0'
     };
   }
 
-  // The rows of a picture show only with "Picture"; the interval only for a
-  // camera (an image entity sends each new picture at once).
+  // The rows of a picture show only with "Picture"; the interval and what a
+  // tap opens only for a camera (an image entity sends each new picture at
+  // once and has no popup).
   function syncCameraFields(tab) {
     const options = cameraPictureOptions(tab);
     const entity = document.getElementById(tab + '_camera_entity')?.value || '';
     document.getElementById(tab + '_camera_picture_fields')?.classList.toggle('hidden', !options.picture);
     document.getElementById(tab + '_camera_every_row')?.classList.toggle('hidden', !entity.startsWith('camera.'));
+    document.getElementById(tab + '_camera_tap_row')?.classList.toggle('hidden', entity.startsWith('image.'));
     const output = document.getElementById(tab + '_camera_transparency_value');
     if (output) output.textContent = options.transparency + ' %';
     if (typeof syncSwitchChoices === 'function') syncSwitchChoices(tab);
@@ -66,6 +84,8 @@
     set('camera_fit', options.fit);
     set('camera_every', options.every);
     set('camera_transparency', options.transparency);
+    set('camera_head', options.head);
+    set('camera_tap', options.tap);
     syncCameraFields(tab);
     maybeFillTitleFromEntity(tab, '_camera_entity');
   }
@@ -79,6 +99,8 @@
     formData.append('camera_fit', options.fit);
     formData.append('camera_every', String(options.every));
     formData.append('camera_transparency', String(options.transparency));
+    formData.append('camera_head', options.head);
+    formData.append('camera_tap', options.tap);
     saveIconColorFields(tab, formData);
   }
   function resetCameraFields(tab) {
@@ -93,6 +115,8 @@
     set('camera_fit', 'fill');
     set('camera_every', '10');
     set('camera_transparency', '0');
+    set('camera_head', 'auto');
+    set('camera_tap', '0');
     syncCameraFields(tab);
   }
 
@@ -142,12 +166,16 @@
     return edge(position + span) - edge(position) - gap;
   }
 
-  // picture.h dark_head: from CAMERA_TILE_LAYOUT.darkFrom transparency on the
-  // head draws on the dark surface (white title and icon on a dark veil) in
-  // either theme and tile color; its card takes the dark theme's tile color.
-  function cameraDarkHead(options, halfHeight) {
-    const from = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT.darkFrom : 50;
-    return !!options?.picture && !halfHeight && cameraTransparency(options.transparency) >= from;
+  // picture.h head_over_picture: the head over the picture follows the
+  // design ('auto') or draws dark or light in either design ('' without a
+  // picture); its card takes that design's tile color, never an own color
+  // (cameraHeadBackground).
+  function cameraHeadSurface(options, halfHeight) {
+    if (!options?.picture || halfHeight) return '';
+    return ['dark', 'light'].includes(options.head) ? options.head : 'auto';
+  }
+  function cameraHeadBackground(surface) {
+    return surface === 'light' ? 'var(--pvl-card)' : surface === 'dark' ? 'var(--tile-default-bg)' : 'var(--tile-card)';
   }
 
   // The preview of a Camera tile showing its picture (live and cached grid):

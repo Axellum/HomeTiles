@@ -30,10 +30,11 @@ function maybeFillTitleFromSwitch(tab) {
   // The segmented choices of the Switch fields (like Tile color). The hidden
   // select of each keeps the value; a button sets it and fires its change
   // event, so the existing preview, draft and autosave bindings run.
-  // The Climate tile's Layout and the Camera tile's Show and Scaling use the
-  // same segmented choice.
+  // The Climate tile's Layout and the Camera tile's choices use the same
+  // segmented choice.
   const SWITCH_CHOICE_FIELDS = ['switch_style', 'switch_value_font', 'switch_popup_open_mode', 'climate_view',
-    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font', 'camera_display', 'camera_fit'];
+    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font', 'camera_display', 'camera_fit',
+    'camera_head', 'camera_tap'];
 
   function syncSwitchChoices(tab) {
     for (const field of SWITCH_CHOICE_FIELDS) {

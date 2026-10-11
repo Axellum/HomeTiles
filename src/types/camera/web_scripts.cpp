@@ -18,10 +18,9 @@ void append_camera_scripts(String& html) {
   char text[200];
   snprintf(text, sizeof(text),
            "  <script>\n  const CAMERA_TILE_LAYOUT = Object.freeze({cellW: %d, cellH: %d, gap: %d, inset: %d, "
-           "disc: %d, shrink: %d, pad: %d, darkFrom: %u, first: 32, adv: [",
+           "disc: %d, shrink: %d, pad: %d, first: 32, adv: [",
            GRID_CELL_W, GRID_CELL_H, GRID_GAP, tile_icon_disc::inset(), tile_icon_disc::header_diameter(icon_w),
-           tile_icon_disc::corner_shrink(), static_cast<int>(tile_layout::scale_480(camera_picture::kTitlePad)),
-           static_cast<unsigned>(camera_picture::kDarkHeadFrom));
+           tile_icon_disc::corner_shrink(), static_cast<int>(tile_layout::scale_480(camera_picture::kTitlePad)));
   html += text;
   const lv_font_t* font = tile_layout::header_title_font();
   for (uint32_t code = 0x20; code <= 0x17F; ++code) {

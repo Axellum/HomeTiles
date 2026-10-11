@@ -378,7 +378,8 @@
     });
     // The picture options (types/camera/admin.js); the slider follows live.
     for (const [field, eventName] of [['camera_display', 'change'], ['camera_fit', 'change'],
-                                      ['camera_every', 'change'], ['camera_transparency', 'input']]) {
+                                      ['camera_every', 'change'], ['camera_transparency', 'input'],
+                                      ['camera_head', 'change'], ['camera_tap', 'change']]) {
       bindLive(document.getElementById(prefix + '_' + field), eventName, field, () => {
         syncCameraFields(tab);
         updateTilePreview(tab);

@@ -932,6 +932,8 @@
       fd.append('camera_fit', picture.fit);
       fd.append('camera_every', String(picture.every));
       fd.append('camera_transparency', String(picture.transparency));
+      fd.append('camera_head', picture.head);
+      fd.append('camera_tap', picture.tap);
     } else if (safeType === 16) {
       fd.append('animation_file', tile.animation_file || tile.scene_alias || '');
       fd.append('animation_fps', tile.animation_fps || tile.image_slideshow_sec || '10');

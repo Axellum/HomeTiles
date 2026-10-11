@@ -636,7 +636,14 @@ static const Strings kStringsDe = {
     "Anzeige",
     "Icon",
     "Bild",
-    "Transparenz von Kreis und Titel"};
+    "Transparenz von Kreis und Titel",
+    "Kreis und Titel",
+    "Automatisch",
+    "Dunkel",
+    "Hell",
+    "Tippen öffnet",
+    "Popup",
+    "Vollbild"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1267,7 +1274,14 @@ static const Strings kStringsEn = {
     "Show",
     "Icon",
     "Picture",
-    "Circle and title transparency"};
+    "Circle and title transparency",
+    "Circle and title",
+    "Automatic",
+    "Dark",
+    "Light",
+    "Tap opens",
+    "Popup",
+    "Full screen"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1898,7 +1912,14 @@ static const Strings kStringsFr = {
     "Affichage",
     "Icône",
     "Image",
-    "Transparence du cercle et du titre"};
+    "Transparence du cercle et du titre",
+    "Cercle et titre",
+    "Automatique",
+    "Sombre",
+    "Clair",
+    "Un appui ouvre",
+    "Popup",
+    "Plein écran"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2884,6 +2905,13 @@ static const Strings kStringsPl = {
     "Ikona",
     "Obraz",
     "Przezroczystość koła i tytułu",
+    "Koło i tytuł",
+    "Automatycznie",
+    "Ciemne",
+    "Jasne",
+    "Dotknięcie otwiera",
+    "Okno",
+    "Pełny ekran",
 };
 
 static const LocaleProfile kLocalePl = {

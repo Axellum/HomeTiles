@@ -41,6 +41,10 @@ struct PictureTile {
   uint8_t every = bridge_images::kEveryDefault;
   uint8_t transparency = 0;
   char key[bridge_images::kKeyLength + 1] = "";
+  // The color the corners were rounded towards (native RGB565) and with
+  // which radius: they follow the color behind the card (follow_corners).
+  uint16_t under = 0;
+  uint16_t radius = 0;
   // A picture may wait in bridge_images (attached, or one arrived).
   bool due = true;
 };
@@ -61,6 +65,8 @@ struct Parked {
   uint8_t fit = bridge_images::kFill;
   char key[bridge_images::kKeyLength + 1] = "";
   lv_image_dsc_t* dsc = nullptr;
+  uint16_t under = 0;
+  uint16_t radius = 0;
   uint32_t since_ms = 0;
 };
 std::vector<Parked> g_parked;
@@ -89,6 +95,8 @@ void park(PictureTile& tile) {
   parked.fit = tile.fit;
   memcpy(parked.key, tile.key, sizeof(parked.key));
   parked.dsc = tile.dsc;
+  parked.under = tile.under;
+  parked.radius = tile.radius;
   parked.since_ms = millis();
   tile.dsc = nullptr;
   g_parked.push_back(parked);
@@ -220,10 +228,9 @@ void show(PictureTile& tile, const bridge_images::Picture& picture) {
     Serial.printf("[CameraTile] %s: picture could not be decoded\n", tile.entity.c_str());
     return;
   }
-  const int radius = lv_obj_get_style_radius(tile.card, LV_PART_MAIN);
-  camera_picture_layout::round_corners(pixels, w, h, static_cast<uint16_t>(std::max(0, radius)),
-                                       camera_picture_layout::rgb565(color_behind(tile.card)),
-                                       wallpaper_cover::rounded_pixel_coverage);
+  const uint16_t radius = static_cast<uint16_t>(std::max(0, static_cast<int>(lv_obj_get_style_radius(tile.card, LV_PART_MAIN))));
+  const uint16_t under = camera_picture_layout::rgb565(color_behind(tile.card));
+  camera_picture_layout::round_corners(pixels, w, h, radius, under, wallpaper_cover::rounded_pixel_coverage);
   lv_image_dsc_t* dsc = static_cast<lv_image_dsc_t*>(malloc(sizeof(lv_image_dsc_t)));
   if (!dsc) {
     free(pixels);
@@ -245,6 +252,8 @@ void show(PictureTile& tile, const bridge_images::Picture& picture) {
   lv_image_set_src(tile.image, dsc);
   free_dsc(tile.dsc);
   tile.dsc = dsc;
+  tile.under = under;
+  tile.radius = radius;
   memcpy(tile.key, picture.key, sizeof(tile.key));
   Serial.printf("[CameraTile] %s %s shown in %lu ms\n", tile.entity.c_str(), tile.key,
                 static_cast<unsigned long>(millis() - started_ms));
@@ -272,6 +281,22 @@ void update_topics() {
   mqttSetTilePictures(entities.data(), suffixes.data(), entities.size());
 }
 
+// The corners follow the color behind the card at once (user 2026-10-11:
+// black corners stayed after the theme turned light until a new picture
+// came, which for an unchanged camera still can take long): turned in
+// place, the image drawn again.
+void follow_corners(PictureTile& tile) {
+  if (!tile.dsc || !tile.image) return;
+  const uint16_t under = camera_picture_layout::rgb565(color_behind(tile.card));
+  if (under == tile.under) return;
+  camera_picture_layout::reround_corners(reinterpret_cast<uint16_t*>(const_cast<uint8_t*>(tile.dsc->data)),
+                                         tile.width, tile.height, tile.radius, tile.under, under,
+                                         wallpaper_cover::rounded_pixel_coverage);
+  tile.under = under;
+  lv_image_cache_drop(tile.dsc);
+  lv_obj_invalidate(tile.image);
+}
+
 // A rebuilt tile takes the pixels its card had (Parked): the same picture,
 // or for the moment one of the other placement until its own arrives.
 bool adopt_parked(PictureTile& tile) {
@@ -282,8 +307,11 @@ bool adopt_parked(PictureTile& tile) {
     if (!tile.image && !show_head(tile)) return false;
     lv_image_set_src(tile.image, it->dsc);
     tile.dsc = it->dsc;
+    tile.under = it->under;
+    tile.radius = it->radius;
     if (it->fit == tile.fit) memcpy(tile.key, it->key, sizeof(tile.key));
     g_parked.erase(it);
+    follow_corners(tile);
     return true;
   }
   return false;
@@ -291,9 +319,10 @@ bool adopt_parked(PictureTile& tile) {
 
 }  // namespace
 
-bool dark_head(const Tile& tile) {
-  return wanted(tile) && tile.span_h >= 1 && transparency(tile) >= kDarkHeadFrom &&
-         networkManager.linkConfigured();
+bool head_over_picture(const Tile& tile) {
+  // Not tied to the link: the tiles are drawn at boot before the network
+  // knows its link (user 2026-10-11: the head turned dark only after an edit).
+  return wanted(tile) && tile.span_h >= 1;
 }
 
 int title_metric(const lv_font_t* font, const char* text) {
@@ -349,6 +378,8 @@ void service() {
     g_topics_ms = now;
     update_topics();
   }
+  // Every pass: a design change turns the corners with the next frame.
+  for (PictureTile* tile : g_tiles) follow_corners(*tile);
   // One decode per call keeps the loop responsive with many tiles.
   for (PictureTile* tile : g_tiles) {
     if (!tile->due) continue;

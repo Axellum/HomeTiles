@@ -16,6 +16,10 @@
 //   image_slideshow_sec  a camera's interval, 3..60 s
 //   key_code             transparency of the circle and the title pill over
 //                        the picture in percent (0 opaque .. 100 none)
+//   key_modifier         bit 0: a tap opens the camera straight in full
+//                        screen, and a tap there closes it back to the tiles
+//                        (icon look too); bits 1-2: circle and title
+//                        follow the design (0), light (1) or dark (2)
 // Over the direct link only; without it, at half height and until the first
 // picture arrives the tile shows its icon and title as before.
 namespace camera_picture {
@@ -23,10 +27,9 @@ namespace camera_picture {
 constexpr uint8_t kShowIcon = 0;
 constexpr uint8_t kShowPicture = 1;
 constexpr uint8_t kTransparencyMax = 100;
-// From this transparency on, the head over the picture draws on the dark
-// surface: a dark veil with a white title and icon, in either theme and tile
-// color (user 2026-10-11: a see-through light pill kept its dark title).
-constexpr uint8_t kDarkHeadFrom = 50;
+constexpr uint8_t kTapFullScreen = 0x01;
+constexpr uint8_t kHeadLight = 0x02;
+constexpr uint8_t kHeadDark = 0x04;
 // The title's distance to the visible end of its pill (480 scale).
 constexpr int kTitlePad = 12;
 
@@ -53,11 +56,20 @@ inline uint8_t transparency(const Tile& tile) {
   return tile.key_code > kTransparencyMax ? kTransparencyMax : tile.key_code;
 }
 
-// The tile shows its picture with the dark head (kDarkHeadFrom): its card
-// draws on the dark surface from the start (tile_renderer.cpp
-// tile_surface_of), so title, icon, circle and pill take the dark rules.
-// Only over the link and at full height, where the picture can show.
-bool dark_head(const Tile& tile);
+// A tap opens a camera straight in full screen (an image has no popup).
+inline bool tap_full_screen(const Tile& tile) {
+  return tile.type == TILE_CAMERA && (tile.key_modifier & kTapFullScreen) && is_camera(tile.sensor_entity);
+}
+
+// The head over the picture (user 2026-10-11: "Automatisch / Dunkel / Hell",
+// no switch at a transparency, Automatisch by default): Automatisch follows
+// the design like a tile in the global color, also when the design changes;
+// Dunkel and Hell draw on that surface in either design (tile_renderer.cpp
+// tile_surface_of). Its card takes the design's tile color, never an own
+// color. At full height, where the picture can show.
+bool head_over_picture(const Tile& tile);
+inline bool light_head(const Tile& tile) { return (tile.key_modifier & kHeadLight) != 0; }
+inline bool dark_head(const Tile& tile) { return !light_head(tile) && (tile.key_modifier & kHeadDark) != 0; }
 
 // The title's width for the head rule in `font` (camera_picture_layout::
 // title_metric with the font's whole-pixel advances).

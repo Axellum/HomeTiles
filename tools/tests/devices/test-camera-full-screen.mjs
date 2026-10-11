@@ -186,8 +186,12 @@ assert.match(presenter, /void Presenter::end\(\) \{\s*\/\/ A stream stopping und
 
 // Back from the full screen: only the screen outside the popup is drawn
 // again; the popup keeps its black video and status until its stream shows
-// (b315 showed Buffering and stalled 350 ms on a whole-screen redraw).
-assert.doesNotMatch(leave, /lv_obj_invalidate\(lv_screen_active\(\)\)/);
+// (b315 showed Buffering and stalled 350 ms on a whole-screen redraw). Only a
+// popup that was never drawn (the tile opened the full screen directly, b375)
+// needs the whole screen again before it shows.
+const skippedRedraw = /if \(ctx->shell_skipped\) lv_obj_invalidate\(lv_screen_active\(\)\);/;
+assert.match(leave, skippedRedraw);
+assert.doesNotMatch(leave.replace(skippedRedraw, ''), /lv_obj_invalidate\(lv_screen_active\(\)\)/);
 assert.match(leave, /lv_obj_invalidate_area\(lv_screen_active\(\), &area\)/);
 assert.match(leave, /ctx->resuming = reopen && ctx->visible;/);
 assert.doesNotMatch(enter, /lv_obj_clear_flag\(ctx->placeholder/);

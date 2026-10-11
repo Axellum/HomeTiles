@@ -741,11 +741,13 @@
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
-    // A Camera tile's dark head over its picture (picture.h dark_head).
-    const cameraDark = surfaceKind === 'camera' && cameraDarkHead(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5);
-    const surface = forcedSurface || (cameraDark ? 'dark' : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
+    // A Camera tile's head over its picture (picture.h head_over_picture).
+    const cameraHead = surfaceKind === 'camera'
+      ? cameraHeadSurface(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5) : '';
+    const surface = forcedSurface || (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead)
+      : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
       : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
-    if (surfaceType !== '0' && !cameraDark && typeof tileFollowsTint === 'function' &&
+    if (surfaceType !== '0' && !cameraHead && typeof tileFollowsTint === 'function' &&
         tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
       el.dataset.followTint = '1';
     } else {
@@ -810,7 +812,7 @@
         // A fully transparent card casts no shadow (apply_slot_tile_shadows).
         el.classList.toggle('screensaver-bg-clear', opacity === 0);
       } else {
-        el.style.background = cameraDark ? 'var(--tile-default-bg)' : bg;
+        el.style.background = cameraHead ? cameraHeadBackground(cameraHead) : bg;
       }
     }
     if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);

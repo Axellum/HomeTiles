@@ -196,13 +196,13 @@
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      // A Camera tile's dark head over its picture: the dark surface on the
-      // dark theme's tile color (picture.h dark_head).
-      const cameraDark = meta.preview === 'camera' && cameraDarkHead(cameraPictureOptions(tab), halfHeight);
-      if (cameraDark) tileElem.style.background = 'var(--tile-default-bg)';
+      // A Camera tile's head over its picture: its fixed surface on that
+      // theme's tile color (picture.h head_over_picture).
+      const cameraHead = meta.preview === 'camera' ? cameraHeadSurface(cameraPictureOptions(tab), halfHeight) : '';
+      if (cameraHead) tileElem.style.background = cameraHeadBackground(cameraHead);
       const surface = globalThis.hometilesPreviewForcedSurface ||
-        (cameraDark ? 'dark' : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
-      if (!cameraDark && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).

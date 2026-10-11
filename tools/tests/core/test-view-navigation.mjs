@@ -354,9 +354,11 @@ assert.match(definition(navigation, 'void publishState('), /if \(displayed\.full
 // stream where the full screen cannot start, nothing left over after a close.
 const cameraPopup = read('src/ui/popups/camera/camera_popup.cpp');
 assert.match(definition(cameraPopup, 'static void finish_camera_popup_open('), /if \(g_camera_popup->open_full\) \{[\s\S]*?full_request = kFullEnter;[\s\S]*?return;\s*\}/);
-assert.match(cameraPopup, /enter_full_screen\(\);\s*[^\n]*\n[^\n]*\n\s*if \(g_camera_popup->open_full && !g_camera_popup->full\) open_popup_stream\(g_camera_popup\);\s*g_camera_popup->open_full = false;/);
+assert.match(cameraPopup, /enter_full_screen\(\);\s*(?:\/\/[^\n]*\n\s*)+if \(g_camera_popup->open_full && !g_camera_popup->full\) \{\s*reveal_skipped_popup\(g_camera_popup\);\s*open_popup_stream\(g_camera_popup\);\s*\}\s*g_camera_popup->open_full = false;/);
 assert.match(definition(cameraPopup, 'static void close_camera_popup('), /full_request = 0;\s*g_camera_popup->open_full = false;/);
-assert.match(cameraPopup, /g_camera_popup->open_full = g_open_next_full;\s*g_open_next_full = false;/);
+// A Camera tile set to open in full screen uses the same way (and a tap there
+// closes it to the tiles, test-camera-picture.mjs).
+assert.match(cameraPopup, /g_camera_popup->open_full = g_open_next_full \|\| init\.full_screen;\s*g_camera_popup->close_on_leave = init\.full_screen;\s*g_camera_popup->shell_skipped = init\.full_screen;\s*g_open_next_full = false;/);
 const i18nSource = read('src/core/i18n/i18n.cpp');
 // camera_view_full_screen follows camera_mqtt_queue_full in every language.
 for (const pair of [['MQTT-Warteschlange voll', 'Vollbild'], ['MQTT queue full', 'Full screen'],

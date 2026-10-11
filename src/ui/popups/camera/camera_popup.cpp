@@ -43,6 +43,9 @@ constexpr uint32_t kBridgeResponseTimeoutMs = 30000;
 constexpr uint32_t kFullScreenResponseTimeoutMs = 10000;
 constexpr uint8_t kFullEnter = 1;
 constexpr uint8_t kFullLeave = 2;
+// A tap in a full screen a tile opened straight (CameraPopupInit::full_screen):
+// back to the tiles without the popup in between.
+constexpr uint8_t kFullClose = 3;
 
 struct CameraPopupContext {
   String entity_id;
@@ -93,6 +96,12 @@ struct CameraPopupContext {
   // Opened by the View select's full-screen option (#65): no popup stream,
   // the full screen right after the popup opened.
   bool open_full = false;
+  // Opened in full screen by its tile: a tap there closes the popup.
+  bool close_on_leave = false;
+  // ...and the popup card was not shown on the way (user 2026-10-11: it
+  // showed briefly first); it shows only where the full screen cannot start
+  // (reveal_skipped_popup).
+  bool shell_skipped = false;
 #if defined(DEVICE_ESP32_S3_RGB_480)
   // The S3's full screen (software decode, camera_stream.cpp): LVGL shows the
   // whole picture centred on black over everything; a tap leaves it.
@@ -177,6 +186,8 @@ static void note_switch(CameraPopupContext* ctx, const char* step) {
                 static_cast<unsigned>(millis() - ctx->switch_started_ms));
 }
 
+static void reveal_skipped_popup(CameraPopupContext* ctx);
+
 static void open_popup_stream(CameraPopupContext* ctx) {
   ctx->waiting_for_bridge = true;
   ctx->bridge_response_deadline_ms = millis() + kBridgeResponseTimeoutMs;
@@ -236,9 +247,23 @@ static void leave_soft_full_screen(bool reopen) {
   note_switch(ctx, "popup with black video on screen");
   ctx->switch_frame_logged = false;
   ctx->resuming = reopen && ctx->visible;
-  if (ctx->resuming) open_popup_stream(ctx);
+  if (ctx->resuming) {
+    reveal_skipped_popup(ctx);
+    open_popup_stream(ctx);
+  }
 }
 #endif
+
+// A tile's full screen that cannot start or ends without a tap: the popup it
+// skipped shows after all, with its own stream.
+static void reveal_skipped_popup(CameraPopupContext* ctx) {
+  if (!ctx || !ctx->shell_skipped || !ctx->visible) return;
+  ctx->shell_skipped = false;
+  ctx->close_on_leave = false;
+  lv_obj_clear_flag(ctx->card, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(ctx->overlay, LV_OBJ_FLAG_CLICKABLE);
+  show_popup_shell(ctx->overlay, ctx->card, ctx->title_label, ctx->icon_label, ctx->close_button);
+}
 
 // The popup back at once: the kept UI swapped in and LVGL drawing again
 // (what changed meanwhile is drawn again, the rest are the same pixels);
@@ -278,7 +303,12 @@ static void leave_full_screen(bool reopen) {
   note_switch(ctx, "popup with black video on screen");
   ctx->switch_frame_logged = false;
   ctx->resuming = reopen && ctx->visible;
-  if (ctx->resuming) open_popup_stream(ctx);
+  if (ctx->resuming) {
+    // The popup card was never drawn: the whole screen again, then the popup.
+    if (ctx->shell_skipped) lv_obj_invalidate(lv_screen_active());
+    reveal_skipped_popup(ctx);
+    open_popup_stream(ctx);
+  }
 }
 
 // The video area turns black and the popup is kept, the screen black at once
@@ -345,6 +375,9 @@ static void close_camera_popup() {
   // popup.
   g_camera_popup->full_request = 0;
   g_camera_popup->open_full = false;
+  g_camera_popup->close_on_leave = false;
+  const bool shell_shown = !g_camera_popup->shell_skipped;
+  g_camera_popup->shell_skipped = false;
   camera_transport::popup_closed();
   const String entity_id = g_camera_popup->entity_id;
   g_camera_popup->visible = false;
@@ -360,7 +393,13 @@ static void close_camera_popup() {
   if (entity_id.length()) {
     mqttPublishCameraCommand(entity_id.c_str(), "close");
   }
-  hide_popup_shell(g_camera_popup->card);
+  if (shell_shown) {
+    hide_popup_shell(g_camera_popup->card);
+  } else {
+    // Straight from a full screen without the popup: the tiles drawn again
+    // where its frames were (leave_full_screen redraws only around the card).
+    lv_obj_invalidate(lv_screen_active());
+  }
   cancel_popup_open(g_camera_popup->card);
   lv_obj_add_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(g_camera_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
@@ -402,7 +441,7 @@ static void full_touch_event_cb(lv_event_t* event) {
   const ui_theme::SurfaceScope popup_scope = popup_surface::scope();
   if (lv_event_get_code(event) != LV_EVENT_CLICKED) return;
   if (g_camera_popup && g_camera_popup->full) {
-    g_camera_popup->full_request = kFullLeave;
+    g_camera_popup->full_request = g_camera_popup->close_on_leave ? kFullClose : kFullLeave;
     g_camera_popup->switch_started_ms = millis();
   }
 }
@@ -607,7 +646,9 @@ void show_camera_popup(const CameraPopupInit& init) {
   // the existing large buffer and retain the original small-buffer size.
   g_camera_popup->draw_buffer_restore_pending = false;
   g_camera_popup->resuming = false;
-  g_camera_popup->open_full = g_open_next_full;
+  g_camera_popup->open_full = g_open_next_full || init.full_screen;
+  g_camera_popup->close_on_leave = init.full_screen;
+  g_camera_popup->shell_skipped = init.full_screen;
   g_open_next_full = false;
   g_camera_popup->entity_id = init.entity_id;
   g_camera_popup->visible = true;
@@ -638,10 +679,18 @@ void show_camera_popup(const CameraPopupInit& init) {
   g_camera_popup->waiting_for_bridge = true;
   g_camera_popup->bridge_response_deadline_ms =
       millis() + kBridgeResponseTimeoutMs;
+  displayManager.resetActivityTimer();
+  if (g_camera_popup->shell_skipped) {
+    // Straight to the full screen (process_camera_popup); the card stays
+    // hidden unless the full screen cannot start.
+    lv_obj_add_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
+    finish_camera_popup_open(init);
+    viewNavigationPopupShown(g_camera_popup->card, init.entity_id.c_str());
+    return;
+  }
   lv_obj_clear_flag(g_camera_popup->card, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(g_camera_popup->overlay, LV_OBJ_FLAG_CLICKABLE);
 
-  displayManager.resetActivityTimer();
   if (!defer_popup_body(g_camera_popup->card, g_camera_popup->title_label,
                         g_camera_popup->icon_label, g_camera_popup->close_button,
                         init, finish_camera_popup_open, true)) finish_camera_popup_open(init);
@@ -697,11 +746,18 @@ void process_camera_popup() {
   if (full_request == kFullEnter) {
     enter_full_screen();
     // Opened for the full screen without a popup stream: where the full
-    // screen cannot start, the popup's own stream runs instead.
-    if (g_camera_popup->open_full && !g_camera_popup->full) open_popup_stream(g_camera_popup);
+    // screen cannot start, the popup's own stream runs instead (and a popup a
+    // tile skipped shows after all).
+    if (g_camera_popup->open_full && !g_camera_popup->full) {
+      reveal_skipped_popup(g_camera_popup);
+      open_popup_stream(g_camera_popup);
+    }
     g_camera_popup->open_full = false;
   } else if (full_request == kFullLeave) {
     leave_full_screen(true);
+  } else if (full_request == kFullClose) {
+    close_camera_popup();
+    return;
   }
 #if !defined(DEVICE_ESP32_S3_RGB_480)
   if (g_camera_popup->full) {

@@ -738,6 +738,16 @@ struct Strings {
   const char* camera_show_icon;
   const char* camera_show_picture;
   const char* camera_head_transparency;
+  // The colors of circle and title over the picture (the design's, dark or
+  // light),
+  // and what a tap on a camera opens (the popup or straight the full screen).
+  const char* camera_head;
+  const char* camera_head_auto;
+  const char* camera_head_dark;
+  const char* camera_head_light;
+  const char* camera_tap;
+  const char* camera_tap_popup;
+  const char* camera_tap_full;
 };
 
 // Locale-specific display rules and short runtime strings shared by
