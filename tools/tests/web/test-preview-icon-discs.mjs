@@ -25,11 +25,11 @@ const page = `<!doctype html><html lang="en"><head><style>${readRepoFile('src/we
 <div class="tile" id="test-tile-0" data-index="0" style="width:84px;height:72px"></div>
 <div class="tile" id="test-tile-1" data-index="1" style="width:84px;height:72px"></div>
 <div class="tile" id="test-tile-2" data-index="2" style="width:84px;height:72px"></div></div></div>
-<div id="testSettings"><select id="test_tile_type"><option value="1">Sensor</option><option value="2">Scene</option></select>
+<div id="testSettings" class="tile-settings"><select id="test_tile_type"><option value="1">Sensor</option><option value="2">Scene</option></select>
 <textarea id="test_tile_title"></textarea><input id="test_tile_icon"><input type="color" id="test_tile_color">
 ${['col','row','span_w','span_h'].map(n=>`<input id="test_tile_${n}" value="1">`).join('')}
 <select id="test_scene_alias"><option value="tv">TV</option></select>
-<div id="test_tile_color_modes"><button data-tile-color-mode="global"></button><button data-tile-color-mode="custom"></button></div>
+<div class="icon-color-segmented choice-row tile-color-modes" id="test_tile_color_modes"><button type="button" data-tile-color-mode="global" onclick="setTileColorMode('test','global')">Global</button><button type="button" id="test_tile_color_mode_custom" data-tile-color-mode="custom" onclick="setTileColorMode('test','custom')">Custom</button></div>
 <div id="test_tile_color_row" class="tile-color-row"></div>
 <div id="test_tile_icon_fill_row" class="tile-icon-color-fields icon-color-fill hidden" data-tab="test"><label class="inline-checkbox"><input type="checkbox" id="test_tile_icon_fill" data-icon-color="fill-target"> Fill</label></div></div>
 <div class="tile" id="test-tile-3" data-index="3" style="width:84px;height:34px"></div>
@@ -108,10 +108,19 @@ try{
  document.getElementById('test_tile_type').value='1';
  syncTileColorMode('test');
  check(hidden('test_tile_color_modes')&&hidden('test_tile_color_row')&&!hidden('test_tile_icon_fill_row'),'A tile with an icon offers only Fill');
+ // Really not shown (b378: the grid rule of the choice row beat
+ // .tile-settings .hidden, so Global/Custom stayed visible) and Custom does
+ // nothing there (its hidden picker opened in the top left corner).
+ const shown=id=>getComputedStyle(document.getElementById(id)).display!=='none';
+ check(!shown('test_tile_color_modes')&&!shown('test_tile_color_row')&&shown('test_tile_icon_fill_row'),'Icon tile: Global/Custom and the color field are not shown');
+ let picked=0;colorInput.showPicker=()=>{picked++;};
+ setTileColorMode('test','custom');
+ check(picked===0&&tileColorInputIsDefault('test'),'Custom does nothing on a tile with an icon');
  document.getElementById('test_tile_type').value='10';
  setTileColorInputFromStored('test',0x012A2A2A,'#101010');
  check(active()==='global'&&colorInput.value==='#101010'&&hidden('test_tile_color_row')&&!hidden('test_tile_color_modes')&&
   hidden('test_tile_icon_fill_row')&&!fill.checked,'Text: a stored default grey loads as Global without a color field');
+ check(shown('test_tile_color_modes')&&!shown('test_tile_icon_fill_row'),'Text: Global/Custom shown, no Fill');
  colorInput.value='#ff0000';markTileColorInputExplicit('test');
  check(active()==='custom'&&!tileColorInputIsDefault('test')&&!hidden('test_tile_color_row'),'Picking a color selects Custom');
  setTileColorMode('test','global');

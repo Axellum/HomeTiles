@@ -588,6 +588,9 @@
   function setTileColorMode(tab, mode) {
     const input = document.getElementById(tab + '_tile_color');
     if (!input) return;
+    // Only Clock, Text and Pixel animation have a tile color choice; a tile
+    // with an icon takes its color from the icon (no hidden picker opens).
+    if (!tileTypeKeepsOwnColor(document.getElementById(tab + '_tile_type')?.value || '0')) return;
     const before = tileColorMode(tab);
     // Leaving Custom remembers its color for a later return.
     if (before === 'custom' && mode !== 'custom') input.dataset.customColor = input.value;
