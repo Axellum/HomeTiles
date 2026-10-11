@@ -739,6 +739,9 @@ public:
   // any other folder.
   bool previewActiveFolderGrid(uint16_t folder_id, const TileGridConfig& grid);
   uint32_t viewRevision() const { return view_revision_; }
+  // The view names changed without a grid change (a new display language):
+  // the view select catalog goes out again under a new revision.
+  void noteViewLabelsChanged() { view_revision_ = view_revision_ + 1; }
   bool saveScreensaverGrid(const TileGridConfig& grid);
 
   bool setActiveFolder(uint16_t folder_id);

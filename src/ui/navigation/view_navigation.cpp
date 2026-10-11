@@ -41,6 +41,9 @@ bool catalog_complete = false;
 uint32_t last_catalog_ms = 0;
 uint32_t last_state_ms = 0;
 String last_state_key;
+// The catalog's language: its names are in it ("Home", the folder paths, "Full
+// screen"), and the Bridge keeps a catalog until its revision changes (#72).
+String catalog_language;
 String popup_entity;
 String command_topic;
 String refresh_topic;
@@ -139,6 +142,15 @@ void cancelPending() {
   pending.waiting = false;
   pending.full = false;
   pending.path.clear();
+}
+
+// A new display language counts as a view change: the catalog goes out again
+// in it under a new revision, and commands for the old revision are refused.
+void serviceLanguage() {
+  const char* language = configManager.getConfig().language;
+  if (catalog_language == language) return;
+  if (catalog_language.length()) tileConfig.noteViewLabelsChanged();
+  catalog_language = language;
 }
 
 void startCatalog() {
@@ -480,6 +492,7 @@ void viewNavigationService() {
     }
     if (!still_configured) viewNavigationClosePopups();
   }
+  serviceLanguage();
   servicePending(now);
   serviceCatalog(now);
   publishState(now);

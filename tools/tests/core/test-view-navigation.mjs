@@ -66,6 +66,7 @@ struct TileConfig {
   const TileGridConfig& getActiveGrid() const { return grid; }
   uint16_t getActiveFolderId() const { return active; }
   uint32_t viewRevision() const { return revision; }
+  void noteViewLabelsChanged() { ++revision; }
 } tileConfig;
 struct lv_obj_t { lv_obj_t* parent=nullptr; bool hidden=false; uint16_t source=0; };
 struct lv_event_t { void* data=nullptr; };
@@ -99,8 +100,9 @@ struct {
   }
 } uiManager;
 namespace tile_icon_source { void open_popup_without_tile() {} }
-struct {struct Config{int language=0;} cfg; const Config& getConfig(){return cfg;}} configManager;
-namespace i18n {struct Text{const char* home="Home";}; Text strings(int){return {};}}
+struct {struct Config{const char* language="en";} cfg; const Config& getConfig(){return cfg;}} configManager;
+namespace i18n {struct Text{const char* home="Home";}; Text strings(const char*){return {};}}
+String catalog_language;
 constexpr size_t kMaxFolders=128;
 String popup_entity;
 lv_obj_t* popup_card=nullptr;
@@ -157,6 +159,7 @@ struct Preferences {
   + definition(navigation, 'String boundedLabel(')
   + definition(navigation, 'String folderLabel(')
   + definition(navigation, 'void cancelPending(')
+  + definition(navigation, 'void serviceLanguage(')
   + definition(tiles, 'bool tiles_open_view_popup(')
   + definition(navigation, 'size_t firstRequiredFolderStep(')
   + definition(navigation, 'void servicePending(')
@@ -317,6 +320,14 @@ int main(){
   prepare(2,id,{0,1,2});pending.step=firstRequiredFolderStep(pending.path);
   servicePending(100);assert(!last_open_full);
   prepare(2,id,{0,1,2});pending.full=true;cancelPending();assert(!pending.full);
+  // A new display language publishes the catalog again (#72): the Bridge keeps
+  // a catalog's names until its revision changes. The first look only notes
+  // the language; the same language changes nothing.
+  const uint32_t revision=tileConfig.revision;
+  serviceLanguage();assert(tileConfig.revision==revision);
+  configManager.cfg.language="pl";serviceLanguage();assert(tileConfig.revision==revision+1);
+  serviceLanguage();assert(tileConfig.revision==revision+1);
+  configManager.cfg.language="en";serviceLanguage();assert(tileConfig.revision==revision+2);
 }
 `;
 
@@ -329,6 +340,7 @@ assert.match(catalogSource, /camera_view_full_screen/);
 assert.doesNotMatch(catalogSource, /option\["id"\] = "full:/);
 assert.match(definition(navigation, 'bool fullScreenSupported('), /tile\.type == TILE_CAMERA && popupSupported\(tile\)/);
 const handler = definition(navigation, 'bool viewNavigationHandleMessage(');
+assert.match(definition(navigation, 'void viewNavigationService('), /serviceLanguage\(\);\s*servicePending\(now\);\s*serviceCatalog\(now\);/);
 assert.match(handler, /if \(target\.camera && requested == "full:" \+ String\(target\.id\)\) \{\s*folder = target\.folder; tile_id = target\.id; full = true; found = true; break;/);
 assert.match(handler, /pending\.full = full;/);
 assert.match(definition(navigation, 'void publishState('), /if \(displayed\.full\) doc\["full"\] = true;/);
