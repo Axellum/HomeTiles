@@ -893,8 +893,7 @@
        Settings, so the block stays low enough for the page height. */
     .global-settings-field { display:flex; align-items:center; gap:10px; min-width:0; }
     .global-settings-panel .global-settings-field > label { flex:0 0 auto; margin:0; }
-    .global-settings-grid select.global-theme,
-    .global-settings-grid select.screensaver-theme { flex:1 1 auto; min-width:0; height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
+
     @media (max-width:520px) { .global-settings-grid { grid-template-columns:minmax(0, 1fr); } }
     .folder-footer-options .inline-checkbox { margin:0; }
     .folder-footer .hint { margin:0; }
@@ -1470,9 +1469,44 @@
     .panel-global, .panel-options { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
     .panel-global > .global-settings-panel,
     .panel-options > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
+    /* The Global tabs (user 2026-10-11): every label in one column, every
+       field in the next, all fields as wide as the panel; checkboxes and
+       sub-headings across both columns. */
     .panel-global .global-settings-grid,
-    .panel-options .global-settings-grid { grid-template-columns:minmax(0, 1fr); max-width:none; gap:12px; }
-    /* The screensaver's opacity: its label, the slider and the value in one row. */
+    .panel-options .global-settings-grid {
+      grid-template-columns:max-content minmax(0, 1fr); max-width:none; gap:12px 14px; align-items:center;
+    }
+    .panel-global .global-settings-grid > .inline-checkbox,
+    .panel-options .global-settings-grid > .inline-checkbox,
+    .global-settings-subheading { grid-column:1 / -1; }
+    .panel-global .global-settings-field,
+    .panel-options .global-settings-field,
+    .panel-global .gesture-settings { display:contents; }
+    .panel-global .global-settings-field > label,
+    .panel-options .global-settings-field > label { margin:0; }
+    .panel-global .global-settings-field > :not(label),
+    .panel-options .global-settings-field > :not(label) { width:100%; min-width:0; box-sizing:border-box; }
+    /* Every field 32 px high: lists, the layout button and the segmented
+       design choice (without its usual gap below). */
+    .panel-global .global-settings-grid select,
+    .panel-options .global-settings-grid select { height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
+    .panel-global .global-settings-grid .icon-color-segmented,
+    .panel-options .global-settings-grid .icon-color-segmented { height:32px; margin:0; }
+    .panel-global .global-settings-grid .icon-color-segmented button,
+    .panel-options .global-settings-grid .icon-color-segmented button { padding:0 4px; }
+    .panel-global .layout-choice { justify-content:space-between; }
+    .panel-global .layout-choice .layout-current { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .global-settings-panel h3.global-settings-subheading { margin:8px 0 0; }
+    /* The screensaver's opacity: its label and value on one line, the slider
+       across the panel below, so the long label leaves the label column to
+       the short ones. */
+    .panel-options .global-settings-field.screensaver-opacity-field {
+      display:grid; grid-column:1 / -1; grid-template-columns:minmax(0, 1fr) auto; gap:8px 10px; align-items:center;
+    }
+    .panel-options .screensaver-opacity-field > .screensaver-opacity-control { display:contents; }
+    .panel-options .screensaver-opacity-field > label { grid-row:1; grid-column:1; }
+    .panel-options .screensaver-opacity-field .global-tile-opacity-value { grid-row:1; grid-column:2; justify-self:end; }
+    .panel-options .screensaver-opacity-field input[type="range"] { grid-row:2; grid-column:1 / -1; width:100%; }
     .screensaver-opacity-field input[type="range"] { flex:1 1 auto; min-width:0; height:18px; margin:0; accent-color:var(--accent); }
     /* The head (title + type) stays put, only the body scrolls */
     .tile-specific-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }

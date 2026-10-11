@@ -119,6 +119,32 @@ assert.ok(ui.includes('if (actions[candidate] != swipe_gestures::kOff && distanc
   'a press arms the nearest edge with an action');
 assert.ok(ui.includes('actions[access_gesture_edge] != access_gesture_action'), 'a changed menu ends an armed swipe');
 
+// In Settings (user 2026-10-11: "why can't I swipe from Settings to Home"):
+// Home leaves Settings for Home, Back closes it like its X; a Settings edge
+// does nothing there, and an open list, dialog, entry or the setup blocks
+// every swipe.
+const settingsRun = run.slice(run.indexOf('if (active_tab_index == kSettingsTab'), run.indexOf('switch (action) {'));
+for (const marker of [
+  'if (active_tab_index == kSettingsTab && (action == swipe_gestures::kHome || action == swipe_gestures::kBack)) {',
+  'settings_screen::close_overlays();',
+  'if (action == swipe_gestures::kHome) switchToFolder(root);\n    else switchToTab(0);',
+  'return;',
+]) assert.ok(settingsRun.includes(marker), `runSwipeAction in Settings: ${marker}`);
+assert.ok(read('src/ui/tabs/settings/tab_settings.cpp').includes('void close_settings() { uiManager.switchToTab(0); }'),
+  'Back closes Settings exactly like its X');
+const press = ui.slice(ui.indexOf('void UIManager::settings_gesture_indev_event_cb'), ui.indexOf('void UIManager::nav_button_event_cb'));
+for (const marker of [
+  'if (tab != 0 && (tab != kSettingsTab || settings_screen::overlay_open())) return;',
+  'if (object == self->tab_panels[tab]) {',
+  'if (action == swipe_gestures::kSettings) action = swipe_gestures::kOff;',
+  'self->access_gesture_tab = tab;',
+]) assert.ok(press.includes(marker), `Settings swipes: ${marker}`);
+assert.ok(ui.includes('if (active_tab_index != access_gesture_tab ||'), 'a swipe ends on the tab it started on');
+assert.ok(ui.includes('static constexpr uint8_t kSettingsTab = 3;') && ui.includes('build_settings_tab(tab_panels[3], hotspot_cb);'));
+const settingsScreen = read('src/ui/tabs/settings/settings_screen.cpp');
+assert.match(settingsScreen, /bool overlay_open\(\) \{\n  return settings_parts::options_open\(\) \|\| g_dialog != Dialog::None \|\| settings_entry::is_open\(\) \|\|\n\s*settings_model::setup_step\(\) >= 0;\n\}/);
+assert.ok(read('src/ui/tabs/settings/settings_parts.cpp').includes('bool options_open() { return g_options.overlay != nullptr; }'));
+
 // --- Web Admin: endpoint, menu, Settings tile ---------------------------------------------------------
 const routes = read('src/web/server/web_admin.cpp');
 assert.ok(routes.includes('server.on("/api/display/gestures", HTTP_GET,') &&

@@ -96,8 +96,9 @@ assert.ok(saveTheme.includes('if (value != "0" && value != "1" && value != "2") 
   'The theme is validated, stored, then requested');
 assert.ok(read('src/web/server/web_admin.cpp').includes('server.on("/api/display/theme", HTTP_POST,'));
 const html = read('src/web/server/render/web_admin_html.cpp');
-assert.ok(html.includes('<select class=\\"global-theme\\" id=\\"" + theme_id + "\\" onchange=\\"saveTheme(this.value)\\">') &&
-  html.includes('if (display.theme == theme) global_panel += " selected";') &&
+assert.ok(html.includes('<div class=\\"icon-color-segmented choice-row global-theme\\" id=\\"" + theme_id +') &&
+  html.includes('"\\" onclick=\\"saveTheme(\'" +') &&
+  html.includes('if (display.theme == theme) global_panel += " class=\\"active\\"";') &&
   html.includes('appendHtmlEscaped(global_panel, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);') &&
   html.includes('appendHtmlEscaped(global_panel, tr.theme_label);'), 'Global settings: the theme field');
 const admin = read('src/web/admin/settings/display-borders.js');

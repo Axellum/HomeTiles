@@ -122,13 +122,21 @@ function applyPanelThemePreview(theme) {
 function shownPanelTheme() {
   return document.documentElement.dataset.panelTheme === 'light' ? '1' : '0';
 }
+// The design's segmented choice in every Global tab (web_admin_html.cpp).
+function showThemeChoice(theme, scope = document) {
+  scope.querySelectorAll('.global-theme [data-theme]').forEach(button => {
+    const active = button.dataset.theme === theme;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
 async function saveTheme(value) {
   const theme = ['0', '1', '2'].includes(String(value)) ? String(value) : '0';
   const previous = themeChosen !== null ? themeChosen
-    : (document.querySelector('.global-theme option[selected]')?.value || shownPanelTheme());
+    : (document.querySelector('.global-theme [data-theme].active')?.dataset.theme || shownPanelTheme());
   const previousShown = shownPanelTheme();
   themeChosen = theme;
-  document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
+  showThemeChoice(theme);
   if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
@@ -145,13 +153,13 @@ async function saveTheme(value) {
   } catch (error) {
     if (sequence !== themeSaveSequence) return;
     themeChosen = previous;
-    document.querySelectorAll('.global-theme').forEach(select => { select.value = previous; });
+    showThemeChoice(previous);
     if (previousShown !== shownPanelTheme()) applyPanelThemePreview(previousShown);
     showNotification(t('networkErrorSave'), false);
   }
 }
 function syncGlobalDisplayControls(tabEl) {
-  if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
+  if (themeChosen !== null) showThemeChoice(themeChosen, tabEl);
   if (gestureActions) showGestureActions(gestureActions, tabEl);
 }
 

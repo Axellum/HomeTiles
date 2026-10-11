@@ -490,8 +490,9 @@
     document.getElementById('screensaverShuffle').checked = !!d.shuffle;
     document.getElementById('screensaverTileShadow').checked = !!d.tile_shadow;
     document.getElementById('screensaverTileBorder').checked = d.tile_border !== false;
-    const theme = document.getElementById('screensaverTheme');
-    if (theme && theme.value !== String(d.theme)) theme.value = String(d.theme);
+    document.querySelectorAll('#screensaverTheme [data-theme]').forEach(button => {
+      button.classList.toggle('active', button.dataset.theme === String(d.theme));
+    });
     const opacityInput = document.getElementById('screensaverTileOpacity');
     if (opacityInput) opacityInput.value = String(screensaverTileOpacity());
     document.getElementById('screensaverShowTime').checked = !!d.show_time;
@@ -646,12 +647,17 @@
     bind('screensaverShuffle', 'change', el => { screensaverDraft.shuffle = el.checked; });
     bind('screensaverTileShadow', 'change', el => { screensaverDraft.tile_shadow = el.checked; });
     bind('screensaverTileBorder', 'change', el => { screensaverDraft.tile_border = el.checked; });
-    // The tiles' design: the preview draws them on that surface at once.
-    bind('screensaverTheme', 'change', el => {
-      screensaverDraft.theme = [0, 1, 2].includes(Number(el.value)) ? Number(el.value) : 2;
+    // The tiles' design (a segmented choice): the preview draws them on that
+    // surface at once.
+    document.getElementById('screensaverTheme')?.addEventListener('click', event => {
+      const button = event.target?.closest?.('[data-theme]');
+      if (!button) return;
+      screensaverDraft.theme = [0, 1, 2].includes(Number(button.dataset.theme)) ? Number(button.dataset.theme) : 2;
       const grid = document.getElementById('screensaverGrid');
       if (grid) grid.dataset.ssTheme = String(screensaverDraft.theme);
       refreshScreensaverTiles();
+      renderScreensaverEditor();
+      scheduleScreensaverSave();
     });
     bind('screensaverTileOpacity', 'input', el => {
       screensaverDraft.tile_opacity = Number(el.value);

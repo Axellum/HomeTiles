@@ -88,10 +88,12 @@ for (const marker of [
   '"<input class=\\"normal-tile-border-toggle\\" id=\\"" +',
   'appendHtmlEscaped(global_panel, tr.screensaver_tile_border);',
   'global_panel += "</label><button type=\\"button\\" class=\\"layout-choice\\" onclick=\\"openLayoutWindow()\\" title=\\"";',
-  'onchange=\\"saveTheme(this.value)\\"',
+  // The design as a segmented choice like Tile | Global (user 2026-10-11).
+  'global_panel += "<button type=\\"button\\" data-theme=\\"" + String(theme) + "\\" onclick=\\"saveTheme(\'" +',
   '"<input id=\\"screensaverTileBorder\\" type=\\"checkbox\\"> ";',
-  // The gesture menu (swipe_gestures.h): one select per edge, top first.
-  'global_panel += "<section class=\\"global-settings-panel gesture-settings\\"><h3>";',
+  // The gesture menu (swipe_gestures.h): one select per edge, top first, in
+  // the same grid as the fields above so every label lines up.
+  'global_panel += "<div class=\\"gesture-settings\\"><h3 class=\\"global-settings-subheading\\">";',
   'appendHtmlEscaped(global_panel, tr.swipe_gestures_heading);',
   'const uint8_t order[swipe_gestures::kEdgeCount] = {2, 3, 0, 1};',
   '"\\" onchange=\\"saveGestureEdge(this)\\">";',

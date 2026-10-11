@@ -84,6 +84,8 @@ struct OptionList {
 void open_options(const OptionList& list);
 // Closes an open list without calling its handler.
 void close_options();
+// Whether an option list shows (the edge swipes wait while it does).
+bool options_open();
 
 // Pill button (mockup .pb): an optional icon and the text (the row font when
 // `large_text`, else the small font). Normal sits in the button color, Accent

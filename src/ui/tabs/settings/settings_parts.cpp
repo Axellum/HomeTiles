@@ -531,6 +531,8 @@ void open_options(const OptionList& spec) {
   reveal(overlay, box);
 }
 
+bool options_open() { return g_options.overlay != nullptr; }
+
 void close_options() {
   lv_obj_t* overlay = g_options.overlay;
   g_options.overlay = nullptr;

@@ -209,13 +209,21 @@ function applyPanelThemePreview(theme) {
 function shownPanelTheme() {
   return document.documentElement.dataset.panelTheme === 'light' ? '1' : '0';
 }
+// The design's segmented choice in every Global tab (web_admin_html.cpp).
+function showThemeChoice(theme, scope = document) {
+  scope.querySelectorAll('.global-theme [data-theme]').forEach(button => {
+    const active = button.dataset.theme === theme;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
 async function saveTheme(value) {
   const theme = ['0', '1', '2'].includes(String(value)) ? String(value) : '0';
   const previous = themeChosen !== null ? themeChosen
-    : (document.querySelector('.global-theme option[selected]')?.value || shownPanelTheme());
+    : (document.querySelector('.global-theme [data-theme].active')?.dataset.theme || shownPanelTheme());
   const previousShown = shownPanelTheme();
   themeChosen = theme;
-  document.querySelectorAll('.global-theme').forEach(select => { select.value = theme; });
+  showThemeChoice(theme);
   if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
   try {
@@ -232,13 +240,13 @@ async function saveTheme(value) {
   } catch (error) {
     if (sequence !== themeSaveSequence) return;
     themeChosen = previous;
-    document.querySelectorAll('.global-theme').forEach(select => { select.value = previous; });
+    showThemeChoice(previous);
     if (previousShown !== shownPanelTheme()) applyPanelThemePreview(previousShown);
     showNotification(t('networkErrorSave'), false);
   }
 }
 function syncGlobalDisplayControls(tabEl) {
-  if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
+  if (themeChosen !== null) showThemeChoice(themeChosen, tabEl);
   if (gestureActions) showGestureActions(gestureActions, tabEl);
 }
 
@@ -4002,11 +4010,15 @@ async function saveGestureEdge(select) {
     if (!row || !row.offsetWidth) return;
     const buttons = Array.from(row.querySelectorAll('button'));
     buttons.forEach(button => { button.style.fontSize = ''; });
+    row.style.gridAutoColumns = '';
     const shown = buttons.filter(button => button.offsetWidth);
     const overflows = () => shown.some(button => button.scrollWidth > button.clientWidth + 0.5);
     for (let size = 11.5; size >= 10 && overflows(); size -= 0.5) {
       shown.forEach(button => { button.style.fontSize = size + 'px'; });
     }
+    // Still too narrow (a long label beside the row in a narrow panel): the
+    // short choices give their spare room to the long one.
+    if (overflows()) row.style.gridAutoColumns = 'auto';
   }
 
   function fitChoiceRows(tab) {
@@ -13133,8 +13145,9 @@ async function saveGestureEdge(select) {
     document.getElementById('screensaverShuffle').checked = !!d.shuffle;
     document.getElementById('screensaverTileShadow').checked = !!d.tile_shadow;
     document.getElementById('screensaverTileBorder').checked = d.tile_border !== false;
-    const theme = document.getElementById('screensaverTheme');
-    if (theme && theme.value !== String(d.theme)) theme.value = String(d.theme);
+    document.querySelectorAll('#screensaverTheme [data-theme]').forEach(button => {
+      button.classList.toggle('active', button.dataset.theme === String(d.theme));
+    });
     const opacityInput = document.getElementById('screensaverTileOpacity');
     if (opacityInput) opacityInput.value = String(screensaverTileOpacity());
     document.getElementById('screensaverShowTime').checked = !!d.show_time;
@@ -13289,12 +13302,17 @@ async function saveGestureEdge(select) {
     bind('screensaverShuffle', 'change', el => { screensaverDraft.shuffle = el.checked; });
     bind('screensaverTileShadow', 'change', el => { screensaverDraft.tile_shadow = el.checked; });
     bind('screensaverTileBorder', 'change', el => { screensaverDraft.tile_border = el.checked; });
-    // The tiles' design: the preview draws them on that surface at once.
-    bind('screensaverTheme', 'change', el => {
-      screensaverDraft.theme = [0, 1, 2].includes(Number(el.value)) ? Number(el.value) : 2;
+    // The tiles' design (a segmented choice): the preview draws them on that
+    // surface at once.
+    document.getElementById('screensaverTheme')?.addEventListener('click', event => {
+      const button = event.target?.closest?.('[data-theme]');
+      if (!button) return;
+      screensaverDraft.theme = [0, 1, 2].includes(Number(button.dataset.theme)) ? Number(button.dataset.theme) : 2;
       const grid = document.getElementById('screensaverGrid');
       if (grid) grid.dataset.ssTheme = String(screensaverDraft.theme);
       refreshScreensaverTiles();
+      renderScreensaverEditor();
+      scheduleScreensaverSave();
     });
     bind('screensaverTileOpacity', 'input', el => {
       screensaverDraft.tile_opacity = Number(el.value);

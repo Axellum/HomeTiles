@@ -124,6 +124,7 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   tab_content_container = nullptr;
   access_gesture_edge = UINT8_MAX;
   access_gesture_action = 0;
+  access_gesture_tab = UINT8_MAX;
 
 
   tab_content_container = lv_obj_create(scr);
@@ -530,6 +531,8 @@ void UIManager::switchToFolder(uint16_t folder_id) {
   switchToTab(0);
 }
 
+// The Settings tab (build_settings_tab in tab_panels[3]).
+static constexpr uint8_t kSettingsTab = 3;
 static constexpr int kSettingsGestureCaptureWidth = popup_layout::scale(56);
 static constexpr int kSettingsGestureThreshold = popup_layout::scale(48);
 
@@ -709,10 +712,11 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
     return;
   }
 
-  // The armed edge must still open its action (the menu may have changed).
+  // The armed edge must still open its action (the menu may have changed)
+  // on the tab it started on.
   uint8_t actions[swipe_gestures::kEdgeCount];
   swipe_gestures::actions(configManager.getConfig(), actions);
-  if (active_tab_index != 0 || access_gesture_edge >= swipe_gestures::kEdgeCount ||
+  if (active_tab_index != access_gesture_tab || access_gesture_edge >= swipe_gestures::kEdgeCount ||
       actions[access_gesture_edge] != access_gesture_action) {
     access_gesture_eligible = false;
     detachSettingsGesturePressedObject();
@@ -763,10 +767,19 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
 }
 
 // What an edge swipe opens (swipe_gestures.h): Settings (through its PIN),
-// Home, one folder back (like the head's X) or the screensaver.
+// Home, one folder back (like the head's X) or the screensaver. In Settings
+// Home leaves it for Home and Back closes it (user 2026-10-11).
 void UIManager::runSwipeAction(uint8_t action) {
   const uint16_t root = tileConfig.rootFolderId();
   const uint16_t folder = tileConfig.getActiveFolderId();
+  if (active_tab_index == kSettingsTab && (action == swipe_gestures::kHome || action == swipe_gestures::kBack)) {
+    settings_screen::close_overlays();
+    if (action == swipe_gestures::kHome) switchToFolder(root);
+    else switchToTab(0);
+    Serial.printf("[Swipe] action=%u edge=%u from Settings\n", static_cast<unsigned>(action),
+                  static_cast<unsigned>(access_gesture_edge));
+    return;
+  }
   switch (action) {
     case swipe_gestures::kSettings:
       requestSettingsAccess();
@@ -818,14 +831,16 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     self->detachSettingsGesturePressedObject();
     self->access_gesture_eligible = false;
     self->access_gesture_triggered = false;
-    if (self->active_tab_index != 0) return;
+    // The tiles, or Settings without an open list, dialog, entry or setup.
+    const uint8_t tab = self->active_tab_index;
+    if (tab != 0 && (tab != kSettingsTab || settings_screen::overlay_open())) return;
 
     lv_obj_t* pressed_object =
         static_cast<lv_obj_t*>(lv_event_get_param(event));
     bool started_on_home = false;
     for (lv_obj_t* object = pressed_object; object;
          object = lv_obj_get_parent(object)) {
-      if (object == self->tab_panels[0]) {
+      if (object == self->tab_panels[tab]) {
         started_on_home = true;
         break;
       }
@@ -838,6 +853,12 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     // (swipe_gestures.h: one action per edge).
     uint8_t actions[swipe_gestures::kEdgeCount];
     swipe_gestures::actions(configManager.getConfig(), actions);
+    // Settings does not open itself again.
+    if (tab == kSettingsTab) {
+      for (uint8_t& action : actions) {
+        if (action == swipe_gestures::kSettings) action = swipe_gestures::kOff;
+      }
+    }
     const int32_t distance[swipe_gestures::kEdgeCount] = {
         point.x, grid_layout::screen_w() - 1 - point.x, point.y, grid_layout::screen_h() - 1 - point.y};
     int32_t nearest = kSettingsGestureCaptureWidth;
@@ -851,6 +872,7 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     if (edge == swipe_gestures::kEdgeOff) return;
     self->access_gesture_edge = edge;
     self->access_gesture_action = actions[edge];
+    self->access_gesture_tab = tab;
     self->access_gesture_start = point;
     self->access_gesture_eligible = true;
     self->access_gesture_pressed_object = pressed_object;

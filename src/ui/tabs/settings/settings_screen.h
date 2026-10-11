@@ -35,6 +35,9 @@ void setup_changed();
 // Closes an open option list, dialog or network entry (navigation closes
 // every popup).
 void close_overlays();
+// Whether an option list, a dialog, a text entry or the first-start setup
+// shows: the edge swipes (swipe_gestures.h) do not leave Settings then.
+bool overlay_open();
 
 // Shared with the setup: a Localization row's name, icon and value, and the
 // rotation segment (quarter turns where the panel supports them).

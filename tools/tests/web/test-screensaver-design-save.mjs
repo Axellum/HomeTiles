@@ -25,7 +25,9 @@ assert.ok(handler.indexOf('const uint8_t old_theme = before.theme;') < handler.i
 
 // --- The page ---------------------------------------------------------------------------------------
 const html = read('src/web/server/render/web_admin_html.cpp');
-assert.ok(html.includes('html += "</label><select class=\\"screensaver-theme\\" id=\\"screensaverTheme\\">";'));
+assert.ok(html.includes('html += "</label><div class=\\"icon-color-segmented choice-row screensaver-theme\\" id=\\"screensaverTheme\\" "'),
+  'the design is a segmented choice like the panel design');
+assert.ok(html.includes('if (saver.theme == theme) html += " class=\\"active\\"";'));
 assert.ok(html.includes('html += " screensaver-tile-grid\\" data-ss-theme=\\"";'), 'the grid tells the preview the design');
 assert.doesNotMatch(html, /screensaverBackgroundHeading/, 'the tab names the slideshow, no second heading');
 assert.ok(!html.includes('class=\\"global-theme\\" id=\\"screensaverTheme\\"'),
@@ -77,5 +79,13 @@ assert.deepEqual(notes, ['screensaverSaved']);
 save.saveScreensaverNow();
 await settle(); await settle();
 assert.equal(posts.length, 1, 'saved once, then nothing again');
+
+// The design's segmented choice: a click sets the draft, redraws the preview
+// on that surface, marks the button and saves.
+const editorSource = read('src/web/admin/screensaver/editor.js');
+const click = editorSource.slice(editorSource.indexOf("document.getElementById('screensaverTheme')?.addEventListener('click'"));
+assert.match(click, /screensaverDraft\.theme = \[0, 1, 2\]\.includes\(Number\(button\.dataset\.theme\)\)[\s\S]*?grid\.dataset\.ssTheme = String\(screensaverDraft\.theme\);\s*refreshScreensaverTiles\(\);\s*renderScreensaverEditor\(\);\s*scheduleScreensaverSave\(\);/);
+assert.ok(editorSource.includes("button.classList.toggle('active', button.dataset.theme === String(d.theme));"),
+  'the editor marks the saved design');
 
 console.log('Screensaver design on panel and preview; saves only on a change');

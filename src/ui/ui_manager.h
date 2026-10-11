@@ -68,6 +68,8 @@ private:
   // The edge an armed swipe started at and its action (swipe_gestures.h).
   uint8_t access_gesture_edge = UINT8_MAX;
   uint8_t access_gesture_action = 0;
+  // The tab the swipe started on: the tiles (0) or Settings (kSettingsTab).
+  uint8_t access_gesture_tab = UINT8_MAX;
 
   enum class PendingAccessKind : uint8_t {
     None,

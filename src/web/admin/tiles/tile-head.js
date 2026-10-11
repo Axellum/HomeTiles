@@ -420,11 +420,15 @@
     if (!row || !row.offsetWidth) return;
     const buttons = Array.from(row.querySelectorAll('button'));
     buttons.forEach(button => { button.style.fontSize = ''; });
+    row.style.gridAutoColumns = '';
     const shown = buttons.filter(button => button.offsetWidth);
     const overflows = () => shown.some(button => button.scrollWidth > button.clientWidth + 0.5);
     for (let size = 11.5; size >= 10 && overflows(); size -= 0.5) {
       shown.forEach(button => { button.style.fontSize = size + 'px'; });
     }
+    // Still too narrow (a long label beside the row in a narrow panel): the
+    // short choices give their spare room to the long one.
+    if (overflows()) row.style.gridAutoColumns = 'auto';
   }
 
   function fitChoiceRows(tab) {

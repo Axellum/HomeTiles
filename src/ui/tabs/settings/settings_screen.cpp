@@ -1981,6 +1981,11 @@ void setup_changed() {
   if (g_panel && !lv_obj_has_flag(g_panel, LV_OBJ_FLAG_HIDDEN)) prepare_show();
 }
 
+bool overlay_open() {
+  return settings_parts::options_open() || g_dialog != Dialog::None || settings_entry::is_open() ||
+         settings_model::setup_step() >= 0;
+}
+
 void close_overlays() {
   settings_parts::close_options();
   close_dialog();

@@ -35,7 +35,7 @@ assert.match(fn(screensaver, 'remember_shown_grid'), /st->built_opacity = screen
 
 // Web Admin: the slider sits in the screensaver footer, not in the tile settings.
 const html = read('src/web/server/render/web_admin_html.cpp');
-assert.match(html, /<input id=\\"screensaverTileOpacity\\" type=\\"range\\" min=\\"0\\" max=\\"255\\" step=\\"1\\" value=\\""/);
+assert.match(html, /<span class=\\"screensaver-opacity-control\\"><input id=\\"screensaverTileOpacity\\" type=\\"range\\" "\s*"min=\\"0\\" max=\\"255\\" step=\\"1\\" value=\\""/);
 assert.doesNotMatch(html, /screensaver_tile_opacity|has-opacity/);
 assert.match(html, /String\(screensaverConfig\.get\(\)\.tile_opacity \* 100\.0f \/ 255\.0f, 2\)/);
 for (const file of ['autosave', 'clipboard', 'drafts', 'editor', 'grid-preview', 'live-preview', 'snapshots', 'type-selection']) {

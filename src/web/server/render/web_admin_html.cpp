@@ -960,19 +960,22 @@ static void appendTileTabHTML(
       global_panel += " · " + String(shown.cols) + " × " + String(shown.rows);
       global_panel += "</span><i class=\"mdi mdi-pencil-outline\"></i></button></div>";
     }
-    // The theme (ui_theme.h): the panel switches while running.
-    global_panel += "<div class=\"global-settings-field\"><label for=\"" + theme_id + "\">";
+    // The theme (ui_theme.h): the panel switches while running. A segmented
+    // choice like Tile | Global (user 2026-10-11): Dark, Light, Automatic
+    // (theme_schedule.h: light by day).
+    global_panel += "<div class=\"global-settings-field\"><label>";
     appendHtmlEscaped(global_panel, tr.theme_label);
-    global_panel += "</label><select class=\"global-theme\" id=\"" + theme_id + "\" onchange=\"saveTheme(this.value)\">";
-    // Dark, Light, Automatic (theme_schedule.h: light by day).
+    global_panel += "</label><div class=\"icon-color-segmented choice-row global-theme\" id=\"" + theme_id +
+                    "\" role=\"group\">";
     for (uint8_t theme = 0; theme < 3; ++theme) {
-      global_panel += "<option value=\"" + String(theme) + "\"";
-      if (display.theme == theme) global_panel += " selected";
+      global_panel += "<button type=\"button\" data-theme=\"" + String(theme) + "\" onclick=\"saveTheme('" +
+                      String(theme) + "')\"";
+      if (display.theme == theme) global_panel += " class=\"active\"";
       global_panel += ">";
       appendHtmlEscaped(global_panel, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);
-      global_panel += "</option>";
+      global_panel += "</button>";
     }
-    global_panel += "</select></div></div></section>\n";
+    global_panel += "</div></div>";
     // The gesture menu (swipe_gestures.h, user 2026-10-11): one action per
     // edge, each action once (tiles/gestures.js swaps on a second use).
     {
@@ -983,9 +986,11 @@ static void appendTileTabHTML(
                                                                 tr.tile_type_back, tr.panel_tab_screensaver};
       // Top, bottom, left, right: the usual order of a phone's gestures.
       const uint8_t order[swipe_gestures::kEdgeCount] = {2, 3, 0, 1};
-      global_panel += "<section class=\"global-settings-panel gesture-settings\"><h3>";
+      // In the same grid, so every label and field lines up (user
+      // 2026-10-11).
+      global_panel += "<div class=\"gesture-settings\"><h3 class=\"global-settings-subheading\">";
       appendHtmlEscaped(global_panel, tr.swipe_gestures_heading);
-      global_panel += "</h3><div class=\"global-settings-grid\">";
+      global_panel += "</h3>";
       for (const uint8_t edge : order) {
         const String id = tab_id + "_gesture_" + String(edge);
         global_panel += "<div class=\"global-settings-field\"><label for=\"" + id + "\">";
@@ -1001,8 +1006,9 @@ static void appendTileTabHTML(
         }
         global_panel += "</select></div>";
       }
-      global_panel += "</div></section>\n";
+      global_panel += "</div>";
     }
+    global_panel += "</div></section>\n";
   } else {
     html += R"html(<p class="hint">)html";
   }
@@ -1051,22 +1057,24 @@ static void appendTileTabHTML(
     appendHtmlEscaped(html, tr.screensaver_tile_shadow);
     html += "</label><div class=\"global-settings-field screensaver-opacity-field\"><label for=\"screensaverTileOpacity\">";
     appendHtmlEscaped(html, tr.screensaver_background_opacity);
-    html += "</label><input id=\"screensaverTileOpacity\" type=\"range\" min=\"0\" max=\"255\" step=\"1\" value=\"";
+    html += "</label><span class=\"screensaver-opacity-control\"><input id=\"screensaverTileOpacity\" type=\"range\" "
+            "min=\"0\" max=\"255\" step=\"1\" value=\"";
     html += String(saver.tile_opacity);
     html += "\"><output id=\"screensaverTileOpacityValue\" class=\"global-tile-opacity-value\">";
     html += String((saver.tile_opacity * 100 + 127) / 255);
-    html += " %</output></div><div class=\"global-settings-field\"><label for=\"screensaverTheme\">";
+    html += " %</output></span></div><div class=\"global-settings-field\"><label>";
     appendHtmlEscaped(html, tr.theme_label);
-    html += "</label><select class=\"screensaver-theme\" id=\"screensaverTheme\">";
+    html += "</label><div class=\"icon-color-segmented choice-row screensaver-theme\" id=\"screensaverTheme\" "
+            "role=\"group\">";
     // Dark, Light, Automatic (the panel's design), like the panel's field.
     for (uint8_t theme = 0; theme < 3; ++theme) {
-      html += "<option value=\"" + String(theme) + "\"";
-      if (saver.theme == theme) html += " selected";
+      html += "<button type=\"button\" data-theme=\"" + String(theme) + "\"";
+      if (saver.theme == theme) html += " class=\"active\"";
       html += ">";
       appendHtmlEscaped(html, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);
-      html += "</option>";
+      html += "</button>";
     }
-    html += "</select></div></div></section></div>\n";
+    html += "</div></div></div></section></div>\n";
     html += R"html(            <div id="screensaverBackgroundSettings" class="screensaver-background-settings">
 <div class="tile-settings-body">
 <div class="screensaver-fixed-type"><label for="screensaverPictureSource">)html";
