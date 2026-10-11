@@ -47,8 +47,10 @@ lv_opa_t control_fill_opa(bool see_through) {
 // The frame line of a tile (user 2026-10-11, like Tessera's theme::LINE and
 // theme::outline): a solid line, on the theme's plain card a fixed neutral
 // (light #DDDDDD, dark #292929), on any other card (filled, an own color)
-// that card a little lighter when it is dark and a little darker when it is
-// light.
+// that card a little darker on the light theme's screen and a little lighter
+// on the dark one. It moves away from the screen behind it: a lighter line
+// on a filled card in the light theme looked like a frayed edge (user
+// 2026-10-11, "unsauber").
 lv_color_t frame_line(lv_obj_t* obj) {
   lv_style_value_t value;
   const uint32_t card =
@@ -59,8 +61,8 @@ lv_color_t frame_line(lv_obj_t* obj) {
   // too) keeps that theme's fixed line.
   if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);
   if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);
-  return tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)
-                                                                  : lv_color_mix(lv_color_black(), lv_color_hex(card), 36);
+  return ui_theme::theme_light() ? lv_color_mix(lv_color_black(), lv_color_hex(card), 36)
+                                 : lv_color_mix(lv_color_white(), lv_color_hex(card), 23);
 }
 
 void apply_style(lv_obj_t* obj, bool enabled) {

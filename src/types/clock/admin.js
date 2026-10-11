@@ -230,6 +230,19 @@ function getClockPreviewLanguage() {
     return clockPreviewMeasureContext.measureText(text).width;
   }
 
+  // The panel's width of a text in the preview: the browser width scaled by
+  // the LVGL width of the sample "88:88 PM" in that font (--tw<size>,
+  // web_admin_styles.cpp). The browser's Inter runs a few percent wider than
+  // the panel's (user 2026-10-11: "8:01 PM" wrapped only in the preview).
+  const CLOCK_WIDTH_SAMPLE = '88:88 PM';
+  function clockPanelTextWidth(el, text, size, px, scope) {
+    const browser = measureClockPreviewText(el, text, px);
+    const lvgl = parseFloat(getComputedStyle(scope?.isConnected ? scope : document.documentElement)
+      .getPropertyValue('--tw' + size));
+    const sample = measureClockPreviewText(el, CLOCK_WIDTH_SAMPLE, px);
+    return lvgl > 0 && sample > 0 ? browser * lvgl / sample : browser;
+  }
+
   // Worst-case samples keep the chosen size stable while the time changes.
   function clockPreviewSample(el, isTime) {
     return isTime ? (/[AP]M/.test(el.textContent) ? '88:88 PM' : '88:88')
@@ -249,7 +262,6 @@ function getClockPreviewLanguage() {
       const font = normalizeClockPreviewFont(el.dataset.clockFont, 40);
       applyClockPreviewLine(el, font, getClockPreviewCssPx(font, 40, tileElem));
     });
-    if (!tileElem.classList.contains('clock-compact')) return;
     const style = getComputedStyle(tileElem);
     // The tile's own grid sizes (inherited variables), not the page's.
     const root = tileElem.isConnected ? style : getComputedStyle(document.documentElement);
@@ -261,6 +273,16 @@ function getClockPreviewLanguage() {
     const tileW = cellW > 0 ? span(tileElem.dataset.spanW, cellW) : tileElem.clientWidth;
     const tileH = cellH > 0 ? span(tileElem.dataset.spanH, cellH) : tileElem.clientHeight;
     const availW = tileW - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
+    if (!tileElem.classList.contains('clock-compact')) {
+      // A line wraps where the panel's label (as wide as the card) wraps.
+      lines.forEach(el => {
+        if (!el) return;
+        const font = normalizeClockPreviewFont(el.dataset.clockFont, 40);
+        const width = clockPanelTextWidth(el, el.textContent, font, getClockPreviewCssPx(font, 40, tileElem), tileElem);
+        el.style.whiteSpace = width <= availW + 0.5 ? 'nowrap' : '';
+      });
+      return;
+    }
     const maxPx = tileH * 0.8;
     const gap = parseFloat(style.columnGap || 0) || 0;
     const [time, date] = lines;
@@ -273,7 +295,7 @@ function getClockPreviewLanguage() {
       for (const size of [...CLOCK_PREVIEW_FONT_SIZES].reverse()) {
         const px = getClockPreviewCssPx(size, size, tileElem);
         if (size > Number(el.dataset.clockFont || 40) || px > capPx) continue;
-        const width = measureClockPreviewText(el, sample, px);
+        const width = clockPanelTextWidth(el, sample, size, px, tileElem);
         if (usedW + width <= availW) return { size, px, width };
       }
       return null;

@@ -497,29 +497,37 @@
     const f = layoutWindow.scale ||
       (layoutWindow.scale = Math.min(0.9, ...areas.map(([w, h]) => Math.min(roomW / w, (innerHeight - 32 - chrome) / h))));
     const stage = backdrop.querySelector('.setup-stage');
-    stage.style.width = Math.max(...areas.map(([w]) => w)) * f + 2 + 'px';
-    stage.style.height = Math.max(...areas.map(([, h]) => h)) * f + 2 + 'px';
+    const stageW = Math.max(...areas.map(([w]) => w)) * f;
+    const stageH = Math.max(...areas.map(([, h]) => h)) * f;
+    stage.style.width = stageW + 2 + 'px';
+    stage.style.height = stageH + 2 + 'px';
     const base = sizesOf(layoutWindow.key);
+    // Every layout fills the window's area with its own factor (user
+    // 2026-10-11: the classic layout's smaller cells left it small and
+    // pressed in a corner): its cells come out about as big as every other
+    // layout's, the window stays the same.
+    const [ownW, ownH] = areaOf(base, canvas.cols, canvas.rows);
+    const fk = Math.min(stageW / ownW, stageH / ownH);
     const scale = base['--radius-preview-scale'] || layoutScale();
     layoutSetVars(grid, Object.fromEntries(Object.entries(base).filter(([n]) => n !== '--radius-preview-scale')
-      .map(([n, val]) => [n, (val * f).toFixed(2) + 'px'])));
+      .map(([n, val]) => [n, (val * fk).toFixed(2) + 'px'])));
     // The window's area has whole rows only (an upright page's half row
     // track, --grid-half-track, is not part of it).
     layoutSetVars(grid, {'--grid-cols': String(GRID_COLS), '--grid-rows': String(GRID_ROWS),
-      '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * f)});
+      '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * fk)});
     // The layout's screen, in the theme's screen color (black in the dark
     // theme) with its rounded corners, behind the tiles.
     // The classic screen has no head: its cells start at its top.
     let w, h, y = 0;
     if (L.bar) {
-      [w, h] = areaOf(base, L.cols, L.rows).map(value => value * f);
+      [w, h] = areaOf(base, L.cols, L.rows).map(value => value * fk);
     } else {
       const own = layoutBaseSizes.classic;
       const px = name => own[name];
       const gap = base['--preview-gap'] || 0;
-      w = (px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * f;
-      h = (px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * f;
-      y = (base['--preview-pad-top'] - px('--preview-pad-top')) * f;
+      w = (px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * fk;
+      h = (px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * fk;
+      y = (base['--preview-pad-top'] - px('--preview-pad-top')) * fk;
     }
     const r = parseFloat(getComputedStyle(grid).borderTopLeftRadius) || 20;
     const screen = (panelRole('screen') || [0, 0, 0]).join(',');

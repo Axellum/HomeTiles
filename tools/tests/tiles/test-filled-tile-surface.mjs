@@ -192,9 +192,11 @@ static uint32_t bg(lv_obj_t* obj) { return rgb(lv_obj_get_style_bg_color(obj, LV
 static uint32_t frame_line(lv_obj_t* obj) { return rgb(lv_obj_get_style_outline_color(obj, LV_PART_MAIN)); }
 // The frame line of a card that is not the theme's plain card: a little
 // lighter on a dark card, a little darker on a light one (frame_line).
+// A filled card's line: darker on the light theme's screen, lighter on the
+// dark one (user 2026-10-11).
 static uint32_t expected_line(uint32_t card) {
-  return rgb(tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)
-                                                                      : lv_color_mix(lv_color_black(), lv_color_hex(card), 36));
+  return rgb(ui_theme::theme_light() ? lv_color_mix(lv_color_black(), lv_color_hex(card), 36)
+                                     : lv_color_mix(lv_color_white(), lv_color_hex(card), 23));
 }
 static int failures = 0;
 static void expect(bool ok, const char* what, uint32_t got = 0, uint32_t want = 0) {

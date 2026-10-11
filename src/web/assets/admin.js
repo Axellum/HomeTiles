@@ -9535,8 +9535,8 @@ async function saveGestureEdge(select) {
   }
   // ui_surface_style frame_line(): a solid line, on the theme's plain card a
   // fixed neutral (light #DDDDDD, dark #292929), on any other card that card
-  // a little lighter when it is dark (lv_color_mix 23 of white) and a little
-  // darker when it is light (36 of black). user 2026-10-11, like Tessera.
+  // a little darker on the light theme's screen (36 of black) and a little
+  // lighter on the dark one (lv_color_mix 23 of white). user 2026-10-11.
   function applyFrameLine(el) {
     if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
     const card = cssColorChannels(getComputedStyle(el).backgroundColor);
@@ -9545,7 +9545,7 @@ async function saveGestureEdge(select) {
     let line;
     if (card.every(v => v === 255)) line = [221, 221, 221];
     else if (card.every(v => v === 26)) line = [41, 41, 41];
-    else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
+    else if (!panelThemeLight()) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
     else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
     el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
   }
@@ -12237,29 +12237,37 @@ async function saveGestureEdge(select) {
     const f = layoutWindow.scale ||
       (layoutWindow.scale = Math.min(0.9, ...areas.map(([w, h]) => Math.min(roomW / w, (innerHeight - 32 - chrome) / h))));
     const stage = backdrop.querySelector('.setup-stage');
-    stage.style.width = Math.max(...areas.map(([w]) => w)) * f + 2 + 'px';
-    stage.style.height = Math.max(...areas.map(([, h]) => h)) * f + 2 + 'px';
+    const stageW = Math.max(...areas.map(([w]) => w)) * f;
+    const stageH = Math.max(...areas.map(([, h]) => h)) * f;
+    stage.style.width = stageW + 2 + 'px';
+    stage.style.height = stageH + 2 + 'px';
     const base = sizesOf(layoutWindow.key);
+    // Every layout fills the window's area with its own factor (user
+    // 2026-10-11: the classic layout's smaller cells left it small and
+    // pressed in a corner): its cells come out about as big as every other
+    // layout's, the window stays the same.
+    const [ownW, ownH] = areaOf(base, canvas.cols, canvas.rows);
+    const fk = Math.min(stageW / ownW, stageH / ownH);
     const scale = base['--radius-preview-scale'] || layoutScale();
     layoutSetVars(grid, Object.fromEntries(Object.entries(base).filter(([n]) => n !== '--radius-preview-scale')
-      .map(([n, val]) => [n, (val * f).toFixed(2) + 'px'])));
+      .map(([n, val]) => [n, (val * fk).toFixed(2) + 'px'])));
     // The window's area has whole rows only (an upright page's half row
     // track, --grid-half-track, is not part of it).
     layoutSetVars(grid, {'--grid-cols': String(GRID_COLS), '--grid-rows': String(GRID_ROWS),
-      '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * f)});
+      '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * fk)});
     // The layout's screen, in the theme's screen color (black in the dark
     // theme) with its rounded corners, behind the tiles.
     // The classic screen has no head: its cells start at its top.
     let w, h, y = 0;
     if (L.bar) {
-      [w, h] = areaOf(base, L.cols, L.rows).map(value => value * f);
+      [w, h] = areaOf(base, L.cols, L.rows).map(value => value * fk);
     } else {
       const own = layoutBaseSizes.classic;
       const px = name => own[name];
       const gap = base['--preview-gap'] || 0;
-      w = (px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * f;
-      h = (px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * f;
-      y = (base['--preview-pad-top'] - px('--preview-pad-top')) * f;
+      w = (px('--preview-pad-left') + px('--preview-pad-right') + L.cols * px('--preview-cell-w') + (L.cols - 1) * gap) * fk;
+      h = (px('--preview-pad-top') + px('--preview-pad-bottom') + L.rows * px('--preview-cell-h') + (L.rows - 1) * gap) * fk;
+      y = (base['--preview-pad-top'] - px('--preview-pad-top')) * fk;
     }
     const r = parseFloat(getComputedStyle(grid).borderTopLeftRadius) || 20;
     const screen = (panelRole('screen') || [0, 0, 0]).join(',');
@@ -19388,6 +19396,19 @@ function getClockPreviewLanguage() {
     return clockPreviewMeasureContext.measureText(text).width;
   }
 
+  // The panel's width of a text in the preview: the browser width scaled by
+  // the LVGL width of the sample "88:88 PM" in that font (--tw<size>,
+  // web_admin_styles.cpp). The browser's Inter runs a few percent wider than
+  // the panel's (user 2026-10-11: "8:01 PM" wrapped only in the preview).
+  const CLOCK_WIDTH_SAMPLE = '88:88 PM';
+  function clockPanelTextWidth(el, text, size, px, scope) {
+    const browser = measureClockPreviewText(el, text, px);
+    const lvgl = parseFloat(getComputedStyle(scope?.isConnected ? scope : document.documentElement)
+      .getPropertyValue('--tw' + size));
+    const sample = measureClockPreviewText(el, CLOCK_WIDTH_SAMPLE, px);
+    return lvgl > 0 && sample > 0 ? browser * lvgl / sample : browser;
+  }
+
   // Worst-case samples keep the chosen size stable while the time changes.
   function clockPreviewSample(el, isTime) {
     return isTime ? (/[AP]M/.test(el.textContent) ? '88:88 PM' : '88:88')
@@ -19407,7 +19428,6 @@ function getClockPreviewLanguage() {
       const font = normalizeClockPreviewFont(el.dataset.clockFont, 40);
       applyClockPreviewLine(el, font, getClockPreviewCssPx(font, 40, tileElem));
     });
-    if (!tileElem.classList.contains('clock-compact')) return;
     const style = getComputedStyle(tileElem);
     // The tile's own grid sizes (inherited variables), not the page's.
     const root = tileElem.isConnected ? style : getComputedStyle(document.documentElement);
@@ -19419,6 +19439,16 @@ function getClockPreviewLanguage() {
     const tileW = cellW > 0 ? span(tileElem.dataset.spanW, cellW) : tileElem.clientWidth;
     const tileH = cellH > 0 ? span(tileElem.dataset.spanH, cellH) : tileElem.clientHeight;
     const availW = tileW - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
+    if (!tileElem.classList.contains('clock-compact')) {
+      // A line wraps where the panel's label (as wide as the card) wraps.
+      lines.forEach(el => {
+        if (!el) return;
+        const font = normalizeClockPreviewFont(el.dataset.clockFont, 40);
+        const width = clockPanelTextWidth(el, el.textContent, font, getClockPreviewCssPx(font, 40, tileElem), tileElem);
+        el.style.whiteSpace = width <= availW + 0.5 ? 'nowrap' : '';
+      });
+      return;
+    }
     const maxPx = tileH * 0.8;
     const gap = parseFloat(style.columnGap || 0) || 0;
     const [time, date] = lines;
@@ -19431,7 +19461,7 @@ function getClockPreviewLanguage() {
       for (const size of [...CLOCK_PREVIEW_FONT_SIZES].reverse()) {
         const px = getClockPreviewCssPx(size, size, tileElem);
         if (size > Number(el.dataset.clockFont || 40) || px > capPx) continue;
-        const width = measureClockPreviewText(el, sample, px);
+        const width = clockPanelTextWidth(el, sample, size, px, tileElem);
         if (usedW + width <= availW) return { size, px, width };
       }
       return null;

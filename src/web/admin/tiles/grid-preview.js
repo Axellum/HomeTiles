@@ -308,8 +308,8 @@
   }
   // ui_surface_style frame_line(): a solid line, on the theme's plain card a
   // fixed neutral (light #DDDDDD, dark #292929), on any other card that card
-  // a little lighter when it is dark (lv_color_mix 23 of white) and a little
-  // darker when it is light (36 of black). user 2026-10-11, like Tessera.
+  // a little darker on the light theme's screen (36 of black) and a little
+  // lighter on the dark one (lv_color_mix 23 of white). user 2026-10-11.
   function applyFrameLine(el) {
     if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
     const card = cssColorChannels(getComputedStyle(el).backgroundColor);
@@ -318,7 +318,7 @@
     let line;
     if (card.every(v => v === 255)) line = [221, 221, 221];
     else if (card.every(v => v === 26)) line = [41, 41, 41];
-    else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
+    else if (!panelThemeLight()) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
     else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
     el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
   }

@@ -246,6 +246,14 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
     snprintf(name, sizeof(name), "lb%u", static_cast<unsigned>(size.nominal));
     emit_scaled(name, font->line_height - font->base_line);
     if (size.nominal < 20) continue;
+    // The panel's width of the clock sample "88:88 PM" in this font
+    // (clock/renderer.cpp clock_text_width): the preview scales its browser
+    // widths by it, so a clock line wraps exactly where the panel's does
+    // (user 2026-10-11: "8:01 PM" wrapped only in the preview).
+    lv_point_t sample{};
+    lv_text_get_size(&sample, "88:88 PM", font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    snprintf(name, sizeof(name), "tw%u", static_cast<unsigned>(size.nominal));
+    emit_scaled(name, sample.x);
     snprintf(name, sizeof(name), "screensaver-lh%u", static_cast<unsigned>(size.nominal));
     emit_device_px(name, font->line_height);
     snprintf(name, sizeof(name), "screensaver-ldy%u", static_cast<unsigned>(size.nominal));
