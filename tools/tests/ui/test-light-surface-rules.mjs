@@ -303,9 +303,16 @@ for (const [icon, strength, card, circle, control, raised] of rows('jewel')) {
     assert.ok(L(value('idle')[0]) < seed.L, `off is a little darker than white light ${what}`);
   }
 }
-// A stronger tint is more colorful; strength 0 is the default (Settings).
+// A stronger tint is more colorful where the cap holds (a deep red);
+// strength 0 is the default (Settings).
 const chroma = (icon, s) => js.toneOklch(rgb(rows('jewel').find(r => r[0] === icon && r[1] === s)[2])).C;
-assert.ok(chroma(0x2196F3, 30) > chroma(0x2196F3, 20), 'strength raises the chroma');
+assert.ok(chroma(0xE53935, 30) > chroma(0xE53935, 20), 'strength raises the chroma');
+// "Kräftig" (user 2026-10-11): at the default strength a filled card shows
+// its icon's own color (kJewelCardChromaShare of it), green no olive, blue
+// no grey-blue.
+for (const icon of [0x2196F3, 0x43A047, 0xFF9800]) {
+  assert.ok(Math.abs(chroma(icon, 20) - js.toneOklch(rgb(icon)).C * 0.85) < 0.012, `#${icon.toString(16)} in its own color`);
+}
 assert.equal(rows('jewel').find(r => r[0] === 0x2196F3 && r[1] === 0)[2], rows('jewel').find(r => r[0] === 0x2196F3 && r[1] === 20)[2]);
 // Icons: every colored icon keeps its color on every surface; on a white
 // card only a pure white icon takes the icon grey, Home Assistant's light

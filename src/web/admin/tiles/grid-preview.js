@@ -248,13 +248,13 @@
     if (toneNoColor(icon)) return toneRgb(jewelVar('neutral', 0.63), 0, 0);
     const seed = toneOklch(icon);
     const L = Math.min(jewelVar('max', 0.7), seed.L - jewelVar('below', 0.16));
-    const cap = jewelVar('chroma', 0.07) * (strength || 20) / 20;
+    const cap = jewelVar('chroma', 0.14) * (strength || 20) / 20;
     return toneRgb(L, Math.min(seed.C * jewelVar('card-share', 0.85), cap), seed.h);
   }
   // tone_color::jewel_fill(): circle and controls one step above the card.
   function toneJewelFill(card, icon, glowPct, strength) {
     const base = toneOklch(card), seed = toneOklch(icon);
-    const cap = jewelVar('chroma', 0.07) * jewelVar('circle-cap', 1.3) * (strength || 20) / 20;
+    const cap = jewelVar('chroma', 0.14) * jewelVar('circle-cap', 1.3) * (strength || 20) / 20;
     const C = toneNoColor(icon) ? 0 : Math.min(seed.C * jewelVar('circle-share', 0.75), cap);
     const step = jewelVar('step', 0.05) * glowPct / 25;
     const control = Math.max(step, 0.03);
