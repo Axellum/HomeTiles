@@ -2263,8 +2263,9 @@ String WebAdminServer::getAdminPage() {
 <body>
 <div class="wrapper)html";
   // Four-column devices keep their preview size on the wide page; the
-  // Settings slot moves beside it (admin.css .compact-grid).
-  if (GRID_COLS <= 4) html += " compact-grid";
+  // Settings slot moves beside it (admin.css .compact-grid). So does an
+  // upright layout's narrow preview (user 2026-10-11: "like the square ones").
+  if (GRID_COLS <= 4 || grid_layout::shown().cols <= 4) html += " compact-grid";
   html += R"html(">
 <div class="card">
 <div class="brand">
