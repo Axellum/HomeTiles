@@ -106,7 +106,7 @@ Last reviewed: 2026-10-11
 - Core `src/video/local_camera/` is device-agnostic; drivers `sensors/*/`, boards `src/devices/*/local_camera_board.*`; opt-in `local_cam_en`.
 - V2 OV02C10 720p, Tab5 SC202CS 720p RAW8 (mirror+180), 8-inch OV5647. Window rule (b296, user-drawn): Bridge turns a quarter = sensor upright = centred strip (OV5647 544x960, others 400x720); no turn = whole image (1280x960 / 1280x720). Panel never turns; Web Admin 90° swaps both.
 - Camera builds pass; HW pending (#56): WS 7/10.1/7B/4.3/4B OV5647, V1/JC1060 V2 OV02C10, JC4880 quarter turn.
-- Advanced: `lcam_rot` (180 = flip, odd = `rotate` 90; b387: one for every layout, upright adds its own quarter turn, the user mirror never changes the turn - b298-b386 reversed it and stood the V2 upright picture upside down; `lcam_rot_up` no longer read), `lcam_rbswap` (Bayer, next start).
+- Advanced: `lcam_rot` (180 = flip, odd = `rotate` 90; b387: one for every layout, upright adds its own quarter turn, the user mirror never changes the turn - b298-b386 reversed it and stood the V2 upright picture upside down; `lcam_rot_up` no longer read; V2 HW ok 2026-10-11), `lcam_rbswap` (Bayer, next start).
 - HW pending: b30-b35 (CSI/ISP, gain, screenshot, Wi-Fi/AP, rotation, sleep stream/indicator wake).
 - Open: int WDT HW; TEST `kChunkWindow = 4`; stream AE waits for a step to show (b215).
 - Popup stream: Bridge thins before scaling, shared FFmpeg per camera; P4 b134 30 FPS; #63 1024x600 552x310 (b135).
