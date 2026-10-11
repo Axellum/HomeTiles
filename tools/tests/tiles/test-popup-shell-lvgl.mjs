@@ -103,19 +103,14 @@ int main(int argc,char**argv){lv_init();auto*d=lv_display_create(SCREEN_WIDTH,SC
  if(SCREEN_WIDTH>SCREEN_HEIGHT)assert(outside_draws==0&&"A warm popup must not repaint cached tiles outside its frame");
  lv_refr_now(d);
  const int rendered=flushed;for(int i=0;i<20;++i){sync_popup_shell();lv_refr_now(d);}assert(flushed==rendered);
- // The visible shared close highlight retains its established shape at the
- // minimum and follows live changes, including while already pressed.
+ // The visible shared close highlight keeps its shape, concentric with the
+ // fixed tile radius (tile_radius::kDefault), also while pressed.
  const int close_baseline = SCREEN_WIDTH == 480 ? 11 : 16;
- for(int radius : {tile_radius::kMinimum,tile_radius::kMaximum,tile_radius::kMinimum}) {
-   ui_surface_style::preview_radius(radius);
-   ui_surface_style::process_pending_updates();
-   lv_obj_add_state(button,LV_STATE_PRESSED);
-   lv_tick_inc(300);lv_refr_now(d);
-   assert(lv_obj_get_style_bg_opa(button,LV_PART_MAIN)>0);
-   assert(lv_obj_get_style_radius(button,LV_PART_MAIN)==close_baseline+radius-tile_radius::kMinimum);
- }
+ lv_obj_add_state(button,LV_STATE_PRESSED);
+ lv_tick_inc(300);lv_refr_now(d);
+ assert(lv_obj_get_style_bg_opa(button,LV_PART_MAIN)>0);
+ assert(lv_obj_get_style_radius(button,LV_PART_MAIN)==close_baseline+tile_radius::kDefault-tile_radius::kMinimum);
  lv_obj_remove_state(button,LV_STATE_PRESSED);
- ui_surface_style::request_global_radius_refresh();ui_surface_style::process_pending_updates();
  lv_obj_update_layout(shell.overlay);assert(lv_obj_get_width(shell.frame)==lv_obj_get_width(a.body));assert(strcmp(hometiles_title::text(shell.title),"Number\nLiving room")==0);
  // One rule for the pressed close button and the footer controls: the
  // circle's color (tone_color::fill) in the icon hue only with tile color
@@ -160,9 +155,7 @@ int main(int argc,char**argv){lv_init();auto*d=lv_display_create(SCREEN_WIDTH,SC
   assert(after!=before&&after==tone_color::fill(0x2B1A10,0x2E7D32,true,configManager.cfg.icon_glow).control_color&&"close press color follows on release");
   hide_popup_shell(b.body);}
  tone_color::g_from_icon_card=nullptr;
- configManager.cfg.icon_glow=0;popup_shell_use_tile_disc(false,false,true,true);
- {uint32_t rgb;lv_opa_t opa;footer_fill(0x482F10,0xEF8402,rgb,opa);assert(opa==LV_OPA_COVER&&rgb==tone_color::fill(0x482F10,0xEF8402,true,0).control_color&&"Circle strength 0 keeps presses visible");}
- configManager.cfg.icon_glow=icon_glow::kDefault;g_next_disc={};
+ g_next_disc={};
  lv_obj_set_style_bg_color(b.body,lv_color_hex(0x885522),0);lv_obj_set_style_text_color(b.icon,lv_color_hex(0x00FF00),0);show(b,"Weather");assert(lv_color_eq(lv_obj_get_style_bg_color(shell.frame,LV_PART_MAIN),lv_color_hex(0x885522)));assert(lv_color_eq(lv_obj_get_style_text_color(shell.icon,LV_PART_MAIN),lv_color_hex(0x00FF00)));assert(shell.frame==frame&&shell.header==header&&shell.close==button);assert(lv_obj_get_parent(a.body)==a.owner);assert(lv_obj_has_flag(a.body,LV_OBJ_FLAG_HIDDEN));assert(strcmp(hometiles_title::text(shell.title),"Weather")==0);
  hometiles_title::set(a.title,"Hidden background update");lv_obj_set_style_bg_color(a.body,lv_color_hex(0xEE0000),0);sync_popup_shell();assert(lv_color_eq(lv_obj_get_style_bg_color(shell.frame,LV_PART_MAIN),lv_color_hex(0x885522)));assert(strcmp(hometiles_title::text(shell.title),"Weather")==0);
  lv_obj_send_event(button,LV_EVENT_CLICKED,nullptr);assert(b.closed==1&&!PopupFirstFrame::any_pending());process_popup_open();assert(applied==2);

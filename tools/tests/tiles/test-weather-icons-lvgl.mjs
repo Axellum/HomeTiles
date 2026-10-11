@@ -92,7 +92,7 @@ assert.match(handler, /server\.arg\("weather_colored_icons"\)\.toInt\(\) == 0 \?
 // weather fields.
 const html = read('src/web/server/render/web_admin_html.cpp');
 assert.doesNotMatch(read('src/types/weather/web_html.cpp'), /weather_colored_icons/);
-assert.match(html, /_tile_icon_glow" checked> \)html";[\s\S]{0,200}if \(!screensaver_mode\) \{\s*html \+= R"html\(\s*<label class="inline-checkbox hidden" id="\)html";\s*html \+= tab_id;\s*html \+= R"html\(_weather_colored_icons_row"><input type="checkbox" id="\)html";\s*html \+= tab_id;\s*html \+= R"html\(_weather_colored_icons" checked> \)html";\s*appendHtmlEscaped\(html, tr\.weather_colored_icons\);/);
+assert.match(html, /_tile_icon_disc_fields">\n\)html";[\s\S]{0,200}if \(!screensaver_mode\) \{\s*html \+= R"html\(\s*<label class="inline-checkbox hidden" id="\)html";\s*html \+= tab_id;\s*html \+= R"html\(_weather_colored_icons_row"><input type="checkbox" id="\)html";\s*html \+= tab_id;\s*html \+= R"html\(_weather_colored_icons" checked> \)html";\s*appendHtmlEscaped\(html, tr\.weather_colored_icons\);/);
 assert.match(read('src/web/admin/tiles/snapshots.js'),
   /getElementById\(tab \+ '_weather_colored_icons_row'\)\?\.classList\.toggle\('hidden', !weather\)/);
 const i18n = read('src/core/i18n/i18n.cpp');
@@ -131,7 +131,7 @@ assert.equal(fn(popup, 'build_popup_ui').match(/weather_icons::style_label\(/g)?
   'popup header, day, hour and now icons');
 // A rule's icon color switches the tile icon to single-color layers.
 assert.match(fn(read('src/tiles/runtime/tile_icon_source.cpp'), 'refresh_card'),
-  /tile\.type == TILE_WEATHER && weatherColoredIcons\(tile\)\) \{\s*weather_icons::follow_icon_color\(icon, \(colored && layer\.icon\) \|\| force_fixed\);/);
+  /tile\.type == TILE_WEATHER && weatherColoredIcons\(tile\)\) \{\s*weather_icons::follow_icon_color\(icon, rule_icon \|\| force_fixed\);/);
 // The shared popup header copies the recoloring, and the tile icon disc
 // measures the icon without the recolor commands.
 assert.match(fn(read('src/ui/popups/popup_shell.cpp'), 'copy_label'), /lv_label_set_recolor\(target, lv_label_get_recolor\(source\)\)/);

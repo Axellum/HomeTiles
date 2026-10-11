@@ -142,130 +142,12 @@ if (typeof window !== 'undefined' && window.setInterval) {
   window.setInterval(refreshHeadBarTime, 30000);
 }
 
-// Icon discs are a root class: every preview grid, including cached and lazily
-// inserted folders, follows it without re-rendering a tile.
-let iconDiscsSaveSequence = 0;
-function iconDiscsEnabled() {
-  return !document.documentElement.classList.contains('icon-discs-off');
-}
-function applyIconDiscsPreview(enabled) {
-  document.documentElement.classList.toggle('icon-discs-off', !enabled);
-  document.querySelectorAll('.global-icon-disc-toggle').forEach(input => {
-    input.checked = !!enabled;
-  });
-  // A dark icon is lifted against its circle or, without one, the tile.
-  document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
-}
-async function saveIconDiscs(enabled) {
-  const wanted = !!enabled;
-  const sequence = ++iconDiscsSaveSequence;
-  applyIconDiscsPreview(wanted);
-  try {
-    const response = await fetch('/api/display/icon-discs', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'enabled=' + (wanted ? '1' : '0')
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-  } catch (error) {
-    if (sequence !== iconDiscsSaveSequence) return;
-    applyIconDiscsPreview(!wanted);
-    showNotification(t('networkErrorSave'), false);
-  }
-}
-
-// Glow strength of colored icon discs: previews read the root variable
-// --icon-glow-pct (applyIconDiscTint); the device rebuilds its tiles after
-// the save. Range and step mirror icon_glow.h.
-let iconGlowConfirmed = null;
-let iconGlowSaveSequence = 0;
+// The fixed Circle strength (icon_glow::kDefault, user 2026-10-11: no circle
+// settings): previews read the root variable --icon-glow-pct.
 function currentIconGlow() {
   const raw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
   const value = Number(raw);
   return raw !== '' && Number.isFinite(value) ? value : 25;
-}
-function previewIconGlowLive(value) {
-  const number = Math.round(Number(value) / 5) * 5;
-  const percent = Math.min(100, Math.max(0, Number.isFinite(number) ? number : 25));
-  if (iconGlowConfirmed === null) iconGlowConfirmed = currentIconGlow();
-  document.documentElement.style.setProperty('--icon-glow-pct', String(percent));
-  document.querySelectorAll('.global-icon-glow').forEach(input => { input.value = String(percent); });
-  document.querySelectorAll('.global-icon-glow-value').forEach(output => { output.textContent = percent + ' %'; });
-  document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
-  return percent;
-}
-async function saveIconGlow(value) {
-  const percent = previewIconGlowLive(value);
-  const sequence = ++iconGlowSaveSequence;
-  try {
-    const response = await fetch('/api/display/icon-glow', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'percent=' + percent
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    if (sequence === iconGlowSaveSequence) iconGlowConfirmed = percent;
-  } catch (error) {
-    if (sequence !== iconGlowSaveSequence) return;
-    const confirmed = iconGlowConfirmed;
-    iconGlowConfirmed = null;
-    if (confirmed !== null) previewIconGlowLive(confirmed);
-    showNotification(t('networkErrorSave'), false);
-  }
-}
-
-// The global default tile color paints every tile without its own color
-// through --tile-default-bg; reset and new tiles take it as their default.
-let defaultTileColorConfirmed = null;
-let defaultTileColorSaveSequence = 0;
-function currentDefaultTileColor() {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue('--tile-default-bg').trim();
-  return /^#[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : '#2A2A2A';
-}
-function previewDefaultTileColor(value) {
-  const color = String(value || '').trim().toUpperCase();
-  if (!/^#[0-9A-F]{6}$/.test(color)) return;
-  if (defaultTileColorConfirmed === null) {
-    defaultTileColorConfirmed = currentDefaultTileColor();
-  }
-  document.documentElement.style.setProperty('--tile-default-bg', color);
-  Object.values(typeof TILE_TYPE_REGISTRY === 'object' ? TILE_TYPE_REGISTRY : {})
-    .forEach(meta => { if (meta && meta.sharedBg) meta.defaultBg = color; });
-  // Circles are opaque steps above their tile (tone_color.h): recompute them
-  // for the new background.
-  if (typeof applyIconDiscTint === 'function') document.querySelectorAll('.tile').forEach(tile => applyIconDiscTint(tile));
-  document.querySelectorAll('.global-tile-color').forEach(input => { input.value = color; });
-  // Open editors of tiles without their own color show the new default.
-  document.querySelectorAll('input[type="color"][id$="_tile_color"]').forEach(input => {
-    if (input.dataset.bgColorDefault !== '1') return;
-    const tab = input.id.slice(0, -'_tile_color'.length);
-    const type = document.getElementById(tab + '_tile_type')?.value || '0';
-    if (getTileTypeMeta(type).sharedBg) input.value = color;
-  });
-  return color;
-}
-async function saveDefaultTileColor(value) {
-  const color = previewDefaultTileColor(value);
-  if (!color) return;
-  const sequence = ++defaultTileColorSaveSequence;
-  try {
-    const response = await fetch('/api/display/tile-color', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({color}).toString()
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const result = await response.json();
-    if (!result.success || String(result.color).toUpperCase() !== color) {
-      throw new Error('invalid response');
-    }
-    if (sequence === defaultTileColorSaveSequence) defaultTileColorConfirmed = color;
-  } catch (error) {
-    if (sequence !== defaultTileColorSaveSequence) return;
-    previewDefaultTileColor(defaultTileColorConfirmed || color);
-    showNotification(t('networkErrorSave'), false);
-  }
 }
 // The theme (ui_theme.h): the panel switches while running; every grid's
 // field shows the saved choice.
@@ -332,90 +214,7 @@ async function saveTheme(value) {
   }
 }
 function syncGlobalDisplayControls(tabEl) {
-  tabEl.querySelectorAll('.global-icon-disc-toggle').forEach(input => {
-    input.checked = iconDiscsEnabled();
-  });
-  const color = currentDefaultTileColor();
-  tabEl.querySelectorAll('.global-tile-color').forEach(input => { input.value = color; });
-  const glow = currentIconGlow();
-  tabEl.querySelectorAll('.global-icon-glow').forEach(input => { input.value = String(glow); });
-  tabEl.querySelectorAll('.global-icon-glow-value').forEach(output => { output.textContent = glow + ' %'; });
   if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
-}
-
-// The shared root variables also reach cached and lazily inserted folder grids.
-let tileRadiusConfirmed = null;
-let tileRadiusWanted = null;
-let tileRadiusSaving = false;
-let tileRadiusRevision = 0;
-let tileRadiusPreviewTimer = null;
-let tileRadiusLiveWanted = null;
-function previewTileRadiusLive(value) {
-  const radius = previewTileRadius(value);
-  tileRadiusLiveWanted = radius;
-  if (tileRadiusPreviewTimer === null) tileRadiusPreviewTimer = setTimeout(() => {
-    tileRadiusPreviewTimer = null;
-    queueTileRadius(tileRadiusLiveWanted, false);
-  }, 80);
-}
-function previewTileRadius(value) {
-  const input = document.querySelector('.global-tile-radius');
-  if (!input) return;
-  const radius = Math.max(Number(input.min), Math.min(Number(input.max), Math.round(Number(value))));
-  if (!Number.isFinite(radius)) return;
-  const root = document.documentElement;
-  if (tileRadiusConfirmed === null) {
-    tileRadiusConfirmed = Number(getComputedStyle(root).getPropertyValue('--tile-radius-device'));
-  }
-  const scale = Number(getComputedStyle(root).getPropertyValue('--radius-preview-scale'));
-  // Unrounded like the server's --tile-radius: the corner disc is concentric
-  // with the card corner only at the exact device radius.
-  root.style.setProperty('--tile-radius', (radius * scale).toFixed(2) + 'px');
-  root.style.setProperty('--tile-radius-device', String(radius));
-  document.querySelectorAll('.global-tile-radius').forEach(control => { control.value = radius; });
-  document.querySelectorAll('.global-tile-radius-value').forEach(output => { output.textContent = radius; });
-  tileRadiusRevision++;
-  return radius;
-}
-function saveTileRadius(value) {
-  clearTimeout(tileRadiusPreviewTimer);
-  tileRadiusPreviewTimer = null;
-  return queueTileRadius(value, true);
-}
-async function queueTileRadius(value, persist) {
-  const radius = previewTileRadius(value);
-  if (radius === undefined) return;
-  tileRadiusWanted = { radius, persist };
-  if (tileRadiusSaving) return;
-  tileRadiusSaving = true;
-  try {
-    while (tileRadiusWanted !== null) {
-      const wanted = tileRadiusWanted;
-      const revision = tileRadiusRevision;
-      tileRadiusWanted = null;
-      try {
-        const response = await fetch('/api/display/tile-radius', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ radius: String(wanted.radius), preview: wanted.persist ? '0' : '1' }).toString()
-        });
-        if (!response.ok) throw new Error('save failed');
-        const result = await response.json();
-        if (!result.success || result.radius !== wanted.radius) throw new Error('invalid response');
-        if (wanted.persist) tileRadiusConfirmed = wanted.radius;
-      } catch (error) {
-        if (tileRadiusWanted === null && revision === tileRadiusRevision) {
-          previewTileRadius(tileRadiusConfirmed);
-          showNotification(t('networkErrorSave'), false);
-        }
-      }
-    }
-  } finally { tileRadiusSaving = false; }
-}
-function syncTileRadiusControls(tabEl) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--tile-radius-device').trim();
-  tabEl.querySelectorAll('.global-tile-radius').forEach(control => { control.value = value; });
-  tabEl.querySelectorAll('.global-tile-radius-value').forEach(output => { output.textContent = value; });
 }
   let tabSwitchSequence = 0;
 
@@ -4140,60 +3939,13 @@ function syncTileRadiusControls(tabEl) {
     }).observe(document.body, { childList: true, subtree: true });
   });
 
-  // Per-tile icon disc options are common to every type with an icon, so
-  // they travel with the type fields through drafts, copy/paste and saves.
-  function tileTypeHasIcon(typeValue) {
-    return !['0', '16'].includes(String(typeValue ?? '0'));
-  }
-  // Glow only matters where the icon can take a color: from its entity
-  // (switch/light, climate, cover, binary sensor), from the color bar or
-  // state colors (sensor family, energy) or from a fixed icon color (scene,
-  // folder, back, camera). Other icons are always white.
-  function tileTypeHasColoredIcon(typeValue) {
-    return ['1', '2', '4', '5', '8', '12', '14', '15', '17', '18', '19', '20', '21', '22', '23']
-      .includes(String(typeValue ?? '0'));
-  }
-  // Stored disc mode: 0 follows the global option, 2 hides the disc on this
-  // tile. A legacy stored 1 ("on") loads as checked.
-  function iconDiscModeFromCheckbox(box) {
-    return box?.checked === false ? '2' : '0';
-  }
-  // Like the per-tile Tile borders option, only Back, Clock and Text can hide
-  // their own icon disc; every other tile follows the global option.
-  function tileTypeHasDiscToggle(typeValue) {
-    return ['8', '9', '10'].includes(String(typeValue ?? '0'));
-  }
-  function collectIconDiscFields(tab, typeValue) {
-    const box = document.getElementById(tab + '_tile_icon_disc');
-    if (!box || !tileTypeHasIcon(typeValue)) return {};
-    const glow = document.getElementById(tab + '_tile_icon_glow');
-    return {
-      icon_disc: tileTypeHasDiscToggle(typeValue) ? iconDiscModeFromCheckbox(box) : '0',
-      icon_glow: tileTypeHasColoredIcon(typeValue) && glow?.checked === false ? '0' : '1',
-    };
-  }
-  function loadIconDiscFields(tab, data) {
-    const box = document.getElementById(tab + '_tile_icon_disc');
-    if (box) box.checked = String(data?.icon_disc) !== '2';
-    const glow = document.getElementById(tab + '_tile_icon_glow');
-    if (glow) glow.checked = !['0', 'false'].includes(String(data?.icon_glow));
-    syncIconDiscFields(tab);
-  }
-  function resetIconDiscFields(tab) {
-    const box = document.getElementById(tab + '_tile_icon_disc');
-    if (box) box.checked = true;
-    const glow = document.getElementById(tab + '_tile_icon_glow');
-    if (glow) glow.checked = true;
-  }
+  // The icon block of the common fields only holds Weather's colored icons
+  // option: every circle shows, in its icon's color (user 2026-10-11: no
+  // circle options per tile). Stored per-tile disc values of older tiles are
+  // kept by the server but no longer drawn.
   function syncIconDiscFields(tab) {
-    const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
-    const discToggle = tileTypeHasDiscToggle(typeValue);
-    const colored = tileTypeHasColoredIcon(typeValue);
-    const weather = typeValue === '12';
-    document.getElementById(tab + '_tile_icon_disc_fields')
-      ?.classList.toggle('hidden', !tileTypeHasIcon(typeValue) || (!discToggle && !colored && !weather));
-    document.getElementById(tab + '_tile_icon_disc_row')?.classList.toggle('hidden', !discToggle);
-    document.getElementById(tab + '_tile_icon_glow_row')?.classList.toggle('hidden', !colored);
+    const weather = (document.getElementById(tab + '_tile_type')?.value || '0') === '12';
+    document.getElementById(tab + '_tile_icon_disc_fields')?.classList.toggle('hidden', !weather);
     document.getElementById(tab + '_weather_colored_icons_row')?.classList.toggle('hidden', !weather);
   }
 
@@ -4201,7 +3953,7 @@ function syncTileRadiusControls(tabEl) {
     const prefix = tab;
     const typeValue = document.getElementById(prefix + '_tile_type')?.value || '0';
     const meta = getTileTypeMeta(typeValue);
-    const out = collectIconDiscFields(prefix, typeValue);
+    const out = {};
     if (!meta.save) return out;
     const fd = new FormData();
     callTypeHandler(meta, 'save', prefix, fd);
@@ -4580,6 +4332,12 @@ function syncTileRadiusControls(tabEl) {
     return layer;
   }
 
+  // tile_icon_colors::rule_colors_icon(): a rule colors the icon, a former
+  // "Tint tile" rule too (user 2026-10-11: rules only color the icon).
+  function iconColorRuleColorsIcon(layer) {
+    return !!layer && (!!layer.icon || Number(layer.tile || 0) > 0);
+  }
+
   // own_state_colors_icon(): no rule layer (b40 records) or an enabled
   // "src rules self" that colors the icon.
   function iconColorOwnStateColorsIcon(record) {
@@ -4873,36 +4631,6 @@ function syncTileRadiusControls(tabEl) {
     return '';
   }
 
-  // The `active` flag of tile_icon_source.cpp's auto_color(): false while the
-  // entity is off, closed or not running (climate_visuals::state_active()).
-  function iconColorSourceAutoActive(entity, payload) {
-    const domain = String(entity).split('.')[0];
-    const text = String(payload ?? '').trim();
-    if (!text) return false;
-    if (ICON_COLOR_SWITCH_DOMAINS.includes(domain) && typeof parseSwitchPayload === 'function') {
-      const state = parseSwitchPayload(text);
-      return !!state && state.available !== false && !!state.hasState && !!state.isOn;
-    }
-    if (domain === 'binary_sensor' && typeof parseBinarySensorPreviewPayload === 'function') {
-      const state = parseBinarySensorPreviewPayload(text);
-      return !!state?.valid && state.available === true && state.state === 'on';
-    }
-    if (domain === 'climate' && typeof parseClimatePreviewPayload === 'function') {
-      const state = parseClimatePreviewPayload(text);
-      if (!state || state.available === false) return false;
-      const action = String(state.action || '');
-      const mode = String(state.mode || '');
-      if (['heating', 'preheating', 'cooling', 'drying', 'fan', 'defrosting'].includes(action)) return true;
-      return !!mode && mode !== 'off' && mode !== 'unknown' && action !== 'off';
-    }
-    if (domain === 'cover' && typeof parseCoverPreviewPayload === 'function') {
-      const state = parseCoverPreviewPayload(text);
-      const value = String(state?.state || 'unknown').toLowerCase();
-      return !!state && state.available !== false && !['closed', 'unknown', 'unavailable'].includes(value);
-    }
-    return false;
-  }
-
   // tile_icon_source::rule_color(): the rule color of a layer from the preview
   // states of its entity (own or other); '' without a known state or result.
   // Rules never fall back to the fixed color here.
@@ -4933,27 +4661,8 @@ function syncTileRadiusControls(tabEl) {
   // color ('' = white).
   function iconColorSourcePreview(record, meta) {
     const layer = iconColorRecordSource(record);
-    const color = layer && !layer.self && layer.icon ? iconColorLayerColor(record, layer, '', meta, '') : '';
+    const color = layer && !layer.self && iconColorRuleColorsIcon(layer) ? iconColorLayerColor(record, layer, '', meta, '') : '';
     return color || resolveIconColorRecord(record, '', null);
-  }
-
-  // The rules' tile tint for the preview: { color, percent } or null. Entity
-  // color tints only while the entity is active, like refresh_card(). With
-  // Tile color "From icon" the tile follows the icon instead (no rule tint).
-  function iconColorTilePreviewTint(typeValue, record, ownEntity, meta) {
-    const layer = iconColorRecordSource(record);
-    if (parseIconColorRecord(record).fill) return null;
-    const ruleTint = (() => {
-      if (!layer || !layer.enabled || !layer.tile) return null;
-      const color = iconColorLayerColor(record, layer, ownEntity, meta, typeValue);
-      if (!color) return null;
-      if (layer.mode === 'auto') {
-        const entity = layer.self ? String(ownEntity || '') : layer.entity;
-        if (!iconColorSourceAutoActive(entity, meta?.values?.[entity])) return null;
-      }
-      return tileTintChoice(true, color, layer.tile, 0, '');
-    })();
-    return ruleTint;
   }
 
   // tile_tint::has_hue(): white, grey and black never tint a tile.
@@ -5249,14 +4958,12 @@ function syncTileRadiusControls(tabEl) {
     const own = ICON_COLOR_OWN_TYPES.includes(type) && iconColorEl(tab, '_tile_icon_source_kind')?.value !== 'other';
     const entity = String(iconColorEl(tab, '_tile_icon_source')?.value || '').trim();
     if (!own && !iconColorValidEntity(entity)) return null;
-    const strength = Number(iconColorEl(tab, '_tile_icon_rule_strength')?.value || 20);
     return {
       mode: iconColorEl(tab, '_tile_icon_source_mode')?.value === 'auto' ? 'auto' : 'rules',
       self: own,
       entity: own ? '' : entity,
-      tile: iconColorEl(tab, '_tile_icon_rule_tile')?.checked
-        ? Math.min(50, Math.max(10, Math.round(strength / 5) * 5)) : 0,
-      icon: iconColorEl(tab, '_tile_icon_rule_icon')?.checked !== false,
+      tile: 0,
+      icon: true,
       enabled: iconColorEl(tab, '_tile_icon_rules_on')?.value === '1'
     };
   }
@@ -5271,11 +4978,6 @@ function syncTileRadiusControls(tabEl) {
     // without an entity of their own show Other entity regardless.
     set('_tile_icon_source_kind', layer && !layer.self ? 'other' : 'self');
     set('_tile_icon_source_mode', layer?.mode === 'auto' ? 'auto' : 'rules');
-    const icon = iconColorEl(tab, '_tile_icon_rule_icon');
-    if (icon) icon.checked = layer ? layer.icon : true;
-    const tile = iconColorEl(tab, '_tile_icon_rule_tile');
-    if (tile) tile.checked = !!layer?.tile;
-    set('_tile_icon_rule_strength', String(layer?.tile || 20));
   }
 
   function collectIconColorRecord(tab) {
@@ -5284,16 +4986,11 @@ function syncTileRadiusControls(tabEl) {
     // Media "From cover": the icon takes the cover color instead of its own.
     const media = type === ICON_COLOR_MEDIA_TYPE;
     const coverIcon = media && !!iconColorEl(tab, '_tile_icon_cover')?.checked;
-    const coverTile = media && !!iconColorEl(tab, '_tile_cover_fill')?.checked;
     const fixed = input && input.dataset.unset !== '1' && !coverIcon ? normalizeIconColorHex(input.value).slice(1) : '';
     const lines = ['v2', fixed];
-    if (iconColorEl(tab, '_tile_icon_fill')?.checked) {
-      lines.push('fill ' + (iconColorEl(tab, '_tile_icon_fill_strength')?.value || '20'));
-    }
-    if (coverIcon || coverTile) {
-      lines.push('cover' + (coverIcon ? ' icon' : '') +
-        (coverTile ? ' tile=' + (iconColorEl(tab, '_tile_icon_fill_strength')?.value || '20') : ''));
-    }
+    // "Ausfuellen": the fixed strength (tile_icon_colors::kTintDefault).
+    if (iconColorEl(tab, '_tile_icon_fill')?.checked) lines.push('fill 20');
+    if (coverIcon) lines.push('cover icon');
     const layer = ICON_COLOR_TYPES.includes(type) ? readIconColorSource(tab) : null;
     const bar = readIconColorBar(tab);
     if (bar.mode !== 'off') {
@@ -5372,25 +5069,10 @@ function syncTileRadiusControls(tabEl) {
     const kind = own && kindInput?.value !== 'other' ? 'self' : 'other';
     const on = iconColorEl(tab, '_tile_icon_rules_on')?.value === '1';
     const mode = iconColorEl(tab, '_tile_icon_source_mode')?.value === 'auto' ? 'auto' : 'rules';
-    const tileTint = !!iconColorEl(tab, '_tile_icon_rule_tile')?.checked;
-    // With Tile color "From icon" the tile follows the icon: "Tint tile"
-    // stays visible but greyed out (its setting is kept) and a note says why.
-    const followsIcon = !!iconColorEl(tab, '_tile_icon_fill')?.checked;
     iconColorEl(tab, '_tile_icon_source_section')?.classList.remove('hidden');
     iconColorEl(tab, '_tile_icon_rules_body')?.classList.toggle('hidden', !on);
     iconColorEl(tab, '_tile_icon_source_kinds')?.classList.toggle('hidden', !own);
     iconColorEl(tab, '_tile_icon_source')?.classList.toggle('hidden', kind !== 'other');
-    iconColorEl(tab, '_tile_icon_rule_strength_row')?.classList.toggle('hidden', !tileTint);
-    iconColorEl(tab, '_tile_icon_rule_strength_row')?.classList.toggle('is-disabled', followsIcon);
-    const tintBox = iconColorEl(tab, '_tile_icon_rule_tile');
-    if (tintBox) tintBox.disabled = followsIcon;
-    tintBox?.closest('label')?.classList.toggle('is-disabled', followsIcon);
-    const tintStrength = iconColorEl(tab, '_tile_icon_rule_strength');
-    if (tintStrength) tintStrength.disabled = followsIcon;
-    iconColorEl(tab, '_tile_icon_rule_follows_icon')?.classList.toggle('hidden', !followsIcon);
-    const strength = iconColorEl(tab, '_tile_icon_rule_strength');
-    const output = iconColorEl(tab, '_tile_icon_rule_strength_value');
-    if (strength && output) output.textContent = strength.value + ' %';
     iconColorMarkActive(tab, 'rules-on', on ? '1' : '0');
     iconColorMarkActive(tab, 'source-kind', kind);
     iconColorMarkActive(tab, 'source-mode', mode);
@@ -5438,15 +5120,11 @@ function syncTileRadiusControls(tabEl) {
     const type = iconColorTypeOf(tab);
     const parsed = parseIconColorRecord(data?.icon_colors);
     setIconColorInput(tab, parsed.color);
-    const fill = iconColorEl(tab, '_tile_icon_fill');
-    if (fill) fill.checked = parsed.fill > 0;
     const media = type === ICON_COLOR_MEDIA_TYPE;
+    const fill = iconColorEl(tab, '_tile_icon_fill');
+    if (fill) fill.checked = parsed.fill > 0 || (media && parsed.cover.tile > 0) || Number(parsed.source?.tile || 0) > 0;
     const coverIcon = iconColorEl(tab, '_tile_icon_cover');
-    if (coverIcon) coverIcon.checked = media && parsed.cover.icon;
-    const coverFill = iconColorEl(tab, '_tile_cover_fill');
-    if (coverFill) coverFill.checked = media && parsed.cover.tile > 0 && !parsed.fill;
-    const fillStrength = iconColorEl(tab, '_tile_icon_fill_strength');
-    if (fillStrength) fillStrength.value = String(parsed.fill || (media && parsed.cover.tile) || 20);
+    if (coverIcon) coverIcon.checked = media && (parsed.cover.icon || parsed.cover.tile > 0);
     const barInput = iconColorEl(tab, '_tile_icon_bar');
     if (barInput) barInput.dataset.last = '';
     writeIconColorBar(tab, parsed.bar ? parsed.bar.mode : 'off', parsed.bar ? parsed.bar.stops : []);
@@ -5543,7 +5221,7 @@ function syncTileRadiusControls(tabEl) {
   document.addEventListener('change', event => {
     const target = event.target;
     const id = target?.id || '';
-    if (['has', 'source', 'rule-target', 'fill-target'].includes(target?.dataset?.iconColor)) {
+    if (['has', 'source', 'fill-target'].includes(target?.dataset?.iconColor)) {
       const tab = iconColorEventTab(target);
       if (tab) commitIconColorChange(tab);
       return;
@@ -5581,12 +5259,6 @@ function syncTileRadiusControls(tabEl) {
     } else if (role === 'source-mode') {
       const mode = iconColorEl(tab, '_tile_icon_source_mode');
       if (mode) mode.value = button.dataset.mode === 'rules' ? 'rules' : 'auto';
-    } else if (role === 'strength-reset') {
-      const strength = iconColorEl(tab, '_tile_icon_rule_strength');
-      if (strength) strength.value = '20';
-    } else if (role === 'fill-strength-reset') {
-      const strength = iconColorEl(tab, '_tile_icon_fill_strength');
-      if (strength) strength.value = '20';
     } else if (role === 'rules-on') {
       const on = iconColorEl(tab, '_tile_icon_rules_on');
       if (on) on.value = button.dataset.mode === '1' ? '1' : '0';
@@ -5806,7 +5478,6 @@ function syncTileRadiusControls(tabEl) {
 
   function syncFolderFragmentWithRoot(tabEl) {
     if (!tabEl) return;
-    syncTileRadiusControls(tabEl);
     syncGlobalDisplayControls(tabEl);
 
     const sourceBorderToggle = Array.from(
@@ -6931,7 +6602,7 @@ function syncTileRadiusControls(tabEl) {
     syncTileSizePolicy(tab);
     const meta = getTileTypeMeta(d.type || '0');
     callTypeHandler(meta, 'load', prefix, d);
-    loadIconDiscFields(prefix, d);
+    syncIconDiscFields(prefix);
     refreshEntityOptionLists(prefix);
     syncGaugeUi(tab);
     updateTilePreview(tab);
@@ -6986,7 +6657,7 @@ function syncTileRadiusControls(tabEl) {
     syncTileSizePolicy(tab);
     const meta = getTileTypeMeta(typeValue);
     callTypeHandler(meta, 'load', prefix, data);
-    loadIconDiscFields(prefix, data);
+    syncIconDiscFields(prefix);
     refreshEntityOptionLists(prefix);
     syncGaugeUi(tab);
   }
@@ -7239,8 +6910,6 @@ function syncTileRadiusControls(tabEl) {
       updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab);
     });
     bindLive(iconInput, 'input', 'tileIcon', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(document.getElementById(prefix + '_tile_icon_disc'), 'change', 'tileIconDisc', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(document.getElementById(prefix + '_tile_icon_glow'), 'change', 'tileIconGlow', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(colorInput, 'input', 'tileColor', () => { markTileColorInputExplicit(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(colInput, 'input', 'tileCol', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(rowInput, 'input', 'tileRow', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -7272,14 +6941,12 @@ function syncTileRadiusControls(tabEl) {
           tab, 0, nextMeta.defaultBg || '#2A2A2A');
       }
       updateTileType(tab);
-      // New tiles start in the HomeTiles look: a type with icon colors tints
-      // the tile with the color its icon shows at 20 % (Tile color "From
-      // icon"). Existing tiles and the screensaver keep their own style.
+      // New tiles start in the HomeTiles look: a type with icon colors is
+      // filled with the color its icon shows ("Fill"). Existing tiles and the
+      // screensaver keep their own style.
       if (previousType === 0 && nextType !== 0 && !isScreensaverTileTab(tab) &&
           typeof tileTypeHasIconColors === 'function' &&
           tileTypeHasIconColors(String(nextType))) {
-        const strength = document.getElementById(tab + '_tile_icon_fill_strength');
-        if (strength) strength.value = '20';
         const fill = document.getElementById(tab + '_tile_icon_fill');
         if (fill) fill.checked = true;
         syncTileColorMode(tab);
@@ -7745,10 +7412,9 @@ function syncTileRadiusControls(tabEl) {
     tileElem.style.background = '';
     delete tileElem.dataset.bgOpacity;
     tileElem.dataset.type = type;
-    tileElem.dataset.iconDisc = tileTypeHasDiscToggle(type)
-      && document.getElementById(prefix + '_tile_icon_disc')?.checked === false ? '2' : '0';
-    tileElem.dataset.iconGlow = tileTypeHasColoredIcon(type)
-      && document.getElementById(prefix + '_tile_icon_glow')?.checked === false ? '0' : '1';
+    // Every circle shows, in its icon's color (user 2026-10-11).
+    tileElem.dataset.iconDisc = '0';
+    tileElem.dataset.iconGlow = '1';
     const borderToggle = type === '8' ? '_back_tile_border'
       : (type === '9' ? '_clock_tile_border' : (type === '10' ? '_text_tile_border' : ''));
     tileElem.classList.toggle('tile-border-hidden', !!borderToggle && document.getElementById(prefix + borderToggle)?.checked === false);
@@ -7772,7 +7438,7 @@ function syncTileRadiusControls(tabEl) {
     // choice: a Custom color that is still a default grey (Custom was just
     // selected and nothing picked yet) stays Custom instead of switching back
     // to Global and hiding the color field.
-    const isDefaultBg = tileColorInputIsDefault(tab);
+    const isDefaultBg = tileColorInputIsDefault(tab) || !tileTypeKeepsOwnColor(type);
     const colorInput = document.getElementById(prefix + '_tile_color');
     if (colorInput?.dataset.bgColorDefault === '1') colorInput.value = defaultBg;
     syncTileColorMode(tab);
@@ -7798,18 +7464,19 @@ function syncTileRadiusControls(tabEl) {
       const cameraHead = meta.preview === 'camera' ? cameraHeadSurface(cameraPictureOptions(tab), halfHeight) : '';
       if (cameraHead) tileElem.style.background = cameraHeadBackground(cameraHead);
       const surface = globalThis.hometilesPreviewForcedSurface ||
-        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
-      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record, type));
+      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record, type)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).
-      if (tileElem.dataset.followTint === '1' && (meta.preview === 'media' || tileFillOf(record))) {
+      if (tileElem.dataset.followTint === '1' && tileFillOf(record) > 0) {
         tileElem.dataset.neutralIdle = '1';
       } else {
         delete tileElem.dataset.neutralIdle;
       }
       surfaceDrawn = surface;
       applyTileSurface(tileElem, surface);
+      applyFrameLine(tileElem);
       const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
       // 0 dark, 1 light, 2 a filled tile (ui_theme::kDarkTinted): its rules everywhere.
       if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;
@@ -8038,7 +7705,7 @@ function syncTileRadiusControls(tabEl) {
         }
         const meta = colorMeta;
         callTypeHandler(meta, 'load', prefix, data);
-        loadIconDiscFields(prefix, data);
+        syncIconDiscFields(prefix);
         refreshEntityOptionLists(prefix);
         syncGaugeUi(tab);
         const tileElem = document.getElementById(tab + '-tile-' + index);
@@ -8209,7 +7876,6 @@ function syncTileRadiusControls(tabEl) {
   function resetAllTypeFields(tab) {
     const metas = Object.values(TILE_TYPE_REGISTRY || {});
     metas.forEach(meta => callTypeHandler(meta, 'reset', tab));
-    resetIconDiscFields(tab);
   }
 
   function applyFolderTypeLock(tab, locked) {
@@ -9632,35 +9298,56 @@ function syncTileRadiusControls(tabEl) {
     return {discColor: disc, controlColor: toneRgb(base.L + control, C, seed.h), discOpa: glowPct ? 255 : 0,
       controlOpa: 255, disc, control: toneRgb(base.L + control, C, seed.h), tinted: true};
   }
-  // tile_icon_colors::fill_of(): the tile color "From icon" strength, 0 without.
+  // tile_icon_colors::fills(): "Ausfuellen" (user 2026-10-11, the one tile
+  // color option), also a former "From cover" or rule "Tint tile"; the fixed
+  // strength (tile_icon_colors::kTintDefault) when filled, 0 without.
   function tileFillOf(iconColors) {
-    return iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
+    if (!iconColors || typeof parseIconColorRecord !== 'function') return 0;
+    const parsed = parseIconColorRecord(iconColors);
+    return Number(parsed.fill || 0) > 0 || Number(parsed.cover?.tile || 0) > 0 || Number(parsed.source?.tile || 0) > 0
+      ? ICON_FILL_DEFAULT : 0;
   }
-  // tile_icon_colors::cover_of().tile: a Media tile's tile color "From cover".
-  function tileCoverFillOf(iconColors) {
-    return iconColors && typeof parseIconColorRecord === 'function'
-      ? Number(parseIconColorRecord(iconColors).cover?.tile || 0) : 0;
-  }
-  // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
-  function tileHasOwnColor(bgValue, iconColors) {
-    const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
-    return tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue) && !fill;
+  // tileTypeKeepsOwnColor() (tile_config.h): only Clock, Text and Pixel
+  // animation keep an own color; every other tile takes its color from its
+  // icon.
+  const KEEPS_OWN_COLOR_TYPES = ['9', '10', '16'];
+  function tileTypeKeepsOwnColor(typeValue) { return KEEPS_OWN_COLOR_TYPES.includes(String(typeValue ?? '0')); }
+  // tileFills() (tile_config.h): "Fill" of a tile, never on the tiles that
+  // keep an own color.
+  function tileFills(typeValue, iconColors) { return tileTypeKeepsOwnColor(typeValue) ? 0 : tileFillOf(iconColors); }
+  // tileHasOwnColor() (tile_config.h).
+  function tileHasOwnColor(bgValue, iconColors, typeValue) {
+    return tileTypeKeepsOwnColor(typeValue) && tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue);
   }
   // tile_surface_of() (tile_renderer.cpp): a tile in its own color follows
   // its lightness; every other tile, and the screensaver, keeps the theme.
-  function tileSurfaceOf(tab, previewKind, bgValue, iconColors) {
+  function tileSurfaceOf(tab, previewKind, bgValue, iconColors, typeValue) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
-    if (!tileHasOwnColor(bgValue, iconColors)) return '';
+    if (!tileHasOwnColor(bgValue, iconColors, typeValue)) return '';
     const own = Number(bgValue) & 0xFFFFFF;
     if (!own) return '';
     return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
   }
-  // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile
-  // without an own color is filled with its icon's color while it is tinted
-  // (setTileTintBackground, applyIconDiscTint).
-  function tileFollowsTint(tab, previewKind, bgValue, iconColors) {
+  // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile with
+  // "Ausfuellen" is filled from the start; no other tile changes its surface.
+  function tileFollowsTint(tab, previewKind, bgValue, iconColors, typeValue) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return false;
-    return panelThemeLight() && !tileHasOwnColor(bgValue, iconColors);
+    return panelThemeLight() && tileFills(typeValue, iconColors) > 0 && !tileHasOwnColor(bgValue, iconColors, typeValue);
+  }
+  // ui_surface_style frame_line(): a solid line, on the theme's plain card a
+  // fixed neutral (light #DDDDDD, dark #292929), on any other card that card
+  // a little lighter when it is dark (lv_color_mix 23 of white) and a little
+  // darker when it is light (36 of black). user 2026-10-11, like Tessera.
+  function applyFrameLine(el) {
+    if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
+    const card = cssColorChannels(getComputedStyle(el).backgroundColor);
+    if (!card) return;
+    const plain = panelThemeLight() ? [255, 255, 255] : [26, 26, 26];
+    let line;
+    if (card.every((v, i) => v === plain[i])) line = panelThemeLight() ? [221, 221, 221] : [41, 41, 41];
+    else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
+    else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
+    el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
   }
   // Marks a tile with its surface: the other theme's roles on it (CSS) and,
   // for the dark design, its card.
@@ -9787,9 +9474,11 @@ function syncTileRadiusControls(tabEl) {
     // icon color" the tile takes the color the icon was given; grey and white
     // icons (off, default) keep the untinted background (tile_tint::choose).
     const fill = Number(tileElem.dataset.iconFill || 0);
-    if (fill && tileElem.dataset.ruleTint !== '1' && typeof tileTintBackground === 'function' &&
-        typeof tileTintChoice === 'function') {
+    if (fill && typeof tileTintBackground === 'function' && typeof tileTintChoice === 'function') {
       let choice = given ? tileTintChoice(false, '', 0, fill, givenHex) : null;
+      // An icon without a color (white, almost white light) never tints the
+      // card (tile_icon_source without_white).
+      if (choice && toneNoColor(given)) choice = null;
       // White light fills in the neutral grey (tile_icon_source with_white).
       if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {
         choice = { color: givenHex.toUpperCase(), percent: fill };
@@ -9799,7 +9488,6 @@ function syncTileRadiusControls(tabEl) {
       } else if (tileElem.dataset.neutralIdle === '1') {
         setTileTintBackground(tileElem, '#FFFFFF', 0, true);
       } else if (tileElem.dataset.baseBg !== undefined) {
-        if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');
         tileElem.style.background = tileElem.dataset.baseBg;
       }
       // The surface may have changed with the tint (tile_surface::change).
@@ -9815,20 +9503,8 @@ function syncTileRadiusControls(tabEl) {
     }
     const tinted = glow && !!given && iconDiscTinted('rgb(' + given.join(',') + ')');
     icon.classList.toggle('tile-icon-tinted', tinted);
-    // Mirrors ui_surface_style::border_hint(): a glowing icon gives the tile
-    // outline its hue halfway to the text color (lv_color_mix(text, icon,
-    // 128); white in the dark theme) at the hairline's 20 %, mostly the tile
-    // with a hint of the icon.
-    // Only a card in the tile color From icon (tile_icon_disc
-    // apply_tile_options); Global and Custom keep the neutral hairline.
-    if (tinted && fill > 0) {
-      // A filled tile: the dark theme's hint, halfway to white.
-      const text = tileElem.dataset.surface === 'jewel' ? [255, 255, 255] : (panelRole('text') || [255, 255, 255]);
-      const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));
-      tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');
-    } else {
-      tileElem.style.removeProperty('--tile-border-tint');
-    }
+    // The frame line follows the card (ui_surface_style frame_line).
+    applyFrameLine(tileElem);
     // Global Circle strength (icon_glow.h, 0..100 %).
     const glowRaw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
     const glowValue = glowRaw === '' ? 25 : Number(glowRaw);
@@ -9871,10 +9547,8 @@ function syncTileRadiusControls(tabEl) {
     const rgba = (color, opa) => 'rgba(' + color.join(',') + ',' + (opa / 255).toFixed(3) + ')';
     tileElem.style.setProperty('--icon-disc-bg', rgba(tone.discColor, tone.discOpa));
     // Mirrors icon_lock_mark::behind(): the lock's rim takes the circle over
-    // the card, or the card when the circle is off.
-    const discShown = tileElem.dataset.iconDisc === '1' ||
-      (tileElem.dataset.iconDisc !== '2' && !tileElem.closest('.icon-discs-off'));
-    const discAlpha = discShown ? tone.discOpa / 255 : 0;
+    // the card.
+    const discAlpha = tone.discOpa / 255;
     const lockRim = card.map((c, i) => Math.round(c * (1 - discAlpha) + tone.discColor[i] * discAlpha));
     tileElem.style.setProperty('--icon-lock-rim', 'rgb(' + lockRim.join(',') + ')');
     // Mirrors tile_icon_source::refresh_controls(): tile controls (the
@@ -9918,38 +9592,33 @@ function syncTileRadiusControls(tabEl) {
     const text = String(hex || '').trim();
     return /^#[0-9a-f]{6}$/i.test(text) && isDefaultTileGrey(parseInt(text.slice(1), 16));
   }
-  // Tile color is one choice, like the device (tile_tint::choose): Global
-  // follows the global tile color (stored as the default marker), Custom keeps
-  // the picked color, From icon color tints the tile with the color the icon
-  // shows (the icon colors' hidden "fill" checkbox). Only tiles with icon
-  // colors offer From icon color. Nothing else switches the choice.
+  // The color of a tile without an icon (Clock, Text, Pixel animation):
+  // Global is the theme's card (stored as the default marker), Custom keeps
+  // the picked color.
   function tileColorMode(tab) {
-    if (document.getElementById(tab + '_tile_icon_fill')?.checked) return 'icon';
-    if (document.getElementById(tab + '_tile_cover_fill')?.checked) return 'cover';
     return document.getElementById(tab + '_tile_color')?.dataset.bgColorDefault === '0' ? 'custom' : 'global';
   }
+  // user 2026-10-11: a tile with an icon offers only "Fill" (its icon's
+  // color); Clock, Text and Pixel animation keep Global or a Custom color.
   function syncTileColorMode(tab) {
     const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
-    const iconOffered = typeof tileTypeHasIconColors === 'function' && tileTypeHasIconColors(typeValue);
+    const keepsOwn = tileTypeKeepsOwnColor(typeValue);
+    const iconOffered = !keepsOwn && typeof tileTypeHasIconColors === 'function' && tileTypeHasIconColors(typeValue);
     const fill = document.getElementById(tab + '_tile_icon_fill');
     if (fill?.checked && !iconOffered) fill.checked = false;
-    // Media tiles also offer "From cover" (the album cover's color).
-    const coverOffered = String(typeValue) === '15';
-    const coverFill = document.getElementById(tab + '_tile_cover_fill');
-    if (coverFill?.checked && !coverOffered) coverFill.checked = false;
+    const input = document.getElementById(tab + '_tile_color');
+    if (input && !keepsOwn) input.dataset.bgColorDefault = '1';
     const mode = tileColorMode(tab);
-    document.getElementById(tab + '_tile_color_modes')?.querySelectorAll('[data-tile-color-mode]').forEach(button => {
+    const modes = document.getElementById(tab + '_tile_color_modes');
+    modes?.querySelectorAll('[data-tile-color-mode]').forEach(button => {
       const active = button.dataset.tileColorMode === mode;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      if (button.dataset.tileColorMode === 'icon') button.classList.toggle('hidden', !iconOffered);
-      if (button.dataset.tileColorMode === 'cover') button.classList.toggle('hidden', !coverOffered);
     });
-    document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', mode !== 'custom');
-    document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', mode !== 'icon' && mode !== 'cover');
-    const strength = document.getElementById(tab + '_tile_icon_fill_strength');
-    const output = document.getElementById(tab + '_tile_icon_fill_strength_value');
-    if (strength && output) output.textContent = strength.value + ' %';
+    modes?.classList.toggle('hidden', !keepsOwn);
+    modes?.previousElementSibling?.classList?.toggle('hidden', !keepsOwn);
+    document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', !keepsOwn || mode !== 'custom');
+    document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', !iconOffered);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
   }
   function setTileColorMode(tab, mode) {
@@ -9958,10 +9627,6 @@ function syncTileRadiusControls(tabEl) {
     const before = tileColorMode(tab);
     // Leaving Custom remembers its color for a later return.
     if (before === 'custom' && mode !== 'custom') input.dataset.customColor = input.value;
-    const fill = document.getElementById(tab + '_tile_icon_fill');
-    if (fill) fill.checked = mode === 'icon';
-    const coverFill = document.getElementById(tab + '_tile_cover_fill');
-    if (coverFill) coverFill.checked = mode === 'cover';
     const remembered = input.dataset.customColor || '';
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
@@ -9972,8 +9637,6 @@ function syncTileRadiusControls(tabEl) {
       input.dataset.bgColorDefault = '1';
     }
     syncTileColorMode(tab);
-    // The rules hide "Tint tile" while the tile follows the icon.
-    if (typeof syncIconColorFields === 'function') syncIconColorFields(tab);
     updateTilePreview(tab);
     updateDraft(tab);
     scheduleAutoSave(tab);
@@ -10021,7 +9684,7 @@ function syncTileRadiusControls(tabEl) {
     const type = String(typeValue ?? '0');
     // Rules that color the icon win (tile_icon_source::refresh_card).
     const layer = typeof iconColorRecordSource === 'function' ? iconColorRecordSource(record) : null;
-    if (layer && layer.enabled && layer.icon && typeof iconColorLayerColor === 'function') {
+    if (layer && layer.enabled && iconColorRuleColorsIcon(layer) && typeof iconColorLayerColor === 'function') {
       const color = iconColorLayerColor(record, layer, entity, meta, type);
       if (color) return color;
     }
@@ -10038,17 +9701,12 @@ function syncTileRadiusControls(tabEl) {
   // color, never from an own tile color.
   function applyTileRulesTint(el, typeValue, record, ownEntity, meta) {
     if (!el) return;
-    // The icon color's "Tint tile" option follows the icon (applyIconDiscTint)
-    // from this untinted background, unless a rule tint wins.
+    // A tile with "Fill" follows its icon (applyIconDiscTint) from this
+    // untinted background; rules color only the icon (user 2026-10-11).
     el.dataset.baseBg = el.style.background || '';
-    const fill = record && typeof parseIconColorRecord === 'function' ? parseIconColorRecord(record).fill : 0;
+    const fill = tileFills(typeValue, record);
     if (fill) el.dataset.iconFill = String(fill);
     else delete el.dataset.iconFill;
-    const tint = record && typeof iconColorTilePreviewTint === 'function'
-      ? iconColorTilePreviewTint(String(typeValue ?? '0'), record, ownEntity, meta) : null;
-    el.dataset.ruleTint = tint ? '1' : '0';
-    if (!tint) return;
-    setTileTintBackground(el, tint.color, tint.percent);
   }
   function snapshotBgColorIsDefault(snapshot) {
     return String(snapshot?.bg_color_default || '0') === '1' ||
@@ -10116,17 +9774,15 @@ function syncTileRadiusControls(tabEl) {
       ? cameraHeadSurface(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5) : '';
     const surface = forcedSurface || (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead)
       : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
-      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
+      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, surfaceType));
     if (surfaceType !== '0' && !cameraHead && typeof tileFollowsTint === 'function' &&
-        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
+        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, surfaceType)) {
       el.dataset.followTint = '1';
     } else {
       delete el.dataset.followTint;
     }
-    // A tile "From icon", and a Media tile "From cover", show the neutral grey
-    // without a tint (kNeutralIdle); in Global a Media tile is white.
-    if (el.dataset.followTint === '1' && (tileFillOf(tile?.icon_colors) ||
-      (surfaceKind === 'media' && tileCoverFillOf(tile?.icon_colors) > 0))) {
+    // A tile with "Fill" shows the neutral grey without a tint (kNeutralIdle).
+    if (el.dataset.followTint === '1' && tileFillOf(tile?.icon_colors) > 0) {
       el.dataset.neutralIdle = '1';
     } else {
       delete el.dataset.neutralIdle;
@@ -10156,8 +9812,9 @@ function syncTileRadiusControls(tabEl) {
     el.className = cls.join(' ');
     if (typeValue === '5') applySwitchPreviewLayout(el, tile.switch_style, Number(tile.span_h) === 0.5);
     el.dataset.type = typeValue;
-    el.dataset.iconDisc = ['1', '2'].includes(String(tile?.icon_disc)) ? String(tile.icon_disc) : '0';
-    el.dataset.iconGlow = ['0', 'false'].includes(String(tile?.icon_glow)) ? '0' : '1';
+    // Every circle shows, in its icon's color (user 2026-10-11: no circle options).
+    el.dataset.iconDisc = '0';
+    el.dataset.iconGlow = '1';
     el.classList.toggle('tile-border-hidden', ['8','9','10'].includes(typeValue) && Number(tile.sensor_display_mode) === 1);
     applyCompactSensorPreview(el, typeValue, tile, tile.sensor_display_mode, tile.sensor_value_font);
     if (typeValue === '4') {
@@ -10170,7 +9827,8 @@ function syncTileRadiusControls(tabEl) {
     delete el.dataset.bgOpacity;
     if (typeValue === '0') el.style.background = 'transparent';
     else {
-      const isDefaultBg = tileBgFollowsDefault(tile.bg_color);
+      // A tile with an icon takes its color from the icon: no own color.
+      const isDefaultBg = tileBgFollowsDefault(tile.bg_color) || !tileTypeKeepsOwnColor(typeValue);
       const bg = tileBackgroundCss(meta, isDefaultBg,
         tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'));
       if (isScreensaverTileTab(tab)) {
@@ -10186,6 +9844,7 @@ function syncTileRadiusControls(tabEl) {
       }
     }
     if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);
+    if (typeValue !== '0') applyFrameLine(el);
     const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
     if (typeValue === '0') {
       el.innerHTML = '';
@@ -16257,21 +15916,20 @@ function maybeFillTitleFromMedia(tab) {
             subtitleY: titleY + titleHeight + gap};
   }
 
-  // "From cover" (tile_icon_source.cpp apply_cover): the icon color and the
-  // tile tint take the color the panel sampled from the cover it shows. A
-  // rule's tile tint and "From icon" win over the cover tint, a rule's icon
-  // color over the cover icon color.
+  // "From cover" (tile_icon_source.cpp apply_cover): the icon takes the color
+  // the panel sampled from the cover it shows (a former cover tile tint too,
+  // tile_icon_colors::cover_colors_icon); a rule's icon color wins. "Fill"
+  // then follows the icon (applyIconDiscTint), the cover never tints the
+  // tile itself (user 2026-10-11).
   function applyMediaCoverTint(el, record, coverColor) {
     if (!el || !coverColor || typeof parseIconColorRecord !== 'function') return;
     const parsed = parseIconColorRecord(record || '');
     const cover = parsed.cover || {icon: false, tile: 0};
     const layer = typeof iconColorRecordSource === 'function' ? iconColorRecordSource(record || '') : null;
-    if (cover.icon && !(layer && layer.enabled && layer.icon)) {
+    const ruleIcon = layer && layer.enabled && typeof iconColorRuleColorsIcon === 'function' && iconColorRuleColorsIcon(layer);
+    if ((cover.icon || cover.tile > 0) && !ruleIcon) {
       const icon = el.querySelector(':scope > .tile-icon');
       if (icon) icon.style.color = coverColor;
-    }
-    if (cover.tile && !parsed.fill && el.dataset.ruleTint !== '1' && typeof setTileTintBackground === 'function') {
-      setTileTintBackground(el, coverColor, cover.tile);
     }
   }
 

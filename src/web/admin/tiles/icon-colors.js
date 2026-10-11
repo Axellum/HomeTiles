@@ -192,6 +192,12 @@
     return layer;
   }
 
+  // tile_icon_colors::rule_colors_icon(): a rule colors the icon, a former
+  // "Tint tile" rule too (user 2026-10-11: rules only color the icon).
+  function iconColorRuleColorsIcon(layer) {
+    return !!layer && (!!layer.icon || Number(layer.tile || 0) > 0);
+  }
+
   // own_state_colors_icon(): no rule layer (b40 records) or an enabled
   // "src rules self" that colors the icon.
   function iconColorOwnStateColorsIcon(record) {
@@ -485,36 +491,6 @@
     return '';
   }
 
-  // The `active` flag of tile_icon_source.cpp's auto_color(): false while the
-  // entity is off, closed or not running (climate_visuals::state_active()).
-  function iconColorSourceAutoActive(entity, payload) {
-    const domain = String(entity).split('.')[0];
-    const text = String(payload ?? '').trim();
-    if (!text) return false;
-    if (ICON_COLOR_SWITCH_DOMAINS.includes(domain) && typeof parseSwitchPayload === 'function') {
-      const state = parseSwitchPayload(text);
-      return !!state && state.available !== false && !!state.hasState && !!state.isOn;
-    }
-    if (domain === 'binary_sensor' && typeof parseBinarySensorPreviewPayload === 'function') {
-      const state = parseBinarySensorPreviewPayload(text);
-      return !!state?.valid && state.available === true && state.state === 'on';
-    }
-    if (domain === 'climate' && typeof parseClimatePreviewPayload === 'function') {
-      const state = parseClimatePreviewPayload(text);
-      if (!state || state.available === false) return false;
-      const action = String(state.action || '');
-      const mode = String(state.mode || '');
-      if (['heating', 'preheating', 'cooling', 'drying', 'fan', 'defrosting'].includes(action)) return true;
-      return !!mode && mode !== 'off' && mode !== 'unknown' && action !== 'off';
-    }
-    if (domain === 'cover' && typeof parseCoverPreviewPayload === 'function') {
-      const state = parseCoverPreviewPayload(text);
-      const value = String(state?.state || 'unknown').toLowerCase();
-      return !!state && state.available !== false && !['closed', 'unknown', 'unavailable'].includes(value);
-    }
-    return false;
-  }
-
   // tile_icon_source::rule_color(): the rule color of a layer from the preview
   // states of its entity (own or other); '' without a known state or result.
   // Rules never fall back to the fixed color here.
@@ -545,27 +521,8 @@
   // color ('' = white).
   function iconColorSourcePreview(record, meta) {
     const layer = iconColorRecordSource(record);
-    const color = layer && !layer.self && layer.icon ? iconColorLayerColor(record, layer, '', meta, '') : '';
+    const color = layer && !layer.self && iconColorRuleColorsIcon(layer) ? iconColorLayerColor(record, layer, '', meta, '') : '';
     return color || resolveIconColorRecord(record, '', null);
-  }
-
-  // The rules' tile tint for the preview: { color, percent } or null. Entity
-  // color tints only while the entity is active, like refresh_card(). With
-  // Tile color "From icon" the tile follows the icon instead (no rule tint).
-  function iconColorTilePreviewTint(typeValue, record, ownEntity, meta) {
-    const layer = iconColorRecordSource(record);
-    if (parseIconColorRecord(record).fill) return null;
-    const ruleTint = (() => {
-      if (!layer || !layer.enabled || !layer.tile) return null;
-      const color = iconColorLayerColor(record, layer, ownEntity, meta, typeValue);
-      if (!color) return null;
-      if (layer.mode === 'auto') {
-        const entity = layer.self ? String(ownEntity || '') : layer.entity;
-        if (!iconColorSourceAutoActive(entity, meta?.values?.[entity])) return null;
-      }
-      return tileTintChoice(true, color, layer.tile, 0, '');
-    })();
-    return ruleTint;
   }
 
   // tile_tint::has_hue(): white, grey and black never tint a tile.
@@ -861,14 +818,12 @@
     const own = ICON_COLOR_OWN_TYPES.includes(type) && iconColorEl(tab, '_tile_icon_source_kind')?.value !== 'other';
     const entity = String(iconColorEl(tab, '_tile_icon_source')?.value || '').trim();
     if (!own && !iconColorValidEntity(entity)) return null;
-    const strength = Number(iconColorEl(tab, '_tile_icon_rule_strength')?.value || 20);
     return {
       mode: iconColorEl(tab, '_tile_icon_source_mode')?.value === 'auto' ? 'auto' : 'rules',
       self: own,
       entity: own ? '' : entity,
-      tile: iconColorEl(tab, '_tile_icon_rule_tile')?.checked
-        ? Math.min(50, Math.max(10, Math.round(strength / 5) * 5)) : 0,
-      icon: iconColorEl(tab, '_tile_icon_rule_icon')?.checked !== false,
+      tile: 0,
+      icon: true,
       enabled: iconColorEl(tab, '_tile_icon_rules_on')?.value === '1'
     };
   }
@@ -883,11 +838,6 @@
     // without an entity of their own show Other entity regardless.
     set('_tile_icon_source_kind', layer && !layer.self ? 'other' : 'self');
     set('_tile_icon_source_mode', layer?.mode === 'auto' ? 'auto' : 'rules');
-    const icon = iconColorEl(tab, '_tile_icon_rule_icon');
-    if (icon) icon.checked = layer ? layer.icon : true;
-    const tile = iconColorEl(tab, '_tile_icon_rule_tile');
-    if (tile) tile.checked = !!layer?.tile;
-    set('_tile_icon_rule_strength', String(layer?.tile || 20));
   }
 
   function collectIconColorRecord(tab) {
@@ -896,16 +846,11 @@
     // Media "From cover": the icon takes the cover color instead of its own.
     const media = type === ICON_COLOR_MEDIA_TYPE;
     const coverIcon = media && !!iconColorEl(tab, '_tile_icon_cover')?.checked;
-    const coverTile = media && !!iconColorEl(tab, '_tile_cover_fill')?.checked;
     const fixed = input && input.dataset.unset !== '1' && !coverIcon ? normalizeIconColorHex(input.value).slice(1) : '';
     const lines = ['v2', fixed];
-    if (iconColorEl(tab, '_tile_icon_fill')?.checked) {
-      lines.push('fill ' + (iconColorEl(tab, '_tile_icon_fill_strength')?.value || '20'));
-    }
-    if (coverIcon || coverTile) {
-      lines.push('cover' + (coverIcon ? ' icon' : '') +
-        (coverTile ? ' tile=' + (iconColorEl(tab, '_tile_icon_fill_strength')?.value || '20') : ''));
-    }
+    // "Ausfuellen": the fixed strength (tile_icon_colors::kTintDefault).
+    if (iconColorEl(tab, '_tile_icon_fill')?.checked) lines.push('fill 20');
+    if (coverIcon) lines.push('cover icon');
     const layer = ICON_COLOR_TYPES.includes(type) ? readIconColorSource(tab) : null;
     const bar = readIconColorBar(tab);
     if (bar.mode !== 'off') {
@@ -984,25 +929,10 @@
     const kind = own && kindInput?.value !== 'other' ? 'self' : 'other';
     const on = iconColorEl(tab, '_tile_icon_rules_on')?.value === '1';
     const mode = iconColorEl(tab, '_tile_icon_source_mode')?.value === 'auto' ? 'auto' : 'rules';
-    const tileTint = !!iconColorEl(tab, '_tile_icon_rule_tile')?.checked;
-    // With Tile color "From icon" the tile follows the icon: "Tint tile"
-    // stays visible but greyed out (its setting is kept) and a note says why.
-    const followsIcon = !!iconColorEl(tab, '_tile_icon_fill')?.checked;
     iconColorEl(tab, '_tile_icon_source_section')?.classList.remove('hidden');
     iconColorEl(tab, '_tile_icon_rules_body')?.classList.toggle('hidden', !on);
     iconColorEl(tab, '_tile_icon_source_kinds')?.classList.toggle('hidden', !own);
     iconColorEl(tab, '_tile_icon_source')?.classList.toggle('hidden', kind !== 'other');
-    iconColorEl(tab, '_tile_icon_rule_strength_row')?.classList.toggle('hidden', !tileTint);
-    iconColorEl(tab, '_tile_icon_rule_strength_row')?.classList.toggle('is-disabled', followsIcon);
-    const tintBox = iconColorEl(tab, '_tile_icon_rule_tile');
-    if (tintBox) tintBox.disabled = followsIcon;
-    tintBox?.closest('label')?.classList.toggle('is-disabled', followsIcon);
-    const tintStrength = iconColorEl(tab, '_tile_icon_rule_strength');
-    if (tintStrength) tintStrength.disabled = followsIcon;
-    iconColorEl(tab, '_tile_icon_rule_follows_icon')?.classList.toggle('hidden', !followsIcon);
-    const strength = iconColorEl(tab, '_tile_icon_rule_strength');
-    const output = iconColorEl(tab, '_tile_icon_rule_strength_value');
-    if (strength && output) output.textContent = strength.value + ' %';
     iconColorMarkActive(tab, 'rules-on', on ? '1' : '0');
     iconColorMarkActive(tab, 'source-kind', kind);
     iconColorMarkActive(tab, 'source-mode', mode);
@@ -1050,15 +980,11 @@
     const type = iconColorTypeOf(tab);
     const parsed = parseIconColorRecord(data?.icon_colors);
     setIconColorInput(tab, parsed.color);
-    const fill = iconColorEl(tab, '_tile_icon_fill');
-    if (fill) fill.checked = parsed.fill > 0;
     const media = type === ICON_COLOR_MEDIA_TYPE;
+    const fill = iconColorEl(tab, '_tile_icon_fill');
+    if (fill) fill.checked = parsed.fill > 0 || (media && parsed.cover.tile > 0) || Number(parsed.source?.tile || 0) > 0;
     const coverIcon = iconColorEl(tab, '_tile_icon_cover');
-    if (coverIcon) coverIcon.checked = media && parsed.cover.icon;
-    const coverFill = iconColorEl(tab, '_tile_cover_fill');
-    if (coverFill) coverFill.checked = media && parsed.cover.tile > 0 && !parsed.fill;
-    const fillStrength = iconColorEl(tab, '_tile_icon_fill_strength');
-    if (fillStrength) fillStrength.value = String(parsed.fill || (media && parsed.cover.tile) || 20);
+    if (coverIcon) coverIcon.checked = media && (parsed.cover.icon || parsed.cover.tile > 0);
     const barInput = iconColorEl(tab, '_tile_icon_bar');
     if (barInput) barInput.dataset.last = '';
     writeIconColorBar(tab, parsed.bar ? parsed.bar.mode : 'off', parsed.bar ? parsed.bar.stops : []);
@@ -1155,7 +1081,7 @@
   document.addEventListener('change', event => {
     const target = event.target;
     const id = target?.id || '';
-    if (['has', 'source', 'rule-target', 'fill-target'].includes(target?.dataset?.iconColor)) {
+    if (['has', 'source', 'fill-target'].includes(target?.dataset?.iconColor)) {
       const tab = iconColorEventTab(target);
       if (tab) commitIconColorChange(tab);
       return;
@@ -1193,12 +1119,6 @@
     } else if (role === 'source-mode') {
       const mode = iconColorEl(tab, '_tile_icon_source_mode');
       if (mode) mode.value = button.dataset.mode === 'rules' ? 'rules' : 'auto';
-    } else if (role === 'strength-reset') {
-      const strength = iconColorEl(tab, '_tile_icon_rule_strength');
-      if (strength) strength.value = '20';
-    } else if (role === 'fill-strength-reset') {
-      const strength = iconColorEl(tab, '_tile_icon_fill_strength');
-      if (strength) strength.value = '20';
     } else if (role === 'rules-on') {
       const on = iconColorEl(tab, '_tile_icon_rules_on');
       if (on) on.value = button.dataset.mode === '1' ? '1' : '0';

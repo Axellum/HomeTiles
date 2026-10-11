@@ -1,13 +1,13 @@
-// Filled tiles in the light theme (user 2026-10-10, "Hell = Dunkel-Rezept"):
-// a tile without an own color (tile color Global or "From icon") is filled
-// while it is tinted: the card from its icon's own color (white light in a
-// neutral grey), the dark theme's hairline, white text (tile_surface::kJewel,
-// ui_theme::kDarkTinted); off, it is light again. A Media tile shows the grey
-// without a tint (kNeutralIdle). The card changes its surface in place
-// (tile_icon_source::change_surface) and a running update draws on with it
-// (ui_theme follow_surface). A popup opened from a filled tile draws with
-// its rules (popup_surface::g_open_surface), every other popup with the
-// theme. Runs the production code on real LVGL objects.
+// Filled tiles in the light theme (user 2026-10-10, "Hell = Dunkel-Rezept";
+// 2026-10-11: one color rule): a tile with "Fill" is filled from the start
+// (tile_surface::kJewel, ui_theme::kDarkTinted: white text, a white second
+// line), with its icon's own color (white light in a neutral grey) or,
+// without a color, the idle grey (kNeutralIdle). It never changes its
+// surface while it runs; every other tile keeps the theme's white card with
+// the fixed frame line. The frame line of a filled card follows the card. A
+// popup opened from a filled tile draws with its rules
+// (popup_surface::g_open_surface), every other popup with the theme. Runs the
+// production code on real LVGL objects.
 import {popupSurfaceHost, radiusPolicyHost, surfaceStyleHost} from '../../lib/surface-style-host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,8 +30,8 @@ const fn = name => {
 // cleared, so the tint takes the new surface's rules.
 assert.match(fn('tint_card'), /follow_tint\(card, true\);[\s\S]*SurfaceScope surface = tile_surface::scope\(card\);/);
 assert.match(fn('clear_tile_tint'), /follow_tint\(card, false\);[\s\S]*kTintStore\) != LV_STYLE_RES_FOUND\) return;/);
-// The renderer gives every tile without an own color the rule in the light
-// theme (tile_surface_rule_of), not the screensaver and empty places.
+// The renderer gives a tile with "Fill" the rule in the light theme
+// (tile_surface_rule_of), not the screensaver, empty places or own colors.
 const renderer = read('src/tiles/runtime/tile_renderer.cpp');
 // A Camera tile's head over its picture keeps its fixed surface (no tint
 // rule; types/camera/picture.h head_over_picture).
@@ -56,9 +56,8 @@ for (const file of ['src/tiles/config/tile_config.h', 'src/tiles/config/tile_con
 const colors = read('src/web/admin/tiles/icon-colors.js');
 assert.ok(colors.includes("if (el?.dataset?.followTint === '1' && el.dataset.surface !== 'jewel' && typeof applyTileSurface === 'function') {") &&
   colors.includes("const card = idle ? toneJewelIdleCard() : toneJewelCard(given, Number(percent) || 20);"), 'preview: the tint fills the tile');
-assert.ok(read('src/web/admin/tiles/grid-preview.js').includes(
-  "if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');"),
-  'preview: off leaves it');
+assert.ok(!read('src/web/admin/tiles/grid-preview.js').includes("applyTileSurface(tileElem, '');"),
+  'preview: a filled tile never leaves its surface');
 // White and almost white light fill in the neutral grey (with_white, device
 // and preview); a tile "From icon" or a Media tile "From cover" shows it
 // without a tint. A Media tile in Global is a white card like every tile
@@ -68,14 +67,14 @@ assert.match(fn('with_white'), /if \(tone_color::no_color\(icon\) && tone_color:
 // Without a color the idle grey (a little darker than white light).
 assert.match(fn('clear_tile_tint'), /\(flags & tile_surface::kNeutralIdle\)\) \{\s*tint_card\(card, 0xFFFFFF, 0, true\);\s*return;/);
 assert.match(fn('tint_card'), /tint = idle \? tone_color::jewel_idle_card\(\) : tone_color::jewel_card\(color, percent\);/);
-assert.match(renderer, /const bool neutral_idle = tile_icon_colors::fill_of\(record\) \|\|\s*\(tile\.type == TILE_MEDIA && tile_icon_colors::cover_of\(record\)\.tile > 0\);/);
-assert.doesNotMatch(renderer, /neutral_idle = tile\.type == TILE_MEDIA \|\|/, 'Media in Global is not filled');
+assert.ok(renderer.includes('return tileFills(tile) ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : 0;'),
+  'Only a tile with Fill gets the rule; every other tile keeps its card');
 const gridPreview = read('src/web/admin/tiles/grid-preview.js');
 assert.ok(gridPreview.includes("if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {") &&
-  /if \(el\.dataset\.followTint === '1' && \(tileFillOf\(tile\?\.icon_colors\) \|\|\s*\(surfaceKind === 'media' && tileCoverFillOf\(tile\?\.icon_colors\) > 0\)\)\) \{/.test(gridPreview) &&
+  gridPreview.includes("if (el.dataset.followTint === '1' && tileFillOf(tile?.icon_colors) > 0) {") &&
   colors.includes("const card = idle ? toneJewelIdleCard() : toneJewelCard(given, Number(percent) || 20);"),
   'preview: white light grey, the idle grey without a color');
-// No solid rim: the dark theme's hairline on a filled tile (its --pv-text-rgb, user 2026-10-10).
+// The frame line (applyFrameLine, ui_surface_style frame_line) through --tile-border-tint.
 assert.ok(read('src/web/assets/admin.css').includes(
   'outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));'),
   'preview: the hairline');
@@ -179,6 +178,13 @@ ${fn('popup_tile_circle')}
 static uint32_t rgb(lv_color_t c) { return lv_color_to_u32(c) & 0xFFFFFF; }
 static uint32_t text(lv_obj_t* obj) { return rgb(lv_obj_get_style_text_color(obj, LV_PART_MAIN)); }
 static uint32_t bg(lv_obj_t* obj) { return rgb(lv_obj_get_style_bg_color(obj, LV_PART_MAIN)); }
+static uint32_t frame_line(lv_obj_t* obj) { return rgb(lv_obj_get_style_outline_color(obj, LV_PART_MAIN)); }
+// The frame line of a card that is not the theme's plain card: a little
+// lighter on a dark card, a little darker on a light one (frame_line).
+static uint32_t expected_line(uint32_t card) {
+  return rgb(tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)
+                                                                      : lv_color_mix(lv_color_black(), lv_color_hex(card), 36));
+}
 static int failures = 0;
 static void expect(bool ok, const char* what, uint32_t got = 0, uint32_t want = 0) {
   if (ok) return;
@@ -200,62 +206,58 @@ int main() {
   ui_theme::set(1);
   const uint32_t amber = 0xFFC107;
 
-  // A light tile without an own color, with the rule (render_tile).
+  // A tile with "Fill" (render_tile): filled from the start, the idle grey
+  // without a color.
   lv_obj_t* card = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(card);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
   tile_icon_source::apply_card_background(card, ui_theme::kLight.card);
-  tile_surface::set(card, tile_surface::kNone);
-  tile_surface::set_rule(card, tile_surface::kNone, tile_surface::kFollowTint);
+  tile_surface::set(card, tile_surface::kJewel);
+  tile_surface::set_rule(card, tile_surface::kJewel, tile_surface::kFollowTint | tile_surface::kNeutralIdle);
   ui_surface_style::apply_global_tile_border(card);
   lv_obj_t* row = lv_obj_create(card);
-  lv_obj_t* title = label(row, "Desk", ui_theme::kLight.text);
-  lv_obj_t* glyph = label(card, "\xF3\xB0\x8C\xB5", ui_theme::kLight.icon);
-  lv_obj_t* note = label(row, "Artist", ui_theme::kLight.text_secondary);
+  lv_obj_t* title = label(row, "Desk", ui_theme::kDarkTinted.text);
+  lv_obj_t* glyph = label(card, "\xF3\xB0\x8C\xB5", ui_theme::kDarkTinted.icon);
+  lv_obj_t* note = label(row, "Artist", ui_theme::kDarkTinted.text_secondary);
   lv_obj_t* entity = label(row, "On", amber);
+  tile_icon_source::clear_tile_tint(card);
+  const uint32_t idle = tone_color::jewel_idle_card();
+  expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == idle, "filled from the start: idle grey", bg(card), idle);
+  expect(frame_line(card) == expected_line(idle), "frame line of the idle card", frame_line(card), expected_line(idle));
+  // Its second line is white like the title (user 2026-10-11).
+  expect(ui_theme::kDarkTinted.text_secondary == ui_theme::kDarkTinted.text, "second line white",
+         ui_theme::kDarkTinted.text_secondary, ui_theme::kDarkTinted.text);
 
-  // A state update turns the light on: its scope opened light, the tint
-  // fills the card and the update draws on with the filled rules.
-  uint32_t during = 0;
+  // A state update fills it with the icon's color: the surface stays, the
+  // whole update draws with the filled rules.
   {
     const ui_theme::SurfaceScope scope = tile_surface::scope(title);
-    expect(ui_theme::text() == ui_theme::kLight.text, "update starts light", ui_theme::text(), ui_theme::kLight.text);
+    expect(ui_theme::text() == ui_theme::kDarkTinted.text, "the update draws filled", ui_theme::text(), ui_theme::kDarkTinted.text);
     tile_icon_source::set_tile_tint(card, amber, 20);
-    during = ui_theme::text();
-    {
-      // A nested scope of the same card (the circle) keeps the new surface.
-      const ui_theme::SurfaceScope inner = tile_surface::scope(glyph);
-    }
-    expect(ui_theme::text() == ui_theme::kDarkTinted.text, "after a nested scope", ui_theme::text(), ui_theme::kDarkTinted.text);
+    expect(ui_theme::text() == ui_theme::kDarkTinted.text, "still filled after the tint", ui_theme::text(), ui_theme::kDarkTinted.text);
     // Its greys lie above its circle like the dark theme's (b348).
     expect(ui_theme::icon_off() == ui_theme::kDarkTinted.icon_off, "filled: its own off grey",
            ui_theme::icon_off(), ui_theme::kDarkTinted.icon_off);
     expect(tone_color::readable_icon(amber) == amber, "the icon keeps its own color", tone_color::readable_icon(amber), amber);
   }
-  expect(during == ui_theme::kDarkTinted.text, "the rest of the update draws filled", during, ui_theme::kDarkTinted.text);
   expect(ui_theme::g_surface == -1 && ui_theme::g_surface_owner == nullptr, "scopes close");
-  expect(tile_surface::get(card) == tile_surface::kJewel, "tinted: filled", tile_surface::get(card), tile_surface::kJewel);
   const uint32_t filled = tone_color::jewel_card(amber, 20);
-  expect(bg(card) == filled, "card from the icon", bg(card), filled);
+  expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == filled, "card from the icon", bg(card), filled);
   expect(tile_surface::strength(glyph) == 20, "strength kept for the circle", tile_surface::strength(glyph), 20);
+  // The frame line follows the filled card, solid, in any scope.
+  expect(frame_line(card) == expected_line(filled) && lv_obj_get_style_outline_opa(card, LV_PART_MAIN) == LV_OPA_COVER,
+         "frame line of the filled card", frame_line(card), expected_line(filled));
   {
-    // The dark theme's hairline (white at 20 %), in any scope (b346).
     const ui_theme::SurfaceScope scope = tile_surface::scope(title);
     ui_surface_style::apply_global_tile_border(card);
   }
-  expect(rgb(lv_obj_get_style_outline_color(card, LV_PART_MAIN)) == ui_theme::kDarkTinted.text &&
-         lv_obj_get_style_outline_opa(card, LV_PART_MAIN) != LV_OPA_COVER, "the dark theme's hairline",
-         rgb(lv_obj_get_style_outline_color(card, LV_PART_MAIN)), ui_theme::kDarkTinted.text);
-  ui_surface_style::apply_global_tile_border(card);
-  expect(rgb(lv_obj_get_style_outline_color(card, LV_PART_MAIN)) == ui_theme::kDarkTinted.text,
-         "the same hairline outside a scope", rgb(lv_obj_get_style_outline_color(card, LV_PART_MAIN)),
-         ui_theme::kDarkTinted.text);
+  expect(frame_line(card) == expected_line(filled), "the same line inside a scope", frame_line(card), expected_line(filled));
   expect(text(title) == ui_theme::kDarkTinted.text, "title white", text(title), ui_theme::kDarkTinted.text);
   expect(text(glyph) == ui_theme::kDarkTinted.icon, "role icon white", text(glyph), ui_theme::kDarkTinted.icon);
-  expect(text(note) == ui_theme::kDarkTinted.text_secondary, "secondary", text(note), ui_theme::kDarkTinted.text_secondary);
+  expect(text(note) == ui_theme::kDarkTinted.text, "second line white", text(note), ui_theme::kDarkTinted.text);
   expect(text(entity) == amber, "entity color stays", text(entity), amber);
 
-  // A popup opened from it draws with its rules; from a light tile the theme.
+  // A popup opened from it draws with its rules.
   tile_icon_source::set_open_popup_surface(title);
   expect(popup_surface::g_open_surface == ui_theme::kDarkTintedSurface, "popup of a filled tile", popup_surface::g_open_surface,
          ui_theme::kDarkTintedSurface);
@@ -267,21 +269,14 @@ int main() {
            ui_theme::kLight.text);
   }
 
-  // Off: the grey untints the card, it is light again.
+  // Off: the idle grey again, still filled (no change of surface).
   tile_icon_source::clear_tile_tint(card);
-  expect(tile_surface::get(card) == tile_surface::kNone, "off: light", tile_surface::get(card), tile_surface::kNone);
-  expect(bg(card) == ui_theme::kLight.card, "light card", bg(card), ui_theme::kLight.card);
-  ui_surface_style::apply_global_tile_border(card);
-  expect(lv_obj_get_style_outline_opa(card, LV_PART_MAIN) != LV_OPA_COVER, "the hairline again");
-  expect(text(title) == ui_theme::kLight.text, "title dark", text(title), ui_theme::kLight.text);
-  expect(text(glyph) == ui_theme::kLight.icon, "icon grey", text(glyph), ui_theme::kLight.icon);
-  expect(text(note) == ui_theme::kLight.text_secondary, "secondary back", text(note), ui_theme::kLight.text_secondary);
-  tile_icon_source::set_open_popup_surface(title);
-  expect(popup_surface::g_open_surface == ui_theme::kThemeSurface, "popup of a light tile: theme");
+  expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == idle, "off: idle grey, still filled", bg(card), idle);
+  expect(text(title) == ui_theme::kDarkTinted.text, "title stays white", text(title), ui_theme::kDarkTinted.text);
+  expect(frame_line(card) == expected_line(idle), "the line follows back", frame_line(card), expected_line(idle));
 
   // White and almost white light fill it in the neutral grey.
   const uint32_t grey = tone_color::jewel_card(0xFFFFFFu, 20);
-  const uint32_t idle = tone_color::jewel_idle_card();
   expect(idle != grey, "off is a little darker than white light", idle, grey);
   for (const uint32_t white : {0xFFFFFFu, 0xFFFEFAu, 0xF5F7FFu}) {
     tile_icon_source::set_tile_tint(card, white, 20);
@@ -289,26 +284,20 @@ int main() {
            "white light: grey", bg(card), grey);
   }
   tile_icon_source::clear_tile_tint(card);
-  expect(tile_surface::get(card) == tile_surface::kNone && bg(card) == ui_theme::kLight.card, "white off: light");
 
-  // A Media tile: the grey without a tint, the cover color with one.
-  lv_obj_t* media = lv_obj_create(lv_screen_active());
-  lv_obj_remove_style_all(media);
-  lv_obj_set_style_bg_opa(media, LV_OPA_COVER, 0);
-  tile_icon_source::apply_card_background(media, ui_theme::kLight.card);
-  tile_surface::set(media, tile_surface::kNone);
-  tile_surface::set_rule(media, tile_surface::kNone, tile_surface::kFollowTint | tile_surface::kNeutralIdle);
-  lv_obj_t* song = label(media, "Song", ui_theme::kLight.text);
-  lv_obj_t* play = lv_button_create(media);
-  lv_obj_set_style_bg_color(play, lv_color_hex(ui_theme::kLight.icon), LV_PART_MAIN);
-  tile_icon_source::clear_tile_tint(media);
-  expect(tile_surface::get(media) == tile_surface::kJewel && bg(media) == idle && text(song) == ui_theme::kDarkTinted.text,
-         "idle Media: idle grey", bg(media), idle);
-  expect(bg(play) == ui_theme::kDarkTinted.icon, "the play circle follows its role", bg(play), ui_theme::kDarkTinted.icon);
-  tile_icon_source::set_tile_tint(media, amber, 20);
-  expect(bg(media) == filled, "playing Media: cover color", bg(media), filled);
-  tile_icon_source::clear_tile_tint(media);
-  expect(tile_surface::get(media) == tile_surface::kJewel && bg(media) == idle, "stopped Media: idle grey again", bg(media), idle);
+  // A tile without "Fill": the theme's white card with the fixed line, a
+  // popup from it draws with the theme.
+  lv_obj_t* white_card = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(white_card);
+  lv_obj_set_style_bg_opa(white_card, LV_OPA_COVER, 0);
+  tile_icon_source::apply_card_background(white_card, ui_theme::kLight.card);
+  tile_surface::set(white_card, tile_surface::kNone);
+  ui_surface_style::apply_global_tile_border(white_card);
+  lv_obj_t* white_title = label(white_card, "Lamp", ui_theme::kLight.text);
+  expect(frame_line(white_card) == 0xDDDDDD && lv_obj_get_style_outline_opa(white_card, LV_PART_MAIN) == LV_OPA_COVER,
+         "plain light card: #DDDDDD", frame_line(white_card), 0xDDDDDD);
+  tile_icon_source::set_open_popup_surface(white_title);
+  expect(popup_surface::g_open_surface == ui_theme::kThemeSurface, "popup of a plain tile: theme");
 
   // A Light popup opened from a grey tile that is off (Bathroom, user
   // 2026-10-10): its header circle and icon are exactly the tile's, the icon
@@ -372,4 +361,4 @@ let result = spawnSync(host.cxx, [...host.flags, '-std=c++17', '-DSCREEN_WIDTH=1
 assert.equal(result.status, 0, result.stdout + result.stderr);
 result = spawnSync(binary, [], {encoding: 'utf8'});
 assert.equal(result.status, 0, result.stdout + result.stderr);
-console.log('Filled tiles: in and out with the tint (card, hairline, texts, running update), white and Media grey, popups by their opener.');
+console.log('Filled tiles: filled from the start (card, frame line, white texts, updates), white grey, plain cards keep the fixed line, popups by their opener.');

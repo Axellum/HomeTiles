@@ -45,7 +45,7 @@
         }
         const meta = colorMeta;
         callTypeHandler(meta, 'load', prefix, data);
-        loadIconDiscFields(prefix, data);
+        syncIconDiscFields(prefix);
         refreshEntityOptionLists(prefix);
         syncGaugeUi(tab);
         const tileElem = document.getElementById(tab + '-tile-' + index);

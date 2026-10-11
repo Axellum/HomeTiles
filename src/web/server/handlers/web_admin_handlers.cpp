@@ -45,10 +45,6 @@ void WebAdminServer::handleSaveMQTT() {
     strncpy(cfg.mqtt_base_topic, "hometiles", CONFIG_MQTT_BASE_MAX - 1);
     strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
     cfg.tile_borders = true;
-    cfg.tile_radius = tile_radius::kDefault;
-    cfg.icon_discs = true;
-    cfg.icon_glow = icon_glow::kDefault;
-    cfg.default_tile_color = tile_color::kDefault;
   }
   const DeviceConfig previous_cfg = cfg;
 
@@ -722,58 +718,6 @@ void WebAdminServer::handleRestart() {
   BoardHAL::restart();
 }
 
-void WebAdminServer::handleTileRadius() {
-  webAdminMarkActivity();
-  if (server.method() == HTTP_POST) {
-    const String value = server.arg("radius");
-    bool valid = value.length() > 0 && value.length() <= 4;
-    for (size_t i = 0; i < value.length(); ++i)
-      valid = valid && value[i] >= '0' && value[i] <= '9';
-    const long radius = value.toInt();
-    if (!valid || radius < tile_radius::kMinimum || radius > tile_radius::kMaximum) {
-      sendJsonError(server, 400, "Invalid tile radius");
-      return;
-    }
-    if (server.arg("preview") == "1") {
-      ui_surface_style::preview_radius(radius);
-      server.send(200, "application/json", String("{\"success\":true,\"radius\":") + radius + "}");
-      return;
-    }
-    if (!configManager.saveTileRadius(static_cast<uint16_t>(radius))) {
-      sendJsonError(server, 500, "Could not save tile radius");
-      return;
-    }
-    ui_surface_style::request_global_radius_refresh();
-  }
-  server.send(200, "application/json",
-      String("{\"success\":true,\"radius\":") + configManager.getConfig().tile_radius + "}");
-}
-
-void WebAdminServer::handleSaveIconDiscs() {
-  webAdminMarkActivity();
-  if (!server.hasArg("enabled")) {
-    sendJsonError(server, 400, "Missing enabled value");
-    return;
-  }
-  String value = server.arg("enabled");
-  value.trim();
-  value.toLowerCase();
-  const bool enabled = value == "1" || value == "true" || value == "on";
-  if (!configManager.saveIconDiscs(enabled)) {
-    sendJsonError(server, 500, "Could not save icon discs");
-    return;
-  }
-  // Shared disc styles update every grid, including cached and screensaver
-  // tiles, on the next safe UI pass; the icon refresh shows dark icons
-  // readable on the tile or their circle again. This handler does not touch
-  // LVGL.
-  ui_surface_style::request_icon_disc_refresh();
-  tiles_request_icon_refresh();
-  server.send(200, "application/json",
-              enabled ? "{\"success\":true,\"enabled\":true}"
-                      : "{\"success\":true,\"enabled\":false}");
-}
-
 // The gear in Home's head with a bar layout (home_bar.cpp): the heads are
 // built again on the next safe UI pass.
 void WebAdminServer::handleSaveHeadGear() {
@@ -788,60 +732,6 @@ void WebAdminServer::handleSaveHeadGear() {
   tiles_request_reload_all();
   server.send(200, "application/json", enabled ? "{\"success\":true,\"enabled\":true}"
                                                : "{\"success\":true,\"enabled\":false}");
-}
-
-void WebAdminServer::handleSaveIconGlow() {
-  webAdminMarkActivity();
-  const String value = server.arg("percent");
-  bool valid = value.length() > 0 && value.length() <= 3;
-  for (size_t i = 0; i < value.length(); ++i)
-    valid = valid && value[i] >= '0' && value[i] <= '9';
-  const long percent = value.toInt();
-  if (!valid || percent < icon_glow::kMinimum || percent > icon_glow::kMaximum) {
-    sendJsonError(server, 400, "Invalid icon glow");
-    return;
-  }
-  if (!configManager.saveIconGlow(static_cast<uint8_t>(percent))) {
-    sendJsonError(server, 500, "Could not save icon glow");
-    return;
-  }
-  // Every disc takes the new strength through the shared disc styles; tiles
-  // are rebuilt like a default tile color change and popups use it on their
-  // next sync. These calls only set flags for the UI loop.
-  ui_surface_style::request_icon_disc_refresh();
-  tiles_invalidate_folder(tileConfig.rootFolderId());
-  tiles_request_reload_all();
-  image_screensaver_tiles_changed();
-  server.send(200, "application/json",
-              String("{\"success\":true,\"percent\":") + static_cast<int>(configManager.getConfig().icon_glow) + "}");
-}
-
-void WebAdminServer::handleSaveDefaultTileColor() {
-  webAdminMarkActivity();
-  // Accepts "#RRGGBB" from the color picker.
-  String value = server.arg("color");
-  value.trim();
-  bool valid = value.length() == 7 && value[0] == '#';
-  for (size_t i = 1; valid && i < value.length(); ++i) valid = isxdigit(value[i]);
-  if (!valid) {
-    sendJsonError(server, 400, "Invalid tile color");
-    return;
-  }
-  const uint32_t rgb = static_cast<uint32_t>(strtoul(value.c_str() + 1, nullptr, 16));
-  if (!configManager.saveDefaultTileColor(rgb)) {
-    sendJsonError(server, 500, "Could not save tile color");
-    return;
-  }
-  // Tiles without their own color use the new default: the visible grid
-  // reloads, cached folder grids rebuild when opened and the screensaver
-  // grid refreshes. These calls only set flags for the UI loop.
-  tiles_invalidate_folder(tileConfig.rootFolderId());
-  tiles_request_reload_all();
-  image_screensaver_tiles_changed();
-  char response[48];
-  snprintf(response, sizeof(response), "{\"success\":true,\"color\":\"#%06X\"}",
-           static_cast<unsigned>(configManager.getConfig().default_tile_color));
-  server.send(200, "application/json", response);
 }
 
 // The theme (ui_theme.h, 0 dark, 1 light, 2 automatic): stored, then the UI

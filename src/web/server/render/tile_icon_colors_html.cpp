@@ -65,12 +65,10 @@ void append_tile_icon_color_fixed_html(String& html, const String& tab_id) {
 )html";
 }
 
-// Tile color "From icon color": the strength of the tint that follows the
-// color the icon shows ("fill NN" in the record, tile_icon_colors.h). The Tile
-// color choice (setTileColorMode) sets the hidden checkbox; its own
-// tile-icon-color-fields wrapper keeps the delegated editor events working.
-// Media's "From cover" ("cover tile=NN") has its own checkbox and uses the
-// same strength slider.
+// "Ausfuellen" (user 2026-10-11, the one tile color option): the tile filled
+// with its icon's color at the fixed strength ("fill 20" in the record,
+// tile_icon_colors.h fills). Its own tile-icon-color-fields wrapper keeps the
+// delegated editor events working (data-icon-color="fill-target").
 void append_tile_color_from_icon_html(String& html, const String& tab_id) {
   const auto& tr = i18n::strings(configManager.getConfig().language);
   html += R"html(            <div class="tile-icon-color-fields icon-color-fill hidden" id=")html";
@@ -78,33 +76,11 @@ void append_tile_color_from_icon_html(String& html, const String& tab_id) {
   html += R"html(_tile_icon_fill_row" data-tab=")html";
   html += tab_id;
   html += R"html(">
-              <input type="checkbox" id=")html";
+              <label class="inline-checkbox"><input type="checkbox" id=")html";
   html += tab_id;
-  html += R"html(_tile_icon_fill" hidden>
-              <input type="checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_cover_fill" hidden>
-              <div class="icon-color-strength" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_fill_strength_row"><label for=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_fill_strength">)html";
-  appendHtmlEscaped(html, tr.tile_rules_strength);
-  html += R"html(</label><input type="range" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_fill_strength" min=")html";
-  html += String(tile_icon_colors::kTintMinimum);
-  html += R"html(" max=")html";
-  html += String(tile_icon_colors::kTintMaximum);
-  html += R"html(" step="5" value=")html";
-  html += String(tile_icon_colors::kTintDefault);
-  html += R"html(" data-icon-color="fill-strength"><output id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_fill_strength_value">)html";
-  html += String(tile_icon_colors::kTintDefault);
-  html += R"html( %</output><button type="button" class="tile-color-reset-btn" data-icon-color="fill-strength-reset" title=")html";
-  appendHtmlEscaped(html, tr.tile_icon_color_remove);
-  html += R"html("><i class="mdi mdi-restore"></i></button></div>
+  html += R"html(_tile_icon_fill" data-icon-color="fill-target"> )html";
+  appendHtmlEscaped(html, tr.tile_fill);
+  html += R"html(</label>
             </div>
 )html";
 }
@@ -159,44 +135,6 @@ void append_tile_icon_color_fields_html(String& html, const String& tab_id) {
   append_button(html, "", "source-mode", "data-mode", "auto", tr.tile_icon_color_source_auto);
   append_button(html, "", "source-mode", "data-mode", "rules", tr.tile_icon_color_source_rules);
   html += R"html(</div>
-                  <div class="icon-color-targets">
-                    <label class="inline-checkbox"><input type="checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_icon" data-icon-color="rule-target" checked> )html";
-  appendHtmlEscaped(html, tr.tile_rules_color_icon);
-  html += R"html(</label>
-                    <label class="inline-checkbox"><input type="checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_tile" data-icon-color="rule-target"> )html";
-  appendHtmlEscaped(html, tr.tile_rules_tint_tile);
-  html += R"html(</label>
-                  </div>
-                  <p class="hint hidden" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_follows_icon">)html";
-  appendHtmlEscaped(html, tr.tile_rules_tile_follows_icon);
-  html += R"html(</p>
-                  <div class="icon-color-strength hidden" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_strength_row"><label for=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_strength">)html";
-  appendHtmlEscaped(html, tr.tile_rules_strength);
-  html += R"html(</label><input type="range" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_strength" min=")html";
-  html += String(tile_icon_colors::kTintMinimum);
-  html += R"html(" max=")html";
-  html += String(tile_icon_colors::kTintMaximum);
-  html += R"html(" step="5" value=")html";
-  html += String(tile_icon_colors::kTintDefault);
-  html += R"html(" data-icon-color="rule-strength"><output id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_rule_strength_value">)html";
-  html += String(tile_icon_colors::kTintDefault);
-  html += R"html( %</output><button type="button" class="tile-color-reset-btn" data-icon-color="strength-reset" title=")html";
-  appendHtmlEscaped(html, tr.tile_icon_color_remove);
-  html += R"html("><i class="mdi mdi-restore"></i></button></div>
                   <p class="hint">)html";
   appendHtmlEscaped(html, tr.tile_rules_priority_hint);
   html += R"html(</p>

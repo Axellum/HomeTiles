@@ -148,10 +148,9 @@
     tileElem.style.background = '';
     delete tileElem.dataset.bgOpacity;
     tileElem.dataset.type = type;
-    tileElem.dataset.iconDisc = tileTypeHasDiscToggle(type)
-      && document.getElementById(prefix + '_tile_icon_disc')?.checked === false ? '2' : '0';
-    tileElem.dataset.iconGlow = tileTypeHasColoredIcon(type)
-      && document.getElementById(prefix + '_tile_icon_glow')?.checked === false ? '0' : '1';
+    // Every circle shows, in its icon's color (user 2026-10-11).
+    tileElem.dataset.iconDisc = '0';
+    tileElem.dataset.iconGlow = '1';
     const borderToggle = type === '8' ? '_back_tile_border'
       : (type === '9' ? '_clock_tile_border' : (type === '10' ? '_text_tile_border' : ''));
     tileElem.classList.toggle('tile-border-hidden', !!borderToggle && document.getElementById(prefix + borderToggle)?.checked === false);
@@ -175,7 +174,7 @@
     // choice: a Custom color that is still a default grey (Custom was just
     // selected and nothing picked yet) stays Custom instead of switching back
     // to Global and hiding the color field.
-    const isDefaultBg = tileColorInputIsDefault(tab);
+    const isDefaultBg = tileColorInputIsDefault(tab) || !tileTypeKeepsOwnColor(type);
     const colorInput = document.getElementById(prefix + '_tile_color');
     if (colorInput?.dataset.bgColorDefault === '1') colorInput.value = defaultBg;
     syncTileColorMode(tab);
@@ -201,18 +200,19 @@
       const cameraHead = meta.preview === 'camera' ? cameraHeadSurface(cameraPictureOptions(tab), halfHeight) : '';
       if (cameraHead) tileElem.style.background = cameraHeadBackground(cameraHead);
       const surface = globalThis.hometilesPreviewForcedSurface ||
-        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
-      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+        (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead) : tileSurfaceOf(tab, meta.preview || '', bgValue, record, type));
+      if (!cameraHead && tileFollowsTint(tab, meta.preview || '', bgValue, record, type)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).
-      if (tileElem.dataset.followTint === '1' && (meta.preview === 'media' || tileFillOf(record))) {
+      if (tileElem.dataset.followTint === '1' && tileFillOf(record) > 0) {
         tileElem.dataset.neutralIdle = '1';
       } else {
         delete tileElem.dataset.neutralIdle;
       }
       surfaceDrawn = surface;
       applyTileSurface(tileElem, surface);
+      applyFrameLine(tileElem);
       const surfaceMode = typeof surfaceTheme === 'function' ? surfaceTheme(surface) : -1;
       // 0 dark, 1 light, 2 a filled tile (ui_theme::kDarkTinted): its rules everywhere.
       if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;

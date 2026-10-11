@@ -262,35 +262,56 @@
     return {discColor: disc, controlColor: toneRgb(base.L + control, C, seed.h), discOpa: glowPct ? 255 : 0,
       controlOpa: 255, disc, control: toneRgb(base.L + control, C, seed.h), tinted: true};
   }
-  // tile_icon_colors::fill_of(): the tile color "From icon" strength, 0 without.
+  // tile_icon_colors::fills(): "Ausfuellen" (user 2026-10-11, the one tile
+  // color option), also a former "From cover" or rule "Tint tile"; the fixed
+  // strength (tile_icon_colors::kTintDefault) when filled, 0 without.
   function tileFillOf(iconColors) {
-    return iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
+    if (!iconColors || typeof parseIconColorRecord !== 'function') return 0;
+    const parsed = parseIconColorRecord(iconColors);
+    return Number(parsed.fill || 0) > 0 || Number(parsed.cover?.tile || 0) > 0 || Number(parsed.source?.tile || 0) > 0
+      ? ICON_FILL_DEFAULT : 0;
   }
-  // tile_icon_colors::cover_of().tile: a Media tile's tile color "From cover".
-  function tileCoverFillOf(iconColors) {
-    return iconColors && typeof parseIconColorRecord === 'function'
-      ? Number(parseIconColorRecord(iconColors).cover?.tile || 0) : 0;
-  }
-  // tile_has_own_color() (tile_renderer.cpp): not Global, not "From icon".
-  function tileHasOwnColor(bgValue, iconColors) {
-    const fill = iconColors && typeof parseIconColorRecord === 'function' ? Number(parseIconColorRecord(iconColors).fill || 0) : 0;
-    return tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue) && !fill;
+  // tileTypeKeepsOwnColor() (tile_config.h): only Clock, Text and Pixel
+  // animation keep an own color; every other tile takes its color from its
+  // icon.
+  const KEEPS_OWN_COLOR_TYPES = ['9', '10', '16'];
+  function tileTypeKeepsOwnColor(typeValue) { return KEEPS_OWN_COLOR_TYPES.includes(String(typeValue ?? '0')); }
+  // tileFills() (tile_config.h): "Fill" of a tile, never on the tiles that
+  // keep an own color.
+  function tileFills(typeValue, iconColors) { return tileTypeKeepsOwnColor(typeValue) ? 0 : tileFillOf(iconColors); }
+  // tileHasOwnColor() (tile_config.h).
+  function tileHasOwnColor(bgValue, iconColors, typeValue) {
+    return tileTypeKeepsOwnColor(typeValue) && tileBgValueIsSet(bgValue) && !tileBgFollowsDefault(bgValue);
   }
   // tile_surface_of() (tile_renderer.cpp): a tile in its own color follows
   // its lightness; every other tile, and the screensaver, keeps the theme.
-  function tileSurfaceOf(tab, previewKind, bgValue, iconColors) {
+  function tileSurfaceOf(tab, previewKind, bgValue, iconColors, typeValue) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
-    if (!tileHasOwnColor(bgValue, iconColors)) return '';
+    if (!tileHasOwnColor(bgValue, iconColors, typeValue)) return '';
     const own = Number(bgValue) & 0xFFFFFF;
     if (!own) return '';
     return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
   }
-  // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile
-  // without an own color is filled with its icon's color while it is tinted
-  // (setTileTintBackground, applyIconDiscTint).
-  function tileFollowsTint(tab, previewKind, bgValue, iconColors) {
+  // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile with
+  // "Ausfuellen" is filled from the start; no other tile changes its surface.
+  function tileFollowsTint(tab, previewKind, bgValue, iconColors, typeValue) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return false;
-    return panelThemeLight() && !tileHasOwnColor(bgValue, iconColors);
+    return panelThemeLight() && tileFills(typeValue, iconColors) > 0 && !tileHasOwnColor(bgValue, iconColors, typeValue);
+  }
+  // ui_surface_style frame_line(): a solid line, on the theme's plain card a
+  // fixed neutral (light #DDDDDD, dark #292929), on any other card that card
+  // a little lighter when it is dark (lv_color_mix 23 of white) and a little
+  // darker when it is light (36 of black). user 2026-10-11, like Tessera.
+  function applyFrameLine(el) {
+    if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
+    const card = cssColorChannels(getComputedStyle(el).backgroundColor);
+    if (!card) return;
+    const plain = panelThemeLight() ? [255, 255, 255] : [26, 26, 26];
+    let line;
+    if (card.every((v, i) => v === plain[i])) line = panelThemeLight() ? [221, 221, 221] : [41, 41, 41];
+    else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
+    else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
+    el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
   }
   // Marks a tile with its surface: the other theme's roles on it (CSS) and,
   // for the dark design, its card.
@@ -417,9 +438,11 @@
     // icon color" the tile takes the color the icon was given; grey and white
     // icons (off, default) keep the untinted background (tile_tint::choose).
     const fill = Number(tileElem.dataset.iconFill || 0);
-    if (fill && tileElem.dataset.ruleTint !== '1' && typeof tileTintBackground === 'function' &&
-        typeof tileTintChoice === 'function') {
+    if (fill && typeof tileTintBackground === 'function' && typeof tileTintChoice === 'function') {
       let choice = given ? tileTintChoice(false, '', 0, fill, givenHex) : null;
+      // An icon without a color (white, almost white light) never tints the
+      // card (tile_icon_source without_white).
+      if (choice && toneNoColor(given)) choice = null;
       // White light fills in the neutral grey (tile_icon_source with_white).
       if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {
         choice = { color: givenHex.toUpperCase(), percent: fill };
@@ -429,7 +452,6 @@
       } else if (tileElem.dataset.neutralIdle === '1') {
         setTileTintBackground(tileElem, '#FFFFFF', 0, true);
       } else if (tileElem.dataset.baseBg !== undefined) {
-        if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');
         tileElem.style.background = tileElem.dataset.baseBg;
       }
       // The surface may have changed with the tint (tile_surface::change).
@@ -445,20 +467,8 @@
     }
     const tinted = glow && !!given && iconDiscTinted('rgb(' + given.join(',') + ')');
     icon.classList.toggle('tile-icon-tinted', tinted);
-    // Mirrors ui_surface_style::border_hint(): a glowing icon gives the tile
-    // outline its hue halfway to the text color (lv_color_mix(text, icon,
-    // 128); white in the dark theme) at the hairline's 20 %, mostly the tile
-    // with a hint of the icon.
-    // Only a card in the tile color From icon (tile_icon_disc
-    // apply_tile_options); Global and Custom keep the neutral hairline.
-    if (tinted && fill > 0) {
-      // A filled tile: the dark theme's hint, halfway to white.
-      const text = tileElem.dataset.surface === 'jewel' ? [255, 255, 255] : (panelRole('text') || [255, 255, 255]);
-      const hint = given.map((v, i) => Math.floor(((text[i] * 128 + v * 127) * 0x8081) / 0x800000));
-      tileElem.style.setProperty('--tile-border-tint', 'rgba(' + hint.join(',') + ',0.20)');
-    } else {
-      tileElem.style.removeProperty('--tile-border-tint');
-    }
+    // The frame line follows the card (ui_surface_style frame_line).
+    applyFrameLine(tileElem);
     // Global Circle strength (icon_glow.h, 0..100 %).
     const glowRaw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
     const glowValue = glowRaw === '' ? 25 : Number(glowRaw);
@@ -501,10 +511,8 @@
     const rgba = (color, opa) => 'rgba(' + color.join(',') + ',' + (opa / 255).toFixed(3) + ')';
     tileElem.style.setProperty('--icon-disc-bg', rgba(tone.discColor, tone.discOpa));
     // Mirrors icon_lock_mark::behind(): the lock's rim takes the circle over
-    // the card, or the card when the circle is off.
-    const discShown = tileElem.dataset.iconDisc === '1' ||
-      (tileElem.dataset.iconDisc !== '2' && !tileElem.closest('.icon-discs-off'));
-    const discAlpha = discShown ? tone.discOpa / 255 : 0;
+    // the card.
+    const discAlpha = tone.discOpa / 255;
     const lockRim = card.map((c, i) => Math.round(c * (1 - discAlpha) + tone.discColor[i] * discAlpha));
     tileElem.style.setProperty('--icon-lock-rim', 'rgb(' + lockRim.join(',') + ')');
     // Mirrors tile_icon_source::refresh_controls(): tile controls (the
@@ -548,38 +556,33 @@
     const text = String(hex || '').trim();
     return /^#[0-9a-f]{6}$/i.test(text) && isDefaultTileGrey(parseInt(text.slice(1), 16));
   }
-  // Tile color is one choice, like the device (tile_tint::choose): Global
-  // follows the global tile color (stored as the default marker), Custom keeps
-  // the picked color, From icon color tints the tile with the color the icon
-  // shows (the icon colors' hidden "fill" checkbox). Only tiles with icon
-  // colors offer From icon color. Nothing else switches the choice.
+  // The color of a tile without an icon (Clock, Text, Pixel animation):
+  // Global is the theme's card (stored as the default marker), Custom keeps
+  // the picked color.
   function tileColorMode(tab) {
-    if (document.getElementById(tab + '_tile_icon_fill')?.checked) return 'icon';
-    if (document.getElementById(tab + '_tile_cover_fill')?.checked) return 'cover';
     return document.getElementById(tab + '_tile_color')?.dataset.bgColorDefault === '0' ? 'custom' : 'global';
   }
+  // user 2026-10-11: a tile with an icon offers only "Fill" (its icon's
+  // color); Clock, Text and Pixel animation keep Global or a Custom color.
   function syncTileColorMode(tab) {
     const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
-    const iconOffered = typeof tileTypeHasIconColors === 'function' && tileTypeHasIconColors(typeValue);
+    const keepsOwn = tileTypeKeepsOwnColor(typeValue);
+    const iconOffered = !keepsOwn && typeof tileTypeHasIconColors === 'function' && tileTypeHasIconColors(typeValue);
     const fill = document.getElementById(tab + '_tile_icon_fill');
     if (fill?.checked && !iconOffered) fill.checked = false;
-    // Media tiles also offer "From cover" (the album cover's color).
-    const coverOffered = String(typeValue) === '15';
-    const coverFill = document.getElementById(tab + '_tile_cover_fill');
-    if (coverFill?.checked && !coverOffered) coverFill.checked = false;
+    const input = document.getElementById(tab + '_tile_color');
+    if (input && !keepsOwn) input.dataset.bgColorDefault = '1';
     const mode = tileColorMode(tab);
-    document.getElementById(tab + '_tile_color_modes')?.querySelectorAll('[data-tile-color-mode]').forEach(button => {
+    const modes = document.getElementById(tab + '_tile_color_modes');
+    modes?.querySelectorAll('[data-tile-color-mode]').forEach(button => {
       const active = button.dataset.tileColorMode === mode;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      if (button.dataset.tileColorMode === 'icon') button.classList.toggle('hidden', !iconOffered);
-      if (button.dataset.tileColorMode === 'cover') button.classList.toggle('hidden', !coverOffered);
     });
-    document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', mode !== 'custom');
-    document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', mode !== 'icon' && mode !== 'cover');
-    const strength = document.getElementById(tab + '_tile_icon_fill_strength');
-    const output = document.getElementById(tab + '_tile_icon_fill_strength_value');
-    if (strength && output) output.textContent = strength.value + ' %';
+    modes?.classList.toggle('hidden', !keepsOwn);
+    modes?.previousElementSibling?.classList?.toggle('hidden', !keepsOwn);
+    document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', !keepsOwn || mode !== 'custom');
+    document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', !iconOffered);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
   }
   function setTileColorMode(tab, mode) {
@@ -588,10 +591,6 @@
     const before = tileColorMode(tab);
     // Leaving Custom remembers its color for a later return.
     if (before === 'custom' && mode !== 'custom') input.dataset.customColor = input.value;
-    const fill = document.getElementById(tab + '_tile_icon_fill');
-    if (fill) fill.checked = mode === 'icon';
-    const coverFill = document.getElementById(tab + '_tile_cover_fill');
-    if (coverFill) coverFill.checked = mode === 'cover';
     const remembered = input.dataset.customColor || '';
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
@@ -602,8 +601,6 @@
       input.dataset.bgColorDefault = '1';
     }
     syncTileColorMode(tab);
-    // The rules hide "Tint tile" while the tile follows the icon.
-    if (typeof syncIconColorFields === 'function') syncIconColorFields(tab);
     updateTilePreview(tab);
     updateDraft(tab);
     scheduleAutoSave(tab);
@@ -651,7 +648,7 @@
     const type = String(typeValue ?? '0');
     // Rules that color the icon win (tile_icon_source::refresh_card).
     const layer = typeof iconColorRecordSource === 'function' ? iconColorRecordSource(record) : null;
-    if (layer && layer.enabled && layer.icon && typeof iconColorLayerColor === 'function') {
+    if (layer && layer.enabled && iconColorRuleColorsIcon(layer) && typeof iconColorLayerColor === 'function') {
       const color = iconColorLayerColor(record, layer, entity, meta, type);
       if (color) return color;
     }
@@ -668,17 +665,12 @@
   // color, never from an own tile color.
   function applyTileRulesTint(el, typeValue, record, ownEntity, meta) {
     if (!el) return;
-    // The icon color's "Tint tile" option follows the icon (applyIconDiscTint)
-    // from this untinted background, unless a rule tint wins.
+    // A tile with "Fill" follows its icon (applyIconDiscTint) from this
+    // untinted background; rules color only the icon (user 2026-10-11).
     el.dataset.baseBg = el.style.background || '';
-    const fill = record && typeof parseIconColorRecord === 'function' ? parseIconColorRecord(record).fill : 0;
+    const fill = tileFills(typeValue, record);
     if (fill) el.dataset.iconFill = String(fill);
     else delete el.dataset.iconFill;
-    const tint = record && typeof iconColorTilePreviewTint === 'function'
-      ? iconColorTilePreviewTint(String(typeValue ?? '0'), record, ownEntity, meta) : null;
-    el.dataset.ruleTint = tint ? '1' : '0';
-    if (!tint) return;
-    setTileTintBackground(el, tint.color, tint.percent);
   }
   function snapshotBgColorIsDefault(snapshot) {
     return String(snapshot?.bg_color_default || '0') === '1' ||
@@ -746,17 +738,15 @@
       ? cameraHeadSurface(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5) : '';
     const surface = forcedSurface || (cameraHead ? (cameraHead === 'auto' ? '' : cameraHead)
       : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
-      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
+      : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, surfaceType));
     if (surfaceType !== '0' && !cameraHead && typeof tileFollowsTint === 'function' &&
-        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
+        tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors, surfaceType)) {
       el.dataset.followTint = '1';
     } else {
       delete el.dataset.followTint;
     }
-    // A tile "From icon", and a Media tile "From cover", show the neutral grey
-    // without a tint (kNeutralIdle); in Global a Media tile is white.
-    if (el.dataset.followTint === '1' && (tileFillOf(tile?.icon_colors) ||
-      (surfaceKind === 'media' && tileCoverFillOf(tile?.icon_colors) > 0))) {
+    // A tile with "Fill" shows the neutral grey without a tint (kNeutralIdle).
+    if (el.dataset.followTint === '1' && tileFillOf(tile?.icon_colors) > 0) {
       el.dataset.neutralIdle = '1';
     } else {
       delete el.dataset.neutralIdle;
@@ -786,8 +776,9 @@
     el.className = cls.join(' ');
     if (typeValue === '5') applySwitchPreviewLayout(el, tile.switch_style, Number(tile.span_h) === 0.5);
     el.dataset.type = typeValue;
-    el.dataset.iconDisc = ['1', '2'].includes(String(tile?.icon_disc)) ? String(tile.icon_disc) : '0';
-    el.dataset.iconGlow = ['0', 'false'].includes(String(tile?.icon_glow)) ? '0' : '1';
+    // Every circle shows, in its icon's color (user 2026-10-11: no circle options).
+    el.dataset.iconDisc = '0';
+    el.dataset.iconGlow = '1';
     el.classList.toggle('tile-border-hidden', ['8','9','10'].includes(typeValue) && Number(tile.sensor_display_mode) === 1);
     applyCompactSensorPreview(el, typeValue, tile, tile.sensor_display_mode, tile.sensor_value_font);
     if (typeValue === '4') {
@@ -800,7 +791,8 @@
     delete el.dataset.bgOpacity;
     if (typeValue === '0') el.style.background = 'transparent';
     else {
-      const isDefaultBg = tileBgFollowsDefault(tile.bg_color);
+      // A tile with an icon takes its color from the icon: no own color.
+      const isDefaultBg = tileBgFollowsDefault(tile.bg_color) || !tileTypeKeepsOwnColor(typeValue);
       const bg = tileBackgroundCss(meta, isDefaultBg,
         tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'));
       if (isScreensaverTileTab(tab)) {
@@ -816,6 +808,7 @@
       }
     }
     if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);
+    if (typeValue !== '0') applyFrameLine(el);
     const sensorValueClass = getSensorValueFontClass(tile.sensor_value_font);
     if (typeValue === '0') {
       el.innerHTML = '';

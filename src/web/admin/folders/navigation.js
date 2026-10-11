@@ -95,7 +95,6 @@
 
   function syncFolderFragmentWithRoot(tabEl) {
     if (!tabEl) return;
-    syncTileRadiusControls(tabEl);
     syncGlobalDisplayControls(tabEl);
 
     const sourceBorderToggle = Array.from(

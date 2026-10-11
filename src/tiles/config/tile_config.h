@@ -658,8 +658,27 @@ static inline bool tileBgColorFollowsDefault(uint32_t stored) {
   return stored == 0 || tile_color::isDefaultGrey(stored);
 }
 
+// A tile with an icon takes its color from the icon (user 2026-10-11: one
+// checkbox "Ausfuellen", no own tile color); a stored own color only stays
+// for the tiles without an icon (Clock, Text, Pixel animation), e.g. a clock
+// in the screen's black.
+static inline bool tileTypeKeepsOwnColor(int type) {
+  return type == TILE_CLOCK || type == TILE_TEXT || type == TILE_PIXELANIM;
+}
+
+// "Fill" (tile_icon_colors::fills): a tile with an icon filled with its
+// icon's color. The tiles that keep an own color (Clock, Text, Pixel
+// animation) are never filled (user 2026-10-11: one color control per tile).
+static inline bool tileFills(const Tile& tile) {
+  return !tileTypeKeepsOwnColor(tile.type) && tile_icon_colors::fills(tile.icon_colors.c_str());
+}
+
+static inline bool tileHasOwnColor(const Tile& tile) {
+  return tileBgColorIsSet(tile) && !tileBgColorFollowsDefault(tile.bg_color) && tileTypeKeepsOwnColor(tile.type);
+}
+
 static inline uint32_t tileBgColorOrDefault(const Tile& tile, uint32_t default_color) {
-  if (!tileBgColorIsSet(tile)) return default_color & TILE_BG_COLOR_RGB_MASK;
+  if (!tileBgColorIsSet(tile) || !tileTypeKeepsOwnColor(tile.type)) return default_color & TILE_BG_COLOR_RGB_MASK;
   if (tileBgColorFollowsDefault(tile.bg_color)) return tileDefaultBgColor();
   // Light theme: a black tile (the dark screen's color, a clock meant to sit
   // on the screen) takes the light screen's color instead of a black block.

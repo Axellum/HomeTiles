@@ -83,9 +83,7 @@ struct DeviceConfig {
   // One visible percentage for every device. Device::backlightRawFromPercent()
   // converts it to the range of the respective driver.
   uint8_t screensaver_brightness_pct;  // 1-100
-  uint16_t tile_radius = tile_radius::kDefault;
   bool tile_borders;           // Thin borders around normal dashboard tiles.
-  bool icon_discs = true;      // Background discs behind tile icons.
   // The layout (grid_layout::Layout): 0 classic, 1 head bar, 2 head bar
   // upright. Read at boot; a change applies after a restart.
   uint8_t layout = 0;
@@ -98,10 +96,6 @@ struct DeviceConfig {
   // The theme Automatic showed last (0 dark, 1 light): a boot before the
   // clock is set starts with it.
   uint8_t theme_auto_last = 0;
-  // Glow strength of colored icon discs in percent (icon_glow.h).
-  uint8_t icon_glow = icon_glow::kDefault;
-  // Background of tiles without their own color (and of reset/new tiles).
-  uint32_t default_tile_color = tile_color::kDefault;
   bool display_rotated_180;    // Display rotated by 180 degrees?
   uint8_t display_rotation_quarters; // 0=0°, 1=90°, 2=180°, 3=270°
   uint8_t display_rotation_mode; // 0=Normal, 1=180, 2=Auto
@@ -162,10 +156,6 @@ public:
   bool saveHeadGear(bool enabled);
   bool saveTheme(uint8_t theme);
   bool saveThemeAutoLast(uint8_t theme);
-  bool saveTileRadius(uint16_t radius);
-  bool saveIconDiscs(bool enabled);
-  bool saveIconGlow(uint8_t percent);
-  bool saveDefaultTileColor(uint32_t rgb);
   bool saveEthernetEnabled(bool enabled);
   bool saveStaticAddressingEnabled(bool enabled);
 

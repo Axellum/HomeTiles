@@ -36,9 +36,10 @@ for (const marker of ['inline constexpr float kLightSurfaceL = 0.72f;', 'inline 
   'inline bool light() { return g_surface >= 0 ? g_surface == 1 : theme_light(); }',
   'if (!(owner_ && saved_owner_ == owner_)) g_surface = saved_;'])
   assert.ok(theme.includes(marker), `ui_theme.h: ${marker}`);
-// The filled surface's greys lie above its circle; unavailable fainter.
+// The filled surface's greys lie above its circle; unavailable fainter; its
+// second line is white like the title (user 2026-10-11).
 assert.ok(theme.includes('kDark.text,           kDark.icon,      0xDBDBDB,') &&
-  theme.includes('0xCECECE,             0xCECECE,        kDark.text_secondary,') &&
+  theme.includes('0xCECECE,             0xCECECE,        kDark.text,') &&
   theme.includes('kDark.text_soft,      0xA6A6A6};'), 'kDarkTinted greys');
 // The preview's fallbacks are the device's values; the page passes them too.
 const jewel = {below: 'kJewelBelowIcon', max: 'kJewelCardMaxL', chroma: 'kJewelChroma', 'card-share': 'kJewelCardChromaShare',
@@ -328,7 +329,6 @@ for (const [icon, shown] of rows('owndark')) {
 
 // The preview marks the surface and draws it like the device.
 assert.ok(grid.includes("if (surface === 'jewel') return 2;") &&
-  grid.includes("if (tileElem.dataset.followTint === '1' && tileElem.dataset.surface === 'jewel') applyTileSurface(tileElem, '');") &&
   grid.includes("if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');") &&
   grid.includes('if (surfaceMode >= 0) globalThis.hometilesPreviewSurface = surfaceMode;'),
   'preview surfaces, surface 2 included');

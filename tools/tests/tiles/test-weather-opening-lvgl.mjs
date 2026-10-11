@@ -146,7 +146,7 @@ void check_energy_layout() {
     lv_area_t card_area,value_area;lv_obj_get_coords(card,&card_area);lv_obj_get_coords(value,&value_area);
     assert(value_area.y2<=card_area.y2&&"Every chosen value size fits in the half tile");
     auto*disc=lv_obj_get_child(card,0);
-    assert(lv_obj_get_style_radius(disc,LV_PART_MAIN)==tile_radius::kMinimum-compact_sensor_layout::inset()-tile_icon_disc::corner_shrink());
+    assert(lv_obj_get_style_radius(disc,LV_PART_MAIN)==ui_surface_style::radius(tile_radius::kMinimum-compact_sensor_layout::inset()-tile_icon_disc::corner_shrink()));
    }
    lv_obj_delete(card);
   }

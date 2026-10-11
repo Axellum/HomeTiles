@@ -69,9 +69,6 @@ for (const type of ['2', '4', '8', '18']) {
   assert.ok(tileTypeHasIconColors(type) && tileTypeHasFixedIconColorOnly(type), `type ${type} has a fixed icon color`);
 }
 assert.ok(!tileTypeHasFixedIconColorOnly('1') && !tileTypeHasIconColors('7') && tileTypeHasIconColors('5'));
-const tileTypeHasColoredIcon = new Function(`${extractDeliveredFunction('tileTypeHasColoredIcon')}; return tileTypeHasColoredIcon;`)();
-for (const type of ['2', '4', '8', '18']) assert.ok(tileTypeHasColoredIcon(type), `Glow checkbox for type ${type}`);
-assert.ok(!tileTypeHasColoredIcon('7') && !tileTypeHasColoredIcon('10'));
 const iconColorRuleState = new Function('tileTypeHasFixedIconColorOnly',
   `${extractDeliveredFunction('iconColorRuleState')}; return iconColorRuleState;`)(tileTypeHasFixedIconColorOnly);
 assert.deepEqual({...iconColorRuleState('18', 'camera.door', {values: {}}, null)}, {state: '', display: null},

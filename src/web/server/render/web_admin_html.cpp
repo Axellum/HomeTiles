@@ -528,8 +528,11 @@ static void appendTileTabHTML(
       cssClass += " empty";
     }
 
+    // A tile with an icon takes its color from the icon (tileTypeKeepsOwnColor):
+    // it starts on the theme's card like a tile without an own color.
     if (tile.type != TILE_EMPTY &&
-        tileBgColorFollowsDefault(tile.bg_color) && tile_type_follows_default_tile_color(tile.type)) {
+        (tileBgColorFollowsDefault(tile.bg_color) || !tileTypeKeepsOwnColor(tile.type)) &&
+        tile_type_follows_default_tile_color(tile.type)) {
       // Tiles without their own color follow the global default tile color
       // through one CSS variable, so the preview repaints them live.
       if (screensaver_mode) {
@@ -624,10 +627,9 @@ static void appendTileTabHTML(
     html += String(span_h);
     html += "\" data-type=\"";
     html += String(static_cast<unsigned>(tile.type));
-    html += "\" data-icon-disc=\"";
-    html += String(tile.icon_disc_mode);
-    html += "\" data-icon-glow=\"";
-    html += tile.icon_glow ? "1" : "0";
+    // Every circle shows in its icon's color (user 2026-10-11: no circle
+    // options); the stored per-tile disc fields are no longer drawn.
+    html += "\" data-icon-disc=\"0\" data-icon-glow=\"1";
 
     // A PIN-protected Folder or Settings tile shows a lock in its icon
     // (navigate renderer, previewTileLocked in the browser).
@@ -698,7 +700,7 @@ static void appendTileTabHTML(
         html += "<i class=\"mdi mdi-";
         appendHtmlEscaped(html, iconName);
         html += " tile-icon";
-        if (binary_sensor_preview && tile.icon_glow &&
+        if (binary_sensor_preview &&
             tile_icon_disc::icon_color_tints(binary_sensor_visual_color(binary_sensor_state))) {
           html += " tile-icon-tinted";
         }
@@ -921,32 +923,15 @@ static void appendTileTabHTML(
   String global_panel;
   if (screensaver_mode) html += R"html(          <div class="folder-footer">
 )html";
-  const String radius_value = String(configManager.getConfig().tile_radius);
-  auto append_radius_input = [&](String& out, const String& id) {
-    out += "<input class=\"global-tile-radius\"";
-    if (id.length()) out += " id=\"" + id + "\"";
-    out += " type=\"range\" min=\"";
-    out += String(tile_radius::kMinimum);
-    out += "\" max=\"";
-    out += String(tile_radius::kMaximum);
-    out += "\" step=\"1\" value=\"";
-    out += radius_value;
-    out += "\" oninput=\"previewTileRadiusLive(this.value)\" onchange=\"saveTileRadius(this.value)\"><output class=\"global-tile-radius-value\">";
-    out += radius_value;
-    out += "</output>";
-  };
   if (!screensaver_mode) {
     // Global display settings in the Tile Settings style: two compact
     // columns, checkboxes like Glow, fields with a small label above them
     // like Column/Row, and the Color field with its reset button.
     const DeviceConfig& display = configManager.getConfig();
+    // Tile color, circles and radius are fixed (user 2026-10-11): only the
+    // frame lines, the layout and the design stay global.
     const String borders_id = tab_id + "_global_tile_borders";
-    const String discs_id = tab_id + "_global_icon_discs";
-    const String radius_id = tab_id + "_global_tile_radius";
-    const String color_id = tab_id + "_global_tile_color";
-    const String glow_id = tab_id + "_global_icon_glow";
     const String theme_id = tab_id + "_global_theme";
-    const String glow_value = String(icon_glow::clamp(display.icon_glow));
     global_panel += "<section class=\"global-settings-panel\"><h3>";
     appendHtmlEscaped(global_panel, tr.global_settings_heading);
     global_panel += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
@@ -955,11 +940,7 @@ static void appendTileTabHTML(
     if (display.tile_borders) global_panel += " checked";
     global_panel += "> ";
     appendHtmlEscaped(global_panel, tr.screensaver_tile_border);
-    global_panel += "</label><label class=\"inline-checkbox\"><input class=\"global-icon-disc-toggle\" id=\"" +
-            discs_id + "\" type=\"checkbox\" onchange=\"saveIconDiscs(this.checked)\"";
-    if (display.icon_discs) global_panel += " checked";
-    global_panel += "> ";
-    appendHtmlEscaped(global_panel, tr.icon_discs);
+    global_panel += "</label>";
 
     // The layout (grid_layout.h): a field like the tile color, its pen opens
     // the layout window (tiles/layout-window.js).
@@ -968,7 +949,7 @@ static void appendTileTabHTML(
       const char* name = grid_layout::active() == grid_layout::Layout::kBar        ? tr.layout_bar
                          : grid_layout::active() == grid_layout::Layout::kPortrait ? tr.layout_portrait
                                                                                    : tr.layout_classic;
-      global_panel += "</label><div class=\"global-settings-field\"><label>";
+      global_panel += "<div class=\"global-settings-field\"><label>";
       appendHtmlEscaped(global_panel, tr.layout_label);
       global_panel += "</label><button type=\"button\" class=\"layout-choice\" onclick=\"openLayoutWindow()\" title=\"";
       appendHtmlEscaped(global_panel, tr.layout_change);
@@ -989,51 +970,13 @@ static void appendTileTabHTML(
       appendHtmlEscaped(global_panel, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);
       global_panel += "</option>";
     }
-    global_panel += "</select></div>";
-    global_panel += "<div class=\"global-settings-field\"><label for=\"" + radius_id + "\">";
-    appendHtmlEscaped(global_panel, tr.tile_radius);
-    global_panel += "</label><div class=\"global-radius-field\">";
-    append_radius_input(global_panel, radius_id);
-    global_panel += "</div></div><div class=\"global-settings-field\"><label for=\"" + glow_id + "\">";
-    appendHtmlEscaped(global_panel, tr.icon_glow_strength);
-    global_panel += "</label><div class=\"global-radius-field\"><input class=\"global-icon-glow\" id=\"" + glow_id +
-            "\" type=\"range\" min=\"" + String(icon_glow::kMinimum) + "\" max=\"" +
-            String(icon_glow::kMaximum) + "\" step=\"" + String(icon_glow::kStep) + "\" value=\"" + glow_value +
-            "\" oninput=\"previewIconGlowLive(this.value)\" onchange=\"saveIconGlow(this.value)\">"
-            "<output class=\"global-icon-glow-value\">" + glow_value + " %</output>"
-            "<button type=\"button\" class=\"tile-color-reset-btn global-icon-glow-reset\" title=\"Reset\" "
-            "onclick=\"saveIconGlow(" + String(icon_glow::kDefault) + ")\"><i class=\"mdi mdi-restore\"></i></button>"
-            "</div></div>";
-    global_panel += "<div class=\"global-settings-field global-tile-color-field\"><label for=\"" + color_id + "\">";
-    appendHtmlEscaped(global_panel, tr.default_tile_color);
-    char default_color_hex[8];
-    // The stored setting (the dark theme's card); the light theme keeps its
-    // own card and hides the field (admin.css).
-    snprintf(default_color_hex, sizeof(default_color_hex), "#%06X",
-             static_cast<unsigned>(tile_color::normalize(display.default_tile_color)));
-    char factory_color_hex[8];
-    snprintf(factory_color_hex, sizeof(factory_color_hex), "#%06X",
-             static_cast<unsigned>(tile_color::kDefault));
-    global_panel += "</label><div class=\"tile-color-row\"><input class=\"global-tile-color\" id=\"" + color_id +
-            "\" type=\"color\" value=\"";
-    global_panel += default_color_hex;
-    global_panel += "\" oninput=\"previewDefaultTileColor(this.value)\" "
-            "onchange=\"saveDefaultTileColor(this.value)\">"
-            "<button type=\"button\" class=\"tile-color-reset-btn\" title=\"Reset\" "
-            "onclick=\"saveDefaultTileColor('";
-    global_panel += factory_color_hex;
-    global_panel += "')\"><i class=\"mdi mdi-restore\"></i></button></div></div></div></section>\n";
+    global_panel += "</select></div></div></section>\n";
   } else {
     html += R"html(            <div class="folder-footer-options screensaver-tile-options">
 <label class="inline-checkbox"><input id="screensaverTileBorder" type="checkbox"> )html";
     html += tr.screensaver_tile_border;
     html += R"html(</label>
 )html";
-    html += "<label class=\"tile-radius-control\"><span>";
-    appendHtmlEscaped(html, tr.tile_radius);
-    html += "</span>";
-    append_radius_input(html, String());
-    html += "</label>";
     html += R"html(              <label class="inline-checkbox"><input id="screensaverTileShadow" type="checkbox"> )html";
     html += tr.screensaver_tile_shadow;
     html += R"html(</label>
@@ -1306,20 +1249,6 @@ static void appendTileTabHTML(
   html += R"html(            <div class="tile-icon-disc-fields" id=")html";
   html += tab_id;
   html += R"html(_tile_icon_disc_fields">
-<label class="inline-checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_disc_row"><input type="checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_disc" checked> )html";
-  appendHtmlEscaped(html, tr.icon_disc_label);
-  html += R"html(</label>
-<label class="inline-checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_glow_row"><input type="checkbox" id=")html";
-  html += tab_id;
-  html += R"html(_tile_icon_glow" checked> )html";
-  appendHtmlEscaped(html, tr.icon_glow);
-  html += R"html(</label>
 )html";
   // Weather only: filled, colored weather icons or the white outlines.
   if (!screensaver_mode) {
@@ -1343,16 +1272,14 @@ static void appendTileTabHTML(
 <div class="icon-color-segmented choice-row tile-color-modes" role="group" id=")html";
   html += tab_id;
   html += R"html(_tile_color_modes">)html";
-  // Tile color is one choice: the global tile color, an own color, a tint
-  // that follows the icon color (only for tiles with icon colors) or, on
-  // Media tiles, a tint from the album cover.
+  // Tiles without an icon (Clock, Text, Pixel animation) choose the theme's
+  // card or an own color; a tile with an icon takes its color from the icon
+  // and only offers "Fill" (user 2026-10-11, tile_icon_colors_html.cpp).
   const struct {
     const char* mode;
     const char* label;
   } tile_color_modes[] = {{"global", tr.tile_color_mode_global},
-                          {"custom", tr.tile_color_mode_custom},
-                          {"icon", tr.tile_color_mode_from_icon},
-                          {"cover", tr.tile_color_mode_from_cover}};
+                          {"custom", tr.tile_color_mode_custom}};
   for (const auto& entry : tile_color_modes) {
     html += R"html(<button type="button" id=")html";
     html += tab_id;
@@ -2273,9 +2200,6 @@ String WebAdminServer::getAdminPage() {
   // (appendPanelThemeVars); the theme field switches it.
   html += ui_theme::theme_light() ? "\" data-panel-theme=\"light" : "\" data-panel-theme=\"dark";
 
-  // The global icon disc option is a root class, so every preview grid,
-  // including lazily inserted folders, follows it without re-rendering.
-  if (!configManager.getConfig().icon_discs) html += "\" class=\"icon-discs-off";
   html += R"html(">
 <head>
 <meta charset="utf-8">

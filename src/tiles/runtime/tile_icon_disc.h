@@ -352,30 +352,23 @@ inline lv_obj_t* icon_of(lv_obj_t* disc) {
 }
 
 // Called at the end of apply_fill(), which every icon color change reaches:
-// tile_icon_source registers it so the "Tint tile" option of the icon color
-// follows the icon. Stays null in host tests.
+// tile_icon_source registers it so "Fill" follows the icon. Stays null in
+// host tests.
 inline void (*g_icon_color_hook)(lv_obj_t* disc) = nullptr;
 
-// tile_icon_source keeps a card's tile color "From icon" strength (BG_OPA)
-// in this unused selector, and "From cover" (Media) its permission (BG_OPA)
-// and the cover color (BG_COLOR) in the next.
+// tile_icon_source keeps a card's "Fill" strength (BG_OPA) in this unused
+// selector, and "From cover" (Media) its icon permission (BORDER_OPA) and the
+// cover color (BG_COLOR) in the next.
 inline constexpr lv_style_selector_t kCardTintStore = LV_PART_MAIN | LV_STATE_USER_4;
 inline constexpr lv_style_selector_t kCardCoverStore = LV_PART_MAIN | LV_STATE_USER_3;
 
-// Whether a card shows the tile color "From icon" (or "From cover"): it then
-// already is the card its circle belongs to.
+// Whether a card is filled ("Fill"): it then already is the card its circle
+// belongs to.
 inline bool card_follows_icon(lv_obj_t* card) {
   for (int depth = 0; card && depth < 3; ++depth, card = lv_obj_get_parent(card)) {
     lv_style_value_t value;
     if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_OPA, &value, kCardTintStore) == LV_STYLE_RES_FOUND) {
       return value.num > 0;
-    }
-    lv_style_value_t cover;
-    if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_OPA, &value, kCardCoverStore) == LV_STYLE_RES_FOUND &&
-        value.num > 0 &&
-        lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &cover, kCardCoverStore) == LV_STYLE_RES_FOUND &&
-        icon_color_tints(lv_color_to_u32(cover.color) & 0xFFFFFF)) {
-      return true;
     }
   }
   return false;
@@ -621,18 +614,6 @@ inline void apply_tile_options(lv_obj_t* card, uint8_t mode, bool glow) {
     follow_card_states(card);
     set_tag(child, disc_mode, glow);
     apply_fill(child);
-    // The tile border takes a hint of a glowing icon's hue when the tile is
-    // built, only on a card in the tile color "From icon": a Global or
-    // Custom card keeps the neutral hairline (user 2026-10-01). Icon color
-    // changes do not touch it: a border change redraws the whole tile and
-    // any popup above it, which made a dragged Light color stutter.
-    lv_obj_t* icon = icon_of(child);
-    const uint32_t rgb = icon ? icon_color(icon) : ui_theme::text();
-    if (glow && disc_mode != Mode::Off && icon_color_tints(rgb) && card_follows_icon(card)) {
-      ui_surface_style::set_tile_border_tint(card, lv_color_hex(rgb));
-    } else {
-      ui_surface_style::clear_tile_border_tint(card);
-    }
   }
 }
 

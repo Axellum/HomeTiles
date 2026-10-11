@@ -568,6 +568,16 @@ inline Source source_of(const char* record) {
   return out;
 }
 
+// "Ausfuellen" (user 2026-10-11: the one tile color option): the tile is
+// filled with its icon's color. Stored as "fill NN"; earlier records that
+// tinted the tile "From cover" or by a rule ("tile=NN") count as filled too,
+// and their icon takes that color (cover_colors_icon, rule_colors_icon).
+inline bool fills(const char* record) {
+  return fill_of(record) > 0 || cover_of(record).tile > 0 || source_of(record).tile > 0;
+}
+inline bool rule_colors_icon(const Source& layer) { return layer.icon || layer.tile > 0; }
+inline bool cover_colors_icon(const Cover& cover) { return cover.icon || cover.tile > 0; }
+
 // The other entity of an enabled rule layer (subscriptions and dispatch), or
 // None for no layer, the tile's own entity or a switched-off layer.
 inline SourceMode source(const char* record, const char*& entity, size_t& entity_len) {

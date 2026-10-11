@@ -153,7 +153,7 @@ int main(){
   const auto* disc=lv_obj_get_parent(icon);
   // The corner circle keeps the bar pill's inset: drawn smaller around its
   // middle, its radius smaller by the same amount (concentric).
-  assert(lv_obj_get_style_radius(disc,LV_PART_MAIN)==tile_radius::kMinimum-compact_sensor_layout::inset()-tile_icon_disc::corner_shrink());
+  assert(lv_obj_get_style_radius(disc,LV_PART_MAIN)==ui_surface_style::radius(tile_radius::kMinimum-compact_sensor_layout::inset()-tile_icon_disc::corner_shrink()));
   assert(lv_obj_get_style_transform_width(disc,LV_PART_MAIN)==-tile_icon_disc::corner_shrink());
   lv_area_t bounds,t,v;lv_obj_get_coords(card,&bounds);lv_obj_get_coords(title,&t);lv_obj_get_coords(value,&v);
   assert(std::strchr(lv_label_get_text(title),'\\n')==nullptr);

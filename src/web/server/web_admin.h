@@ -76,12 +76,8 @@ public:
   void handleGetHardwareIo();
   void handleSaveHardwareIo();
   void handleSaveTileBorders();
-  void handleSaveIconDiscs();
   void handleSaveHeadGear();
-  void handleSaveIconGlow();
-  void handleSaveDefaultTileColor();
   void handleSaveTheme();
-  void handleTileRadius();
   void handleLocalCamera();
   void handleGetScreensaverWallpaper();
   void handleGetSdImages();

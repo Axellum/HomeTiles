@@ -1942,7 +1942,10 @@ void refresh_line(uint8_t index) {
   // Only a change touches the styles: every set redraws the line, and the
   // hotspot loop reports the network on each pass (the clock flickered).
   const lv_color_t color = warn ? lv_color_hex(settings_style::warn_color()) : lv_color_hex(ui_theme::text());
-  const lv_opa_t opa = warn ? LV_OPA_COVER : settings_style::kGreyOpa;
+  // On the selected (filled) category the line is white like its title (user
+  // 2026-10-11: "100 % · Standby nie" on the selected Display tab).
+  const bool selected = index == static_cast<uint8_t>(g_category);
+  const lv_opa_t opa = warn || selected ? LV_OPA_COVER : settings_style::kGreyOpa;
   if (!lv_color_eq(lv_obj_get_style_text_color(view.line, LV_PART_MAIN), color)) {
     lv_obj_set_style_text_color(view.line, color, 0);
   }

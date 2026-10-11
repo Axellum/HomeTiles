@@ -219,14 +219,10 @@ struct Strings {
   const char* alignment_center;
   const char* alignment_right;
   const char* screensaver_tile_shadow;
-  const char* tile_radius;
-  // Global display setting: strength of every icon disc (icon_glow.h).
-  const char* icon_glow_strength;
   const char* tile_fractional_type_hint;
   const char* screensaver_tile_border;
   // Web Admin: global display settings row below the grid preview.
   const char* global_settings_heading;
-  const char* icon_discs;
   // The theme field (ui_theme.h) and its choices; a tile's own Design field
   // offers the same three.
   const char* theme_label;
@@ -264,19 +260,15 @@ struct Strings {
   const char* layout_parked_tile;
   const char* layout_delete_tile;
   const char* layout_delete_confirm;
-  const char* default_tile_color;
-  // Tile color choice: global tile color, own color or a tint from the icon.
+  // Color of a tile without an icon (Clock, Text, Pixel animation): the
+  // theme's card or an own color.
   const char* tile_color_mode_global;
   const char* tile_color_mode_custom;
-  const char* tile_color_mode_from_icon;
-  // Media tiles: "From cover", the color of the album cover, offered as tile
-  // color and as icon color.
+  // Media tiles: "From cover", the color of the album cover as icon color.
   const char* tile_color_mode_from_cover;
-  // Web Admin tile editor: per-tile icon disc override.
-  const char* icon_disc_label;
+  // Off/On choice buttons (the rules' switch in the tile editor).
   const char* icon_disc_on;
   const char* icon_disc_off;
-  const char* icon_glow;
   // Web Admin tile editor: per-tile icon color, color bar for numeric states
   // ("by value"), state colors for text states ("by state") and the On/Off
   // colors of Binary sensors (Sensor family, Binary sensor, Energy).
@@ -305,15 +297,11 @@ struct Strings {
   const char* tile_icon_color_source_auto;
   const char* tile_icon_color_source_rules;
   const char* tile_icon_color_source_hint;
-  // The rule layer of every tile: source, targets and tile tint strength.
+  // The rule layer of every tile: its source entity (the rules color the icon).
   const char* tile_rules;
   const char* tile_rules_own_entity;
   const char* tile_rules_other_entity;
-  const char* tile_rules_color_icon;
-  const char* tile_rules_tint_tile;
-  const char* tile_rules_strength;
   const char* tile_rules_priority_hint;
-  const char* tile_rules_tile_follows_icon;
   // Tile Settings group captions: what belongs to the icon, what to the tile.
   const char* tile_group_icon;
   const char* tile_group_tile;
@@ -748,6 +736,9 @@ struct Strings {
   const char* camera_tap;
   const char* camera_tap_popup;
   const char* camera_tap_full;
+  // The one tile color option (user 2026-10-11): the tile filled with its
+  // icon's color.
+  const char* tile_fill;
 };
 
 // Locale-specific display rules and short runtime strings shared by

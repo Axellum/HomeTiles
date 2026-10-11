@@ -199,8 +199,6 @@
       updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab);
     });
     bindLive(iconInput, 'input', 'tileIcon', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(document.getElementById(prefix + '_tile_icon_disc'), 'change', 'tileIconDisc', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
-    bindLive(document.getElementById(prefix + '_tile_icon_glow'), 'change', 'tileIconGlow', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(colorInput, 'input', 'tileColor', () => { markTileColorInputExplicit(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(colInput, 'input', 'tileCol', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(rowInput, 'input', 'tileRow', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
@@ -232,14 +230,12 @@
           tab, 0, nextMeta.defaultBg || '#2A2A2A');
       }
       updateTileType(tab);
-      // New tiles start in the HomeTiles look: a type with icon colors tints
-      // the tile with the color its icon shows at 20 % (Tile color "From
-      // icon"). Existing tiles and the screensaver keep their own style.
+      // New tiles start in the HomeTiles look: a type with icon colors is
+      // filled with the color its icon shows ("Fill"). Existing tiles and the
+      // screensaver keep their own style.
       if (previousType === 0 && nextType !== 0 && !isScreensaverTileTab(tab) &&
           typeof tileTypeHasIconColors === 'function' &&
           tileTypeHasIconColors(String(nextType))) {
-        const strength = document.getElementById(tab + '_tile_icon_fill_strength');
-        if (strength) strength.value = '20';
         const fill = document.getElementById(tab + '_tile_icon_fill');
         if (fill) fill.checked = true;
         syncTileColorMode(tab);

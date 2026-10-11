@@ -355,10 +355,9 @@ TileGridConfig& TileConfig::activeGrid() const {
 }
 
 uint32_t tileDefaultBgColor() {
-  // The global tile color belongs to the dark theme; the light theme keeps
-  // its light card.
-  if (ui_theme::light()) return ui_theme::card();
-  return tile_color::normalize(configManager.getConfig().default_tile_color);
+  // A fixed card per theme (user 2026-10-11: no global tile color): the dark
+  // theme's graphite (tile_color::kDefault), the light theme's white.
+  return ui_theme::card();
 }
 
 static void copyString(const String& src, char* dst, size_t max_len) {

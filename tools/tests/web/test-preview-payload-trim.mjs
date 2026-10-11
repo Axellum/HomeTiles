@@ -74,5 +74,6 @@ assert.match(readRepoFile('src/web/admin/tiles/state.js'), /mediaCoverColors: pa
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js').replace(/\r\n/g, '\n'),
   /applyTileRulesTint\(el,[^\n]*\n\s*\}\s*if \(previewKind === 'media'\) \{\s*applyMediaCoverTint\(el, tile\.icon_colors, sensorMeta\?\.mediaCoverColors\?\.\[tile\.sensor_entity \|\| ''\] \|\| ''\);[^\n]*\n[^\n]*\n\s*\}\s*applyIconDiscTint\(el\);/);
 const media = readRepoFile('src/types/media/admin.js').replace(/\r\n/g, '\n');
-assert.match(media, /if \(cover\.tile && !parsed\.fill && el\.dataset\.ruleTint !== '1' && typeof setTileTintBackground === 'function'\)/);
+// The reported cover color reaches the preview icon; "Fill" follows the icon.
+assert.match(media, /if \(\(cover\.icon \|\| cover\.tile > 0\) && !ruleIcon\) \{\s*const icon = el\.querySelector\(':scope > \.tile-icon'\);\s*if \(icon\) icon\.style\.color = coverColor;/);
 console.log('Preview payloads: hourly forecast and artwork data cut out, the rest valid and unchanged; cover colors reported');

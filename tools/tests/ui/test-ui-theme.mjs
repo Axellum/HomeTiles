@@ -194,8 +194,7 @@ assert.ok(admin.includes("  if (theme !== '2') applyPanelThemePreview(theme);") 
   admin.includes("if (shown !== shownPanelTheme()) applyPanelThemePreview(shown === '1' ? '1' : '0');"),
   'The preview switches with the field; Automatic shows the theme the panel picked');
 const adminCss = read('src/web/assets/admin.css');
-for (const marker of ['background:var(--pv-screen, #000000);', 'color:var(--pv-icon, #fff);',
-  'html[data-panel-theme="light"] .global-tile-color-field { display:none; }']) {
+for (const marker of ['background:var(--pv-screen, #000000);', 'color:var(--pv-icon, #fff);']) {
   assert.ok(adminCss.includes(marker), 'admin.css: ' + marker);
 }
 

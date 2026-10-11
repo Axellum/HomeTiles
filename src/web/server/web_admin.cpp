@@ -206,23 +206,10 @@ bool WebAdminServer::start() {
               guarded([this]() { this->handleGetHardwareIo(); }));
     server.on("/api/hardware-io", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveHardwareIo(); })));
-    server.on("/api/display/tile-radius", HTTP_GET,
-              guarded([this]() { handleTileRadius(); }));
-    server.on("/api/display/tile-radius", HTTP_POST, guarded([this]() {
-      // The live preview (preview=1) only changes the style; saving writes NVS.
-      local_camera::ScopedStorageHold hold(server.arg("preview") != "1");
-      handleTileRadius();
-    }));
     server.on("/api/display/tile-borders", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveTileBorders(); })));
-    server.on("/api/display/icon-discs", HTTP_POST,
-              guarded(withStorageHold([this]() { this->handleSaveIconDiscs(); })));
     server.on("/api/display/head-gear", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveHeadGear(); })));
-    server.on("/api/display/icon-glow", HTTP_POST,
-              guarded(withStorageHold([this]() { this->handleSaveIconGlow(); })));
-    server.on("/api/display/tile-color", HTTP_POST,
-              guarded(withStorageHold([this]() { this->handleSaveDefaultTileColor(); })));
     server.on("/api/display/theme", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveTheme(); })));
     server.on("/api/local-camera", HTTP_GET,

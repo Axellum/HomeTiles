@@ -55,14 +55,10 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.display_brightness == b.display_brightness &&
          a.screensaver_brightness_pct == b.screensaver_brightness_pct &&
          a.tile_borders == b.tile_borders &&
-         a.tile_radius == b.tile_radius &&
-         a.icon_discs == b.icon_discs &&
          a.layout == b.layout &&
          a.head_gear == b.head_gear &&
          a.theme == b.theme &&
          a.theme_auto_last == b.theme_auto_last &&
-         a.icon_glow == b.icon_glow &&
-         a.default_tile_color == b.default_tile_color &&
          a.display_rotated_180 == b.display_rotated_180 &&
          a.display_rotation_quarters == b.display_rotation_quarters &&
          a.display_rotation_mode == b.display_rotation_mode &&
@@ -231,14 +227,10 @@ ConfigManager::ConfigManager() {
   config.display_brightness = 200;
   config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
-  config.tile_radius = tile_radius::kDefault;
-  config.icon_discs = true;
   config.layout = 0;
   config.head_gear = false;
   config.theme = 0;
   config.theme_auto_last = 0;
-  config.icon_glow = icon_glow::kDefault;
-  config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;
@@ -369,8 +361,6 @@ bool ConfigManager::load() {
   config.screensaver_brightness_pct =
       prefs.getUChar("ss_bright", kScreensaverBrightnessPctDefault);
   config.tile_borders = prefs.getBool("tile_border", true);
-  config.tile_radius = tile_radius::clamp(prefs.getUShort("tile_radius", tile_radius::kDefault));
-  config.icon_discs = prefs.getBool("icon_disc", true);
   // b264's test switch "head_bar" is not taken over: a bar layout needs its
   // places, which only the layout window sets up.
   config.layout = prefs.getUChar("layout", 0);
@@ -379,9 +369,6 @@ bool ConfigManager::load() {
   config.theme = prefs.getUChar("theme", 0);
   if (config.theme > 2) config.theme = 0;
   config.theme_auto_last = prefs.getUChar("theme_al", 0) == 1 ? 1 : 0;
-  config.icon_glow = icon_glow::clamp(prefs.getUChar("icon_glow", icon_glow::kDefault));
-  config.default_tile_color =
-      tile_color::normalize(prefs.getUInt("tile_color", tile_color::kDefault));
   bool rot_180 = prefs.getBool("disp_rot180", false);
   uint8_t rot_mode = rot_180 ? kDisplayRotationFlipped : kDisplayRotationNormal;
   if (prefs.isKey("disp_rot_mode")) {
@@ -571,9 +558,6 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
       normalize_global_time_format(normalized.global_time_format);
   normalized.global_date_format =
       normalize_global_date_format(normalized.global_date_format);
-  normalized.tile_radius = tile_radius::clamp(normalized.tile_radius);
-  normalized.icon_glow = icon_glow::clamp(normalized.icon_glow);
-  normalized.default_tile_color = tile_color::normalize(normalized.default_tile_color);
   if (normalized.keyboard_layout > 3) normalized.keyboard_layout = 0;
   if (normalized.theme > 2) normalized.theme = 0;
   if (normalized.theme_auto_last > 1) normalized.theme_auto_last = 0;
@@ -669,14 +653,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putUChar("disp_bright", normalized.display_brightness);
   prefs.putUChar("ss_bright", normalized.screensaver_brightness_pct);
   prefs.putBool("tile_border", normalized.tile_borders);
-  prefs.putUShort("tile_radius", normalized.tile_radius);
-  prefs.putBool("icon_disc", normalized.icon_discs);
   prefs.putUChar("layout", normalized.layout);
   prefs.putBool("head_gear", normalized.head_gear);
   prefs.putUChar("theme", normalized.theme);
   prefs.putUChar("theme_al", normalized.theme_auto_last);
-  prefs.putUChar("icon_glow", normalized.icon_glow);
-  prefs.putUInt("tile_color", normalized.default_tile_color);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
   prefs.putBool("disp_rot180", normalized.display_rotated_180);
   prefs.putUChar("disp_rot_q", normalized.display_rotation_quarters);
@@ -869,37 +849,6 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
   return true;
 }
 
-bool ConfigManager::saveTileRadius(uint16_t radius) {
-  radius = tile_radius::clamp(radius);
-  if (config.tile_radius == radius) return true;
-  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
-  BatchedNvsWrite::Preferences prefs;
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open tile radius preferences");
-    return false;
-  }
-  const bool written = prefs.putUShort("tile_radius", radius) == sizeof(radius);
-  const bool committed = BatchedNvsWrite::finish(prefs);
-  if (!written || !committed) return false;
-  config.tile_radius = radius;
-  return true;
-}
-
-bool ConfigManager::saveIconDiscs(bool enabled) {
-  if (config.icon_discs == enabled) return true;
-  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
-  BatchedNvsWrite::Preferences prefs;
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open icon disc preferences");
-    return false;
-  }
-  const bool written = prefs.putBool("icon_disc", enabled) == sizeof(uint8_t);
-  const bool committed = BatchedNvsWrite::finish(prefs);
-  if (!written || !committed) return false;
-  config.icon_discs = enabled;
-  return true;
-}
-
 bool ConfigManager::saveHeadGear(bool enabled) {
   if (config.head_gear == enabled) return true;
   Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
@@ -912,38 +861,6 @@ bool ConfigManager::saveHeadGear(bool enabled) {
   const bool committed = BatchedNvsWrite::finish(prefs);
   if (!written || !committed) return false;
   config.head_gear = enabled;
-  return true;
-}
-
-bool ConfigManager::saveIconGlow(uint8_t percent) {
-  percent = icon_glow::clamp(percent);
-  if (config.icon_glow == percent) return true;
-  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
-  BatchedNvsWrite::Preferences prefs;
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open icon glow preferences");
-    return false;
-  }
-  const bool written = prefs.putUChar("icon_glow", percent) == sizeof(uint8_t);
-  const bool committed = BatchedNvsWrite::finish(prefs);
-  if (!written || !committed) return false;
-  config.icon_glow = percent;
-  return true;
-}
-
-bool ConfigManager::saveDefaultTileColor(uint32_t rgb) {
-  rgb = tile_color::normalize(rgb);
-  if (config.default_tile_color == rgb) return true;
-  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
-  BatchedNvsWrite::Preferences prefs;
-  if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open tile color preferences");
-    return false;
-  }
-  const bool written = prefs.putUInt("tile_color", rgb) == sizeof(rgb);
-  const bool committed = BatchedNvsWrite::finish(prefs);
-  if (!written || !committed) return false;
-  config.default_tile_color = rgb;
   return true;
 }
 
@@ -1143,14 +1060,10 @@ void ConfigManager::clear() {
   config.display_brightness = 200;
   config.screensaver_brightness_pct = kScreensaverBrightnessPctDefault;
   config.tile_borders = true;
-  config.tile_radius = tile_radius::kDefault;
-  config.icon_discs = true;
   config.layout = 0;
   config.head_gear = false;
   config.theme = 0;
   config.theme_auto_last = 0;
-  config.icon_glow = icon_glow::kDefault;
-  config.default_tile_color = tile_color::kDefault;
   config.display_rotated_180 = false;
   config.display_rotation_quarters = Device::kRotationDefault;
   config.display_rotation_mode = kDisplayRotationNormal;

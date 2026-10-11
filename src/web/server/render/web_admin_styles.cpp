@@ -6,7 +6,9 @@
 #include "src/tiles/config/tile_config.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/icons/mdi_icons.h"
+#include "src/core/config/tile_radius.h"
 #include "src/ui/shared/tone_color.h"
+#include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/screensaver/screensaver_tile_shadow.h"
 #include "src/ui/tabs/settings/settings_style.h"
 #include "src/ui/tabs/tiles/home_bar.h"
@@ -139,9 +141,9 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   // (tile_icon_disc::shrink_corner_disc): drawn smaller around their middle.
   emit_scaled("corner-disc-shrink", tile_icon_disc::corner_shrink());
   emit_exact("icon-disc-round", tile_icon_disc::round_diameter());
-  // The global Circle strength; applyIconDiscTint derives every circle
-  // from it like the device (tone_color.h).
-  const uint8_t glow = icon_glow::clamp(configManager.getConfig().icon_glow);
+  // The fixed Circle strength (user 2026-10-11: no circle settings);
+  // applyIconDiscTint derives every circle from it like the device.
+  const uint8_t glow = ui_surface_style::icon_glow_percent();
   html += "--icon-glow-pct:";
   html += String(glow);
   html += ";";
@@ -317,8 +319,8 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
     // the dark theme (appendPanelThemeVars), so a change of it repaints every
     // preview grid at once.
     char color_hex[8];
-    snprintf(color_hex, sizeof(color_hex), "#%06X",
-             static_cast<unsigned>(tile_color::normalize(configManager.getConfig().default_tile_color)));
+    // The fixed dark card (user 2026-10-11: no global tile color).
+    snprintf(color_hex, sizeof(color_hex), "#%06X", static_cast<unsigned>(tile_color::kDefault));
     html += "--tile-default-bg:";
     html += color_hex;
     html += ";";
@@ -326,11 +328,12 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   // Unrounded: the corner disc (tile radius minus the inset) is concentric
   // with the card corner only at the exact device radius; a whole-pixel
   // radius moved the corner gap up to 0.23 px (user 2026-10-02).
-  emit_scaled("tile-radius", configManager.getConfig().tile_radius);
+  // The fixed radius (user 2026-10-11: no global radius setting).
+  emit_scaled("tile-radius", tile_radius::kDefault);
   html += "--radius-preview-scale:";
   html += String(static_cast<double>(preview_cell_h_px()) / GRID_CELL_H, 8);
   html += ";--tile-radius-device:";
-  html += String(configManager.getConfig().tile_radius);
+  html += String(tile_radius::kDefault);
   html += ";";
   // Climate tile geometry uses the exact same LVGL-to-preview scale as the
   // device. Keeping these separate from font variables avoids the 6 px

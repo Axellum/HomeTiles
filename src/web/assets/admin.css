@@ -893,18 +893,8 @@
        Settings, so the block stays low enough for the page height. */
     .global-settings-field { display:flex; align-items:center; gap:10px; min-width:0; }
     .global-settings-panel .global-settings-field > label { flex:0 0 auto; margin:0; }
-    .global-settings-field > .global-radius-field,
-    .global-settings-field > .tile-color-row { flex:1 1 auto; min-width:0; }
-    .global-settings-grid .tile-color-row { margin:0; grid-template-columns:minmax(72px,1fr) 32px; }
-    .global-settings-grid .tile-color-row input[type="color"] { height:32px; margin-bottom:0; }
-    .global-settings-grid .tile-color-reset-btn { flex:0 0 32px; width:32px; height:32px; }
-    html[data-panel-theme="light"] .global-tile-color-field { display:none; }
     .global-settings-grid select.global-theme { flex:1 1 auto; min-width:0; height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
     @media (max-width:520px) { .global-settings-grid { grid-template-columns:minmax(0, 1fr); } }
-    .global-radius-field { display:flex; align-items:center; gap:8px; height:32px; }
-    .global-radius-field input[type="range"] { flex:1 1 auto; min-width:0; height:18px; margin:0; accent-color:var(--accent); }
-    .global-radius-field input[type="range"]:focus { outline:none; box-shadow:none; }
-    .global-radius-field input[type="range"]:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     .folder-footer-options .inline-checkbox { margin:0; }
     /* Screensaver tile options: the checkboxes in one column, the sliders
        with their labels and values aligned in the next (user 2026-10-02). */
@@ -2812,12 +2802,10 @@
     .tile-radius-control input[type="range"]:focus { outline:none; box-shadow:none; }
     .tile-radius-control input[type="range"]:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     /* Slider values in the label size of Tile Settings. */
-    .global-tile-radius-value, .global-icon-glow-value, .global-tile-opacity-value {
+    .global-tile-opacity-value {
       font-size:12px; font-weight:600; color:var(--text-2); text-align:right;
-      white-space:nowrap; font-variant-numeric:tabular-nums;
+      white-space:nowrap; font-variant-numeric:tabular-nums; min-width:4.5ch;
     }
-    .global-tile-radius-value { min-width:2ch; }
-    .global-icon-glow-value, .global-tile-opacity-value { min-width:4.5ch; }
 
 /* Head bar layouts (grid_layout.h): the panel shows fewer, larger cells
    below a head like the Settings head. A tile without a place in the active
@@ -3014,12 +3002,6 @@
   padding-left:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - var(--corner-disc-shrink, 0px));
   text-align:right;
 }
-.icon-discs-off .tile:not([data-icon-disc="1"]) > .tile-icon::after,
-.tile[data-icon-disc="2"] > .tile-icon::after { display:none; }
-/* The global icon disc option (root class, mirrors the device's shared disc
-   style) and the per-tile override: data-icon-disc 0 global, 1 on, 2 off. */
-.icon-discs-off .tile.sensor-compact:not([data-icon-disc="1"]) > .tile-icon,
-.tile.sensor-compact[data-icon-disc="2"] > .tile-icon { background:transparent; }
 /* A PIN-protected Folder or Settings: the lock in the icon (icon_lock_mark.h):
    46 % of the icon, its right and bottom edge at 0.9 of the icon's box like
    mdi:folder-lock, on a rim of 6 % of the icon in the color behind it

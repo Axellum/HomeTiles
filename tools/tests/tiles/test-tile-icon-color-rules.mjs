@@ -251,11 +251,12 @@ const translations = {
     'Feu tricolore', 'Batterie', 'Humidité', 'Couleur unique', null, "Couleur selon l'état", 'État', 'contient',
     'Ajouter un état', 'Supprimer', null, 'Activé', 'Désactivé'],
 };
-const glowLabels = {de: '"Kreis in Icon-Farbe",', en: '"Circle in icon color",', fr: '"Cercle couleur de l\'icône",'};
+// The strings follow "From cover" and the Off/On pair of each table in
+// struct order.
+const coverLabels = {de: '"Aus Cover",', en: '"From cover",', fr: '"De la pochette",'};
 for (const [language, texts] of Object.entries(translations)) {
-  // The strings follow the glow label of each table in struct order.
-  const start = tables[language].indexOf(glowLabels[language]) + glowLabels[language].length;
-  const entries = [...tables[language].slice(start).matchAll(/^\s*"((?:[^"\\]|\\.)*)",/gm)].slice(0, texts.length).map(m => m[1]);
+  const start = tables[language].indexOf(coverLabels[language]) + coverLabels[language].length;
+  const entries = [...tables[language].slice(start).matchAll(/^\s*"((?:[^"\\]|\\.)*)",/gm)].slice(2, 2 + texts.length).map(m => m[1]);
   texts.forEach((text, index) => {
     if (text === null) assert.ok(entries[index].length > 20, `${language}: hint ${index}`);
     else assert.equal(entries[index], text.replace(/'/g, "'"), `${language}: ${fields[index]}`);
@@ -453,10 +454,8 @@ const block = `<div id="t_tile_icon_color_fields" class="tile-icon-color-fields 
 <div class="icon-color-segmented" id="t_tile_icon_source_kinds"><button type="button" data-icon-color="source-kind" data-mode="self">Own</button><button type="button" data-icon-color="source-kind" data-mode="other">Other</button></div>
 <input type="hidden" id="t_tile_icon_source" data-icon-color="source" data-entity-picker="icon_sources"><input type="hidden" id="t_tile_icon_source_mode" value="rules">
 <div class="icon-color-segmented" id="t_tile_icon_source_modes"><button type="button" data-icon-color="source-mode" data-mode="auto">A</button><button type="button" data-icon-color="source-mode" data-mode="rules">R</button></div>
-<label class="inline-checkbox"><input type="checkbox" id="t_tile_icon_rule_icon" data-icon-color="rule-target" checked> Icon</label>
-<label class="inline-checkbox"><input type="checkbox" id="t_tile_icon_rule_tile" data-icon-color="rule-target"> Tile</label>
-<div class="icon-color-strength hidden" id="t_tile_icon_rule_strength_row"><input type="range" id="t_tile_icon_rule_strength" min="10" max="50" step="5" value="20" data-icon-color="rule-strength"><output id="t_tile_icon_rule_strength_value">20 %</output></div>
-<p class="hint hidden" id="t_tile_icon_rule_follows_icon">follows</p><input type="checkbox" id="t_tile_icon_fill" hidden></div></div>
+</div></div>
+<div class="tile-icon-color-fields icon-color-fill" id="t_tile_icon_fill_row" data-tab="t"><label class="inline-checkbox"><input type="checkbox" id="t_tile_icon_fill" data-icon-color="fill-target"> Fill</label></div>
 <div class="icon-color-section hidden" id="t_tile_icon_bar_section"><input type="hidden" id="t_tile_icon_bar" value="">
 <div class="icon-color-segmented"><button type="button" data-icon-color="mode" data-mode="off">Off</button><button type="button" data-icon-color="mode" data-mode="smooth">Smooth</button><button type="button" data-icon-color="mode" data-mode="steps">Steps</button></div>
 <div class="icon-color-bar-editor hidden" id="t_tile_icon_bar_editor"><div class="icon-color-presets">
@@ -583,30 +582,18 @@ try{
  $('t_tile_icon_rule_0_color').value='#f44336';$('t_tile_icon_rule_0_color').dispatchEvent(new Event('input',{bubbles:true}));
  check(snapshot()==='v2\\n\\nhas F44336 6','Contains row (own rules stay implicit): '+snapshot());
  check(resolveIconColorRecord(snapshot(),'in 6 Tagen rausstellen',null)==='#F44336','Preview colors the waste state');
- // Tint the tile, then switch the rules off: settings stay, no effect.
- $('t_tile_icon_rule_tile').checked=true;$('t_tile_icon_rule_tile').dispatchEvent(new Event('change',{bubbles:true}));
- check(!hidden('t_tile_icon_rule_strength_row')&&snapshot()==='v2\\n\\nsrc rules self tile=20\\nhas F44336 6','Tint tile: '+snapshot());
- $('t_tile_icon_rule_strength').value='35';$('t_tile_icon_rule_strength').dispatchEvent(new Event('input',{bubbles:true}));
- check($('t_tile_icon_rule_strength_value').textContent==='35 %'&&snapshot()==='v2\\n\\nsrc rules self tile=35\\nhas F44336 6','Strength: '+snapshot());
- $('t_tile_icon_rule_icon').checked=false;$('t_tile_icon_rule_icon').dispatchEvent(new Event('change',{bubbles:true}));
- check(snapshot()==='v2\\n\\nsrc rules self tile=35 noicon\\nhas F44336 6','Tile only: '+snapshot());
- // Tile color "From icon": the tile follows the icon, so "Tint tile" stays
- // visible but greyed out and not clickable (its setting is kept) and a note
- // says why; Global makes it active again. Nothing disappears.
- const tintLabel=()=>$('t_tile_icon_rule_tile').closest('label');
- $('t_tile_icon_fill').checked=true;syncIconColorFields('t');
- check(!tintLabel().classList.contains('hidden')&&tintLabel().classList.contains('is-disabled')&&$('t_tile_icon_rule_tile').disabled&&$('t_tile_icon_rule_tile').checked&&
-  !hidden('t_tile_icon_rule_strength_row')&&$('t_tile_icon_rule_strength_row').classList.contains('is-disabled')&&$('t_tile_icon_rule_strength').disabled&&
-  !hidden('t_tile_icon_rule_follows_icon')&&getComputedStyle(tintLabel()).opacity<0.6&&
-  snapshot()==='v2\\n\\nfill 20\\nsrc rules self tile=35 noicon\\nhas F44336 6','From icon greys Tint tile out and keeps it: '+snapshot());
- $('t_tile_icon_fill').checked=false;syncIconColorFields('t');
- check(!tintLabel().classList.contains('is-disabled')&&!$('t_tile_icon_rule_tile').disabled&&!$('t_tile_icon_rule_strength').disabled&&
-  !$('t_tile_icon_rule_strength_row').classList.contains('is-disabled')&&hidden('t_tile_icon_rule_follows_icon'),'Global makes Tint tile active again');
+ // "Fill" (user 2026-10-11): the tile takes the color its icon shows; the
+ // rules color only the icon (no Icon/Tile targets, no strengths).
+ check(!document.querySelector('[data-icon-color="rule-target"],[data-icon-color="rule-strength"]'),'No rule targets or strengths');
+ $('t_tile_icon_fill').checked=true;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nfill 20\\nhas F44336 6','Fill: '+snapshot());
+ $('t_tile_icon_fill').checked=false;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nhas F44336 6','No fill: '+snapshot());
+ // Switching the rules off keeps them without effect.
  click(document.querySelector('[data-icon-color="rules-on"][data-mode="0"]'));
- check(hidden('t_tile_icon_rules_body')&&snapshot()==='v2\\n\\nsrc rules self tile=35 noicon off\\nhas F44336 6','Off keeps the settings: '+snapshot());
+ check(hidden('t_tile_icon_rules_body')&&snapshot()==='v2\\n\\nsrc rules self off\\nhas F44336 6','Off keeps the settings: '+snapshot());
  click(document.querySelector('[data-icon-color="rules-on"][data-mode="1"]'));
- $('t_tile_icon_rule_icon').checked=true;$('t_tile_icon_rule_icon').dispatchEvent(new Event('change',{bubbles:true}));
- $('t_tile_icon_rule_tile').checked=false;$('t_tile_icon_rule_tile').dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nhas F44336 6','On again: '+snapshot());
  for(let i=1;i<6;i++)click($('t_tile_icon_rule_add'));
  check(hidden('t_tile_icon_rule_add'),'At most six states');
  click(document.querySelector('#t_tile_icon_rule_0 [data-icon-color="remove"]'));
@@ -647,11 +634,17 @@ try{
  check(snapshot()==='v2\\nFF0000','No entity keeps the fixed color only');
  load('2',{icon_colors:'v2\\n\\nsrc auto light.kitchen'});
  check($('t_tile_icon_source').value==='light.kitchen'&&$('t_tile_icon_source_mode').value==='auto'&&snapshot()==='v2\\n\\nsrc auto light.kitchen','Scene loads Entity color');
- // A Switch can tint its tile with its own light color.
+ // A Switch colors its icon with its own light color; "Fill" fills the tile.
  load('5',{icon_colors:''});click(document.querySelector('[data-icon-color="rules-on"][data-mode="1"]'));
  click(document.querySelector('[data-icon-color="source-mode"][data-mode="auto"]'));
- $('t_tile_icon_rule_tile').checked=true;$('t_tile_icon_rule_tile').dispatchEvent(new Event('change',{bubbles:true}));
- check(!hidden('t_tile_icon_source_kinds')&&snapshot()==='v2\\n\\nsrc auto self tile=20','Switch tints with its own color: '+snapshot());
+ $('t_tile_icon_fill').checked=true;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(!hidden('t_tile_icon_source_kinds')&&snapshot()==='v2\\n\\nfill 20\\nsrc auto self','Switch fills with its own color: '+snapshot());
+ // Migration: a former "Tint tile" rule (and "From icon" at any strength)
+ // loads as "Fill"; the rule then colors the icon.
+ load('1',{sensor_entity:'sensor.waste',icon_colors:'v2\\n\\nsrc rules self tile=35 noicon\\nhas F44336 6'});
+ check($('t_tile_icon_fill').checked&&snapshot()==='v2\\n\\nfill 20\\nhas F44336 6','A former Tint tile rule loads as Fill: '+snapshot());
+ load('1',{sensor_entity:'sensor.waste',icon_colors:'v2\\n00BCD4\\nfill 35'});
+ check($('t_tile_icon_fill').checked&&snapshot()==='v2\\n00BCD4\\nfill 20','From icon loads as Fill: '+snapshot());
  // Preview: the same colors as tile_icon_source.cpp.
  const meta2={values:{'light.kitchen':JSON.stringify({state:'on',rgb_color:[255,0,0]}),'light.off':'off',
    'sensor.waste':'in 6 Tagen rausstellen','binary_sensor.door':'on','sensor.temp':'21.5'}};
@@ -664,10 +657,8 @@ try{
  check(previewIconColor('1','v2\\n\\nsrc rules sensor.waste\\nhas F44336 6','sensor.temp',meta2,null,'')==='#F44336','A Sensor can follow another entity');
  check(previewIconColor('1','v2\\n\\nsrc rules self off\\nhas F44336 21','sensor.temp',meta2,null,'#FFFFFF')==='#FFFFFF','Switched-off rules leave the icon');
  check(previewIconColor('5','v2\\n00BCD4','light.kitchen',meta2,null,'#FFD54F')==='#00BCD4','A fixed color overrides the Switch state color');
- const tint=iconColorTilePreviewTint('5','v2\\n\\nsrc auto self tile=25','light.kitchen',meta2);
- check(tint&&tint.color==='#FF0000'&&tint.percent===25,'Tile tint from the own light color');
  check(tileTintBackground('#2A2A2A','#FF0000',25)===tileTintBackground('#2a2a2a','#ff0000',25),'Tint is case-insensitive');
- check(!iconColorTilePreviewTint('1','v2\\n\\nsrc rules self tile=25\\nhas F44336 6','sensor.temp',meta2),'No rule match, no tint');
+ check(typeof iconColorTilePreviewTint==='undefined'&&typeof iconColorSourceAutoActive==='undefined','No rule tile tint in the preview');
  setType('0');syncIconColorFields('t');check(hidden('t_tile_icon_color_fields'),'Types without rules hide the block');
  document.body.dataset.result='pass';
 }catch(error){document.body.dataset.result='fail';document.getElementById('result').textContent=error.stack;}

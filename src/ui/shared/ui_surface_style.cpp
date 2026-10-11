@@ -3,8 +3,6 @@
 #include "src/core/config/config_manager.h"
 #include "src/core/config/icon_glow.h"
 #include "src/ui/shared/tone_color.h"
-#include "src/ui/screensaver/image_screensaver.h"
-#include <atomic>
 #include "src/ui/shared/ui_theme.h"
 
 namespace ui_surface_style {
@@ -13,27 +11,15 @@ namespace {
 // USER_1/USER_2 are already used for image-preview states.
 constexpr lv_obj_flag_t kGlobalTileBorderFlag = LV_OBJ_FLAG_USER_3;
 constexpr lv_obj_flag_t kHiddenTileBorderFlag = LV_OBJ_FLAG_USER_4;
-// The tile border hairline at about 20 %: white, or the hint of a glowing
-// icon (border_hint), so it stays a slightly lighter step of the tile.
-constexpr lv_opa_t kTileBorderOpa = 51;
-// A glowing icon's color for the border hint is kept as a local style value
-// under a state tiles never enter, so border refreshes can restore it.
-constexpr lv_style_selector_t kBorderTintStore = LV_PART_MAIN | LV_STATE_USER_4;
 volatile bool g_global_tile_border_refresh_pending = false;
-std::atomic<bool> g_radius_refresh_pending{false};
-std::atomic<int> g_preview_radius{-1};
-bool g_wallpaper_radius_pending = false;
-uint32_t g_wallpaper_radius_changed_at = 0;
 constexpr int kRadiusStyleCount = 64;
 lv_style_t g_radius_styles[kRadiusStyleCount]{};
 bool g_radius_style_initialized[kRadiusStyleCount]{};
 
-// The shared opacities of the discs: always shown, following the global disc
-// option, Off; each once for opaque cards and once for see-through cards,
-// where a disc stays a veil (tone_color.h). Discs carry their own color
-// (tone_color::fill): a Circle strength change rebuilds the tiles, the global
-// option only updates these styles (request_icon_disc_refresh) and every disc
-// follows, also in cached grids.
+// The shared opacities of the discs: always shown, Global (shown too since
+// the global disc option is gone), Off; each once for opaque cards and once
+// for see-through cards, where a disc stays a veil (tone_color.h). Discs
+// carry their own color (tone_color::fill).
 struct IconDiscStyle {
   lv_style_t style;
   bool initialized = false;
@@ -45,15 +31,12 @@ constexpr uint8_t kIconDiscModes = 3;
 // Keys of see-through cards follow the opaque ones.
 constexpr int kIconDiscStyleCount = kIconDiscModes * 2;
 IconDiscStyle g_icon_disc_styles[kIconDiscStyleCount]{};
-// The control opacity of tile controls on opaque and on see-through cards,
-// updated with the disc styles.
+// The control opacity of tile controls on opaque and on see-through cards.
 IconDiscStyle g_control_styles[2]{};
-std::atomic<bool> g_icon_disc_refresh_pending{false};
 
 lv_opa_t icon_disc_opa(uint8_t key) {
   const uint8_t mode = key % kIconDiscModes;
   if (mode == kIconDiscOffKey) return LV_OPA_TRANSP;
-  if (mode == kIconDiscGlobalKey && !configManager.getConfig().icon_discs) return LV_OPA_TRANSP;
   return tone_color::disc_opa(icon_glow_percent(), key >= kIconDiscModes);
 }
 
@@ -61,15 +44,21 @@ lv_opa_t control_fill_opa(bool see_through) {
   return tone_color::control_opa(icon_glow_percent(), see_through);
 }
 
-// A filled tile of the light theme (tile_surface::kJewel: BG_OPA 3 under
-// LV_STATE_USER_1 | LV_STATE_USER_4, tile_icon_disc.h) draws the dark theme's
-// hairline: white at 20 %, or with a glowing icon its hint halfway to white
-// (user 2026-10-10: "nimm den von den dunklen").
-bool filled_card(lv_obj_t* obj) {
+// The frame line of a tile (user 2026-10-11, like Tessera's theme::LINE and
+// theme::outline): a solid line, on the theme's plain card a fixed neutral
+// (light #DDDDDD, dark #292929), on any other card (filled, an own color)
+// that card a little lighter when it is dark and a little darker when it is
+// light.
+lv_color_t frame_line(lv_obj_t* obj) {
   lv_style_value_t value;
-  return lv_obj_get_local_style_prop(obj, LV_STYLE_BG_OPA, &value, LV_PART_MAIN | LV_STATE_USER_1 | LV_STATE_USER_4) ==
-             LV_STYLE_RES_FOUND &&
-         value.num == 3;
+  const uint32_t card =
+      (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, LV_PART_MAIN | LV_STATE_DEFAULT) == LV_STYLE_RES_FOUND
+           ? lv_color_to_u32(value.color)
+           : lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN))) & 0xFFFFFF;
+  const uint32_t plain = ui_theme::roles_of(ui_theme::kThemeSurface).card;
+  if (card == plain) return lv_color_hex(ui_theme::theme_light() ? 0xDDDDDD : 0x292929);
+  return tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)
+                                                                  : lv_color_mix(lv_color_black(), lv_color_hex(card), 36);
 }
 
 void apply_style(lv_obj_t* obj, bool enabled) {
@@ -88,15 +77,8 @@ void apply_style(lv_obj_t* obj, bool enabled) {
       LV_PART_MAIN | LV_STATE_FOCUSED,
       LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED),
   };
-  // A tile whose icon disc glows keeps the icon's border hint
-  // (set_tile_border_tint); every other tile uses white.
-  const lv_color_t text = lv_color_hex(filled_card(obj) ? ui_theme::kDarkTinted.text : ui_theme::text());
-  lv_color_t color = text;
-  const lv_opa_t opa = kTileBorderOpa;
-  lv_style_value_t stored{};
-  if (lv_obj_get_local_style_prop(obj, LV_STYLE_OUTLINE_COLOR, &stored, kBorderTintStore) == LV_STYLE_RES_FOUND) {
-    color = border_hint(text, stored.color);
-  }
+  const lv_color_t color = frame_line(obj);
+  const lv_opa_t opa = LV_OPA_COVER;
   // Border width is constant. State-specific copies force a full descendant
   // layout refresh on every press/release, even when they are all zero.
   lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
@@ -124,10 +106,7 @@ void refresh_marked_tree(lv_obj_t* root, bool enabled) {
 }  // namespace
 
 int radius(int baseline) {
-  const int preview = g_preview_radius.load();
-  const int outer = preview < 0 ? configManager.getConfig().tile_radius : preview;
-  return tile_radius::inset(tile_radius::clamp(outer),
-                            tile_radius::kMinimum - baseline);
+  return tile_radius::inset(tile_radius::kDefault, tile_radius::kMinimum - baseline);
 }
 
 void apply_radius(lv_obj_t* obj, int baseline, lv_style_selector_t selector) {
@@ -143,16 +122,6 @@ void apply_radius(lv_obj_t* obj, int baseline, lv_style_selector_t selector) {
   lv_obj_add_style(obj, style, selector);
 }
 
-void request_global_radius_refresh() {
-  g_preview_radius.store(-1);
-  g_radius_refresh_pending.store(true);
-}
-
-void preview_radius(int value) {
-  g_preview_radius.store(tile_radius::clamp(value));
-  g_radius_refresh_pending.store(true);
-}
-
 void disable_tile_border(lv_obj_t* obj) {
   if (!obj) return;
   lv_obj_add_flag(obj, kHiddenTileBorderFlag);
@@ -162,44 +131,6 @@ void disable_tile_border(lv_obj_t* obj) {
 
 void apply_tile_border(lv_obj_t* obj, bool enabled) {
   apply_style(obj, enabled);
-}
-
-namespace {
-
-// The tile card that owns the border: obj or up to three parents (a switch
-// tile's disc sits in a content container).
-lv_obj_t* border_host(lv_obj_t* obj) {
-  lv_obj_t* host = obj;
-  for (int depth = 0; host && depth < 3; ++depth) {
-    if (lv_obj_has_flag(host, kGlobalTileBorderFlag) || lv_obj_has_flag(host, kHiddenTileBorderFlag))
-      return host;
-    host = lv_obj_get_parent(host);
-  }
-  return nullptr;
-}
-
-void store_border_color(lv_obj_t* host, lv_color_t color, bool keep) {
-  lv_style_value_t stored{};
-  const bool found =
-      lv_obj_get_local_style_prop(host, LV_STYLE_OUTLINE_COLOR, &stored, kBorderTintStore) ==
-      LV_STYLE_RES_FOUND;
-  if (keep ? (found && lv_color_eq(stored.color, color)) : !found) return;
-  if (keep) {
-    lv_obj_set_style_outline_color(host, color, kBorderTintStore);
-  } else {
-    lv_obj_remove_local_style_prop(host, LV_STYLE_OUTLINE_COLOR, kBorderTintStore);
-  }
-  apply_style(host, lv_obj_get_style_outline_width(host, LV_PART_MAIN) > 0);
-}
-
-}  // namespace
-
-void set_tile_border_tint(lv_obj_t* obj, lv_color_t icon) {
-  if (lv_obj_t* host = border_host(obj)) store_border_color(host, icon, true);
-}
-
-void clear_tile_border_tint(lv_obj_t* obj) {
-  if (lv_obj_t* host = border_host(obj)) store_border_color(host, lv_color_white(), false);
 }
 
 void refresh_tile_border(lv_obj_t* obj) {
@@ -212,11 +143,11 @@ void apply_global_tile_border(lv_obj_t* obj) {
   apply_style(obj, configManager.getConfig().tile_borders);
 }
 
-uint8_t icon_glow_percent() {
-  return icon_glow::clamp(configManager.getConfig().icon_glow);
-}
+// Circles are always shown at the fixed strength (user 2026-10-11: no global
+// circle settings).
+uint8_t icon_glow_percent() { return icon_glow::kDefault; }
 
-bool icon_discs_shown() { return configManager.getConfig().icon_discs; }
+bool icon_discs_shown() { return true; }
 
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa) {
   if (!obj) return;
@@ -297,40 +228,7 @@ void request_global_tile_border_refresh() {
   g_global_tile_border_refresh_pending = true;
 }
 
-void request_icon_disc_refresh() {
-  g_icon_disc_refresh_pending.store(true);
-}
-
 void process_pending_updates() {
-  if (g_radius_refresh_pending.exchange(false)) {
-    for (int i = 0; i < kRadiusStyleCount; ++i) {
-      if (!g_radius_style_initialized[i]) continue;
-      lv_style_set_radius(&g_radius_styles[i], radius(i));
-      lv_obj_report_style_change(&g_radius_styles[i]);
-    }
-    g_wallpaper_radius_pending = true;
-    g_wallpaper_radius_changed_at = lv_tick_get();
-  }
-  // Wallpaper pixels have baked corners. Coalesce slider input before using
-  // the existing wallpaper replacement path; do not decode on every step.
-  if (g_wallpaper_radius_pending && lv_tick_elaps(g_wallpaper_radius_changed_at) >= 350) {
-    g_wallpaper_radius_pending = false;
-    image_screensaver_config_changed();
-  }
-  if (g_icon_disc_refresh_pending.exchange(false)) {
-    for (int key = 0; key < kIconDiscStyleCount; ++key) {
-      IconDiscStyle& entry = g_icon_disc_styles[key];
-      if (!entry.initialized) continue;
-      lv_style_set_bg_opa(&entry.style, icon_disc_opa(static_cast<uint8_t>(key)));
-      lv_obj_report_style_change(&entry.style);
-    }
-    for (int i = 0; i < 2; ++i) {
-      IconDiscStyle& entry = g_control_styles[i];
-      if (!entry.initialized) continue;
-      lv_style_set_bg_opa(&entry.style, control_fill_opa(i == 1));
-      lv_obj_report_style_change(&entry.style);
-    }
-  }
   if (!g_global_tile_border_refresh_pending) return;
   g_global_tile_border_refresh_pending = false;
 

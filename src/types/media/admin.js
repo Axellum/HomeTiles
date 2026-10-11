@@ -84,21 +84,20 @@ function maybeFillTitleFromMedia(tab) {
             subtitleY: titleY + titleHeight + gap};
   }
 
-  // "From cover" (tile_icon_source.cpp apply_cover): the icon color and the
-  // tile tint take the color the panel sampled from the cover it shows. A
-  // rule's tile tint and "From icon" win over the cover tint, a rule's icon
-  // color over the cover icon color.
+  // "From cover" (tile_icon_source.cpp apply_cover): the icon takes the color
+  // the panel sampled from the cover it shows (a former cover tile tint too,
+  // tile_icon_colors::cover_colors_icon); a rule's icon color wins. "Fill"
+  // then follows the icon (applyIconDiscTint), the cover never tints the
+  // tile itself (user 2026-10-11).
   function applyMediaCoverTint(el, record, coverColor) {
     if (!el || !coverColor || typeof parseIconColorRecord !== 'function') return;
     const parsed = parseIconColorRecord(record || '');
     const cover = parsed.cover || {icon: false, tile: 0};
     const layer = typeof iconColorRecordSource === 'function' ? iconColorRecordSource(record || '') : null;
-    if (cover.icon && !(layer && layer.enabled && layer.icon)) {
+    const ruleIcon = layer && layer.enabled && typeof iconColorRuleColorsIcon === 'function' && iconColorRuleColorsIcon(layer);
+    if ((cover.icon || cover.tile > 0) && !ruleIcon) {
       const icon = el.querySelector(':scope > .tile-icon');
       if (icon) icon.style.color = coverColor;
-    }
-    if (cover.tile && !parsed.fill && el.dataset.ruleTint !== '1' && typeof setTileTintBackground === 'function') {
-      setTileTintBackground(el, coverColor, cover.tile);
     }
   }
 

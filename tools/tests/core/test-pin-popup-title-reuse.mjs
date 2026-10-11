@@ -202,9 +202,9 @@ void check_title(const String& expected) {
   // like the Sensor headers), so only the logical title is compared.
 }
 int main() {
-  assert(!strcmp(i18n::strings("de").tile_radius,"Kachelradius"));
-  assert(!strcmp(i18n::strings("en").tile_radius,"Tile radius"));
-  assert(!strcmp(i18n::strings("fr").tile_radius,"Rayon des tuiles"));
+  assert(!strcmp(i18n::strings("de").global_settings_heading,"Globale Einstellungen"));
+  assert(!strcmp(i18n::strings("en").global_settings_heading,"Global settings"));
+  assert(!strcmp(i18n::strings("fr").global_settings_heading,"Paramètres globaux"));
   lv_init();
   auto* display = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
   std::vector<uint32_t> band(SCREEN_WIDTH * 16);

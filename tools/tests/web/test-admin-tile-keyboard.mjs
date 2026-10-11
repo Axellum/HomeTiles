@@ -62,8 +62,6 @@ const productionFunctions = [
   extractDeliveredFunction('isEditableValueType'),
   extractDeliveredFunction('editableCompactValueFont'),
   extractDeliveredFunction('syncEditableValueFontOptions'),
-  extractDeliveredFunction('tileTypeHasDiscToggle'),
-  extractDeliveredFunction('tileTypeHasColoredIcon'),
   extractDeliveredFunction('renderTileFromData')
 ].join('\n\n');
 

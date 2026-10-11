@@ -1,6 +1,6 @@
 # HomeTiles shared project context
 
-Last reviewed: 2026-10-08
+Last reviewed: 2026-10-11
 
 ## Sources of truth
 
@@ -84,7 +84,7 @@ Last reviewed: 2026-10-08
 
 ## Radius and half-grid
 
-- NVS radius: old radius to `(cell h - gap)/4`, unset = max; tile color `#1A1A1A`; new icon tiles "From icon" 20 %. Used by tiles, Climate, popups, previews.
+- Radius, circles, circle strength and card color fixed (b378, no settings): radius `tile_radius::kDefault` (= max), circle 25 %, card per theme (dark `#1A1A1A`). Used by tiles, Climate, popups, previews.
 - Half-grid: Sensor/Binary/Energy/Switch height 0.5, width >=1 by 0.5; original 2x1. Whole layouts/V7 size unchanged; header fraction bits. Make every tile whole before 0.6.x (`docs/updating.md`).
 - Device/Web: concentric icon radius, original title font, smaller default value font; explicit sizes respected; text gap 0. Masking declined.
 - Reflow/drafts/rollback keep positions; stale GETs preserve edits. Empty 1x1 slots scan both axes by 0.5, no overlaps. Settings/Back: 1x0.5; Settings v4 bits 1-4 store snapshot fractions.
@@ -158,4 +158,5 @@ Last reviewed: 2026-10-08
 - Popup header = head bar rule (b284, `popup_layout.h`): X one grid gap in the card corner, circle mirrored, card radius = tile radius + gap. Head time 32/20 px; without gear its right gap = top gap; gear shows the PIN lock; Settings PIN popup always global color.
 - One look (b300, user 2026-10-08): popup card margin 0 (reaches the screen edge), every layout's tiles one grid gap from the edge; the classic grid = profile cols/rows with pad = gap (`device.h` kGridPad/kGridCellW/H, cells 3-4 % smaller, stored places unchanged). Card shadow width follows the radius to stay in the LVGL shadow cache (`shadow_width_for`, max 28 px; the b284 corner missed it), none on square full-screen cards. Half tiles step the value down to fit (1280x800: max 24); weather forecast row from the classic two-row height; camera stream keeps 752x424 etc. (former margin).
 - Hochkant (b294, one general way, user 2026-10-08): P4 panels upright by themselves under a landscape profile (V1/V2, WS 4.3/7/8/10.1, Tab5) draw the upright UI straight (presenter `drawUpright`, 180 mirrored; Tab5 own copy with byte swap), DisplayManager turns the landscape touch once for all, screen turns after `tileConfig.load()`; grid space `GRID_SPACE_*`, half row tracks, own camera +1 quarter turn. V2 HW ok (b290-b292). b368: JC1060/7B upright and JC4880 landscape by a real quarter turn the other way round (`draw_turned_area`, shared PPA/CPU turn, `turn_reversed`), compile only, HW pending (community). Owed: wizard + camera popup upright, Web Admin global settings collapsible.
-- Light theme (b339-b367, user 2026-10-10): Design Dunkel/Hell/Automatisch; `ui_theme` roles + `SurfaceScope`, `tile_surface`. Surface fixed at render by tile color: Global = white like HA (icon color, circle 20 %), "From icon"/Media = filled kJewel (dark rules, greys kDarkTinted), own color by lightness; unavailable one grey (#BDBDBD). Popups take the opener's surface (`g_open_surface`; a popup without a tile resets it, a hidden refresh keeps its last surface); remembered LVGL objects clear themselves on delete (LVGL 9.6 `lv_obj_is_valid` reads freed objects). Tests 302/302; V2 b366 HW ok, b367 (Weather days) pending; S3/Tab5/8"/4B b366 compile ok.
+- Light theme (b339-b367, user 2026-10-10): Design Dunkel/Hell/Automatisch; `ui_theme` roles + `SurfaceScope`, `tile_surface`; unavailable one grey (#BDBDBD). Popups take the opener's surface (`g_open_surface`); remembered LVGL objects clear themselves on delete (LVGL 9.6 `lv_obj_is_valid` reads freed objects).
+- One color rule (b378, user 2026-10-11, decided, do not reopen): color always from the icon; per tile only "Ausfuellen" (`tileFills`: "fill 20", old From icon/From cover tile/rule "Kachel toenen" migrate to it); rules color only the icon; own color only Clock/Text/Pixelanim (no Fill there). Light theme: a filled tile is kJewel from render on (idle grey without color), never switches surface; others keep the white card. Frame line like Tessera (`frame_line`): plain card #DDDDDD/#292929, other cards own color 9 % lighter/14 % darker. Filled card second line white. Almost white light never tints (`without_white`). Popups: Light/Climate/Cover never filled (intended). Global settings left: borders, layout, theme. Tests 299/299; V2 b378 build pending HW test.

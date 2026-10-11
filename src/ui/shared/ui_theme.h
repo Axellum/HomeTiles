@@ -124,9 +124,10 @@ inline constexpr Roles kLight = {0xE9EBEE, 0xFFFFFF, 0xFFFFFF, 0x1A1A1A, 0x46464
 // grey tiles). Off OKLCH L 0.89, inactive and resting 0.85; unavailable
 // fainter, just above the circle, like Home Assistant (user 2026-10-10: off
 // and unavailable looked the same).
+// Its second line is white like the title (user 2026-10-11).
 inline constexpr Roles kDarkTinted = {kDark.screen,         kDark.card,      kDark.popup_card,
                                       kDark.text,           kDark.icon,      0xDBDBDB,
-                                      0xCECECE,             0xCECECE,        kDark.text_secondary,
+                                      0xCECECE,             0xCECECE,        kDark.text,
                                       kDark.text_soft,      0xA6A6A6};
 
 // The light theme's steps against the dark ones: a circle or control step

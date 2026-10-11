@@ -5018,10 +5018,7 @@ void render_tile_grid(lv_obj_t* parent, const TileGridConfig& config, GridType g
 }
 
 // A tile in its own color (not Global, not "From icon").
-static bool tile_has_own_color(const Tile& tile) {
-  return tileBgColorIsSet(tile) && !tileBgColorFollowsDefault(tile.bg_color) &&
-         !tile_icon_colors::fill_of(tile.icon_colors.c_str());
-}
+static bool tile_has_own_color(const Tile& tile) { return tileHasOwnColor(tile); }
 
 // The surface a tile draws on (tile_surface in tile_icon_disc.h, user 2026-10-10):
 // a tile in its own color follows that color's lightness (a black tile is the
@@ -5048,23 +5045,19 @@ static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
   return tone_color::light_surface(own) ? tile_surface::kLight : tile_surface::kDark;
 }
 
-// The rule of a tile whose surface changes while it runs (tile_surface
-// set_rule, 0 = none): in the light theme a tile without an own color is
-// filled with its icon's color while it is tinted (user 2026-10-10, the dark
-// theme's recipe lighter: tile_surface::kJewel). Weather and Media follow the
-// same rule (user 2026-10-11: Media in Global is a white card like every
-// tile). A tile in the tile color "From icon", and a Media tile "From cover",
-// show the neutral grey without a tint (kNeutralIdle; user 2026-10-10: a
-// light that is off is grey, like the dark theme's grey card).
+// The rule of a filled tile (tile_surface set_rule, 0 = none): in the light
+// theme a tile with "Ausfuellen" (tileFills) is filled from the
+// start, with its icon's color or, without one, the neutral grey
+// (kNeutralIdle; user 2026-10-10: a light that is off is grey, like the dark
+// theme's grey card). Every other tile keeps the theme's card: no tile changes
+// its surface while it runs (user 2026-10-11: one color rule, no runtime
+// switch between the white and the filled look).
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
       tile_has_own_color(tile) || camera_picture::head_over_picture(tile)) {
     return 0;
   }
-  const char* record = tile.icon_colors.c_str();
-  const bool neutral_idle = tile_icon_colors::fill_of(record) ||
-                            (tile.type == TILE_MEDIA && tile_icon_colors::cover_of(record).tile > 0);
-  return neutral_idle ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : tile_surface::kFollowTint;
+  return tileFills(tile) ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : 0;
 }
 
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {
@@ -5091,7 +5084,9 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
     // surface (tile_surface rule).
     tile_icon_source::refresh_card(tile_obj, tile);
     tile_icon_source::settle_filled(tile_obj);
-    tile_icon_disc::apply_tile_options(tile_obj, tile.icon_disc_mode, tile.icon_glow);
+    // Every circle shows, in its icon's color (user 2026-10-11: no circle
+    // options per tile or global).
+    tile_icon_disc::apply_tile_options(tile_obj, 0, true);
     disable_pressed_recolor(tile_obj);
     if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
     // Normal grids use the global display option. The screensaver has its own setting and
