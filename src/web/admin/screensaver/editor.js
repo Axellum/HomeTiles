@@ -468,7 +468,7 @@
     applyClockLine(date, place.date_font_size, 28, 8);
     date.style.marginTop = !time.hidden && !date.hidden
       ? devicePx('--screensaver-clock-gap', 6) * scale + 'px' : '0px';
-    time.textContent = getClockPreviewTime(d.time_format);
+    setClockDigits(time, getClockPreviewTime(d.time_format));
     date.textContent = getScreensaverClockPreviewDate(d);
     time.style.width = 'auto';
     date.style.width = 'auto';

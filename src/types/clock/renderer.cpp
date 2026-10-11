@@ -18,6 +18,7 @@
 #include <new>
 #include <time.h>
 #include "src/ui/shared/ui_theme.h"
+#include "src/ui/shared/tabular_digits.h"
 
 static uint8_t layout_clock_font_size(uint8_t size) {
 #if defined(DEVICE_LAYOUT_1024X600)
@@ -375,7 +376,8 @@ static lv_obj_t* create_clock_line(lv_obj_t* stack,
   const uint8_t font_size = layout_clock_font_size(
       date_line ? clock_tile::normalize_date_font_size(raw_font_size, fallback)
                 : clock_tile::normalize_font_size(raw_font_size, fallback));
-  const lv_font_t* font = ui_font_for_size(font_size);
+  // Fixed-width digits: the time no longer shifts with every minute.
+  const lv_font_t* font = tabular_digits::font(ui_font_for_size(font_size));
   if (!config.text_shadow) {
     lv_obj_t* label = lv_label_create(stack);
     if (!label) return nullptr;
@@ -548,7 +550,7 @@ static constexpr uint8_t kClockFontSizes[] = {20, 24, 28, 32, 40, 48, 56, 64, 72
 
 static lv_coord_t clock_text_width(uint8_t size, const char* text) {
   lv_point_t text_size{};
-  lv_text_get_size(&text_size, text, ui_font_for_size(layout_clock_font_size(size)), 0, 0,
+  lv_text_get_size(&text_size, text, tabular_digits::font(ui_font_for_size(layout_clock_font_size(size))), 0, 0,
                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
   return text_size.x;
 }

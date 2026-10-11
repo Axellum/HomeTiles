@@ -158,7 +158,10 @@ function refreshHeadBarTime() {
     // The panel's format (PANEL_TIME_FORMAT follows a change, localization.js).
     const hour12 = typeof PANEL_TIME_FORMAT === 'number' ? PANEL_TIME_FORMAT === 2 : el.dataset.hour12 === '1';
     if (hour12) hour = hour % 12 || 12;
-    el.textContent = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const text = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    // Fixed-width digits like the panel's head (tabular_digits).
+    if (typeof setClockDigits === 'function') setClockDigits(el, text);
+    else el.textContent = text;
   });
 }
 // The layout window shows the head with any layout.
@@ -460,7 +463,7 @@ async function saveGestureEdge(select) {
     document.querySelectorAll('.tile-clock-time').forEach(el => {
       if (el.dataset.autoClock === '1' || el.textContent.trim() === '--:--') {
         el.dataset.autoClock = '1';
-        el.textContent = getClockPreviewTime(0);
+        setClockDigits(el, getClockPreviewTime(0));
       }
     });
     document.querySelectorAll('.tile-clock-date').forEach(el => {
@@ -475,7 +478,7 @@ async function saveGestureEdge(select) {
     if (screensaverDraft) {
       const time = document.getElementById('screensaverClockTime');
       const date = document.getElementById('screensaverClockDate');
-      if (time) time.textContent = getClockPreviewTime(screensaverDraft.time_format);
+      if (time) setClockDigits(time, getClockPreviewTime(screensaverDraft.time_format));
       if (date) date.textContent = getScreensaverClockPreviewDate(screensaverDraft);
     }
   }
@@ -7763,7 +7766,7 @@ async function saveGestureEdge(select) {
         Number(document.getElementById(prefix + '_clock_date_font')?.value || 20));
       const clockTimeFormat = document.getElementById(prefix + '_clock_time_format')?.value || '0';
       const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
-      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
       if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
     }
 
@@ -10234,7 +10237,7 @@ async function saveGestureEdge(select) {
         const clockDateFont = Math.min(72, Number(tile.key_modifier || 20));
         const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
         const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
-        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
         if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
       }
       if (previewKind === 'text') {
@@ -13232,7 +13235,7 @@ async function saveGestureEdge(select) {
     applyClockLine(date, place.date_font_size, 28, 8);
     date.style.marginTop = !time.hidden && !date.hidden
       ? devicePx('--screensaver-clock-gap', 6) * scale + 'px' : '0px';
-    time.textContent = getClockPreviewTime(d.time_format);
+    setClockDigits(time, getClockPreviewTime(d.time_format));
     date.textContent = getScreensaverClockPreviewDate(d);
     time.style.width = 'auto';
     date.style.width = 'auto';
@@ -19222,6 +19225,21 @@ function getClockPreviewLanguage() {
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 
+  // tabular_digits (src/ui/shared/tabular_digits.cpp): every digit as wide as
+  // the widest one and centered in it, so the time never shifts. The Admin's
+  // Inter has no tabular figures (a subset without features): a box per digit
+  // (.tnum, the width of Inter's widest digit, the 4) does it like the panel.
+  const CLOCK_HTML_ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+  function clockDigitsHtml(text) {
+    return Array.from(String(text), ch => (ch >= '0' && ch <= '9'
+      ? '<span class="tnum">' + ch + '</span>' : (CLOCK_HTML_ESCAPES[ch] || ch))).join('');
+  }
+  function setClockDigits(el, text) {
+    if (!el) return;
+    const html = clockDigitsHtml(text);
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+
   function getClockPreviewTime(rawFormat) {
     const now = new Date();
     const format = resolveClockTimeFormat(rawFormat);
@@ -19401,7 +19419,7 @@ function getClockPreviewLanguage() {
     }
 
     if (timeEl) {
-      timeEl.textContent = getClockPreviewTime(timeFormat);
+      setClockDigits(timeEl, getClockPreviewTime(timeFormat));
       applyClockPreviewTextStyle(timeEl, timeFont, 40, panelRoleHex('text', '#fff'));
     }
     if (dateEl) {

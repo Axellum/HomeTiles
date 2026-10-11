@@ -29,6 +29,21 @@ function getClockPreviewLanguage() {
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 
+  // tabular_digits (src/ui/shared/tabular_digits.cpp): every digit as wide as
+  // the widest one and centered in it, so the time never shifts. The Admin's
+  // Inter has no tabular figures (a subset without features): a box per digit
+  // (.tnum, the width of Inter's widest digit, the 4) does it like the panel.
+  const CLOCK_HTML_ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+  function clockDigitsHtml(text) {
+    return Array.from(String(text), ch => (ch >= '0' && ch <= '9'
+      ? '<span class="tnum">' + ch + '</span>' : (CLOCK_HTML_ESCAPES[ch] || ch))).join('');
+  }
+  function setClockDigits(el, text) {
+    if (!el) return;
+    const html = clockDigitsHtml(text);
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+
   function getClockPreviewTime(rawFormat) {
     const now = new Date();
     const format = resolveClockTimeFormat(rawFormat);
@@ -208,7 +223,7 @@ function getClockPreviewLanguage() {
     }
 
     if (timeEl) {
-      timeEl.textContent = getClockPreviewTime(timeFormat);
+      setClockDigits(timeEl, getClockPreviewTime(timeFormat));
       applyClockPreviewTextStyle(timeEl, timeFont, 40, panelRoleHex('text', '#fff'));
     }
     if (dateEl) {

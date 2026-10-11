@@ -11,7 +11,7 @@ import {extractDeliveredFunction, inlineScriptSafe, readRepoFile} from '../../li
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
 const styles = readRepoFile('src/web/server/render/web_admin_styles.cpp');
-assert.ok(styles.includes('lv_text_get_size(&sample, "88:88 PM", font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);') &&
+assert.ok(styles.includes('lv_text_get_size(&sample, "88:88 PM", tabular_digits::font(font), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);') &&
   styles.includes('snprintf(name, sizeof(name), "tw%u", static_cast<unsigned>(size.nominal));'),
   'the server gives the panel width of the clock sample per font');
 assert.ok(readRepoFile('src/types/clock/renderer.cpp').includes('if (config.fill_parent) lv_obj_set_width(label, LV_PCT(100));'),

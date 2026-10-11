@@ -8,6 +8,7 @@
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/core/config/tile_radius.h"
 #include "src/ui/shared/tone_color.h"
+#include "src/ui/shared/tabular_digits.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/screensaver/screensaver_tile_shadow.h"
 #include "src/ui/tabs/settings/settings_style.h"
@@ -251,7 +252,8 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
     // widths by it, so a clock line wraps exactly where the panel's does
     // (user 2026-10-11: "8:01 PM" wrapped only in the preview).
     lv_point_t sample{};
-    lv_text_get_size(&sample, "88:88 PM", font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    // With the clock's fixed-width digits (tabular_digits).
+    lv_text_get_size(&sample, "88:88 PM", tabular_digits::font(font), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     snprintf(name, sizeof(name), "tw%u", static_cast<unsigned>(size.nominal));
     emit_scaled(name, sample.x);
     snprintf(name, sizeof(name), "screensaver-lh%u", static_cast<unsigned>(size.nominal));

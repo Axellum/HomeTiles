@@ -991,7 +991,7 @@
         const clockDateFont = Math.min(72, Number(tile.key_modifier || 20));
         const clockTimeFormat = (tile.sensor_gauge_min !== undefined) ? tile.sensor_gauge_min : 0;
         const clockDateFormat = (tile.sensor_gauge_max !== undefined) ? tile.sensor_gauge_max : 0;
-        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + getClockPreviewTime(clockTimeFormat) + '</div>';
+        if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
         if (flags & 2) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + getClockPreviewDate(clockDateFormat) + '</div>';
       }
       if (previewKind === 'text') {

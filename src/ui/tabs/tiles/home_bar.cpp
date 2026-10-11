@@ -16,6 +16,7 @@
 #include "src/ui/tabs/settings/settings_style.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/ui_theme.h"
+#include "src/ui/shared/tabular_digits.h"
 
 // grid_layout.h sizes the bar's grid with the head's frame; it must be the
 // popups' (and the Settings head's).
@@ -153,11 +154,12 @@ void format_time(char* out, size_t size) {
 
 const lv_font_t* head_font() { return popup_layout::headerTitleFont(); }
 
+// Fixed-width digits like the clock tile (tabular_digits).
 const lv_font_t* time_font() {
 #if defined(DEVICE_LAYOUT_1024X600) || defined(DEVICE_LAYOUT_480X480)
-  return &ui_font_20;
+  return tabular_digits::font(&ui_font_20);
 #else
-  return &ui_font_32;
+  return tabular_digits::font(&ui_font_32);
 #endif
 }
 

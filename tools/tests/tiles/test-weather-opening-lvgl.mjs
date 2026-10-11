@@ -159,6 +159,8 @@ constexpr int GRID_PAD=Device::kGridPad;
 ${read('src/tiles/config/tile_config.h').match(/static const int& GRID_PAD_LEFT =[^]*?GRID_SHOWN_ROWS = [^;]+;/)[0]}
 ${fn(read('src/fonts/ui_fonts.h'),'ui_font_for_size')}
 ${strip(read('src/ui/screensaver/screensaver_tile_shadow.h'))}
+${strip(read('src/ui/shared/tabular_digits.h'))}
+${strip(read('src/ui/shared/tabular_digits.cpp'))}
 ${strip(read('src/web/server/render/web_admin_styles.cpp').split('void appendAdminStyles(')[0])}
 bool pressed=false;lv_point_t pointer{};bool measuring=false;int covered_draws=0;uint64_t flushed_pixels=0;
 int tile_draws=0, tile_style_changes=0;

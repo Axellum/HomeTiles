@@ -71,7 +71,10 @@ function refreshHeadBarTime() {
     // The panel's format (PANEL_TIME_FORMAT follows a change, localization.js).
     const hour12 = typeof PANEL_TIME_FORMAT === 'number' ? PANEL_TIME_FORMAT === 2 : el.dataset.hour12 === '1';
     if (hour12) hour = hour % 12 || 12;
-    el.textContent = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const text = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    // Fixed-width digits like the panel's head (tabular_digits).
+    if (typeof setClockDigits === 'function') setClockDigits(el, text);
+    else el.textContent = text;
   });
 }
 // The layout window shows the head with any layout.

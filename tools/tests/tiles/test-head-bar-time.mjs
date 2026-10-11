@@ -18,8 +18,9 @@ const css = read('src/web/assets/admin.css');
 // The title font per profile and the time's, one size up.
 const branch = (source, name) => {
   const body = source.slice(source.indexOf(name));
-  const small = /DEVICE_LAYOUT_1024X600\)[^\n]*\n\s*return &ui_font_(\d+);/.exec(body)[1];
-  const large = /#else\s*\n\s*return &ui_font_(\d+);/.exec(body)[1];
+  // The head's time draws fixed-width digits (tabular_digits) of that font.
+  const small = /DEVICE_LAYOUT_1024X600\)[^\n]*\n\s*return (?:tabular_digits::font\()?&ui_font_(\d+)\)?;/.exec(body)[1];
+  const large = /#else\s*\n\s*return (?:tabular_digits::font\()?&ui_font_(\d+)\)?;/.exec(body)[1];
   return {small: Number(small), large: Number(large)};
 };
 const title = branch(layout, 'headerTitleFont()');

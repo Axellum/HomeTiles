@@ -476,7 +476,16 @@ static void appendTileTabHTML(
     html += "</span><span class=\"head-time\" data-hour12=\"";
     html += time_format == clock_tile::TIME_FORMAT_12H ? "1" : "0";
     html += "\">";
-    html += time_text;
+    // Fixed-width digits like the panel's head (tabular_digits, .tnum).
+    for (const char* c = time_text; *c; ++c) {
+      if (*c >= '0' && *c <= '9') {
+        html += "<span class=\"tnum\">";
+        html += *c;
+        html += "</span>";
+      } else {
+        html += *c;
+      }
+    }
     // The gear on Home only when chosen (Settings tile option).
     html += home ? (configManager.getConfig().head_gear ? "</span><span class=\"head-button head-gear\"><i class=\"mdi mdi-"
                                                         : "</span><span class=\"head-button head-gear is-off\"><i class=\"mdi mdi-")

@@ -75,6 +75,8 @@ ${read('src/tiles/config/tile_config.h').match(/static const int& GRID_PAD_LEFT 
 #include "src/types/climate/layout.h"
 ${fn(read('src/fonts/ui_fonts.h'),'ui_font_for_size')}
 ${strip(read('src/ui/screensaver/screensaver_tile_shadow.h'))}
+${strip(read('src/ui/shared/tabular_digits.h'))}
+${strip(read('src/ui/shared/tabular_digits.cpp'))}
 ${strip(read('src/web/server/render/web_admin_styles.cpp').split('void appendAdminStyles(')[0])}
 static void line(std::ostream&o,const char*name,lv_obj_t*label,lv_obj_t*card,bool&first){
  if(!label)return;

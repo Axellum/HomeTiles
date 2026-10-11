@@ -2717,6 +2717,9 @@
       right:calc(var(--clock-header-icon-right, 8px) - 3px);
       margin:0;
     }
+    /* tabular_digits: a digit as wide as the widest (Inter's 4, 1323/2048 em),
+       centered (types/clock/admin.js clockDigitsHtml). */
+    .tnum { display:inline-block; width:0.646em; text-align:center; }
     .tile-clock-time {
       position:relative;
       top:var(--ldy40, 0px);
