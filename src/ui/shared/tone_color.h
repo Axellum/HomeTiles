@@ -264,6 +264,28 @@ inline bool no_color(uint32_t rgb) {
 // (ui_theme::kLightSurfaceL).
 inline bool light_surface(uint32_t rgb) { return from_rgb(rgb & 0xFFFFFF).L > ui_theme::kLightSurfaceL; }
 
+// A card while it is pressed, the one rule for every tile and Settings card
+// (user 2026-10-11, chosen in build/design-mockups/tile-colors): a dark card
+// (white words: the dark theme, a filled tile) 0x10 lighter per channel as
+// always; a light card (dark words: the light theme's white card)
+// kLightPressStep darker (two of the light theme's control steps), since
+// white cannot get lighter (a white tile showed no press) and one step left a
+// pressed Settings card in the screen's grey.
+inline constexpr float kLightPressStep = 0.10f;
+inline uint32_t pressed_card(uint32_t card) {
+  card &= 0xFFFFFF;
+  if (light_surface(card)) {
+    const Oklch base = from_rgb(card);
+    return to_rgb(base.L - kLightPressStep, base.C, base.h);
+  }
+  uint32_t out = 0;
+  for (int shift = 16; shift >= 0; shift -= 8) {
+    const uint32_t channel = ((card >> shift) & 0xFFu) + 0x10u;
+    out |= (channel > 0xFFu ? 0xFFu : channel) << shift;
+  }
+  return out;
+}
+
 // A mark on a colored surface (the power symbol, a slider notch): dark on a
 // light surface, white on a dark one (lab 2026-10-10). The dark theme keeps
 // its card-colored cut-out on light surfaces.

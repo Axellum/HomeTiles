@@ -16,9 +16,7 @@ import {compileAndRun} from '../../lib/cpp-host.mjs';
 const read = file => readRepoFile(file).replace(/\r\n?/g, '\n');
 const iconSource = read('src/tiles/runtime/tile_icon_source.cpp');
 const fromIconCard = cppFunctionDefinitions(iconSource).find(f => f.name === 'from_icon_card');
-const brighten = cppFunctionDefinitions(read('src/tiles/runtime/tile_renderer_shared.h'))
-  .find(f => f.name === 'brighten_rgb_color');
-assert.ok(fromIconCard && brighten);
+assert.ok(fromIconCard);
 
 const harness = String.raw`
 #include "src/ui/shared/tone_color.h"
@@ -30,7 +28,6 @@ const harness = String.raw`
 
 static uint32_t g_global = 0x1A1A1A;
 static uint32_t tileDefaultBgColor() { return g_global; }
-${brighten.source}
 ${fromIconCard.source}
 
 int main() {

@@ -1,6 +1,7 @@
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/types/navigate/renderer.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/ui/shared/tone_color.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
 #include "src/tiles/runtime/compact_sensor_layout.h"
@@ -62,7 +63,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_FOCUSED);
 
   // Pressed state: 10% brighter.
-  uint32_t pressed_color = brighten_rgb_color(btn_color, 0x10);
+  uint32_t pressed_color = tone_color::pressed_card(btn_color);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | (LV_STATE_FOCUSED | LV_STATE_PRESSED));
   lv_obj_set_style_bg_grad_color(btn, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);

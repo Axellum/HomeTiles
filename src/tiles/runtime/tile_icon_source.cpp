@@ -1,4 +1,5 @@
 #include "src/tiles/runtime/tile_icon_source.h"
+#include "src/ui/shared/tone_color.h"
 
 #include <ArduinoJson.h>
 
@@ -141,7 +142,7 @@ uint32_t from_icon_card(uint32_t icon, bool pressed, uint8_t percent) {
     slot = {base, icon, tile_tint::background(base, icon, percent), percent, light, true};
     found = &slot;
   }
-  return pressed ? brighten_rgb_color(found->card, 0x10) : found->card;
+  return pressed ? tone_color::pressed_card(found->card) : found->card;
 }
 [[maybe_unused]] const bool g_from_icon_card_registered = (tone_color::g_from_icon_card = &from_icon_card, true);
 
@@ -333,14 +334,10 @@ void follow_open_popup(lv_obj_t* card) {
   popup_shell_follow_tile_color(color);
 }
 
-// Sets the card background in its normal and pressed states (pressed about
-// 6 % brighter, like the tile renderers).
+// Sets the card background in its normal and pressed states
+// (tone_color::pressed_card, like the tile renderers).
 void apply_card_background(lv_obj_t* card, uint32_t rgb) {
-  uint32_t pressed = 0;
-  for (int shift = 16; shift >= 0; shift -= 8) {
-    const uint32_t channel = ((rgb >> shift) & 0xFF) + 0x10;
-    pressed |= (channel > 0xFF ? 0xFF : channel) << shift;
-  }
+  const uint32_t pressed = tone_color::pressed_card(rgb);
   for (const lv_style_selector_t selector : {static_cast<lv_style_selector_t>(LV_PART_MAIN | LV_STATE_DEFAULT),
                                               static_cast<lv_style_selector_t>(LV_PART_MAIN | LV_STATE_FOCUSED)}) {
     lv_obj_set_style_bg_color(card, lv_color_hex(rgb), selector);

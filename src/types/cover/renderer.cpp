@@ -17,6 +17,7 @@
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/ui/shared/tone_color.h"
 #include "src/ui/popups/cover/cover_popup.h"
 #include "src/ui/shared/command_pacer.h"
 #include "src/ui/shared/ui_pulse.h"
@@ -576,7 +577,7 @@ lv_obj_t* render_cover_tile(lv_obj_t* parent, int col, int row,
       card, lv_color_hex(color), LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_grad_dir(
       card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
-  const uint32_t pressed_color = brighten_rgb_color(color, 0x10);
+  const uint32_t pressed_color = tone_color::pressed_card(color);
   lv_obj_set_style_bg_color(
       card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_grad_color(

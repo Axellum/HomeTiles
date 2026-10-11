@@ -226,12 +226,8 @@ void style_category(uint8_t index) {
     const ui_theme::SurfaceScope surface(ui_theme::kDarkTintedSurface);
     const uint32_t tile = tone_color::jewel_card(color, 0);
     const tone_color::Fill fill = tone_color::jewel_fill(tile, color, ui_surface_style::icon_glow_percent(), 0);
-    // Pressed like a tile card (apply_card_background): 0x10 lighter.
-    uint32_t pressed = 0;
-    for (int shift = 16; shift >= 0; shift -= 8) {
-      const uint32_t channel = ((tile >> shift) & 0xFF) + 0x10;
-      pressed |= (channel > 0xFF ? 0xFF : channel) << shift;
-    }
+    // Pressed like a tile card (apply_card_background).
+    const uint32_t pressed = tone_color::pressed_card(tile);
     lv_obj_set_style_bg_color(view.box, lv_color_hex(tile), 0);
     lv_obj_set_style_bg_opa(view.box, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(view.box, lv_color_hex(pressed), LV_STATE_PRESSED);
@@ -258,8 +254,7 @@ void style_category(uint8_t index) {
   const uint32_t tile = !selected                ? card
                         : ui_theme::light() ? tile_tint::mix(ui_theme::card(), color, 32)
                                             : settings_style::from_icon_card(card, color);
-  const uint32_t pressed = selected ? settings_style::from_icon_card(card, color, true)
-                                    : tone_color::lifted(card, card, false, settings_style::control_step());
+  const uint32_t pressed = selected ? settings_style::from_icon_card(card, color, true) : tone_color::pressed_card(card);
   const Tone tone = settings_style::tone(tile, color);
   lv_obj_set_style_bg_color(view.box, lv_color_hex(tile), 0);
   lv_obj_set_style_bg_color(view.box, lv_color_hex(pressed), LV_STATE_PRESSED);

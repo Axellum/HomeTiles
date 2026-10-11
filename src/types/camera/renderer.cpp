@@ -10,6 +10,7 @@
 #include "src/tiles/runtime/compact_sensor_layout.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/ui/shared/tone_color.h"
 #include "src/types/camera/picture.h"
 #include "src/ui/popups/camera/camera_popup.h"
 #include "src/ui/shared/ui_theme.h"
@@ -89,7 +90,7 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
   lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
   lv_obj_set_style_bg_color(card,
-                            lv_color_hex(brighten_rgb_color(card_color, 0x10)),
+                            lv_color_hex(tone_color::pressed_card(card_color)),
                             LV_PART_MAIN | LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
   ui_surface_style::apply_radius(card, tile_layout::scale_480(22), 0);

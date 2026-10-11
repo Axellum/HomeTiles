@@ -140,11 +140,16 @@ struct SegmentState {
 };
 
 void style_option(lv_obj_t* option, bool selected) {
-  lv_obj_set_style_bg_color(option, lv_color_hex(kSelectedBg), 0);
+  // The light theme's chosen part in its secondary text grey with white words
+  // (user 2026-10-11, chosen in the tile-colors mockup: the light #F5F7F5
+  // hardly stood off the light track); the dark theme keeps the light part.
+  const bool light = ui_theme::theme_light();
+  lv_obj_set_style_bg_color(option, lv_color_hex(light ? ui_theme::kLight.text_secondary : kSelectedBg), 0);
   lv_obj_set_style_bg_opa(option, selected ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
   lv_obj_t* label = lv_obj_get_child(option, 0);
   if (label) {
-    lv_obj_set_style_text_color(label, selected ? lv_color_hex(kSelectedText) : lv_color_hex(ui_theme::text()), 0);
+    const uint32_t ink = light ? 0xFFFFFFu : kSelectedText;
+    lv_obj_set_style_text_color(label, lv_color_hex(selected ? ink : ui_theme::text()), 0);
   }
 }
 

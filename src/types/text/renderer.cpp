@@ -1,6 +1,7 @@
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/types/text/renderer.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/ui/shared/tone_color.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
 #include "src/tiles/icons/mdi_icons.h"
@@ -21,7 +22,7 @@ lv_obj_t* render_text_tile(lv_obj_t* parent, int col, int row, const Tile& tile,
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(card_color), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-  uint32_t pressed_color = brighten_rgb_color(card_color, 0x10);
+  uint32_t pressed_color = tone_color::pressed_card(card_color);
   lv_obj_set_style_bg_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
 lv_obj_set_style_bg_grad_color(card, lv_color_hex(pressed_color), LV_PART_MAIN | LV_STATE_PRESSED);
 lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRESSED);
