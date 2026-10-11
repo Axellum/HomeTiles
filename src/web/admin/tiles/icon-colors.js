@@ -121,18 +121,31 @@
     return needle.length > 0 && haystack.includes(needle);
   }
 
-  // parse_rule(): "<op> RRGGBB <value>".
+  // parse_rule(): "<op>[+|-] RRGGBB <value>"; `fill` is the state line's own
+  // "Fuellen" (1 "is+", 0 "is-", -1 a plain "is" following the "fill" line).
   function iconColorParseRule(line) {
     const text = iconColorTrim(line);
     const space = text.indexOf(' ');
-    const op = space < 0 ? '' : text.slice(0, space);
+    let op = space < 0 ? '' : text.slice(0, space);
+    let fill = -1;
+    if (/^(is|has)[+-]$/.test(op)) {
+      fill = op.endsWith('+') ? 1 : 0;
+      op = op.slice(0, -1);
+    }
     if (!['ge', 'le', 'eq', 'is', 'has'].includes(op)) return null;
     const rest = text.slice(space + 1);
     const colorEnd = rest.indexOf(' ');
     const color = iconColorParseHex(colorEnd < 0 ? rest : rest.slice(0, colorEnd));
     if (color === null) return null;
     const value = colorEnd < 0 ? '' : iconColorTrim(rest.slice(colorEnd));
-    return value ? { op, color, value } : null;
+    return value ? { op, color, value, fill } : null;
+  }
+
+  // tile_icon_colors::rows_fill(): a state line with its own "Fuellen".
+  function iconColorRowsFill(record) {
+    const text = String(record ?? '');
+    if (!iconColorIsV2(text)) return false;
+    return text.split('\n').slice(2).some(line => iconColorParseRule(line)?.fill === 1);
   }
 
   function iconColorSortStops(stops) {
@@ -245,7 +258,10 @@
 
   // resolve(): the icon color for a known state as "#RRGGBB", or '' for the
   // type default. Only v2 records are evaluated.
-  function resolveIconColorRecord(record, state, display, fixedFallback = true) {
+  // `out`, when given, receives the matching state line's own fill (`fill`:
+  // 1, 0 or -1 like iconColorParseRule).
+  function resolveIconColorRecord(record, state, display, fixedFallback = true, out = null) {
+    if (out) out.fill = -1;
     const text = String(record ?? '');
     if (!iconColorIsV2(text) || state === undefined || state === null) return '';
     const lines = text.split('\n');
@@ -263,6 +279,7 @@
       if (!rule || (rule.op !== 'is' && rule.op !== 'has')) continue;
       if (iconColorTextMatches(rule.op, rule.value, state) ||
           (display !== undefined && display !== null && iconColorTextMatches(rule.op, rule.value, display))) {
+        if (out) out.fill = rule.fill;
         return '#' + iconColorHex(rule.color);
       }
     }
@@ -394,7 +411,8 @@
         }
         const value = iconColorClipValue(rule.value);
         if (!value) continue;
-        out += '\n' + rule.op + ' ' + iconColorHex(rule.color) + ' ' + value;
+        const mark = rule.fill === 1 ? '+' : rule.fill === 0 ? '-' : '';
+        out += '\n' + rule.op + mark + ' ' + iconColorHex(rule.color) + ' ' + value;
         rows++;
       }
     }
@@ -437,7 +455,7 @@
     for (const line of lines.slice(2)) {
       if (line.startsWith('bar ')) { bar = iconColorParseBar(line); continue; }
       const rule = iconColorParseRule(line);
-      if (rule) rows.push({ has: rule.op === 'has', color: '#' + iconColorHex(rule.color), value: rule.value });
+      if (rule) rows.push({ has: rule.op === 'has', color: '#' + iconColorHex(rule.color), value: rule.value, fill: rule.fill });
     }
     return { color: fixed === null ? '' : '#' + iconColorHex(fixed), bar, rows,
       fill: iconColorFillOf(lines.slice(2)), cover: iconColorCoverOf(lines.slice(2)),
@@ -494,14 +512,15 @@
   // tile_icon_source::rule_color(): the rule color of a layer from the preview
   // states of its entity (own or other); '' without a known state or result.
   // Rules never fall back to the fixed color here.
-  function iconColorLayerColor(record, layer, ownEntity, meta, typeValue) {
+  function iconColorLayerColor(record, layer, ownEntity, meta, typeValue, out = null) {
+    if (out) out.fill = -1;
     if (!layer || !layer.enabled) return '';
     const entity = layer.self ? String(ownEntity || '') : layer.entity;
     if (!entity) return '';
     if (layer.self && ['21', '22', '23'].includes(String(typeValue))) {
       if (layer.mode === 'auto' || typeof iconColorRuleState !== 'function') return '';
       const rule = iconColorRuleState(typeValue, entity, meta, null);
-      return rule ? resolveIconColorRecord(record, rule.state, rule.display, false) : '';
+      return rule ? resolveIconColorRecord(record, rule.state, rule.display, false, out) : '';
     }
     const payload = meta?.values?.[entity];
     if (payload === undefined || payload === null || !String(payload).trim()) return '';
@@ -514,7 +533,7 @@
       const parsed = parseBinarySensorPreviewPayload(String(payload));
       if (parsed?.valid && ['on', 'off'].includes(parsed.state)) display = binarySensorPreviewStateText(parsed);
     }
-    return resolveIconColorRecord(record, state, display, false);
+    return resolveIconColorRecord(record, state, display, false, out);
   }
 
   // The icon color of a tile with rules on another entity, else the fixed
@@ -749,6 +768,21 @@
     return iconColorEl(tab, '_tile_icon_rule_' + index);
   }
 
+  // A row's "Fuellen" box: its own mark, else (a new row, or a line from
+  // before b382 that follows the "fill" line) the tile's "Ausfuellen". The
+  // box keeps the mark in data-mark ('+', '-', '' = follows "Ausfuellen"):
+  // only a click gives a row its own mark, so a loaded record stays as it is.
+  function iconColorRowFills(tab, fill) {
+    return fill === 1 || (fill !== 0 && !!iconColorEl(tab, '_tile_icon_fill')?.checked);
+  }
+  function iconColorMarkOf(fill) { return fill === 1 ? '+' : fill === 0 ? '-' : ''; }
+  function iconColorFillOfBox(box) { return box?.dataset.mark === '+' ? 1 : box?.dataset.mark === '-' ? 0 : -1; }
+  function setIconColorFillBox(tab, box, fill) {
+    if (!box) return;
+    box.dataset.mark = iconColorMarkOf(fill);
+    box.checked = iconColorRowFills(tab, fill);
+  }
+
   function readIconColorRows(tab) {
     const rows = [];
     for (let index = 0; index < ICON_COLOR_MAX_ROWS; index++) {
@@ -757,7 +791,8 @@
       rows.push({
         value: document.getElementById(row.id + '_value')?.value || '',
         has: !!document.getElementById(row.id + '_has')?.checked,
-        color: document.getElementById(row.id + '_color')?.value || ICON_COLOR_ROW_DEFAULT
+        color: document.getElementById(row.id + '_color')?.value || ICON_COLOR_ROW_DEFAULT,
+        fill: iconColorFillOfBox(document.getElementById(row.id + '_fill'))
       });
     }
     return rows;
@@ -772,27 +807,34 @@
       const value = document.getElementById(row.id + '_value');
       const has = document.getElementById(row.id + '_has');
       const color = document.getElementById(row.id + '_color');
+      const fill = document.getElementById(row.id + '_fill');
       if (value) value.value = entry ? entry.value : '';
       if (has) has.checked = !!entry?.has;
+      setIconColorFillBox(tab, fill, entry ? (entry.fill ?? -1) : -1);
       if (color) color.value = entry ? (normalizeIconColorHex(entry.color) || ICON_COLOR_ROW_DEFAULT) : ICON_COLOR_ROW_DEFAULT;
     }
     iconColorEl(tab, '_tile_icon_rule_add')?.classList.toggle('hidden', rows.length >= ICON_COLOR_MAX_ROWS);
   }
 
-  // Binary sensor On/Off pickers; unset pickers keep the type color.
-  function setIconColorBinaryInput(tab, state, color) {
+  // Binary sensor On/Off pickers; unset pickers keep the type color and
+  // follow "Ausfuellen" (their "Fuellen" box shows it).
+  function setIconColorBinaryInput(tab, state, color, fill = -1) {
     const input = iconColorEl(tab, '_tile_icon_' + state);
     if (!input) return;
     const hex = normalizeIconColorHex(color);
     input.value = hex || input.dataset.default || ICON_COLOR_BINARY_DEFAULTS[state];
     input.dataset.unset = hex ? '0' : '1';
+    setIconColorFillBox(tab, iconColorEl(tab, '_tile_icon_' + state + '_fill'), hex ? fill : -1);
   }
 
   function readIconColorBinaryRows(tab) {
     const rows = [];
     for (const state of ['on', 'off']) {
       const input = iconColorEl(tab, '_tile_icon_' + state);
-      if (input && input.dataset.unset === '0') rows.push({ value: state, has: false, color: input.value });
+      if (input && input.dataset.unset === '0') {
+        rows.push({ value: state, has: false, color: input.value,
+          fill: iconColorFillOfBox(iconColorEl(tab, '_tile_icon_' + state + '_fill')) });
+      }
     }
     return rows;
   }
@@ -867,7 +909,8 @@
     for (const row of rows) {
       const color = normalizeIconColorHex(row.color) || ICON_COLOR_ROW_DEFAULT;
       const value = row.value.replace(/[\u0000-\u001f\u007f]/g, '');
-      lines.push((row.has ? 'has ' : 'is ') + color.slice(1) + ' ' + value);
+      // A row's own "Fuellen" (user 2026-10-11), else it follows "Ausfuellen".
+      lines.push((row.has ? 'has' : 'is') + iconColorMarkOf(row.fill) + ' ' + color.slice(1) + ' ' + value);
     }
     // A switched-off own layer at its defaults without rules is no layer.
     const idle = layer && layer.self && !layer.enabled && layer.mode === 'rules' && layer.icon && !layer.tile &&
@@ -970,6 +1013,10 @@
         }
       }
     }
+    // Boxes without their own mark show "Ausfuellen".
+    block.querySelectorAll('[data-icon-color="row-fill"], [data-icon-color="binary-fill"]').forEach(box => {
+      if (!box.dataset.mark) box.checked = iconColorRowFills(tab, -1);
+    });
     iconColorEl(tab, '_tile_icon_bar_section')?.classList.toggle('hidden', !showBar);
     iconColorEl(tab, '_tile_icon_state_section')?.classList.toggle('hidden', !showRows);
     iconColorEl(tab, '_tile_icon_binary_section')?.classList.toggle('hidden', !showBinary);
@@ -1002,7 +1049,7 @@
     if (onInput) onInput.value = on ? '1' : '0';
     for (const state of ['on', 'off']) {
       const row = parsed.rows.find(entry => !entry.has && iconColorFold(entry.value) === state);
-      setIconColorBinaryInput(tab, state, row ? row.color : '');
+      setIconColorBinaryInput(tab, state, row ? row.color : '', row ? row.fill : -1);
     }
     syncIconColorFields(tab);
   }
@@ -1081,9 +1128,17 @@
   document.addEventListener('change', event => {
     const target = event.target;
     const id = target?.id || '';
-    if (['has', 'source', 'fill-target'].includes(target?.dataset?.iconColor)) {
+    if (['has', 'source', 'fill-target', 'row-fill', 'binary-fill'].includes(target?.dataset?.iconColor)) {
       const tab = iconColorEventTab(target);
-      if (tab) commitIconColorChange(tab);
+      if (!tab) return;
+      // A clicked box gives its row its own mark; an On/Off box keeps that
+      // row with the color it shows.
+      if (['row-fill', 'binary-fill'].includes(target.dataset.iconColor)) target.dataset.mark = target.checked ? '+' : '-';
+      if (target.dataset.iconColor === 'binary-fill') {
+        const input = iconColorEl(tab, '_tile_icon_' + target.dataset.state);
+        if (input) input.dataset.unset = '0';
+      }
+      commitIconColorChange(tab);
       return;
     }
     for (const suffix of ['_tile_type', '_sensor_entity', '_select_entity', '_datetime_entity']) {
@@ -1134,7 +1189,7 @@
     } else if (role === 'add') {
       const rows = readIconColorRows(tab);
       if (rows.length >= ICON_COLOR_MAX_ROWS) return;
-      rows.push({ value: '', has: false, color: ICON_COLOR_ROW_DEFAULT });
+      rows.push({ value: '', has: false, color: ICON_COLOR_ROW_DEFAULT, fill: -1 });
       writeIconColorRows(tab, rows);
       document.getElementById(tab + '_tile_icon_rule_' + (rows.length - 1) + '_value')?.focus();
     } else if (role === 'mode') {

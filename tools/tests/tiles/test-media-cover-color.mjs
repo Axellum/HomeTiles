@@ -140,7 +140,7 @@ assert.match(refresh, /tile\.type == TILE_MEDIA \? tile_icon_colors::cover_of\(t
 assert.match(refresh, /const bool cover_icon = tile_icon_colors::cover_colors_icon\(cover\);/);
 assert.match(refresh, /if \(rule_icon\) \{\s*tile_icon_disc::force_icon_color\(icon, lv_color_hex\(rgb\)\);\s*\} else if \(cover_icon\) \{/,
   'an active rule colors the icon first');
-assert.match(refresh, /if \(tile\.type == TILE_MEDIA\) set_cover_permissions\(card, cover_icon && !rule_icon\);\s*apply_tint_choice\(card, choice\);\s*if \(tile\.type == TILE_MEDIA\) apply_cover\(card\);/,
+assert.match(refresh, /if \(tile\.type == TILE_MEDIA\) set_cover_permissions\(card, cover_icon && !rule_icon\);\s*show_fill\(card, find_disc\(card\)\);\s*if \(tile\.type == TILE_MEDIA\) apply_cover\(card\);/,
   'the fill follows the icon, the cover colors only the icon');
 assert.ok(read('src/tiles/config/tile_icon_colors.h').includes('inline bool cover_colors_icon(const Cover& cover) { return cover.icon || cover.tile > 0; }'));
 const apply = cppFunctionDefinitions(source).find(f => f.name === 'apply_cover').source;

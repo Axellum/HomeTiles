@@ -68,14 +68,16 @@ for (const marker of [
   'if (switch_domain(domain)) return switch_payload_icon_color(payload, rgb, &active);',
   'if (domain == "climate") return climate_payload_icon_color(payload, rgb, &active);',
   'if (domain == "cover") return cover_payload_icon_color(payload, rgb, &active);',
-  'return tile_icon_colors::resolve(record.c_str(), state.c_str(), display, rgb, false);',
+  'return tile_icon_colors::resolve(record.c_str(), state.c_str(), display, rgb, false, fill);',
   'tile_icon_disc::force_icon_color(icon, lv_color_hex(rgb));',
   'tile_icon_disc::force_icon_color(icon, lv_color_hex(fixed));',
   'tile_icon_disc::release_icon_color(icon);',
   'const bool rule_icon = colored && tile_icon_colors::rule_colors_icon(layer);',
-  'const uint8_t fill = tileFills(tile) ? tile_icon_colors::kTintDefault : 0;',
-  'with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(find_disc(card)))), fill,',
-  'apply_tint_choice(card, choice);',
+  'set_icon_fill_marker(card, tileFills(tile) ? tile_icon_colors::kTintDefault : 0);',
+  // A rule layer's matching row may fill the tile or keep it plain.
+  'tile_icon_disc::set_rule_fill(card, tile_icon_color_rules::rule_fill_of(colored ? row_fill',
+  'show_fill(card, find_disc(card));',
+  'apply_tint_choice(card, with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(disc))),',
   'uint32_t tint = tile_tint::background(tileDefaultBgColor(), color, percent);',
 ]) assert.ok(source.includes(marker), `tile_icon_source: ${marker}`);
 const disc = read('src/tiles/runtime/tile_icon_disc.h');

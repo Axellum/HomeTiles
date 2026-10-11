@@ -146,7 +146,9 @@ for (const gone of ['kAccentTrackShare', 'accent_track_color', 'kSwitchThumbOffS
 const shell = read('src/ui/popups/popup_shell.cpp');
 assert.ok(shell.includes('? tone_color::g_from_icon_card(rgb, false, options.tile_tint)') &&
   !/disc_track|on_track|tile_from_icon/.test(shell), 'The header circle has no Light exception');
-assert.ok(iconSource.includes('if (icon_fill_marker(obj, marker)) return marker;') &&
+// The fill the tile shows now: "Ausfuellen" or its matching rule row's own.
+assert.ok(iconSource.includes('if (icon_fill_marker(obj, marker) || tile_icon_disc::has_rule_fill(obj, rule)) {') &&
+  iconSource.includes('return tile_icon_disc::shown_fill(obj);') &&
   iconSource.includes('tile_icon_disc::glow_of(disc), popup_shows_tile_color && from_icon > 0,\n                            from_icon);'),
   'The opening tile passes its From icon strength');
 assert.match(read('src/web/assets/admin.css'),

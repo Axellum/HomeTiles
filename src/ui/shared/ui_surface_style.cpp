@@ -81,6 +81,21 @@ void apply_style(lv_obj_t* obj, bool enabled) {
   };
   const lv_color_t color = frame_line(obj);
   const lv_opa_t opa = LV_OPA_COVER;
+  // A card whose children cover it (a Camera tile's picture, user
+  // 2026-10-11) draws its line over them: a 1 px border drawn after the
+  // children (border_post, draw_frame_over_children) instead of the outline
+  // below them. Its width stays, so the children never move; only its
+  // opacity follows the option.
+  if (lv_obj_get_style_border_post(obj, LV_PART_MAIN)) {
+    if (lv_obj_get_style_border_width(obj, LV_PART_MAIN) != 1) lv_obj_set_style_border_width(obj, 1, LV_PART_MAIN);
+    for (lv_style_selector_t selector : kSelectors) {
+      lv_obj_set_style_outline_width(obj, 0, selector);
+      lv_obj_set_style_outline_opa(obj, LV_OPA_TRANSP, selector);
+      lv_obj_set_style_border_color(obj, color, selector);
+      lv_obj_set_style_border_opa(obj, enabled ? opa : LV_OPA_TRANSP, selector);
+    }
+    return;
+  }
   // Border width is constant. State-specific copies force a full descendant
   // layout refresh on every press/release, even when they are all zero.
   lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
@@ -132,6 +147,15 @@ void disable_tile_border(lv_obj_t* obj) {
 
 
 void apply_tile_border(lv_obj_t* obj, bool enabled) {
+  apply_style(obj, enabled);
+}
+
+void draw_frame_over_children(lv_obj_t* obj) {
+  if (!obj || lv_obj_get_style_border_post(obj, LV_PART_MAIN)) return;
+  // Keeps the line's current state, whichever option set it.
+  const bool enabled = lv_obj_get_style_outline_width(obj, LV_PART_MAIN) > 0 &&
+                       lv_obj_get_style_outline_opa(obj, LV_PART_MAIN) > LV_OPA_TRANSP;
+  lv_obj_set_style_border_post(obj, true, LV_PART_MAIN);
   apply_style(obj, enabled);
 }
 

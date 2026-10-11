@@ -139,12 +139,15 @@ assert.doesNotMatch(grid + read('src/web/admin/tiles/icon-colors.js') + read('sr
 const source = read('src/tiles/runtime/tile_icon_source.cpp');
 for (const marker of [
   'const bool rule_icon = colored && tile_icon_colors::rule_colors_icon(layer);',
-  'const uint8_t fill = tileFills(tile) ? tile_icon_colors::kTintDefault : 0;',
-  'with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(find_disc(card)))), fill,',
-  'set_icon_fill_marker(card, fill);',
-  'apply_tint_choice(card, with_white(card, without_white(tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc))), marker, disc));',
+  'set_icon_fill_marker(card, tileFills(tile) ? tile_icon_colors::kTintDefault : 0);',
+  // One decision for refresh_card and the hook (show_fill): the fill the
+  // card shows now, a rule row's own "Fuellen" first.
+  'show_fill(card, find_disc(card));',
+  'const uint8_t fill = tile_icon_disc::shown_fill(card);',
+  'apply_tint_choice(card, with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(disc))),',
   'if (choice.percent && tone_color::no_color(choice.color)) return tile_tint::Choice{};',
-  'if (!card || !marker) return;',
+  'lv_obj_t* card = tile_icon_disc::fill_card_of(lv_obj_get_parent(disc));',
+  'show_fill(card, disc);',
   'tile_icon_disc::g_icon_color_hook = &on_icon_color;',
 ]) assert.ok(source.includes(marker), 'tile_icon_source: ' + marker);
 assert.ok(read('src/tiles/runtime/tile_icon_disc.h').includes('if (g_icon_color_hook) g_icon_color_hook(disc);'));
@@ -153,9 +156,9 @@ assert.ok(read('src/tiles/runtime/tile_icon_disc.h').includes('if (g_icon_color_
 assert.ok(read('src/tiles/config/tile_config.h').includes(
   'return !tileTypeKeepsOwnColor(tile.type) && tile_icon_colors::fills(tile.icon_colors.c_str());'));
 assert.ok(read('src/tiles/runtime/tile_renderer.cpp').includes(
-  'return tileFills(tile) ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : 0;'));
+  'if (tileFills(tile)) return tile_surface::kFollowTint | tile_surface::kNeutralIdle;'));
 assert.ok(grid.includes('function tileFills(typeValue, iconColors) { return tileTypeKeepsOwnColor(typeValue) ? 0 : tileFillOf(iconColors); }') &&
-  grid.includes('const fill = tileFills(typeValue, record);') &&
+  grid.includes('const ownFill = tileFills(typeValue, record);') &&
   grid.includes('const iconOffered = !keepsOwn && typeof tileTypeHasIconColors'));
 const record = read('src/tiles/config/tile_icon_colors.h');
 assert.ok(record.includes('return fill_of(record) > 0 || cover_of(record).tile > 0 || source_of(record).tile > 0;'));

@@ -10,6 +10,7 @@
 #include "src/tiles/config/tile_tint.h"
 #include "src/types/weather/weather_icons.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
+#include "src/tiles/runtime/tile_icon_color_rules.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/types/binary_sensor/renderer.h"
 #include "src/types/cover/renderer.h"
@@ -85,7 +86,8 @@ bool auto_color(const String& domain, const char* payload, uint32_t& rgb, bool& 
 
 // "rules": the bar and state colors on the entity state; Binary sensors also
 // match their translated On/Off label like the Binary sensor tile.
-bool rules_color(const String& record, const String& domain, const char* payload, uint32_t& rgb) {
+bool rules_color(const String& record, const String& domain, const char* payload, uint32_t& rgb,
+                 tile_icon_colors::RowFill* fill) {
   const String state = payload_state(payload);
   if (!state_known(state)) return false;
   const char* display = nullptr;
@@ -97,7 +99,7 @@ bool rules_color(const String& record, const String& domain, const char* payload
                                                 String(parsed.device_class));
     }
   }
-  return tile_icon_colors::resolve(record.c_str(), state.c_str(), display, rgb, false);
+  return tile_icon_colors::resolve(record.c_str(), state.c_str(), display, rgb, false, fill);
 }
 
 // Tile types whose own state path already applies the fixed icon color
@@ -108,6 +110,8 @@ bool type_applies_fixed_icon_color(int type) {
 }
 
 constexpr lv_style_selector_t kTintStore = tile_icon_disc::kCardTintStore;
+static_assert(tile_icon_disc::kRuleFillStrength == tile_icon_colors::kTintDefault,
+              "a rule row fills at the default strength");
 
 // tone_color::g_from_icon_card: the card set_tile_tint gives "From icon" at
 // `percent` (0 = its default strength), pressed like apply_card_background
@@ -165,7 +169,7 @@ void remember_popup_source(lv_obj_t* obj) {
 // without a lookup table.
 
 void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent);
-void clear_tile_tint(lv_obj_t* card);
+void clear_tile_tint(lv_obj_t* card, bool plain = false);
 
 bool icon_fill_marker(lv_obj_t* obj, uint8_t& marker) {
   lv_style_value_t value;
@@ -264,6 +268,20 @@ void apply_tint_choice(lv_obj_t* card, const tile_tint::Choice& choice) {
   else clear_tile_tint(card);
 }
 
+// The fill a card shows (tile_icon_disc::shown_fill): the matching rule
+// row's own "Fuellen", else "Ausfuellen", in the color its icon shows
+// (tile_tint::choose). A row without "Fuellen" shows the plain card in
+// either theme (user 2026-10-11).
+void show_fill(lv_obj_t* card, lv_obj_t* disc) {
+  const uint8_t fill = tile_icon_disc::shown_fill(card);
+  if (!fill) {
+    clear_tile_tint(card, tile_icon_disc::rule_fill(card) == tile_icon_disc::kRuleFillOff);
+    return;
+  }
+  apply_tint_choice(card, with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(disc))),
+                                     fill, disc));
+}
+
 void follow_open_popup(lv_obj_t* card);
 
 // Disc opacity and glow follow the (tinted) background, and so do the
@@ -285,14 +303,10 @@ void refresh_discs(lv_obj_t* card) {
 // refresh_discs with the new contrast step.
 void on_icon_color(lv_obj_t* disc) {
   refresh_controls(lv_obj_get_parent(disc));
-  lv_obj_t* card = lv_obj_get_parent(disc);
-  uint8_t marker = 0;
-  for (int depth = 0; card && depth < 3 && !icon_fill_marker(card, marker); ++depth) {
-    card = lv_obj_get_parent(card);
-  }
-  if (!card || !marker) return;
+  lv_obj_t* card = tile_icon_disc::fill_card_of(lv_obj_get_parent(disc));
+  if (!card) return;
   const uint32_t before = lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF;
-  apply_tint_choice(card, with_white(card, without_white(tile_tint::choose(false, 0, 0, marker, disc_icon_rgb(disc))), marker, disc));
+  show_fill(card, disc);
   if ((lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF) == before) return;
   follow_open_popup(card);
   refresh_discs(card);
@@ -387,17 +401,21 @@ void tint_card(lv_obj_t* card, uint32_t color, uint8_t percent, bool idle) {
 
 void set_tile_tint(lv_obj_t* card, uint32_t color, uint8_t percent) { tint_card(card, color, percent, false); }
 
-void clear_tile_tint(lv_obj_t* card) {
+void clear_tile_tint(lv_obj_t* card, bool plain) {
   if (!card) return;
   // A Media tile of the light theme shows the neutral grey without a tint
-  // (user 2026-10-10: "wenn nix abgespielt ... das Grau").
+  // (user 2026-10-10: "wenn nix abgespielt ... das Grau"), unless a rule row
+  // keeps the tile unfilled (`plain`, user 2026-10-11).
   uint8_t base = 0, flags = 0;
-  if (tile_surface::rule_of(card, base, flags) && (flags & tile_surface::kNeutralIdle)) {
+  const bool rule = tile_surface::rule_of(card, base, flags);
+  if (rule && (flags & tile_surface::kNeutralIdle) && !plain) {
     tint_card(card, 0xFFFFFF, 0, true);
     return;
   }
-  // A tile filled while tinted leaves that surface with its tint.
-  follow_tint(card, false);
+  // A tile filled while tinted leaves that surface with its tint; a tile
+  // filled from the start leaves it for the theme's card.
+  if (plain && rule) change_surface(card, tile_surface::kNone);
+  else follow_tint(card, false);
   lv_style_value_t stored;
   if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) != LV_STYLE_RES_FOUND) return;
   lv_obj_remove_local_style_prop(card, LV_STYLE_BG_COLOR, kTintStore);
@@ -539,7 +557,8 @@ String rule_entity(const Tile& tile) {
   return layer_entity(tile, tile_icon_colors::source_of(tile.icon_colors.c_str()));
 }
 
-bool rule_color(const Tile& tile, uint32_t& rgb) {
+bool rule_color(const Tile& tile, uint32_t& rgb, tile_icon_colors::RowFill* fill) {
+  if (fill) *fill = tile_icon_colors::RowFill::Inherit;
   if (!tileTypeHasIconColors(tile.type) || !tile.icon_colors.length()) return false;
   const tile_icon_colors::Source layer = tile_icon_colors::source_of(tile.icon_colors.c_str());
   const String entity = layer_entity(tile, layer);
@@ -551,14 +570,14 @@ bool rule_color(const Tile& tile, uint32_t& rgb) {
     const EditableValue value = parse_editable_value(haBridgeConfig.findEditableValue(entity));
     if (!value.valid || !value.has_state || !value.available || value.state == "unknown") return false;
     return tile_icon_colors::resolve(tile.icon_colors.c_str(), value.state.c_str(),
-                                     editable_display_value(value).c_str(), rgb, false);
+                                     editable_display_value(value).c_str(), rgb, false, fill);
   }
   String payload;
   if (!cached_payload(entity, payload)) return false;
   String domain;
   const int dot = entity.indexOf('.');
   if (dot > 0) domain = entity.substring(0, dot);
-  if (!automatic) return rules_color(tile.icon_colors, domain, payload.c_str(), rgb);
+  if (!automatic) return rules_color(tile.icon_colors, domain, payload.c_str(), rgb, fill);
   bool running = true;
   return auto_color(domain, payload.c_str(), rgb, running);
 }
@@ -586,9 +605,11 @@ namespace {
 // The strength of the tile color "From icon" of the card `obj` belongs to
 // (`obj` or up to three of its parents), 0 without it.
 uint8_t tile_color_from_icon(lv_obj_t* obj) {
-  uint8_t marker = 0;
   for (int depth = 0; obj && depth < 4; ++depth, obj = lv_obj_get_parent(obj)) {
-    if (icon_fill_marker(obj, marker)) return marker;
+    uint8_t marker = 0, rule = 0;
+    if (icon_fill_marker(obj, marker) || tile_icon_disc::has_rule_fill(obj, rule)) {
+      return tile_icon_disc::shown_fill(obj);
+    }
   }
   return 0;
 }
@@ -645,6 +666,7 @@ void forget_popup_source(lv_obj_t* obj) {
 void settle_filled(lv_obj_t* card) {
   uint8_t base = 0, flags = 0;
   if (!card || !tile_surface::rule_of(card, base, flags) || !(flags & tile_surface::kNeutralIdle)) return;
+  if (tile_icon_disc::rule_fill(card) == tile_icon_disc::kRuleFillOff) return;
   lv_style_value_t stored;
   if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_COLOR, &stored, kTintStore) == LV_STYLE_RES_FOUND) return;
   clear_tile_tint(card);
@@ -809,7 +831,9 @@ void refresh_card(lv_obj_t* card, const Tile& tile) {
   if (!card || !tileTypeHasIconColors(tile.type)) return;
   const tile_icon_colors::Source layer = tile_icon_colors::source_of(tile.icon_colors.c_str());
   uint32_t rgb = 0;
-  const bool colored = layer.mode != tile_icon_colors::SourceMode::None && layer.enabled && rule_color(tile, rgb);
+  tile_icon_colors::RowFill row_fill = tile_icon_colors::RowFill::Inherit;
+  const bool colored =
+      layer.mode != tile_icon_colors::SourceMode::None && layer.enabled && rule_color(tile, rgb, &row_fill);
   // "From cover" exists on Media tiles only; every other type keeps its path.
   const tile_icon_colors::Cover cover =
       tile.type == TILE_MEDIA ? tile_icon_colors::cover_of(tile.icon_colors.c_str()) : tile_icon_colors::Cover{};
@@ -840,14 +864,17 @@ void refresh_card(lv_obj_t* card, const Tile& tile) {
   // rule, a cover); grey, white and almost white give no color (the icon
   // still shows them). See tile_tint::choose. Nothing else tints a tile.
   const uint32_t before = lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF;
-  const uint8_t fill = tileFills(tile) ? tile_icon_colors::kTintDefault : 0;
-  const tile_tint::Choice choice =
-      with_white(card, without_white(tile_tint::choose(false, 0, 0, fill, disc_icon_rgb(find_disc(card)))), fill,
-                 find_disc(card));
-  set_icon_fill_marker(card, fill);
+  set_icon_fill_marker(card, tileFills(tile) ? tile_icon_colors::kTintDefault : 0);
+  // A rule layer's matching row may fill the tile or keep it plain ("Fuellen"
+  // per row); rules on the tile's own state without a layer line set it on
+  // their state updates (tile_icon_color_rules::note_fill).
+  if (layer.mode != tile_icon_colors::SourceMode::None) {
+    tile_icon_disc::set_rule_fill(card, tile_icon_color_rules::rule_fill_of(colored ? row_fill
+                                                                                    : tile_icon_colors::RowFill::Inherit));
+  }
   // "From cover" colors the icon only; the fill follows the icon.
   if (tile.type == TILE_MEDIA) set_cover_permissions(card, cover_icon && !rule_icon);
-  apply_tint_choice(card, choice);
+  show_fill(card, find_disc(card));
   if (tile.type == TILE_MEDIA) apply_cover(card);
   if ((lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF) != before) {
     follow_open_popup(card);

@@ -362,17 +362,70 @@ inline void (*g_icon_color_hook)(lv_obj_t* disc) = nullptr;
 inline constexpr lv_style_selector_t kCardTintStore = LV_PART_MAIN | LV_STATE_USER_4;
 inline constexpr lv_style_selector_t kCardCoverStore = LV_PART_MAIN | LV_STATE_USER_3;
 
-// Whether a card is filled ("Fill"): it then already is the card its circle
-// belongs to.
-inline bool card_follows_icon(lv_obj_t* card) {
-  for (int depth = 0; card && depth < 3; ++depth, card = lv_obj_get_parent(card)) {
+// The fill the matching rule row decides ("Fuellen" per row, user
+// 2026-10-11; tile_icon_colors RowFill), kept beside the "Fill" strength:
+// none (the row follows "Ausfuellen"), off or on. A card whose rules were
+// read keeps the value, also none, so a fill a row gave is cleared again.
+enum : uint8_t { kRuleFillNone = 0, kRuleFillOff = 1, kRuleFillOn = 2 };
+// The strength a row fills a tile without "Ausfuellen" at
+// (tile_icon_colors::kTintDefault, checked in tile_icon_source.cpp).
+inline constexpr uint8_t kRuleFillStrength = 20;
+
+inline bool has_rule_fill(lv_obj_t* card, uint8_t& value) {
+  lv_style_value_t stored;
+  if (!card || lv_obj_get_local_style_prop(card, LV_STYLE_BORDER_OPA, &stored, kCardTintStore) != LV_STYLE_RES_FOUND) {
+    return false;
+  }
+  value = static_cast<uint8_t>(stored.num);
+  return true;
+}
+
+inline uint8_t rule_fill(lv_obj_t* card) {
+  uint8_t value = kRuleFillNone;
+  return has_rule_fill(card, value) ? value : kRuleFillNone;
+}
+
+// Stores the rule row's fill; true when it changed.
+inline bool set_rule_fill(lv_obj_t* card, uint8_t value) {
+  uint8_t current = kRuleFillNone;
+  if (!card || (has_rule_fill(card, current) && current == value)) return false;
+  lv_obj_set_style_border_opa(card, value, kCardTintStore);
+  return true;
+}
+
+// The card `obj` belongs to that carries "Fill" or a rule row's fill (`obj`
+// or up to two of its parents), else null.
+inline lv_obj_t* fill_card_of(lv_obj_t* obj) {
+  for (int depth = 0; obj && depth < 3; ++depth, obj = lv_obj_get_parent(obj)) {
     lv_style_value_t value;
-    if (lv_obj_get_local_style_prop(card, LV_STYLE_BG_OPA, &value, kCardTintStore) == LV_STYLE_RES_FOUND) {
-      return value.num > 0;
+    uint8_t rule = kRuleFillNone;
+    if (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_OPA, &value, kCardTintStore) == LV_STYLE_RES_FOUND ||
+        has_rule_fill(obj, rule)) {
+      return obj;
     }
   }
-  return false;
+  return nullptr;
 }
+
+// The fill strength a card shows now: the matching rule row decides when it
+// has its own mark (on: "Fill" or the default strength, off: none), else
+// "Ausfuellen" (0 without it).
+inline uint8_t shown_fill(lv_obj_t* card) {
+  if (!card) return 0;
+  lv_style_value_t value;
+  const uint8_t marker =
+      lv_obj_get_local_style_prop(card, LV_STYLE_BG_OPA, &value, kCardTintStore) == LV_STYLE_RES_FOUND
+          ? static_cast<uint8_t>(value.num)
+          : 0;
+  const uint8_t rule = rule_fill(card);
+  if (rule == kRuleFillOff) return 0;
+  if (rule == kRuleFillOn) return marker ? marker : kRuleFillStrength;
+  return marker;
+}
+
+// Whether a card is filled now ("Fill" or a rule row): it then already is
+// the card its circle belongs to.
+inline bool card_follows_icon(lv_obj_t* card) { return shown_fill(fill_card_of(card)) > 0; }
 
 // "Circle in icon color" always shows the circle of the tile color "From
 // icon" (user 2026-10-01): card, circle and icon stay one family of colors.

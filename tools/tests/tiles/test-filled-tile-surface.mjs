@@ -2,8 +2,9 @@
 // 2026-10-11: one color rule): a tile with "Fill" is filled from the start
 // (tile_surface::kJewel, ui_theme::kDarkTinted: white text, a white second
 // line), with its icon's own color (white light in a neutral grey) or,
-// without a color, the idle grey (kNeutralIdle). It never changes its
-// surface while it runs; every other tile keeps the theme's white card with
+// without a color, the idle grey (kNeutralIdle). Only a rule row with its
+// own "Fuellen" (user 2026-10-11) changes it to the white card while that row
+// keeps the tile unfilled; every other tile keeps the theme's white card with
 // the fixed frame line. The frame line of a filled card follows the card. A
 // popup opened from a filled tile draws with its rules
 // (popup_surface::g_open_surface), every other popup with the theme. Runs the
@@ -30,6 +31,12 @@ const fn = name => {
 // cleared, so the tint takes the new surface's rules.
 assert.match(fn('tint_card'), /follow_tint\(card, true\);[\s\S]*SurfaceScope surface = tile_surface::scope\(card\);/);
 assert.match(fn('clear_tile_tint'), /follow_tint\(card, false\);[\s\S]*kTintStore\) != LV_STYLE_RES_FOUND\) return;/);
+// A Camera tile's picture: the frame line over it, everything placed inside
+// that border (types/camera/picture.cpp).
+const picture = read('src/types/camera/picture.cpp');
+assert.ok(picture.includes('ui_surface_style::draw_frame_over_children(card);') &&
+  picture.includes('x - lv_obj_get_style_space_left(card, LV_PART_MAIN)') &&
+  picture.includes('y - lv_obj_get_style_space_top(card, LV_PART_MAIN)'), 'camera picture: the frame line over the picture');
 // The renderer gives a tile with "Fill" the rule in the light theme
 // (tile_surface_rule_of), not the screensaver, empty places or own colors.
 const renderer = read('src/tiles/runtime/tile_renderer.cpp');
@@ -65,10 +72,14 @@ assert.ok(!read('src/web/admin/tiles/grid-preview.js').includes("applyTileSurfac
 // Only Home Assistant's light grey of a white light, not a pure white icon.
 assert.match(fn('with_white'), /if \(tone_color::no_color\(icon\) && tone_color::from_rgb\(icon\)\.L <= tone_color::kWhiteIconL\) \{\s*choice\.color = icon;\s*choice\.percent = fill;/);
 // Without a color the idle grey (a little darker than white light).
-assert.match(fn('clear_tile_tint'), /\(flags & tile_surface::kNeutralIdle\)\) \{\s*tint_card\(card, 0xFFFFFF, 0, true\);\s*return;/);
+assert.match(fn('clear_tile_tint'), /\(flags & tile_surface::kNeutralIdle\) && !plain\) \{\s*tint_card\(card, 0xFFFFFF, 0, true\);\s*return;/);
+// A rule row without "Fuellen" shows the plain card, also on a tile filled
+// from the start.
+assert.match(fn('clear_tile_tint'), /if \(plain && rule\) change_surface\(card, tile_surface::kNone\);\s*else follow_tint\(card, false\);/);
 assert.match(fn('tint_card'), /tint = idle \? tone_color::jewel_idle_card\(\) : tone_color::jewel_card\(color, percent\);/);
-assert.ok(renderer.includes('return tileFills(tile) ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : 0;'),
-  'Only a tile with Fill gets the rule; every other tile keeps its card');
+assert.ok(renderer.includes('if (tileFills(tile)) return tile_surface::kFollowTint | tile_surface::kNeutralIdle;') &&
+  renderer.includes('return tile_icon_colors::rows_fill(tile.icon_colors.c_str()) ? tile_surface::kFollowTint : 0;'),
+  'Only a tile with Fill or a rule row with Fuellen gets the rule; every other tile keeps its card');
 const gridPreview = read('src/web/admin/tiles/grid-preview.js');
 assert.ok(gridPreview.includes("if (!choice && given && tileElem.dataset.followTint === '1' && toneNoColor(given) && toneOklch(given).L <= 0.95) {") &&
   gridPreview.includes("if (el.dataset.followTint === '1' && tileFillOf(tile?.icon_colors) > 0) {") &&
@@ -159,7 +170,7 @@ namespace tile_icon_source {
 ${tintStore}
 void change_surface(lv_obj_t* card, uint8_t surface, const Tile* tile = nullptr);
 void set_card_base(lv_obj_t* card, uint32_t rgb);
-void clear_tile_tint(lv_obj_t* card);
+void clear_tile_tint(lv_obj_t* card, bool plain = false);
 ${fn('apply_card_background')}
 ${fn('set_open_popup_surface')}
 ${fn('follow_tint')}
@@ -285,6 +296,24 @@ int main() {
   }
   tile_icon_source::clear_tile_tint(card);
 
+  // A rule row without "Fuellen" (user 2026-10-11): the theme's white card
+  // with its dark text and fixed line, also on a tile filled from the start;
+  // a row with "Fuellen" fills it again, and without a deciding row it shows
+  // the idle grey again.
+  tile_icon_source::set_tile_tint(card, amber, 20);
+  tile_icon_source::clear_tile_tint(card, true);
+  expect(tile_surface::get(card) == tile_surface::kNone && bg(card) == ui_theme::kLight.card, "row without Fuellen: white card",
+         bg(card), ui_theme::kLight.card);
+  expect(text(title) == ui_theme::kLight.text, "row without Fuellen: dark title", text(title), ui_theme::kLight.text);
+  expect(frame_line(card) == 0xDDDDDDu, "row without Fuellen: the plain line", frame_line(card), 0xDDDDDDu);
+  tile_icon_source::set_tile_tint(card, amber, 20);
+  expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == filled && text(title) == ui_theme::kDarkTinted.text,
+         "a row with Fuellen fills it again", bg(card), filled);
+  tile_icon_source::clear_tile_tint(card, true);
+  tile_icon_source::clear_tile_tint(card);
+  expect(tile_surface::get(card) == tile_surface::kJewel && bg(card) == idle && text(title) == ui_theme::kDarkTinted.text,
+         "no deciding row: idle grey again", bg(card), idle);
+
   // A tile without "Fill": the theme's white card with the fixed line, a
   // popup from it draws with the theme.
   lv_obj_t* white_card = lv_obj_create(lv_screen_active());
@@ -347,6 +376,31 @@ int main() {
   uint8_t no_opa = 0;
   expect(!tile_icon_source::popup_tile_circle(ui_theme::kLight.icon, no_circle, no_opa, no_icon),
          "no circle after the tile is gone");
+
+  // A Camera tile's picture covers its card (user 2026-10-11: "no frame on
+  // the camera tiles"): the frame line becomes a border drawn after the
+  // children, in the same color, at rest and pressed; the tile border option
+  // only changes its opacity, so the picture never moves.
+  lv_obj_t* cam = lv_obj_create(lv_screen_active());
+  lv_obj_remove_style_all(cam);
+  lv_obj_set_style_bg_opa(cam, LV_OPA_COVER, 0);
+  tile_icon_source::apply_card_background(cam, ui_theme::kLight.card);
+  ui_surface_style::apply_tile_border(cam, true);
+  ui_surface_style::draw_frame_over_children(cam);
+  expect(lv_obj_get_style_border_post(cam, LV_PART_MAIN) && lv_obj_get_style_border_width(cam, LV_PART_MAIN) == 1 &&
+         lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER && lv_obj_get_style_outline_width(cam, LV_PART_MAIN) == 0,
+         "camera: the line over the picture");
+  expect((lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF) == 0xDDDDDDu, "camera: the plain line",
+         lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF, 0xDDDDDDu);
+  lv_obj_add_state(cam, LV_STATE_PRESSED);
+  expect(lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER, "camera: the line stays while pressed");
+  lv_obj_remove_state(cam, LV_STATE_PRESSED);
+  ui_surface_style::apply_tile_border(cam, false);
+  expect(lv_obj_get_style_border_width(cam, LV_PART_MAIN) == 1 && lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_TRANSP,
+         "camera: borders off hide the line, its width stays");
+  ui_surface_style::draw_frame_over_children(cam);
+  ui_surface_style::apply_tile_border(cam, true);
+  expect(lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER, "camera: borders on again");
 
   if (failures) return 1;
   std::printf("OK\n");

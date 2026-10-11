@@ -444,7 +444,7 @@
     if (!home) return;
     home.grid.querySelectorAll(':scope > .setup-storage-label, :scope > .setup-flag, :scope > .setup-trash')
       .forEach(node => node.remove());
-    home.grid.classList.remove('setup-grid', 'setup-head', 'setup-head-ghost');
+    home.grid.classList.remove('setup-grid', 'setup-head', 'setup-no-head');
     home.grid.removeAttribute('style');
     home.placeholder.replaceWith(home.grid);
     layoutWindow.home = null;
@@ -470,9 +470,9 @@
     backdrop.querySelector('.setup-stage').appendChild(grid);
     const L = LAYOUTS[layoutWindow.key];
     grid.classList.add('setup-grid', 'setup-head');
-    // The classic layout has no head on the panel: here it is only the place
-    // for folders still to be pulled in, so it is greyed out.
-    grid.classList.toggle('setup-head-ghost', !L.bar);
+    // Every layout shows its own head; the classic one has none on the panel,
+    // so none here either (user 2026-10-11).
+    grid.classList.toggle('setup-no-head', !L.bar);
     // One scale for all layouts, taken from the largest one: the head and the
     // tiles keep their size when the layout changes, and so does the window.
     // The screen always starts in the same corner. All preview sizes grow by
@@ -480,11 +480,10 @@
     const dialog = backdrop.querySelector('.setup-dialog');
     const chrome = [...dialog.children].filter(el => !el.classList.contains('setup-stage'))
       .reduce((sum, el) => sum + el.offsetHeight, 0) + 16 * (dialog.children.length - 1) + 48 + 2;
-    // Every layout with its own sizes; each gets the head's room on top, the
-    // classic one too.
+    // Every layout with its own sizes: a head layout with its head's room on
+    // top, the classic one from the top like the panel.
     const sizesOf = key => ({...layoutBaseSizes[key], ...Object.fromEntries(Object.entries(layoutHeadVars(LAYOUTS[key]))
-      .map(([n, val]) => [n, parseFloat(val)])),
-      ...(LAYOUTS[key].bar ? {} : {'--preview-pad-top': layoutBaseSizes.bar['--preview-pad-top']})});
+      .map(([n, val]) => [n, parseFloat(val)]))});
     const areaOf = (sizes, cols, rows) => {
       const gap = sizes['--preview-gap'] || 0;
       return [sizes['--preview-pad-left'] + sizes['--preview-pad-right'] + cols * sizes['--preview-cell-w'] + (cols - 1) * gap,
@@ -510,8 +509,7 @@
       '--grid-half-track': 'initial', '--radius-preview-scale': String(scale * f)});
     // The layout's screen, in the theme's screen color (black in the dark
     // theme) with its rounded corners, behind the tiles.
-    // The classic screen has no head: its cells start where the bar
-    // layouts' do, right under the window's head.
+    // The classic screen has no head: its cells start at its top.
     let w, h, y = 0;
     if (L.bar) {
       [w, h] = areaOf(base, L.cols, L.rows).map(value => value * f);

@@ -298,10 +298,13 @@
     return toneLightSurface([(own >> 16) & 0xFF, (own >> 8) & 0xFF, own & 0xFF]) ? 'light' : 'dark';
   }
   // tile_surface_rule_of() (tile_renderer.cpp): in the light theme a tile with
-  // "Ausfuellen" is filled from the start; no other tile changes its surface.
+  // "Ausfuellen" is filled from the start; a rule row with its own "Fuellen"
+  // changes a tile between the white and the filled look.
   function tileFollowsTint(tab, previewKind, bgValue, iconColors, typeValue) {
     if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return false;
-    return panelThemeLight() && tileFills(typeValue, iconColors) > 0 && !tileHasOwnColor(bgValue, iconColors, typeValue);
+    const rows = typeof iconColorRowsFill === 'function' && iconColorRowsFill(iconColors);
+    return panelThemeLight() && (tileFills(typeValue, iconColors) > 0 || rows) &&
+      !tileHasOwnColor(bgValue, iconColors, typeValue);
   }
   // ui_surface_style frame_line(): a solid line, on the theme's plain card a
   // fixed neutral (light #DDDDDD, dark #292929), on any other card that card
@@ -658,14 +661,17 @@
   }
   // Icon color of a preview tile: the per-tile rule or fixed icon color
   // (resolveIconColorRecord, same result as the firmware), else `fallback`.
-  function previewIconColor(typeValue, record, entity, meta, binaryState, fallback) {
+  // `out`, when given, receives the matching state line's own "Fuellen"
+  // (`fill`: 1, 0, or -1 when "Ausfuellen" decides).
+  function previewIconColor(typeValue, record, entity, meta, binaryState, fallback, out = null) {
+    if (out) out.fill = -1;
     if (!record || typeof tileTypeHasIconColors !== 'function' ||
         !tileTypeHasIconColors(typeValue)) return fallback;
     const type = String(typeValue ?? '0');
     // Rules that color the icon win (tile_icon_source::refresh_card).
     const layer = typeof iconColorRecordSource === 'function' ? iconColorRecordSource(record) : null;
     if (layer && layer.enabled && iconColorRuleColorsIcon(layer) && typeof iconColorLayerColor === 'function') {
-      const color = iconColorLayerColor(record, layer, entity, meta, type);
+      const color = iconColorLayerColor(record, layer, entity, meta, type, out);
       if (color) return color;
     }
     // Only the Sensor family colors its icon from its own state; every other
@@ -674,7 +680,15 @@
       typeof iconColorOwnStateColorsIcon === 'function' && iconColorOwnStateColorsIcon(record);
     if (!ownRules) return resolveIconColorRecord(record, '', null) || fallback;
     const rule = iconColorRuleState(typeValue, entity, meta, binaryState);
-    return (rule && resolveIconColorRecord(record, rule.state, rule.display)) || fallback;
+    return (rule && resolveIconColorRecord(record, rule.state, rule.display, true, out)) || fallback;
+  }
+  // The row fill a preview tile shows (tile_icon_disc::rule_fill): 'on',
+  // 'off' or '' when "Ausfuellen" decides.
+  function setPreviewRuleFill(el, out) {
+    if (!el) return;
+    if (out?.fill === 1) el.dataset.ruleFill = 'on';
+    else if (out?.fill === 0) el.dataset.ruleFill = 'off';
+    else delete el.dataset.ruleFill;
   }
   // Tints a preview tile like tile_icon_source.cpp ("Tint tile" rules): the
   // tint replaces the tile color and starts from the global default tile
@@ -684,9 +698,15 @@
     // A tile with "Fill" follows its icon (applyIconDiscTint) from this
     // untinted background; rules color only the icon (user 2026-10-11).
     el.dataset.baseBg = el.style.background || '';
-    const fill = tileFills(typeValue, record);
+    // The matching rule row's own "Fuellen" decides (tile_icon_disc::shown_fill):
+    // on fills at "Fill" or the default strength, off keeps the plain card,
+    // also on a tile filled from the start (kNeutralIdle).
+    const ownFill = tileFills(typeValue, record);
+    const rule = el.dataset.ruleFill || '';
+    const fill = rule === 'off' ? 0 : rule === 'on' ? (ownFill || ICON_FILL_DEFAULT) : ownFill;
     if (fill) el.dataset.iconFill = String(fill);
     else delete el.dataset.iconFill;
+    if (rule === 'off') delete el.dataset.neutralIdle;
   }
   function snapshotBgColorIsDefault(snapshot) {
     return String(snapshot?.bg_color_default || '0') === '1' ||
@@ -889,7 +909,9 @@
       const lockIsIcon = locked && !iconName;
       if (lockIsIcon) iconName = 'lock';
 
+      delete el.dataset.ruleFill;
       if (iconName) {
+        const ruleFill = {};
         const iconColor = previewIconColor(typeValue, tile.icon_colors, tile.sensor_entity || '',
           sensorMeta, binarySensorPreviewState, previewKind === 'climate'
             ? climatePreviewColor(climatePreviewState)
@@ -899,7 +921,8 @@
                 ? devicePreviewColor(deviceKind, devicePreviewState)
                 : (previewKind === 'binary_sensor'
                   ? binarySensorPreviewColor(binarySensorPreviewState)
-                  : ''))));
+                  : ''))), ruleFill);
+        if (typeof setPreviewRuleFill === 'function') setPreviewRuleFill(el, ruleFill);
         const iconStyle = iconColor ? ' style="color:' + escapeHtml(iconColor) + '"' : '';
         html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '>' +
           (locked && !lockIsIcon ? PREVIEW_LOCK_MARK : '') + '</i>';

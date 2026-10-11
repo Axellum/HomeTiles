@@ -144,10 +144,11 @@ lv_obj_t* make_surface(lv_obj_t* card, uint8_t transparency) {
   return obj;
 }
 
-// Card coordinates -> the card's content box (its paddings).
+// Card coordinates -> the card's content box (its paddings and the frame
+// line's border, ui_surface_style::draw_frame_over_children).
 void place(lv_obj_t* card, lv_obj_t* obj, int x, int y) {
-  lv_obj_align(obj, LV_ALIGN_TOP_LEFT, x - lv_obj_get_style_pad_left(card, LV_PART_MAIN),
-               y - lv_obj_get_style_pad_top(card, LV_PART_MAIN));
+  lv_obj_align(obj, LV_ALIGN_TOP_LEFT, x - lv_obj_get_style_space_left(card, LV_PART_MAIN),
+               y - lv_obj_get_style_space_top(card, LV_PART_MAIN));
 }
 
 // The first picture turns the icon look into the head over the picture.
@@ -155,6 +156,9 @@ bool show_head(PictureTile& tile) {
   lv_obj_t* card = tile.card;
   tile.image = lv_image_create(card);
   if (!tile.image) return false;
+  // The frame line stays visible over the picture (user 2026-10-11: "the
+  // camera tiles have no frame"); set before anything is placed.
+  ui_surface_style::draw_frame_over_children(card);
   lv_obj_remove_flag(tile.image, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
   lv_obj_add_flag(tile.image, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_EVENT_BUBBLE | LV_OBJ_FLAG_IGNORE_LAYOUT));
   lv_obj_set_size(tile.image, tile.width, tile.height);

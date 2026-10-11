@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+#include "src/tiles/config/tile_icon_colors.h"
+
 struct Tile;
 
 // The rule layer of every tile ("Rules" in the Web Admin, the "src" line of
@@ -23,7 +25,8 @@ bool cached_payload(const String& entity, String& payload);
 
 // The rule color of a tile from the cached state of its rule entity; false
 // without an enabled rule, a known state or a result.
-bool rule_color(const Tile& tile, uint32_t& rgb);
+// `fill`, when set, receives the matching state line's own "Fuellen".
+bool rule_color(const Tile& tile, uint32_t& rgb, tile_icon_colors::RowFill* fill = nullptr);
 
 // The entity whose state drives the tile's enabled rules (own or other), or
 // "" without enabled rules.

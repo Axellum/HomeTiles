@@ -294,4 +294,15 @@ for (const text of ['"Layout ändern",', '"Change layout",', '"Changer la dispos
   assert.ok(i18n.includes(text), text);
 }
 
+// Every layout shows only its own head in the window; the classic one has
+// none on the panel and none here (user 2026-10-11), its screen starts at
+// the top like the panel's.
+{
+  const windowSource = readRepoFile('src/web/admin/tiles/layout-window.js');
+  assert.ok(windowSource.includes("grid.classList.toggle('setup-no-head', !L.bar);"), 'classic: no head');
+  assert.ok(!windowSource.includes("layoutBaseSizes.bar['--preview-pad-top']") && !windowSource.includes('setup-head-ghost'),
+    'classic: no room for a head');
+  assert.ok(readRepoFile('src/web/assets/admin.css').includes('.tile-grid.setup-grid.setup-no-head > .head-bar-preview { display:none; }'));
+}
+
 console.log('Layouts: editor grid, window take-over, red places, saving and server checks pass');

@@ -740,6 +740,8 @@ struct Strings {
   // The one tile color option (user 2026-10-11): the tile filled with its
   // icon's color.
   const char* tile_fill;
+  // A rule row's own fill: the tile is filled while the row matches (user 2026-10-11).
+  const char* tile_rule_fill;
 };
 
 // Locale-specific display rules and short runtime strings shared by

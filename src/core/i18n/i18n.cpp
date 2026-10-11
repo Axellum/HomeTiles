@@ -632,7 +632,8 @@ static const Strings kStringsDe = {
     "Tippen öffnet",
     "Popup",
     "Vollbild",
-    "Ausfüllen"};
+    "Ausfüllen",
+    "Füllen"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1259,6 +1260,7 @@ static const Strings kStringsEn = {
     "Tap opens",
     "Popup",
     "Full screen",
+    "Fill",
     "Fill"};
 
 static const Strings kStringsFr = {
@@ -1886,6 +1888,7 @@ static const Strings kStringsFr = {
     "Un appui ouvre",
     "Popup",
     "Plein écran",
+    "Remplir",
     "Remplir"};
 
 static const LocaleProfile kLocaleDe = {
@@ -2867,6 +2870,7 @@ static const Strings kStringsPl = {
     "Dotknięcie otwiera",
     "Okno",
     "Pełny ekran",
+    "Wypełnij",
     "Wypełnij",
 };
 

@@ -24,6 +24,9 @@ bool icon_discs_shown();
 // Draws a tile card's frame line again after its card color changed (a tint,
 // a change of surface): the line follows the card (frame_line).
 void refresh_tile_border(lv_obj_t* obj);
+// The card's frame line over its children (a Camera tile's picture): a
+// 1 px border drawn after them; the tile border options keep working.
+void draw_frame_over_children(lv_obj_t* obj);
 // The popup card hairline: follows the global Tile borders option, drawn like
 // the tile border.
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa);

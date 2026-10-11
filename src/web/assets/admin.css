@@ -3274,7 +3274,7 @@
 .icon-color-range input { margin-top:4px; padding:8px 10px; font-size:13px; }
 .tile-icon-rule {
   display:grid;
-  grid-template-columns:minmax(0,1.6fr) auto 44px 38px;
+  grid-template-columns:minmax(0,1.6fr) auto auto 44px 38px;
   gap:8px;
   align-items:center;
   margin-bottom:8px;
@@ -3284,6 +3284,11 @@
 .tile-icon-rule input[type="color"] { width:100%; height:38px; padding:4px 7px; border-radius:10px; }
 .icon-color-contains { display:inline-flex; align-items:center; gap:6px; margin:0; font-size:12px; white-space:nowrap; }
 .icon-color-contains input { width:16px; height:16px; }
+/* On/Off: the state's label left, its own "Fuellen" right. */
+.tile-color-label-row.icon-color-fill-label { grid-template-columns:minmax(0,1fr) auto; }
+/* No label margin: the box sits on the label's line. */
+.tile-color-label-row.icon-color-fill-label .icon-color-contains { justify-self:end; margin:0; line-height:14px; }
+.tile-color-label-row.icon-color-fill-label .icon-color-contains input { margin:0; }
 /* Same sizes as the other Tile Settings texts and buttons: hints like
    .settings-note, the add button like the Copy/Paste/Delete actions. */
 .tile-icon-rule-add { margin-top:2px; padding:8px 10px; font-size:12px; }
@@ -3525,7 +3530,8 @@ html[data-panel-theme="light"] .tile-grid.setup-grid { background-color:#DCDFE3;
 html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { color:var(--pv-text-secondary); }
 /* No new tiles in the window. */
 .tile-grid.setup-grid > .tile.empty { display:none !important; }
-.tile-grid.setup-grid.setup-head-ghost > .head-bar-preview { opacity:0.35; }
+/* The classic layout has no head (layout-window.js). */
+.tile-grid.setup-grid.setup-no-head > .head-bar-preview { display:none; }
 /* Red lies one ring further in, so the editor's hover and selection rings
    at the edge still show on a red tile. */
 .tile-grid.setup-grid > .tile.setup-red:not(.empty)::before {

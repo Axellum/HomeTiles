@@ -56,7 +56,8 @@ namespace tile_icon_source {
 ${tintStore}
 // Cards without a surface rule (tile_surface::set_rule) keep their surface.
 void follow_tint(lv_obj_t*, bool) {}
-void clear_tile_tint(lv_obj_t* card);
+void change_surface(lv_obj_t*, uint8_t) {}
+void clear_tile_tint(lv_obj_t* card, bool plain = false);
 ${fn('apply_card_background')}
 ${fn('tint_card')}
 ${fn('set_tile_tint')}

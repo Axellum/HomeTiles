@@ -5055,15 +5055,17 @@ static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
 // theme a tile with "Ausfuellen" (tileFills) is filled from the
 // start, with its icon's color or, without one, the neutral grey
 // (kNeutralIdle; user 2026-10-10: a light that is off is grey, like the dark
-// theme's grey card). Every other tile keeps the theme's card: no tile changes
-// its surface while it runs (user 2026-10-11: one color rule, no runtime
-// switch between the white and the filled look).
+// theme's grey card). A rule row with its own "Fuellen" (user 2026-10-11)
+// changes a tile between the white and the filled look while it runs: filled
+// while a row with "Fuellen" matches, white while a row without it matches.
+// Every other tile keeps the theme's card.
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
       tile_has_own_color(tile) || camera_picture::head_over_picture(tile)) {
     return 0;
   }
-  return tileFills(tile) ? tile_surface::kFollowTint | tile_surface::kNeutralIdle : 0;
+  if (tileFills(tile)) return tile_surface::kFollowTint | tile_surface::kNeutralIdle;
+  return tile_icon_colors::rows_fill(tile.icon_colors.c_str()) ? tile_surface::kFollowTint : 0;
 }
 
 lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index, GridType grid_type, scene_publish_cb_t scene_cb) {

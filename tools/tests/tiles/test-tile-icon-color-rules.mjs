@@ -177,8 +177,8 @@ assert.match(read('src/tiles/config/tile_config.h'),
 
 const rules = code(read('src/tiles/runtime/tile_icon_color_rules.h'));
 assert.ok(rules.includes('tile_icon_disc::set_icon_color(icon, color);'), 'Colors go through the disc glow path');
-assert.match(rules, /if \(!tile_icon_disc::forced_color\(icon, forced\) &&\s*lv_color_eq\(lv_obj_get_style_text_color\(icon, LV_PART_MAIN\), color\)\) \{\s*return;/,
-  'Unchanged colors are skipped unless a rule forces the icon');
+assert.match(rules, /if \(!fill_changed && !tile_icon_disc::forced_color\(icon, forced\) &&\s*lv_color_eq\(lv_obj_get_style_text_color\(icon, LV_PART_MAIN\), color\)\) \{\s*return;/,
+  'Unchanged colors are skipped unless a rule forces the icon or the row fill changed');
 const header = read('src/tiles/config/tile_icon_colors.h');
 assert.ok(!/\bnew\b|malloc|String\b/.test(code(rules) + code(header)), 'No allocation per state update');
 const renderer = code(read('src/tiles/runtime/tile_renderer.cpp'));
@@ -223,7 +223,10 @@ for (const marker of ['_tile_icon_color_fields" class="tile-icon-color-fields hi
   '"_tile_icon_state_section\\">\\n"', '_value" autocomplete="off" maxlength=")html";',
   '_has" data-icon-color="has">', '_color" value="#22C55E" data-icon-color="rule-color">', '_tile_icon_rule_add" data-icon-color="add">',
   '"_tile_icon_binary_section\\">\\n"', '{"on", tr.tile_icon_color_state_on, "#FFC107"}', '{"off", tr.tile_icon_color_state_off, "#9E9E9E"}',
-  '" data-unset="1" data-icon-color="binary">', 'data-icon-color="binary-clear" data-state="']) {
+  '" data-unset="1" data-icon-color="binary">', 'data-icon-color="binary-clear" data-state="',
+  // A rule row's own "Fuellen" (user 2026-10-11).
+  '_fill" data-icon-color="row-fill"> )html";', '_fill" data-icon-color="binary-fill" data-state=")html";',
+  'appendHtmlEscaped(html, tr.tile_rule_fill);']) {
   assert.ok(html.includes(marker), `icon color HTML: ${marker}`);
 }
 assert.ok(read('src/types/types_registry.cpp').includes('if (ctx.tab_id) append_tile_icon_color_fields_html(html, *ctx.tab_id);'),
@@ -348,9 +351,26 @@ int main(){
  assert(normLayer("v2\n\nsrc rules sensor.waste bogus",false,false,false)=="");
  assert(own_state_colors_icon("v2\n\nhas F44336 6")&&!own_state_colors_icon("v2\n\nsrc rules self off")&&!own_state_colors_icon("v2\n\nsrc rules sensor.x"));
  uint32_t rgb=0;assert(!resolve("","on",nullptr,rgb)&&!resolve(nullptr,"on",nullptr,rgb)&&!resolve("v2\n\nis FFC107 on",nullptr,nullptr,rgb));
+ // A state line's own "Fuellen" (user 2026-10-11): "is+" fills, "is-" keeps the
+ // tile plain, a plain "is" follows the "fill" line; numeric lines never carry it.
+ {char out[kMaxRecordBytes+1];normalize("v2\n\nis+ ff0000 on\nhas- 00ff00 x\nge+ 000000 5\nis* 111111 y\nis 222222 z",out,sizeof(out),false,true);
+  assert(std::string(out)=="v2\n\nis+ FF0000 on\nhas- 00FF00 x\nis 222222 z");}
+ assert(state_fill("v2\n\nis+ FF0000 on\nis- 00FF00 off",true,"on",nullptr)==RowFill::On);
+ assert(state_fill("v2\n\nis+ FF0000 on\nis- 00FF00 off",true,"off",nullptr)==RowFill::Off);
+ assert(state_fill("v2\n\nis+ FF0000 on\nis- 00FF00 off",true,"x","Aus")==RowFill::Inherit);
+ assert(state_fill("v2\n\nis FF0000 on",true,"on",nullptr)==RowFill::Inherit);
+ assert(state_fill("v2\n\nis+ FF0000 on",false,"on",nullptr)==RowFill::Inherit);
+ assert(state_fill("v2\n\nsrc rules self off\nis+ FF0000 on",true,"on",nullptr)==RowFill::Inherit);
+ assert(state_fill("v2\n\nsrc rules sensor.x\nis+ FF0000 on",true,"on",nullptr)==RowFill::Inherit);
+ assert(state_fill("v2\n\nhas+ FF0000 Ein",true,"on","Ein")==RowFill::On);
+ assert(rows_fill("v2\n\nis- FF0000 off\nhas+ 00FF00 x")&&!rows_fill("v2\n\nis FF0000 on\nis- 00FF00 off")&&!rows_fill(""));
+ {RowFill f=RowFill::On;assert(resolve("v2\n\nbar smooth 0 10 0:000000 1000:FFFFFF\nis+ FF0000 on","5",nullptr,rgb,true,&f)&&f==RowFill::Inherit);
+  assert(resolve("v2\n00FF00\nis- FF0000 on","off",nullptr,rgb,true,&f)&&rgb==0x00FF00&&f==RowFill::Inherit);
+  assert(resolve("v2\n\nis- FF0000 on","on",nullptr,rgb,false,&f)&&rgb==0xFF0000&&f==RowFill::Off);}
  // Worst case (source, bar and six states) fits the sidecar limit.
  std::string worst="v2\nFFFFFF\nfill 50\ncover icon tile=50\nsrc rules a."+std::string(126,'b')+" tile=50 noicon off\nbar smooth -12345678901 999999999999 1000:000000 1000:000000 1000:000000 1000:000000 1000:000000 1000:000000";
- for(int i=0;i<6;++i){worst+="\nhas FFFFFF ";worst+=std::string(64,'w');}
+ // The longest state line carries its own fill mark ("has+").
+ for(int i=0;i<6;++i){worst+="\nhas+ FFFFFF ";worst+=std::string(64,'w');}
  // The Media "cover" line counts too (allow_cover).
  {char out[kMaxRecordBytes+1];assert(normalize(worst.c_str(),out,sizeof(out),false,false,true,false,true)==kMaxRecordBytes);}
  // Icon-and-title tiles: a source entity; "rules" keeps the bar and states,
@@ -443,6 +463,7 @@ int main(){
 const rows = [0, 1, 2, 3, 4, 5].map(i => `<div class="tile-icon-rule hidden" id="t_tile_icon_rule_${i}">
 <input type="text" id="t_tile_icon_rule_${i}_value" data-icon-color="value">
 <label class="icon-color-contains"><input type="checkbox" id="t_tile_icon_rule_${i}_has" data-icon-color="has"> contains</label>
+<label class="icon-color-contains"><input type="checkbox" id="t_tile_icon_rule_${i}_fill" data-icon-color="row-fill"> fill</label>
 <input type="color" id="t_tile_icon_rule_${i}_color" value="#22C55E" data-icon-color="rule-color">
 <button type="button" class="tile-color-reset-btn" data-icon-color="remove" data-rule="${i}">x</button></div>`).join('');
 const block = `<div id="t_tile_icon_color_fields" class="tile-icon-color-fields hidden" data-tab="t">
@@ -467,6 +488,7 @@ ${['cold_warm', 'traffic', 'battery', 'humidity', 'single'].map(p => `<button ty
 <div class="icon-color-section hidden" id="t_tile_icon_state_section">${rows}
 <button type="button" class="btn btn-secondary tile-icon-rule-add" id="t_tile_icon_rule_add" data-icon-color="add">+</button></div>
 <div class="icon-color-section hidden" id="t_tile_icon_binary_section">
+<input type="checkbox" id="t_tile_icon_on_fill" data-icon-color="binary-fill" data-state="on"><input type="checkbox" id="t_tile_icon_off_fill" data-icon-color="binary-fill" data-state="off">
 <input type="color" id="t_tile_icon_on" value="#FFC107" data-default="#FFC107" data-unset="1" data-icon-color="binary"><button type="button" id="clear_on" data-icon-color="binary-clear" data-state="on">r</button>
 <input type="color" id="t_tile_icon_off" value="#9E9E9E" data-default="#9E9E9E" data-unset="1" data-icon-color="binary"><button type="button" id="clear_off" data-icon-color="binary-clear" data-state="off">r</button></div></div>`;
 const registry = Object.fromEntries(Object.entries(handlers).map(([type, [name]]) =>
@@ -594,6 +616,26 @@ try{
  check(hidden('t_tile_icon_rules_body')&&snapshot()==='v2\\n\\nsrc rules self off\\nhas F44336 6','Off keeps the settings: '+snapshot());
  click(document.querySelector('[data-icon-color="rules-on"][data-mode="1"]'));
  check(snapshot()==='v2\\n\\nhas F44336 6','On again: '+snapshot());
+ // A row's own "Fuellen" (user 2026-10-11): without a click the box shows
+ // "Ausfuellen" and the line stays as it is; a click gives the row its mark.
+ const rowFill=$('t_tile_icon_rule_0_fill');
+ check(!rowFill.checked&&!rowFill.dataset.mark,'A row without its own mark follows Fill (off)');
+ $('t_tile_icon_fill').checked=true;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(rowFill.checked&&snapshot()==='v2\\n\\nfill 20\\nhas F44336 6','The box follows Fill, the line stays: '+snapshot());
+ $('t_tile_icon_fill').checked=false;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ rowFill.checked=true;rowFill.dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nhas+ F44336 6','A ticked row fills: '+snapshot());
+ check(resolveIconColorRecord(snapshot(),'in 6 Tagen',null,true,(()=>{const o={};globalThis.__rowFill=o;return o;})())==='#F44336'&&globalThis.__rowFill.fill===1,
+   'The preview reads the row fill');
+ rowFill.checked=false;rowFill.dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nhas- F44336 6','An unticked row stays plain: '+snapshot());
+ $('t_tile_icon_fill').checked=true;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(!rowFill.checked&&snapshot()==='v2\\n\\nfill 20\\nhas- F44336 6','Its own mark beats Fill: '+snapshot());
+ $('t_tile_icon_fill').checked=false;$('t_tile_icon_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ load('1',{sensor_entity:'sensor.waste',icon_colors:'v2\\n\\nhas+ F44336 6'});
+ check(rowFill.checked&&rowFill.dataset.mark==='+'&&snapshot()==='v2\\n\\nhas+ F44336 6','A marked row loads: '+snapshot());
+ load('1',{sensor_entity:'sensor.waste',icon_colors:'v2\\n\\nhas F44336 6'});
+ check(!rowFill.checked&&!rowFill.dataset.mark&&snapshot()==='v2\\n\\nhas F44336 6','A row from before b382 loads unchanged: '+snapshot());
  for(let i=1;i<6;i++)click($('t_tile_icon_rule_add'));
  check(hidden('t_tile_icon_rule_add'),'At most six states');
  click(document.querySelector('#t_tile_icon_rule_0 [data-icon-color="remove"]'));
@@ -613,6 +655,16 @@ try{
  load('20',{icon_colors:'v2\\n\\nis 4CAF50 on\\nis 607D8B off'});
  check($('t_tile_icon_on').value==='#4caf50'&&$('t_tile_icon_off').dataset.unset==='0','Binary colors load');
  click($('clear_on'));check(snapshot()==='v2\\n\\nis 607D8B off'&&$('t_tile_icon_on').value==='#ffc107','Reset returns On to amber');
+ // On/Off "Fuellen": ticking keeps that row with the color it shows.
+ check(!$('t_tile_icon_on_fill').checked&&!$('t_tile_icon_on_fill').dataset.mark,'An unset On follows Fill');
+ $('t_tile_icon_on_fill').checked=true;$('t_tile_icon_on_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nis+ FFC107 on\\nis 607D8B off','Ticking On stores it filled: '+snapshot());
+ $('t_tile_icon_off_fill').checked=false;$('t_tile_icon_off_fill').dispatchEvent(new Event('change',{bubbles:true}));
+ check(snapshot()==='v2\\n\\nis+ FFC107 on\\nis- 607D8B off','Off unfilled: '+snapshot());
+ load('20',{icon_colors:'v2\\n\\nis+ 4CAF50 on\\nis- 607D8B off'});
+ check($('t_tile_icon_on_fill').checked&&!$('t_tile_icon_off_fill').checked&&snapshot()==='v2\\n\\nis+ 4CAF50 on\\nis- 607D8B off',
+   'On/Off fills load: '+snapshot());
+ click($('clear_on'));check(!$('t_tile_icon_on_fill').dataset.mark&&snapshot()==='v2\\n\\nis- 607D8B off','Reset forgets the On fill: '+snapshot());
  // Another entity: the Bridge entities once, Entity color or own rules.
  // The shared entity picker lists the valid Bridge entities once.
  check(entityPickerEntries({sensors:[{v:'sensor.waste',t:'Waste'}],switches:[{v:'light.kitchen',t:'Kitchen'}],

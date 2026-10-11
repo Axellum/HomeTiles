@@ -564,6 +564,10 @@ lv_obj_t* render_binary_sensor_tile(lv_obj_t* parent, int col, int row,
     const uint32_t icon_color = tile_icon_colors::state_icon_color(
         tile.icon_colors.c_str(), rule_state_known(state), binary_sensor_state_name(state.value),
         initial_label.c_str(), binary_sensor_visual_color(state));
+    // The matching row's own "Fuellen" from the first frame on (refresh_card
+    // in render_tile shows it).
+    tile_icon_color_rules::note_fill(card, tile.icon_colors.c_str(), rule_state_known(state),
+                                     binary_sensor_state_name(state.value), initial_label.c_str());
     widgets.icon_label = lv_label_create(card);
     set_label_style(widgets.icon_label, lv_color_hex(icon_color), FONT_MDI_ICONS);
     lv_label_set_text(widgets.icon_label, getMdiChar(icon).c_str());

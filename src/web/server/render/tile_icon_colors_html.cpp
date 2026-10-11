@@ -223,6 +223,12 @@ void append_tile_icon_color_fields_html(String& html, const String& tab_id) {
     html += id;
     html += R"html(_has" data-icon-color="has"> )html";
     appendHtmlEscaped(html, tr.tile_icon_color_contains);
+    // The row's own "Fuellen" (tile_icon_colors.h "is+"/"is-").
+    html += R"html(</label>
+                  <label class="icon-color-contains"><input type="checkbox" id=")html";
+    html += id;
+    html += R"html(_fill" data-icon-color="row-fill"> )html";
+    appendHtmlEscaped(html, tr.tile_rule_fill);
     html += R"html(</label>
                   <input type="color" id=")html";
     html += id;
@@ -257,8 +263,19 @@ void append_tile_icon_color_fields_html(String& html, const String& tab_id) {
   } binary_rows[] = {{"on", tr.tile_icon_color_state_on, "#FFC107"},
                      {"off", tr.tile_icon_color_state_off, "#9E9E9E"}};
   for (const auto& row : binary_rows) {
-    append_label_row(html, row.label);
-    html += R"html(                <div class="tile-color-row">
+    // The state's label with its own "Fuellen" at the right.
+    html += R"html(              <div class="tile-color-label-row icon-color-fill-label"><span>)html";
+    appendHtmlEscaped(html, row.label);
+    html += R"html(</span><label class="icon-color-contains"><input type="checkbox" id=")html";
+    html += tab_id;
+    html += "_tile_icon_";
+    html += row.state;
+    html += R"html(_fill" data-icon-color="binary-fill" data-state=")html";
+    html += row.state;
+    html += R"html("> )html";
+    appendHtmlEscaped(html, tr.tile_rule_fill);
+    html += R"html(</label></div>
+                <div class="tile-color-row">
                   <input type="color" id=")html";
     html += tab_id;
     html += "_tile_icon_";

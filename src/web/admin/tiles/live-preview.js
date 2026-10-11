@@ -223,8 +223,10 @@
     const lockIsIcon = locked && !iconName;
     if (lockIsIcon) iconName = 'lock';
 
+    delete tileElem.dataset.ruleFill;
     if (iconName) {
       const iconRecord = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
+      const ruleFill = {};
       const iconColor = previewIconColor(type, iconRecord, iconEntity, sensorMetaCache,
         binarySensorPreviewState, previewKind === 'climate'
           ? climatePreviewColor(climatePreviewState)
@@ -234,7 +236,8 @@
               ? devicePreviewColor(deviceKind, devicePreviewState)
               : (previewKind === 'binary_sensor'
                 ? binarySensorPreviewColor(binarySensorPreviewState)
-                : ''))));
+                : ''))), ruleFill);
+      if (typeof setPreviewRuleFill === 'function') setPreviewRuleFill(tileElem, ruleFill);
       const iconStyle = iconColor ? ' style="color:' + escapeHtml(iconColor) + '"' : '';
       html += '<i class="mdi mdi-' + escapeHtml(iconName) + ' tile-icon"' + iconStyle + '>' +
         (locked && !lockIsIcon ? PREVIEW_LOCK_MARK : '') + '</i>';
