@@ -132,9 +132,9 @@ const de = locales.De;
 const i18nKeys = ['entityPickerChoose', 'entityPickerSearch', 'entityPickerNoMatch', 'entityPickerLoadFailed',
   'entityPickerRetry', 'entityPickerClear', 'entityPickerNone'];
 const appI18n = Object.fromEntries(i18nKeys.map((key, index) => [key, de.labels[index]]));
-// The open list's group heads (#79): recent, favorites, all.
+// The switch under the search (#79): recent, favorites, all.
 Object.assign(appI18n, {entityPickerRecent: de.labels[8], entityPickerFavorites: de.labels[9], entityPickerAll: de.labels[10]});
-assert.deepEqual(de.labels.slice(8), ['Zuletzt', 'Favoriten', 'Alle Entitäten']);
+assert.deepEqual(de.labels.slice(8), ['Zuletzt', 'Favoriten', 'Alle']);
 const page = `<!doctype html><html lang="de"><head><style>${read('src/web/assets/admin.css')}</style></head><body>
 <div class="tile-settings" id="tSettings" style="width:420px">
 <div class="tile-settings-head"><select id="t_tile_type"><option value="1">Sensor</option></select><div class="tile-entity-slot" id="t_tile_entity_slot"></div></div>
@@ -216,20 +216,28 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  clear.click();
  check(sensor.value===''&&changes===2&&field.textContent.includes(${JSON.stringify(de.labels[0])})&&clear.hidden,'Clear empties the field');
  check($('t_tile_title').value==='Eigener Titel','Clearing keeps an edited title');
- // The chosen entity leads the list under "Zuletzt" (#79), remembered in
- // this browser; the panel's own entities follow as favorites.
+ // The switch under the search sorts (#79): Recent or Favorites (the panel's
+ // own entities, chosen at the opening) on top, a line, then all others.
  const recent=JSON.parse(localStorage.getItem('hometiles.entityPickerRecent')||'{}');
  check(recent.sensors&&recent.sensors['sensor.power'][0]===1,'The choice is remembered: '+JSON.stringify(recent));
  field.click();await tick();
- let heads=[...document.querySelectorAll('.entity-picker-popover .entity-picker-group')].map(h=>h.textContent);
- items=[...document.querySelectorAll('.entity-picker-popover .entity-picker-item')];
- check(heads.join()==='Zuletzt,Favoriten','Group heads: '+heads.join());
- check(items.map(i=>i.querySelector('.entity-picker-context').textContent).join()==='sensor.power,sensor.evil,sensor.temp_kitchen','Recent first, each entity once: '+items.map(i=>i.textContent).join(' | '));
- check(items[0].classList.contains('active'),'The list starts at its first row');
- // A search shows plain matches without heads.
- const searchAgain=document.querySelector('.entity-picker-popover input');
- searchAgain.value='e';searchAgain.dispatchEvent(new Event('input',{bubbles:true}));
- check(!document.querySelector('.entity-picker-popover .entity-picker-group'),'No heads while searching');
+ const popover=document.querySelector('.entity-picker-popover');
+ const tab=name=>popover.querySelector('.entity-picker-tab[data-tab="'+name+'"]');
+ const rowsShown=()=>[...popover.querySelectorAll('.entity-picker-item')].map(i=>i.querySelector('.entity-picker-context').textContent).join();
+ check([...popover.querySelectorAll('.entity-picker-tab')].map(b=>b.textContent).join()==='Zuletzt,Favoriten,Alle','The switch: '+popover.querySelector('.entity-picker-tabs').textContent);
+ check(tab('favorites').classList.contains('selected')&&rowsShown()==='sensor.evil,sensor.power,sensor.temp_kitchen','Opens on Favorites: '+rowsShown());
+ check(!popover.querySelector('.entity-picker-divider'),'Every entity is a favorite: no line');
+ tab('recent').click();
+ check(tab('recent').classList.contains('selected')&&rowsShown()==='sensor.power,sensor.evil,sensor.temp_kitchen','Recent on top, then all others: '+rowsShown());
+ const lines=[...popover.querySelectorAll('.entity-picker-divider')];
+ check(lines.length===1&&lines[0].nextElementSibling===popover.querySelectorAll('.entity-picker-item')[1],'The line under the recent entity');
+ check(document.activeElement===popover.querySelector('input'),'The search keeps the focus');
+ // A search filters both parts.
+ const searchAgain=popover.querySelector('input');
+ searchAgain.value='temp';searchAgain.dispatchEvent(new Event('input',{bubbles:true}));
+ check(rowsShown()==='sensor.temp_kitchen'&&!popover.querySelector('.entity-picker-divider'),'No recent match: only the part below: '+rowsShown());
+ tab('all').click();
+ check(rowsShown()==='sensor.temp_kitchen','All finds it: '+rowsShown());
  document.body.click();
  // A click on an item chooses it; a click elsewhere closes.
  field.click();await tick();
@@ -322,23 +330,33 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  $('r_sensor_entity').value='sensor.kitchen';await wait(400);
  check(searches.includes('sensors|sensor.kitchen'),'The field asks once: '+searches.join());
  check($('r_sensor_entity_picker').textContent.includes('OG Küche ▸ Heizung'),'Area ▸ device: '+$('r_sensor_entity_picker').textContent);
- // Open: the Bridge's released entities with area and device, the panel's own entities after them.
+ // Open on Favorites: the panel's own entity at once. All: the Bridge's
+ // released entities with area and device, the panel's own after them.
  $('r_switch_entity_picker').click();
  const pop=document.querySelector('.entity-picker-popover.open');
- check(pop.classList.contains('waiting')&&!pop.querySelector('.entity-picker-item'),
-   'Waits at full size, never the short list first');
- await wait(400);
+ const tab=name=>pop.querySelector('.entity-picker-tab[data-tab="'+name+'"]');
  let rows=[...pop.querySelectorAll('.entity-picker-item')];
+ check(rows.length===1&&rows[0].textContent.includes('Display')&&!pop.classList.contains('waiting'),'Favorites at once: '+rows.map(r=>r.textContent).join(' | '));
+ check(pop.querySelector('.entity-picker-divider + .entity-picker-loading'),'Under the line the Bridge list is loading');
+ tab('all').click();
+ check(pop.classList.contains('waiting')&&!pop.querySelector('.entity-picker-item'),
+   'All waits at full size, never the short list first');
+ await wait(400);
+ rows=[...pop.querySelectorAll('.entity-picker-item')];
  check(!pop.classList.contains('waiting'),'Done waiting');
- check(rows.length===2&&rows[0].textContent.includes('Display')&&rows[1].textContent.includes('EG Büro ▸ Schreibtischlampe'),'Own as favorites first, then the Bridge: '+rows.map(r=>r.textContent).join(' | '));
- check([...pop.querySelectorAll('.entity-picker-group')].map(h=>h.textContent).join()==='Favoriten,Alle Entitäten','Heads: favorites, all');
+ check(rows.length===2&&rows[0].textContent.includes('EG Büro ▸ Schreibtischlampe')&&rows[1].textContent.includes('Display'),'Bridge plus own: '+rows.map(r=>r.textContent).join(' | '));
  const foot=pop.querySelector('.entity-picker-foot');
  check(!foot.hidden&&foot.textContent.includes(${JSON.stringify(de.labels[7])}),'Without a password: the hint');
  // Opened again: the remembered page at once, the fresh one replaces it quietly.
  $('r_switch_entity_picker').click();
  $('r_switch_entity_picker').click();
  rows=[...pop.querySelectorAll('.entity-picker-item')];
- check(!pop.classList.contains('waiting')&&rows.length===2&&rows[1].textContent.includes('EG Büro'),
+ check(tab('favorites').classList.contains('selected')&&rows.length===2&&rows[0].textContent.includes('Display')&&
+   rows[1].textContent.includes('EG Büro')&&rows[1].previousElementSibling.classList.contains('entity-picker-divider'),
+   'Every opening starts on Favorites, the remembered page below the line: '+rows.map(r=>r.textContent).join(' | '));
+ tab('all').click();
+ rows=[...pop.querySelectorAll('.entity-picker-item')];
+ check(!pop.classList.contains('waiting')&&rows.length===2&&rows[0].textContent.includes('EG Büro'),
    'Remembered page at once: '+rows.map(r=>r.textContent).join(' | '));
  await wait(400);
  // Typing searches the Bridge again after a pause; with the password every
@@ -358,6 +376,7 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  check($('r_switch_entity').value==='light.desk_2'&&$('r_switch_entity_picker').textContent.includes('EG Büro'),'A Bridge entity is chosen with its area');
  // The hint opens the password section.
  $('r_switch_entity_picker').click();await wait(400);
+ tab('all').click();
  document.querySelector('.entity-picker-password').click();
  check(shown&&!document.querySelector('.entity-picker-popover.open'),'Set password opens the section');
  // Without a Bridge search the panel's own list stays.

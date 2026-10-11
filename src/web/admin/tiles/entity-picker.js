@@ -41,11 +41,18 @@
   // {input, local, entries, query, active, state, remote, full, more}
   let entityPickerOpen = null;
   // Entities chosen in this browser, per list: {entity: [times, last ms]}.
-  // The open list shows the most used and newest of them first (#79).
+  // Recent shows the most used and newest of them (#79).
   const ENTITY_RECENT_KEY = 'hometiles.entityPickerRecent';
   const ENTITY_RECENT_KEEP = 40;
-  const ENTITY_RECENT_SHOWN = 5;
+  const ENTITY_RECENT_SHOWN = 10;
   const ENTITY_RECENT_HALF_LIFE_MS = 14 * 24 * 3600 * 1000;
+  // The switch under the search, like Automatic / No icon of the icon picker:
+  // [tab, icon, label key].
+  const ENTITY_PICKER_TABS = [
+    ['recent', 'history', 'entityPickerRecent'],
+    ['favorites', 'star-outline', 'entityPickerFavorites'],
+    ['all', 'format-list-bulleted', 'entityPickerAll']
+  ];
 
   function entityKindLabel(entityId) {
     const domain = String(entityId || '').split('.')[0];
@@ -480,44 +487,52 @@
     return open.local.filter(entry => entityPickerMatchesQuery(entry, open.query));
   }
 
-  // The open list as rows {entry, head} (#79). Without a search: the entities
-  // chosen here often and lately, then the favorites, the panel's own
-  // entities (released for it in the Bridge, and the ones its tiles use),
-  // then all others; a group's head stands on its first row, and only when
-  // more than one group has rows. A search lists the favorites among its
-  // matches first.
+  // The open list sorted by the switch (#79): Recent (the entities chosen in
+  // this browser often and lately) or Favorites (the panel's own entities,
+  // released for it in the Bridge, and the ones its tiles use) on top, then
+  // a line and every other entity the Bridge finds; All without a group on
+  // top. A search filters both parts. rows.split: the rows above the line.
   function entityPickerView() {
     const open = entityPickerOpen;
     const matches = entityPickerMatches();
+    if (open.tab === 'all') return Object.assign(matches.slice(), { split: 0 });
     // The Bridge's row has area and device; the panel's own row only the name.
     const richer = entry => entityRemoteInfo.get(entry.value) || entry;
-    const own = new Set(open.local.map(entry => entry.value));
-    if (open.query) {
-      const shown = new Set(matches.map(entry => entry.value));
-      const favorites = matches.filter(entry => own.has(entry.value)).concat(
-        open.local.filter(entry => !shown.has(entry.value) && entityPickerMatchesQuery(entry, open.query)).map(richer));
-      return favorites.concat(matches.filter(entry => !own.has(entry.value))).map(entry => ({ entry, head: '' }));
-    }
-    const list = open.input.dataset.entityPicker;
-    const byValue = new Map(matches.map(entry => [entry.value, entry]));
-    const used = new Set();
-    const take = entries => entries.filter(entry => entry && !used.has(entry.value) && used.add(entry.value));
-    const recent = take(entityRecentValues(list)
-      .filter(value => byValue.has(value) || own.has(value))
-      .slice(0, ENTITY_RECENT_SHOWN)
-      .map(value => byValue.get(value) || richer(open.local.find(entry => entry.value === value))));
-    const favorites = take(open.local.map(entry => byValue.get(entry.value) || richer(entry)));
-    const others = take(matches);
-    const groups = [[t('entityPickerRecent'), recent], [t('entityPickerFavorites'), favorites],
-      [t('entityPickerAll'), others]].filter(([, entries]) => entries.length);
-    const heads = groups.length > 1;
-    return groups.flatMap(([head, entries]) =>
-      entries.map((entry, index) => ({ entry, head: heads && !index ? head : '' })));
+    const own = new Map(open.local.map(entry => [entry.value, entry]));
+    const group = open.tab === 'recent'
+      ? entityRecentValues(open.input.dataset.entityPicker)
+        .map(value => entityRemoteInfo.get(value) || open.entries.find(entry => entry.value === value) ||
+          (own.has(value) ? richer(own.get(value)) : null))
+        .filter(Boolean).slice(0, ENTITY_RECENT_SHOWN)
+      : open.local.map(richer);
+    const top = group.filter(entry => entityPickerMatchesQuery(entry, open.query));
+    const above = new Set(top.map(entry => entry.value));
+    // Below the line the Bridge's list follows once it is there.
+    const rest = entityPickerBelowWaits() ? [] : matches.filter(entry => !above.has(entry.value));
+    return Object.assign(top.concat(rest), { split: top.length });
+  }
+
+  // The Bridge's list is on its way and nothing of it is there yet.
+  function entityPickerBelowWaits() {
+    const open = entityPickerOpen;
+    return open.remote === 'loading' && !open.entries.length;
   }
 
   // The row of `value` in the open list, 0 without it.
   function entityPickerRowOf(value) {
-    return Math.max(0, entityPickerView().findIndex(row => row.entry.value === value));
+    return Math.max(0, entityPickerView().findIndex(entry => entry.value === value));
+  }
+
+  function renderEntityPickerTabs() {
+    const tabs = entityPickerPopover?.querySelector('.entity-picker-tabs');
+    const open = entityPickerOpen;
+    if (!tabs || !open) return;
+    tabs.innerHTML = ENTITY_PICKER_TABS.map(([tab, icon, label]) =>
+      '<button type="button" class="icon-picker-choice entity-picker-tab' + (open.tab === tab ? ' selected' : '') +
+      '" role="tab" aria-selected="' + (open.tab === tab ? 'true' : 'false') + '" data-tab="' + tab + '">' +
+      '<span class="entity-picker-icon"><i class="mdi mdi-' + icon + '"></i></span>' +
+      '<span class="entity-picker-text"><span class="entity-picker-name">' + escapeHtml(t(label)) +
+      '</span></span></button>').join('');
   }
 
   function renderEntityPickerList(keepScroll) {
@@ -525,17 +540,20 @@
     const list = entityPickerPopover?.querySelector('.entity-picker-list');
     const foot = entityPickerPopover?.querySelector('.entity-picker-foot');
     if (!open || !list) return;
+    renderEntityPickerTabs();
+    // All waits for the Bridge; Recent and Favorites show their rows at once.
+    const all = open.tab === 'all';
     // Without a Web Admin password the Bridge finds only released entities.
     if (foot) foot.hidden = !(open.remote === 'ready' && !open.full);
     // Nothing of the Bridge's list is there yet: the list waits at full size
     // instead of showing the panel's short list first and then growing.
-    const waiting = open.remote === 'loading' && !open.entries.length;
+    const waiting = all && entityPickerBelowWaits();
     entityPickerPopover.classList.toggle('waiting', waiting);
-    if (waiting || (open.state === 'loading' && open.remote !== 'ready')) {
+    if (waiting || (open.state === 'loading' && (!all || open.remote !== 'ready'))) {
       list.innerHTML = '<div class="entity-picker-loading">' + '<div></div>'.repeat(6) + '</div>';
       return;
     }
-    if (open.state === 'failed' && open.remote !== 'ready') {
+    if (open.state === 'failed' && (!all || open.remote !== 'ready')) {
       list.innerHTML = '<div class="entity-picker-state"><i class="mdi mdi-lan-disconnect"></i>' +
         escapeHtml(t('entityPickerLoadFailed')) +
         '<button type="button" class="btn entity-picker-retry">' + escapeHtml(t('entityPickerRetry')) + '</button></div>';
@@ -543,22 +561,29 @@
     }
     const rows = entityPickerView();
     open.active = Math.max(0, Math.min(open.active, rows.length - 1));
+    const loadingBelow = entityPickerBelowWaits();
+    if (!rows.length && loadingBelow) {
+      list.innerHTML = '<div class="entity-picker-loading">' + '<div></div>'.repeat(6) + '</div>';
+      return;
+    }
     if (!rows.length) {
       list.innerHTML = '<div class="entity-picker-state">' + escapeHtml(open.query
         ? tf('entityPickerNoMatch', { query: open.query }) : t('entityPickerNone')) + '</div>';
       return;
     }
     const current = open.input.value;
-    list.innerHTML = rows.map(({ entry, head }, index) => {
+    const line = '<div class="entity-picker-divider" role="separator"></div>';
+    list.innerHTML = rows.map((entry, index) => {
       const kind = entityKindLabel(entry.entity);
-      return (head ? '<div class="entity-picker-group">' + escapeHtml(head) + '</div>' : '') +
+      return (index && index === rows.split ? line : '') +
         '<div class="entity-picker-item' + (index === open.active ? ' active' : '') +
         (entry.value === current ? ' selected' : '') + '" role="option" aria-selected="' +
         (entry.value === current ? 'true' : 'false') + '" data-index="' + index + '">' +
         entityPickerRowHtml(entry, open.query) +
         (kind ? '<span class="entity-picker-kind">' + escapeHtml(kind) + '</span>' : '') + '</div>';
-    }).join('') + (open.remote === 'ready' && open.more
-      ? '<div class="entity-picker-loading entity-picker-more"><div></div></div>' : '');
+    }).join('') + (loadingBelow ? line + '<div class="entity-picker-loading"><div></div><div></div></div>' : '') +
+      (open.remote === 'ready' && open.more
+        ? '<div class="entity-picker-loading entity-picker-more"><div></div></div>' : '');
     if (!keepScroll) list.querySelector('.entity-picker-item.active')?.scrollIntoView({ block: 'nearest' });
     // A short first page loads the next one right away.
     if (open.remote === 'ready' && open.more) entityPickerNearEnd(list);
@@ -570,6 +595,8 @@
     const apply = data => {
       open.local = entityPickerEntries(data, open.input.dataset.entityPicker);
       open.state = 'ready';
+      // Without own entities the list opens on All.
+      if (!open.local.length && !open.tabChosen) open.tab = 'all';
       // Without a search the list starts at the chosen entity.
       if (!open.query && open.remote !== 'ready') {
         open.active = entityPickerRowOf(open.input.value);
@@ -636,6 +663,7 @@
       entityPickerPopover.className = 'entity-picker-popover';
       entityPickerPopover.innerHTML = '<div class="entity-picker-search"><i class="mdi mdi-magnify"></i>' +
         '<input type="search" autocomplete="off" spellcheck="false"></div>' +
+        '<div class="entity-picker-tabs" role="tablist"></div>' +
         '<div class="entity-picker-list" role="listbox"></div>' +
         '<div class="entity-picker-foot" hidden><i class="mdi mdi-lock-outline"></i><span></span>' +
         '<button type="button" class="entity-picker-password"></button></div>';
@@ -647,7 +675,7 @@
     entityPickerPopover.querySelector('.entity-picker-foot span').textContent = t('entityPickerReleased');
     entityPickerPopover.querySelector('.entity-picker-password').textContent = t('webAuthSet');
     entityPickerOpen = { input, local: [], entries: [], query: '', active: 0, state: 'loading',
-      remote: null, full: false, more: false, offset: 0, paging: false };
+      remote: null, full: false, more: false, offset: 0, paging: false, tab: 'favorites', tabChosen: false };
     const field = entityPickerControl(input)?.querySelector('.entity-picker-field');
     field?.classList.add('open');
     field?.setAttribute('aria-expanded', 'true');
@@ -681,7 +709,7 @@
 
   function pickEntityPickerIndex(index) {
     const open = entityPickerOpen;
-    const entry = open ? entityPickerView()[index]?.entry : null;
+    const entry = open ? entityPickerView()[index] : null;
     if (!entry) return;
     closeEntityPicker(true);
     entityRecentNote(open.input.dataset.entityPicker, entry.value);
@@ -706,6 +734,18 @@
     if (!entityPickerOpen) return;
     if (!target?.closest?.('.entity-picker-popover')) {
       closeEntityPicker(false);
+      return;
+    }
+    const tab = target.closest('.entity-picker-tab');
+    if (tab) {
+      // Another switch: its list from its start, or at the chosen entity.
+      entityPickerOpen.tab = tab.dataset.tab;
+      entityPickerOpen.tabChosen = true;
+      entityPickerOpen.active = entityPickerRowOf(entityPickerOpen.input.value);
+      renderEntityPickerList();
+      const list = entityPickerPopover.querySelector('.entity-picker-list');
+      if (list && !list.querySelector('.entity-picker-item.active.selected')) list.scrollTop = 0;
+      entityPickerPopover.querySelector('.entity-picker-search input')?.focus();
       return;
     }
     const item = target.closest('.entity-picker-item');
