@@ -341,10 +341,15 @@ function maybeFillTitleFromSwitch(tab) {
 
   function applySwitchPreviewState(tileElem, state, entity) {
     if (!tileElem) return;
-    applySwitchPreviewColors(tileElem, state);
-    // The disc and the control fill follow the state color like the device.
-    applyIconDiscTint(tileElem);
-    applySwitchPreviewBar(tileElem, state, entity);
+    // On the tile's own surface: the editor applies the state after the meta
+    // fetch, when its surface scope has ended (user 2026-10-11: a filled
+    // Relay showed the light theme's icon and knob after a click).
+    withSurface(surfaceTheme(tileElem.dataset.surface || ''), () => {
+      applySwitchPreviewColors(tileElem, state);
+      // The disc and the control fill follow the state color like the device.
+      applyIconDiscTint(tileElem);
+      applySwitchPreviewBar(tileElem, state, entity);
+    });
   }
 
   function applySwitchPreviewColors(tileElem, state) {
