@@ -307,11 +307,12 @@ for (const [icon, strength, card, circle, control, raised] of rows('jewel')) {
 // strength 0 is the default (Settings).
 const chroma = (icon, s) => js.toneOklch(rgb(rows('jewel').find(r => r[0] === icon && r[1] === s)[2])).C;
 assert.ok(chroma(0xE53935, 30) > chroma(0xE53935, 20), 'strength raises the chroma');
-// "Kräftig" (user 2026-10-11): at the default strength a filled card shows
-// its icon's own color (kJewelCardChromaShare of it), green no olive, blue
-// no grey-blue.
+// User 2026-10-11: at the default strength a filled card shows its icon's
+// color up to the middle cap 0.10 (0.07 looked dull, 0.14 too strong): green
+// no olive, blue no grey-blue.
 for (const icon of [0x2196F3, 0x43A047, 0xFF9800]) {
-  assert.ok(Math.abs(chroma(icon, 20) - js.toneOklch(rgb(icon)).C * 0.85) < 0.012, `#${icon.toString(16)} in its own color`);
+  const wanted = Math.min(js.toneOklch(rgb(icon)).C * 0.85, 0.10);
+  assert.ok(Math.abs(chroma(icon, 20) - wanted) < 0.012 && chroma(icon, 20) > 0.085, `#${icon.toString(16)} in its own color`);
 }
 assert.equal(rows('jewel').find(r => r[0] === 0x2196F3 && r[1] === 0)[2], rows('jewel').find(r => r[0] === 0x2196F3 && r[1] === 20)[2]);
 // Icons: every colored icon keeps its color on every surface; on a white

@@ -154,14 +154,14 @@ inline constexpr float kLightCircleShare = 0.8f;
 // (at most kJewelCardMaxL, white text stays readable) in the icon's hue with
 // chroma up to kJewelChroma at the default strength (20 %); the circle
 // kJewelCircleStep above the card at the default Circle strength; the icon
-// keeps its own color, every tile the same contrast. kJewelChroma 0.14
-// (user 2026-10-11, "Kräftig" in build/design-mockups/tile-colors: 0.07
-// turned green into olive and orange into brown, the light theme looked
-// dull): the card shows its icon's own color at the same lightness, so the
-// white words stay as readable.
-inline constexpr float kJewelBelowIcon = 0.16f;
-inline constexpr float kJewelCardMaxL = 0.70f;
-inline constexpr float kJewelChroma = 0.14f;
+// keeps its own color, every tile the same contrast. User 2026-10-11: 0.07
+// turned green into olive and orange into brown (the light theme looked
+// dull), 0.14 ("Kräftig", build/design-mockups/tile-colors) then looked too
+// strong; the middle 0.10, and the card a little darker (0.18 below its icon,
+// at most 0.68 instead of 0.16 and 0.70), which also helps the white words.
+inline constexpr float kJewelBelowIcon = 0.18f;
+inline constexpr float kJewelCardMaxL = 0.68f;
+inline constexpr float kJewelChroma = 0.10f;
 inline constexpr float kJewelCardChromaShare = 0.85f;
 inline constexpr float kJewelCircleStep = 0.05f;
 inline constexpr float kJewelCircleChromaShare = 0.75f;
