@@ -51,10 +51,13 @@ assert.match(search, /bool declares\(\) \{\s*return command_channel::state\(\) =
 assert.doesNotMatch(search, /released|g_reported|g_last_report|parseSensorList/, 'no released lists, no sticky report state');
 const collect = search.slice(search.indexOf('entity_declaration::Declaration collectDeclaration()'),
   search.indexOf('}  // namespace\n\nbool available()'));
-assert.match(collect, /declaration\.add\(listOfType\(slots\[i\]\.type\), slots\[i\]\.entity\);/, 'every folder tile');
+assert.match(collect, /declaration\.add\(listOfTile\(slots\[i\]\.type, slots\[i\]\.entity\), slots\[i\]\.entity\);/, 'every folder tile');
+// A Camera tile showing an image entity's picture (types/camera/picture.h):
+// the Bridge's cameras list holds cameras only.
+assert.match(search, /const char\* listOfTile\(TileType type, const char\* entity\) \{\s*if \(type == TILE_CAMERA && entity && strncmp\(entity, "image\.", 6\) == 0\) return "images";\s*return listOfType\(type\);/);
 assert.match(collect, /declaration\.add\(listOfSource\(slots\[i\]\.rule_entity\), slots\[i\]\.rule_entity\);/,
   'icon color sources too');
-assert.match(collect, /screensaverConfig\.tileGrid\(\)[\s\S]*declaration\.add\(listOfType\(tile\.type\), tile\.sensor_entity\.c_str\(\)\);[\s\S]*tileIconSourceEntity\(tile\.type, tile\.icon_colors\)/,
+assert.match(collect, /screensaverConfig\.tileGrid\(\)[\s\S]*declaration\.add\(listOfTile\(tile\.type, tile\.sensor_entity\.c_str\(\)\), tile\.sensor_entity\.c_str\(\)\);[\s\S]*tileIconSourceEntity\(tile\.type, tile\.icon_colors\)/,
   'screensaver tiles and their icon color sources');
 // Version, parts and entity ids run on the host in test-entity-declaration-core.mjs.
 assert.doesNotMatch(search, /std::sort|std::vector<JsonDocument>|<algorithm>/,

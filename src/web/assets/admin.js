@@ -4312,6 +4312,13 @@ function syncTileRadiusControls(tabEl) {
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'camera_entity')) {
       tile.sensor_entity = snapshot.camera_entity || '';
     }
+    // The Camera tile's picture options in their stored fields (types/camera/admin.js).
+    if (Number(tile.type) === 18 && snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'camera_display')) {
+      tile.sensor_display_mode = String(snapshot.camera_display) === '1' ? 1 : 0;
+      tile.sensor_decimals = Math.max(0, CAMERA_FITS.indexOf(String(snapshot.camera_fit)));
+      tile.image_slideshow_sec = cameraEvery(snapshot.camera_every);
+      tile.key_code = cameraTransparency(snapshot.camera_transparency);
+    }
     for (const kind of ['lock', 'alarm', 'fan']) {
       if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, kind + '_entity')) tile.sensor_entity = snapshot[kind + '_entity'] || '';
     }
@@ -7403,10 +7410,21 @@ function syncTileRadiusControls(tabEl) {
     }
     bindLive(cameraSelect, 'change', 'cameraEntity', () => {
       maybeFillTitleFromEntity(tab, '_camera_entity');
+      syncCameraFields(tab);
       updateTilePreview(tab);
       updateDraft(tab);
       scheduleAutoSave(tab);
     });
+    // The picture options (types/camera/admin.js); the slider follows live.
+    for (const [field, eventName] of [['camera_display', 'change'], ['camera_fit', 'change'],
+                                      ['camera_every', 'change'], ['camera_transparency', 'input']]) {
+      bindLive(document.getElementById(prefix + '_' + field), eventName, field, () => {
+        syncCameraFields(tab);
+        updateTilePreview(tab);
+        updateDraft(tab);
+        scheduleAutoSave(tab);
+      });
+    }
     climateSlotSelects.forEach((select, index) => {
       bindLive(select, 'change', 'climateSlot' + index, () => {
         syncClimateSlotFields(tab);
@@ -7929,6 +7947,7 @@ function syncTileRadiusControls(tabEl) {
       }
     }
     applyIconDiscTint(tileElem);
+    if (previewKind === 'camera') applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight);
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
     if (wasActive) tileElem.classList.add('active');
@@ -9309,6 +9328,11 @@ function syncTileRadiusControls(tabEl) {
       }
     } else if (safeType === 18) {
       fd.append('camera_entity', tile.sensor_entity || tile.camera_entity || '');
+      const picture = cameraPictureOptionsOf(tile);
+      fd.append('camera_display', picture.picture ? '1' : '0');
+      fd.append('camera_fit', picture.fit);
+      fd.append('camera_every', String(picture.every));
+      fd.append('camera_transparency', String(picture.transparency));
     } else if (safeType === 16) {
       fd.append('animation_file', tile.animation_file || tile.scene_alias || '');
       fd.append('animation_fps', tile.animation_fps || tile.image_slideshow_sec || '10');
@@ -10319,6 +10343,7 @@ function syncTileRadiusControls(tabEl) {
         if (el.dataset.neutralIdle === '1' && el.dataset.surface !== 'jewel') setTileTintBackground(el, '#FFFFFF', 0, true);
       }
       applyIconDiscTint(el);
+      if (previewKind === 'camera') applyCameraPicturePreview(el, cameraPictureOptionsOf(tile), Number(tile.span_h) === 0.5);
       if (previewKind === 'cover') {
         applyCoverPreview(el, coverPreviewState, Number(tile.span_h) === 0.5);
         // The header classes need the bar class set above (switch-tall).
@@ -15118,9 +15143,10 @@ function maybeFillTitleFromSwitch(tab) {
   // The segmented choices of the Switch fields (like Tile color). The hidden
   // select of each keeps the value; a button sets it and fires its change
   // event, so the existing preview, draft and autosave bindings run.
-  // The Climate tile's Layout uses the same segmented choice.
+  // The Climate tile's Layout and the Camera tile's Show and Scaling use the
+  // same segmented choice.
   const SWITCH_CHOICE_FIELDS = ['switch_style', 'switch_value_font', 'switch_popup_open_mode', 'climate_view',
-    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font'];
+    'cover_value_font', 'lock_value_font', 'alarm_value_font', 'fan_value_font', 'camera_display', 'camera_fit'];
 
   function syncSwitchChoices(tab) {
     for (const field of SWITCH_CHOICE_FIELDS) {
@@ -18894,14 +18920,75 @@ function maybeFillTitleFromMedia(tab) {
     syncClimateSlotFields(tab);
   }
   bindClimatePreviewSelection();
+  // The Camera tile's picture (src/types/camera/picture.h), kept in fields
+  // the tile does not use otherwise: sensor_display_mode 1 = the picture,
+  // sensor_decimals its placement (0 fill, 1 fit, 2 original), image_slideshow_sec
+  // a camera's interval and key_code the transparency of the circle and the
+  // title pill. The form sends camera_display, camera_fit, camera_every and
+  // camera_transparency (web_handler.cpp).
+  const CAMERA_FITS = ['fill', 'fit', 'original'];
 
-function loadCameraFields(tab, data) {
+  function cameraEvery(value) {
+    const seconds = Math.round(Number(value));
+    return seconds >= 3 && seconds <= 60 ? seconds : 10;
+  }
+
+  function cameraTransparency(value) {
+    const percent = Math.round(Number(value));
+    return Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
+  }
+
+  // The picture options of stored tile data (GET /api/tiles, drafts, imports).
+  function cameraPictureOptionsOf(tile) {
+    return {
+      picture: Number(tile?.sensor_display_mode) === 1,
+      fit: CAMERA_FITS[Number(tile?.sensor_decimals)] || 'fill',
+      every: cameraEvery(tile?.image_slideshow_sec),
+      transparency: cameraTransparency(tile?.key_code)
+    };
+  }
+
+  // The picture options in the editor's fields.
+  function cameraPictureOptions(tab) {
+    const value = field => document.getElementById(tab + '_' + field)?.value;
+    const fit = value('camera_fit');
+    return {
+      picture: value('camera_display') === '1',
+      fit: CAMERA_FITS.includes(fit) ? fit : 'fill',
+      every: cameraEvery(value('camera_every')),
+      transparency: cameraTransparency(value('camera_transparency'))
+    };
+  }
+
+  // The rows of a picture show only with "Picture"; the interval only for a
+  // camera (an image entity sends each new picture at once).
+  function syncCameraFields(tab) {
+    const options = cameraPictureOptions(tab);
+    const entity = document.getElementById(tab + '_camera_entity')?.value || '';
+    document.getElementById(tab + '_camera_picture_fields')?.classList.toggle('hidden', !options.picture);
+    document.getElementById(tab + '_camera_every_row')?.classList.toggle('hidden', !entity.startsWith('camera.'));
+    const output = document.getElementById(tab + '_camera_transparency_value');
+    if (output) output.textContent = options.transparency + ' %';
+    if (typeof syncSwitchChoices === 'function') syncSwitchChoices(tab);
+  }
+
+  function loadCameraFields(tab, data) {
     loadIconColorFields(tab, data);
     const el = document.getElementById(tab + '_camera_entity');
     const configured = data.sensor_entity || data.camera_entity || '';
     if (el) {
       el.value = configured;
     }
+    const options = cameraPictureOptionsOf(data);
+    const set = (field, value) => {
+      const input = document.getElementById(tab + '_' + field);
+      if (input) input.value = String(value);
+    };
+    set('camera_display', options.picture ? '1' : '0');
+    set('camera_fit', options.fit);
+    set('camera_every', options.every);
+    set('camera_transparency', options.transparency);
+    syncCameraFields(tab);
     maybeFillTitleFromEntity(tab, '_camera_entity');
   }
   function saveCameraFields(tab, formData) {
@@ -18909,12 +18996,76 @@ function loadCameraFields(tab, data) {
       document.getElementById(tab + '_camera_entity')?.value || '';
     formData.append('camera_entity', entity);
     formData.append('sensor_entity', entity);
+    const options = cameraPictureOptions(tab);
+    formData.append('camera_display', options.picture ? '1' : '0');
+    formData.append('camera_fit', options.fit);
+    formData.append('camera_every', String(options.every));
+    formData.append('camera_transparency', String(options.transparency));
     saveIconColorFields(tab, formData);
   }
   function resetCameraFields(tab) {
     resetIconColorFields(tab);
     const el = document.getElementById(tab + '_camera_entity');
     if (el) el.value = '';
+    const set = (field, value) => {
+      const input = document.getElementById(tab + '_' + field);
+      if (input) input.value = value;
+    };
+    set('camera_display', '0');
+    set('camera_fit', 'fill');
+    set('camera_every', '10');
+    set('camera_transparency', '0');
+    syncCameraFields(tab);
+  }
+
+  // The head over the picture (camera_picture_layout::head): the circle in
+  // the corner, the title on a pill mirrored into the other corner, or one
+  // shared pill when less than a grid gap would stay free between them or the
+  // title does not fit its pill.
+  function cameraPictureHead(cardW, inset, disc, shrink, pad, gap, text) {
+    text = Math.max(0, text);
+    const boxW = text + 2 * (pad + shrink);
+    const pillX = cardW - inset - boxW;
+    const circleRight = inset + disc - shrink;
+    if (pillX + shrink - circleRight >= gap) {
+      return {shared: false, pillX, pillW: boxW, textX: pillX + shrink + pad, textW: text};
+    }
+    const textX = inset + disc;
+    return {shared: true, pillX: inset, pillW: cardW - 2 * inset, textX,
+            textW: Math.max(0, cardW - inset - shrink - pad - textX)};
+  }
+
+  let cameraMeasureContext = null;
+  function cameraTextWidth(element, text) {
+    if (!cameraMeasureContext && typeof document.createElement === 'function') {
+      cameraMeasureContext = document.createElement('canvas').getContext?.('2d') || null;
+    }
+    if (!cameraMeasureContext || typeof getComputedStyle !== 'function') return 0;
+    cameraMeasureContext.font = getComputedStyle(element).font;
+    return cameraMeasureContext.measureText(text).width;
+  }
+
+  // The preview of a Camera tile showing its picture (live and cached grid):
+  // the browser has no picture, so a neutral stand-in fills the card; the
+  // head sits like on the panel. Half-height tiles keep the icon look.
+  function applyCameraPicturePreview(tileElem, options, halfHeight) {
+    if (!tileElem) return;
+    const on = !!options?.picture && !halfHeight;
+    tileElem.classList.toggle('camera-picture', on);
+    tileElem.classList.remove('camera-head-shared');
+    if (!on) return;
+    tileElem.style.setProperty('--camera-head-opa', String((100 - cameraTransparency(options.transparency)) / 100));
+    const title = tileElem.querySelector(':scope > .tile-title');
+    if (!title || typeof getComputedStyle !== 'function') return;
+    const text = String(title.textContent || '').replace(/\s*\n\s*/g, ' ');
+    title.textContent = text;
+    const style = getComputedStyle(tileElem);
+    const px = name => parseFloat(style.getPropertyValue(name)) || 0;
+    // The card is the tile's border box (the preview's selection border).
+    const head = cameraPictureHead(tileElem.offsetWidth, px('--compact-inset'),
+      px('--icon-disc-corner') || px('--icon-disc-round'), px('--corner-disc-shrink'),
+      px('--camera-title-pad'), px('--preview-gap'), cameraTextWidth(title, text));
+    tileElem.classList.toggle('camera-head-shared', head.shared);
   }
 
 function loadAnimationFields(tab, data) {

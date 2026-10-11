@@ -47,6 +47,7 @@
 #include "src/ui/startup/boot_splash.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/ui/screensaver/image_screensaver.h"
+#include "src/types/camera/picture.h"
 #include "src/ui/screensaver/screensaver_config.h"
 #include "src/io/hardware_io.h"
 #include "src/video/local_camera/local_camera.h"
@@ -1297,6 +1298,8 @@ void loop() {
       mqtt_process_inbound_queue();
       local_camera::service();
       command_channel::service();
+      // Drops the camera pictures while the display sleeps.
+      camera_picture::service();
       loop_stall::enter(loop_stall::Step::SleepTiles);
       // Keep live tile state current during sleep. The paused refresh timer
       // prevents drawing to the sleeping display, so wake needs no catch-up.
@@ -1475,6 +1478,7 @@ void loop() {
     viewNavigationService();
     local_camera::service();
     command_channel::service();
+    camera_picture::service();
     loop_stall::enter(loop_stall::Step::MqttInbound);
     // Keep S3 input service bounded when Home Assistant echoes a live slider
     // command or sends a retained-state burst. Eight messages per UI cycle

@@ -171,6 +171,13 @@
     if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'camera_entity')) {
       tile.sensor_entity = snapshot.camera_entity || '';
     }
+    // The Camera tile's picture options in their stored fields (types/camera/admin.js).
+    if (Number(tile.type) === 18 && snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'camera_display')) {
+      tile.sensor_display_mode = String(snapshot.camera_display) === '1' ? 1 : 0;
+      tile.sensor_decimals = Math.max(0, CAMERA_FITS.indexOf(String(snapshot.camera_fit)));
+      tile.image_slideshow_sec = cameraEvery(snapshot.camera_every);
+      tile.key_code = cameraTransparency(snapshot.camera_transparency);
+    }
     for (const kind of ['lock', 'alarm', 'fan']) {
       if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, kind + '_entity')) tile.sensor_entity = snapshot[kind + '_entity'] || '';
     }

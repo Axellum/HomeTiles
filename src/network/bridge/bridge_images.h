@@ -7,8 +7,11 @@
 // Pictures from the Bridge over the direct link (docs-dev/images.md): a
 // Media tile subscribes to its player's cover in the size the Media popup
 // shows it, keyed like the player state's "image_key"; the screensaver to
-// its image or camera entity in the screen's size. The Bridge renders and
-// sends them. Loop task only.
+// its image or camera entity in the screen's size; a Camera tile to its
+// image or camera entity in the tile's size. The Bridge renders and sends
+// them. One entity can come in several sizes at once (a camera on a tile and
+// on the screensaver): a picture is kept per entity, size and placement.
+// Loop task only.
 namespace bridge_images {
 
 struct Picture {
@@ -16,7 +19,7 @@ struct Picture {
   char key[kKeyLength + 1] = "";
   uint8_t* jpeg = nullptr;  // PSRAM
   size_t length = 0;
-  uint16_t width = 0;
+  uint16_t width = 0;   // The size its topic asked for (= the JPEG's).
   uint16_t height = 0;
   uint8_t fit = kFill;  // The placement its topic asked for.
   uint32_t used = 0;
@@ -36,7 +39,9 @@ const char* screenSuffix(uint8_t fit, uint8_t every);
 // player's tiles or the screensaver told. False for any other topic.
 bool handleMqttMessage(const char* topic, const uint8_t* payload, size_t length);
 
-// The newest picture of an entity; nullptr without one.
+// The newest picture of an entity in any size; nullptr without one.
 const Picture* find(const char* entity_id);
+// The picture of an entity in exactly this size and placement.
+const Picture* find(const char* entity_id, uint16_t width, uint16_t height, uint8_t fit);
 
 }  // namespace bridge_images

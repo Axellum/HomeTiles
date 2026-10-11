@@ -352,6 +352,7 @@
       }
     }
     applyIconDiscTint(tileElem);
+    if (previewKind === 'camera') applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight);
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
     if (wasActive) tileElem.classList.add('active');

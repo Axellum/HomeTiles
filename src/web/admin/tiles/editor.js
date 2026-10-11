@@ -371,10 +371,21 @@
     }
     bindLive(cameraSelect, 'change', 'cameraEntity', () => {
       maybeFillTitleFromEntity(tab, '_camera_entity');
+      syncCameraFields(tab);
       updateTilePreview(tab);
       updateDraft(tab);
       scheduleAutoSave(tab);
     });
+    // The picture options (types/camera/admin.js); the slider follows live.
+    for (const [field, eventName] of [['camera_display', 'change'], ['camera_fit', 'change'],
+                                      ['camera_every', 'change'], ['camera_transparency', 'input']]) {
+      bindLive(document.getElementById(prefix + '_' + field), eventName, field, () => {
+        syncCameraFields(tab);
+        updateTilePreview(tab);
+        updateDraft(tab);
+        scheduleAutoSave(tab);
+      });
+    }
     climateSlotSelects.forEach((select, index) => {
       bindLive(select, 'change', 'climateSlot' + index, () => {
         syncClimateSlotFields(tab);

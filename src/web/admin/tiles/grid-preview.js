@@ -986,6 +986,7 @@
         if (el.dataset.neutralIdle === '1' && el.dataset.surface !== 'jewel') setTileTintBackground(el, '#FFFFFF', 0, true);
       }
       applyIconDiscTint(el);
+      if (previewKind === 'camera') applyCameraPicturePreview(el, cameraPictureOptionsOf(tile), Number(tile.span_h) === 0.5);
       if (previewKind === 'cover') {
         applyCoverPreview(el, coverPreviewState, Number(tile.span_h) === 0.5);
         // The header classes need the bar class set above (switch-tall).

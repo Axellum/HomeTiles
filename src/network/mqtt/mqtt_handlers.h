@@ -83,6 +83,11 @@ void mqttRequestDynamicSlotsReload(uint32_t quiet_ms = 3000);
 // sent every `every` seconds, subscribed only while the screensaver shows it
 // (link only; empty or null = none). Kept across reconnects.
 void mqttSetLivePicture(const char* entity_id, uint8_t fit, uint8_t every);
+// The Camera tiles' pictures (types/camera/picture.h): `count` entities with
+// their route suffixes ("image/<w>x<h>..."), the whole set the tiles show
+// now. New ones are subscribed, dropped ones unsubscribed (link only); kept
+// across reconnects.
+void mqttSetTilePictures(const String* entities, const String* suffixes, size_t count);
 void mqttServiceDynamicSlotsReload();
 // Boot scan for setup(): is there a media tile in the stored configuration? The
 // result sets the initial size of the MQTT receive buffer, because cover

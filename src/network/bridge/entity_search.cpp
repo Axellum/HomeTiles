@@ -68,6 +68,14 @@ const char* listOfType(TileType type) {
   return nullptr;
 }
 
+// The list a tile's entity is declared in. A Camera tile also shows an image
+// entity's picture (types/camera/picture.h); the Bridge's "cameras" list
+// holds cameras only, its "images" list both.
+const char* listOfTile(TileType type, const char* entity) {
+  if (type == TILE_CAMERA && entity && strncmp(entity, "image.", 6) == 0) return "images";
+  return listOfType(type);
+}
+
 bool knownList(const String& list) {
   for (const ListTile& entry : kListTiles) {
     if (list == entry.list) return true;
@@ -106,14 +114,14 @@ entity_declaration::Declaration collectDeclaration() {
   for (const FolderEntry& folder : tileConfig.getFolders()) {
     if (!tileConfig.getFolderEntitiesCached(folder.id, slots, TILES_PER_GRID)) continue;
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
-      declaration.add(listOfType(slots[i].type), slots[i].entity);
+      declaration.add(listOfTile(slots[i].type, slots[i].entity), slots[i].entity);
       declaration.add(listOfSource(slots[i].rule_entity), slots[i].rule_entity);
     }
   }
   const TileGridConfig& screensaver = screensaverConfig.tileGrid();
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = screensaver.tiles[i];
-    declaration.add(listOfType(tile.type), tile.sensor_entity.c_str());
+    declaration.add(listOfTile(tile.type, tile.sensor_entity.c_str()), tile.sensor_entity.c_str());
     const String source = tileIconSourceEntity(tile.type, tile.icon_colors);
     declaration.add(listOfSource(source.c_str()), source.c_str());
   }

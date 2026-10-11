@@ -6,14 +6,16 @@
 #include "src/tiles/config/grid_layout.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/ui/popups/popup_layout.h"
+#include "src/types/camera/picture.h"
 #include "src/ui/screensaver/image_screensaver.h"
 
 namespace bridge_images {
 namespace {
 
-// A few players at most show covers, and the screensaver one picture; the
-// oldest picture makes room.
-constexpr size_t kPictures = 6;
+// A few players show covers, the screensaver one picture and Camera tiles
+// theirs; the oldest picture makes room. A tile keeps its decoded pixels, so
+// it needs its JPEG only until it has decoded it.
+constexpr size_t kPictures = 12;
 Picture g_pictures[kPictures];
 uint32_t g_tick = 0;
 
@@ -22,10 +24,17 @@ void release(Picture& picture) {
   picture = Picture();
 }
 
-Picture* slotFor(const char* entity_id) {
+bool same(const Picture& picture, const char* entity_id, uint16_t width, uint16_t height, uint8_t fit) {
+  return picture.jpeg && strcmp(picture.entity_id, entity_id) == 0 && picture.width == width &&
+         picture.height == height && picture.fit == fit;
+}
+
+Picture* slotFor(const char* entity_id, uint16_t width, uint16_t height, uint8_t fit) {
+  for (Picture& picture : g_pictures) {
+    if (same(picture, entity_id, width, height, fit)) return &picture;
+  }
   Picture* oldest = &g_pictures[0];
   for (Picture& picture : g_pictures) {
-    if (picture.jpeg && strcmp(picture.entity_id, entity_id) == 0) return &picture;
     if (!picture.jpeg) return &picture;
     if (picture.used < oldest->used) oldest = &picture;
   }
@@ -33,12 +42,13 @@ Picture* slotFor(const char* entity_id) {
 }
 
 // A cover goes to the player's tiles, an image or camera picture to the
-// screensaver.
+// screensaver and the Camera tiles.
 void announce(const char* entity) {
   if (strncmp(entity, "media_player.", 13) == 0) {
     tile_renderer_media_picture_arrived(entity);
   } else {
     image_screensaver_picture_arrived(entity);
+    camera_picture::arrived(entity);
   }
 }
 
@@ -67,18 +77,20 @@ bool handleMqttMessage(const char* topic, const uint8_t* payload, size_t length)
   const String& configured = mqttTopics.haPrefix();
   const char* prefix = configured.length() ? configured.c_str() : "ha/statestream";
   char entity[sizeof(Picture::entity_id)];
+  uint16_t width = 0, height = 0;
   uint8_t fit = kFill;
-  if (!entityFromTopic(topic, prefix, entity, sizeof(entity), nullptr, nullptr, &fit)) return false;
+  if (!entityFromTopic(topic, prefix, entity, sizeof(entity), &width, &height, &fit)) return false;
 
   if (length == 0) {
     for (Picture& picture : g_pictures) {
-      if (picture.jpeg && strcmp(picture.entity_id, entity) == 0) release(picture);
+      if (same(picture, entity, width, height, fit)) release(picture);
     }
     announce(entity);
     return true;
   }
   Header header;
-  if (!parseHeader(payload, length, header)) {
+  // The Bridge renders exactly the size the topic asks for.
+  if (!parseHeader(payload, length, header) || header.width != width || header.height != height) {
     Serial.printf("[Images] Malformed picture dropped (%u bytes): %s\n",
                   static_cast<unsigned>(length), topic);
     return true;
@@ -91,7 +103,7 @@ bool handleMqttMessage(const char* topic, const uint8_t* payload, size_t length)
     return true;
   }
   memcpy(jpeg, payload + header.jpeg_offset, jpeg_length);
-  Picture* slot = slotFor(entity);
+  Picture* slot = slotFor(entity, width, height, fit);
   release(*slot);
   strlcpy(slot->entity_id, entity, sizeof(slot->entity_id));
   memcpy(slot->key, header.key, sizeof(slot->key));
@@ -111,8 +123,22 @@ bool handleMqttMessage(const char* topic, const uint8_t* payload, size_t length)
 
 const Picture* find(const char* entity_id) {
   if (!entity_id) return nullptr;
+  Picture* newest = nullptr;
   for (Picture& picture : g_pictures) {
-    if (picture.jpeg && strcasecmp(picture.entity_id, entity_id) == 0) {
+    if (picture.jpeg && strcasecmp(picture.entity_id, entity_id) == 0 &&
+        (!newest || picture.used > newest->used)) {
+      newest = &picture;
+    }
+  }
+  if (newest) newest->used = ++g_tick;
+  return newest;
+}
+
+const Picture* find(const char* entity_id, uint16_t width, uint16_t height, uint8_t fit) {
+  if (!entity_id) return nullptr;
+  for (Picture& picture : g_pictures) {
+    if (picture.jpeg && strcasecmp(picture.entity_id, entity_id) == 0 && picture.width == width &&
+        picture.height == height && picture.fit == fit) {
       picture.used = ++g_tick;
       return &picture;
     }

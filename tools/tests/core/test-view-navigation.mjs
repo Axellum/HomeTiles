@@ -43,6 +43,7 @@ struct String : std::string {
   String(int value):std::string(std::to_string(value)) {}
   String substring(size_t from) const { return substr(from); }
   String substring(size_t from, size_t end) const { return substr(from, end - from); }
+  bool startsWith(const char* prefix) const { return rfind(prefix, 0) == 0; }
 };
 String operator+(const String& a,const String& b){return String(std::string(a)+std::string(b));}
 String operator+(const String& a,const char* b){return String(std::string(a)+b);}
@@ -211,6 +212,11 @@ int main(){
   assert(boundedLabel("A\xc3\xbcZ", 3, true) == "\xc3\xbcZ");
   // Select options use line breaks as separators; visual title wrapping must
   // never leak into the navigation catalog consumed by the Bridge.
+  // A Camera tile showing an image entity's picture has no popup yet (#50).
+  Tile picture; picture.type=TILE_CAMERA; picture.sensor_entity="image.vacuum_map";
+  assert(!popupSupported(picture));
+  picture.sensor_entity="camera.door";
+  assert(popupSupported(picture));
   const String visual_title = "Waveshare Touch\nLcd 8 Ansicht";
   assert(boundedLabel(visual_title, 80) == "Waveshare Touch Lcd 8 Ansicht");
   assert(visual_title == "Waveshare Touch\nLcd 8 Ansicht");

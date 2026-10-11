@@ -301,6 +301,9 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   emit_exact("tile-header-title-right", tile_layout::scale_480(20) - tile_layout::scale_480(4));
   emit_scaled("tile-header-icon-top", tile_layout::scale_480(24) + header.icon_top);
   emit_scaled("tile-header-icon-left", tile_layout::scale_480(20) + header.icon_side);
+  // The title's distance to the end of its pill over a Camera tile's picture
+  // (types/camera/picture.cpp show_head).
+  emit_scaled("camera-title-pad", tile_layout::scale_480(12));
 #if defined(DEVICE_LAYOUT_1024X600)
   emit("value-dy", 23);
 #elif defined(DEVICE_LAYOUT_480X480)

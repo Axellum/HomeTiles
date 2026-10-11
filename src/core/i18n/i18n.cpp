@@ -354,7 +354,6 @@ static const Strings kStringsDe = {
     "Keine Wiedergabe",
 
     "Kamera",
-    "Kamera",
     "Bereit",
     "Kamerastream wird vorbereitet ...",
     "Bridge wird angefragt ...",
@@ -633,7 +632,11 @@ static const Strings kStringsDe = {
     "Füllen",
     "Einpassen",
     "Original",
-    "Aktualisieren (s)"};
+    "Aktualisieren (s)",
+    "Anzeige",
+    "Icon",
+    "Bild",
+    "Transparenz von Kreis und Titel"};
 
 static const Strings kStringsEn = {
     "en",
@@ -982,7 +985,6 @@ static const Strings kStringsEn = {
     "Nothing playing",
 
     "Camera",
-    "Camera",
     "Ready",
     "Preparing camera stream ...",
     "Requesting bridge ...",
@@ -1261,7 +1263,11 @@ static const Strings kStringsEn = {
     "Fill",
     "Fit",
     "Original",
-    "Refresh (s)"};
+    "Refresh (s)",
+    "Show",
+    "Icon",
+    "Picture",
+    "Circle and title transparency"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1610,7 +1616,6 @@ static const Strings kStringsFr = {
     "Aucune lecture",
 
     "Caméra",
-    "Caméra",
     "Prêt",
     "Préparation du flux caméra ...",
     "Interrogation du bridge ...",
@@ -1889,7 +1894,11 @@ static const Strings kStringsFr = {
     "Remplir",
     "Ajuster",
     "Original",
-    "Actualiser (s)"};
+    "Actualiser (s)",
+    "Affichage",
+    "Icône",
+    "Image",
+    "Transparence du cercle et du titre"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2594,7 +2603,6 @@ static const Strings kStringsPl = {
     "Wyłączone",
     "Brak odtwarzania",
     "Kamera",
-    "Kamera",
     "Gotowa",
     "Przygotowywanie strumienia kamery ...",
     "Żądanie do mostu ...",
@@ -2872,6 +2880,10 @@ static const Strings kStringsPl = {
     "Dopasuj",
     "Oryginał",
     "Odświeżanie (s)",
+    "Wyświetlanie",
+    "Ikona",
+    "Obraz",
+    "Przezroczystość koła i tytułu",
 };
 
 static const LocaleProfile kLocalePl = {

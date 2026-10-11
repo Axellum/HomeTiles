@@ -927,6 +927,11 @@
       }
     } else if (safeType === 18) {
       fd.append('camera_entity', tile.sensor_entity || tile.camera_entity || '');
+      const picture = cameraPictureOptionsOf(tile);
+      fd.append('camera_display', picture.picture ? '1' : '0');
+      fd.append('camera_fit', picture.fit);
+      fd.append('camera_every', String(picture.every));
+      fd.append('camera_transparency', String(picture.transparency));
     } else if (safeType === 16) {
       fd.append('animation_file', tile.animation_file || tile.scene_alias || '');
       fd.append('animation_fps', tile.animation_fps || tile.image_slideshow_sec || '10');

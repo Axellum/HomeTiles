@@ -2967,6 +2967,51 @@
 .tile:not(.sensor-compact) > .tile-icon.tile-icon-tinted::after {
   background:var(--icon-disc-bg, color-mix(in srgb, currentColor 25%, transparent));
 }
+/* A Camera tile showing its picture (types/camera/picture.h). The browser has
+   no picture: a neutral stand-in fills the card. The head over it like the
+   Sensor header: the corner circle and the title on a pill mirrored into the
+   other corner (camera_picture_layout::head), both in the controls' color
+   (--control-fill, mark_surface) at the tile's transparency; one shared pill
+   across the head when they would come closer than a grid gap. */
+.tile.camera.camera-picture { display:block; }
+.tile.camera.camera-picture::before {
+  content:""; position:absolute; inset:-3px; z-index:-2; pointer-events:none;
+  border-radius:inherit; background:var(--camera-picture-standin, #5c6066);
+}
+.tile.camera-picture > .tile-icon {
+  position:absolute; z-index:1; margin:0;
+  top:calc(var(--tile-header-icon-top, 8px) - 3px);
+  left:calc(var(--tile-header-icon-left, 6px) - 3px);
+}
+.tile.camera-picture:not(.empty):not(.sensor-compact) > .tile-icon::after {
+  left:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - var(--tile-header-icon-left, 6px));
+  top:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - var(--tile-header-icon-top, 8px));
+  width:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - 2 * var(--corner-disc-shrink, 0px));
+  height:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - 2 * var(--corner-disc-shrink, 0px));
+  border-radius:max(0px, calc(var(--tile-radius) - var(--compact-inset) - var(--corner-disc-shrink, 0px)));
+  transform:none; display:block;
+  background:var(--control-fill, rgba(255,255,255,0.149)); opacity:var(--camera-head-opa, 1);
+}
+.tile.camera-picture.camera-head-shared > .tile-icon::after { opacity:0; }
+.tile.camera-picture > .tile-title {
+  position:absolute; z-index:0; margin:0; width:auto; max-width:none;
+  top:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - 3px);
+  right:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - 3px);
+  height:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - 2 * var(--corner-disc-shrink, 0px));
+  line-height:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - 2 * var(--corner-disc-shrink, 0px));
+  padding:0 var(--camera-title-pad, 12px); box-sizing:border-box;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;
+}
+.tile.camera-picture > .tile-title::before {
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  border-radius:max(0px, calc(var(--tile-radius) - var(--compact-inset) - var(--corner-disc-shrink, 0px)));
+  background:var(--control-fill, rgba(255,255,255,0.149)); opacity:var(--camera-head-opa, 1);
+}
+.tile.camera-picture.camera-head-shared > .tile-title {
+  left:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - 3px);
+  padding-left:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - var(--corner-disc-shrink, 0px));
+  text-align:right;
+}
 .icon-discs-off .tile:not([data-icon-disc="1"]) > .tile-icon::after,
 .tile[data-icon-disc="2"] > .tile-icon::after { display:none; }
 /* The global icon disc option (root class, mirrors the device's shared disc

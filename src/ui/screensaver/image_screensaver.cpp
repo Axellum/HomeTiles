@@ -1123,17 +1123,20 @@ lv_image_dsc_t* get_or_decode_cached(const ScreensaverWallpaperConfig& wallpaper
 }
 
 // The screensaver's picture from Home Assistant (screensaver_uses_ha_picture):
-// the Bridge's newest picture of the entity, centered and unzoomed since the
-// Bridge already placed it on the screen. Its name carries the picture's key
-// and placement, so a new picture decodes and the same one is reused. Without a picture in
-// bridge_images (`picture` null) a decoded one of the same entity stays;
-// false without either.
+// the Bridge's picture of the entity in the screen's size and placement
+// (a Camera tile's picture of the same entity has its own size), centered and
+// unzoomed since the Bridge already placed it on the screen. Its name carries
+// the picture's key and placement, so a new picture decodes and the same one
+// is reused. Without a picture in bridge_images (`picture` null) a decoded one
+// of the same entity stays; false without either.
 bool ha_picture_source(ScreensaverWallpaperConfig& out,
                        const bridge_images::Picture*& picture) {
   const ScreensaverConfigData& config = screensaverConfig.get();
   out = ScreensaverWallpaperConfig{};
   const String prefix = String("ha:") + config.picture_entity + "#";
-  picture = bridge_images::find(config.picture_entity.c_str());
+  picture = bridge_images::find(config.picture_entity.c_str(),
+                                static_cast<uint16_t>(grid_layout::screen_w()),
+                                static_cast<uint16_t>(grid_layout::screen_h()), config.picture_fit);
   if (picture) {
     out.file_name = prefix + picture->key + "/" + String(picture->fit);
     return true;
@@ -1967,6 +1970,27 @@ void sync_live_picture() {
 }
 
 }  // namespace
+
+uint16_t* image_screensaver_decode_picture(const uint8_t* data, size_t len, uint16_t want_w,
+                                           uint16_t want_h, uint16_t& out_w, uint16_t& out_h) {
+  if (!data || len < 2) return nullptr;
+  uint16_t* pixels = nullptr;
+  bool native = false;
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && SOC_JPEG_DECODE_SUPPORTED
+  // Asked for the picture's own size, the hardware writes native order.
+  pixels = hw_decode_jpeg(data, len, out_w, out_h, native, want_w, want_h);
+#endif
+  if (!pixels) {
+    native = false;
+    pixels = sw_decode_jpeg(data, len, out_w, out_h);
+  }
+  if (pixels && !native) {
+    for (uint32_t y = 0; y < out_h; ++y) {
+      wallpaper_cover::swap_row(pixels + static_cast<size_t>(y) * out_w, out_w);
+    }
+  }
+  return pixels;
+}
 
 void preload_image_screensaver() {
   if (!screensaverConfig.get().use_wallpapers) return;

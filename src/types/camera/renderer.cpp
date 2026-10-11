@@ -10,6 +10,7 @@
 #include "src/tiles/runtime/compact_sensor_layout.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
+#include "src/types/camera/picture.h"
 #include "src/ui/popups/camera/camera_popup.h"
 #include "src/ui/shared/ui_theme.h"
 
@@ -135,7 +136,15 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
     lv_obj_center(title_label);
   }
 
-  if (grid_type != GridType::SCREENSAVER && tile.sensor_entity.length()) {
+  // The Bridge's picture instead of the icon (picture.h), not at half
+  // height: it shows the icon look until the first picture arrives.
+  if (!compact && grid_type != GridType::SCREENSAVER) {
+    camera_picture::attach(card, icon, title_label, tile);
+  }
+
+  // An image entity's picture has no popup yet.
+  if (grid_type != GridType::SCREENSAVER && tile.sensor_entity.length() &&
+      !camera_picture::is_image(tile.sensor_entity)) {
     CameraEventData* event_data = new CameraEventData{
         tile.sensor_entity, title, icon_name, card_color};
     lv_obj_add_event_cb(card, camera_tile_event_cb, LV_EVENT_SHORT_CLICKED,

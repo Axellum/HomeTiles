@@ -385,7 +385,6 @@ struct Strings {
 
   // Camera tile, popup and video runtime status.
   const char* camera_tile_type;
-  const char* camera_entity;
   const char* camera_ready;
   const char* camera_preparing;
   const char* camera_bridge_requesting;
@@ -731,6 +730,14 @@ struct Strings {
   const char* screensaver_fit_contain;
   const char* screensaver_fit_original;
   const char* screensaver_picture_every;
+  // The Camera tile's picture (types/camera/picture.h): what the tile shows,
+  // its two choices, and the transparency of the circle and the title pill
+  // over the picture. Its entity, placement, interval and hint reuse the
+  // screensaver picture's texts above.
+  const char* camera_show;
+  const char* camera_show_icon;
+  const char* camera_show_picture;
+  const char* camera_head_transparency;
 };
 
 // Locale-specific display rules and short runtime strings shared by

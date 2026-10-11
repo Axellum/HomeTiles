@@ -1396,6 +1396,35 @@ void mqttSetLivePicture(const char* entity_id, uint8_t fit, uint8_t every) {
   g_live_picture_topic = topic;
 }
 
+// The Camera tiles' picture topics (mqttSetTilePictures).
+static std::vector<String> g_tile_picture_topics;
+
+void mqttSetTilePictures(const String* entities, const String* suffixes, size_t count) {
+  std::vector<String> topics;
+  topics.reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    const String topic = buildHaStatestreamTopic(entities[i], suffixes[i].c_str());
+    if (std::find(topics.begin(), topics.end(), topic) == topics.end()) topics.push_back(topic);
+  }
+  if (topics == g_tile_picture_topics) return;
+  if (networkManager.isMqttConnected() && networkManager.linkConfigured()) {
+    // The screensaver's live topic stays when a tile drops the same one.
+    for (const String& old : g_tile_picture_topics) {
+      if (old != g_live_picture_topic && std::find(topics.begin(), topics.end(), old) == topics.end()) {
+        networkManager.mqttEnqueueUnsubscribe(old.c_str());
+      }
+    }
+    for (const String& topic : topics) {
+      if (std::find(g_tile_picture_topics.begin(), g_tile_picture_topics.end(), topic) ==
+          g_tile_picture_topics.end()) {
+        networkManager.mqttEnqueueSubscribe(topic.c_str());
+      }
+    }
+  }
+  Serial.printf("[Images] Tile pictures: %u\n", static_cast<unsigned>(topics.size()));
+  g_tile_picture_topics.swap(topics);
+}
+
 static void rebuildDynamicRoutes(std::vector<DynamicSensorRoute>& routes) {
   routes.clear();
 
@@ -2180,6 +2209,9 @@ void mqttSubscribeTopics() {
   hardwareIo.subscribeMqttTopics();
   if (g_live_picture_topic.length() && networkManager.linkConfigured()) {
     networkManager.mqttEnqueueSubscribe(g_live_picture_topic.c_str());
+  }
+  if (networkManager.linkConfigured()) {
+    for (const String& topic : g_tile_picture_topics) networkManager.mqttEnqueueSubscribe(topic.c_str());
   }
 }
 

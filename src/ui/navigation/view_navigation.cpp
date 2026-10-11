@@ -77,8 +77,11 @@ bool popupSupported(const Tile& tile) {
     case TILE_NUMBER: case TILE_SELECT: case TILE_DATETIME:
     case TILE_SENSOR: case TILE_BINARY_SENSOR: case TILE_SWITCH:
     case TILE_WEATHER: case TILE_ENERGY: case TILE_MEDIA:
-    case TILE_CLIMATE: case TILE_COVER: case TILE_CAMERA:
+    case TILE_CLIMATE: case TILE_COVER:
     case TILE_LOCK: case TILE_ALARM: case TILE_FAN: return true;
+    // A Camera tile can show an image entity's picture (types/camera/
+    // picture.h), which has no popup yet.
+    case TILE_CAMERA: return !tile.sensor_entity.startsWith("image.");
     default: return false;
   }
 }

@@ -1,15 +1,15 @@
 # Pictures from the Bridge
 
 Developer reference for pictures the HomeTiles Bridge renders for linked
-panels: media covers and the screensaver picture (issue #69) today; picture
-tiles (webcams, vacuum maps) and the rain radar later. Only panels on the
+panels: media covers, the screensaver picture (issue #69) and the Camera
+tile's picture (#50: webcams, vacuum maps, QR codes); the rain radar later. Only panels on the
 direct link (`bridge-link.md`) get them; panels on MQTT keep the cover
 embedded in the media state and the screensaver on its SD slideshow.
 
 | Part | Firmware | Bridge |
 | --- | --- | --- |
 | Header and topic | `src/network/bridge/bridge_images_core.h` (pure) | `images.py` |
-| Store and display | `src/network/bridge/bridge_images.*`, `tile_renderer.cpp`, `image_screensaver.cpp` | `images.py`, `media_artwork.py`, `__init__.py` (sources) |
+| Store and display | `src/network/bridge/bridge_images.*`, `tile_renderer.cpp`, `image_screensaver.cpp`, `src/types/camera/picture.*` | `images.py`, `media_artwork.py`, `__init__.py` (sources) |
 | Transport | link streams (`bridge-link.md`, `rx`) | `link_server.py` |
 
 ## Topics
@@ -50,6 +50,22 @@ is subscribed only while the screensaver shows it on an awake display, and
 again after a reconnect; the panel declares the entity in its `images` list
 (`entity_search`). The screensaver needs no microSD card for it.
 
+A Camera tile set to show its picture (`sensor_display_mode` 1; placement in
+`sensor_decimals`, a camera's interval in `image_slideshow_sec`, the
+transparency of its circle and title pill in `key_code`) subscribes to its
+camera or image entity in the tile's size (`tile_geometry::extent` of its
+span), so the picture covers the card exactly and needs no scaling. An image
+entity stays subscribed while its tile exists; a camera only while its tile is
+on the active screen, the display is awake, the screensaver is closed and no
+camera stream runs. Every change and every reconnect sends the whole set
+(`mqttSetTilePictures`). An image entity is declared in the `images` list, a
+camera in `cameras`. The tile decodes at most one picture per loop pass with
+the screensaver's decoders, rounds the corners into the pixels towards the
+colour behind the card (no clipping layer) and keeps its own RGB565 copy; it
+shows its icon look until the first picture and keeps the last picture when
+its JPEG later makes room for others. Half-height Camera tiles and panels on
+MQTT keep the icon.
+
 ## Message
 
 ```text
@@ -66,9 +82,11 @@ HTIMG1 <key> <w>x<h>\n<JPEG>
   topic's panels, at most 512 KiB.
 - An empty message clears the picture.
 
-The panel reads the header strictly (magic, key, size, line end, a JPEG
-start); anything else is dropped with a log line. It keeps the newest picture
-of up to six entities in PSRAM; the screensaver also keeps its decoded copy.
+The panel reads the header strictly (magic, key, size equal to the topic's,
+line end, a JPEG start); anything else is dropped with a log line. It keeps up
+to twelve pictures in PSRAM, one per entity, size and placement (a camera on a
+tile and on the screensaver are two); an empty message clears only its own.
+The screensaver and the Camera tiles also keep their decoded copies.
 
 ## Keys and songs
 

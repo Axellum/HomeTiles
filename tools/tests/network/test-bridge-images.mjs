@@ -1,9 +1,11 @@
 // Pictures from the Bridge over the direct link (docs-dev/images.md): a Media
 // tile subscribes to "<ha_prefix>/media_player/<object>/image/<e>x<e>" in the
 // size the Media popup shows its cover, the screensaver to its image or camera
-// entity in the screen's size; the message is "HTIMG1 <key> <w>x<h>\n" + JPEG.
-// The panel reads the header and topic strictly, stores the picture and hands
-// a cover to the tiles of its song, any other picture to the screensaver.
+// entity in the screen's size, a Camera tile to its entity in the tile's size;
+// the message is "HTIMG1 <key> <w>x<h>\n" + JPEG. The panel reads the header
+// and topic strictly, keeps a picture per entity, size and placement, and
+// hands a cover to the tiles of its song, any other picture to the
+// screensaver and the Camera tiles.
 import assert from 'node:assert/strict';
 
 import {readRepoFile} from '../../lib/admin-source.mjs';
@@ -104,10 +106,21 @@ const images = readRepoFile('src/network/bridge/bridge_images.cpp');
 assert.match(images, /return static_cast<uint16_t>\(popup_layout::scale\(240\)\);/);
 assert.match(readRepoFile('src/ui/popups/media/media_popup.cpp'), /constexpr int kCoverSize = popup_layout::scale\(240\);/,
   'the cover picture has the size the Media popup shows');
-assert.match(images, /if \(!entityFromTopic\(topic, prefix, entity, sizeof\(entity\), nullptr, nullptr, &fit\)\) return false;/);
-assert.match(images, /if \(!parseHeader\(payload, length, header\)\) \{[\s\S]*?return true;\s*\}/, 'a malformed picture is dropped');
-assert.match(images, /if \(strncmp\(entity, "media_player\.", 13\) == 0\) \{\s*tile_renderer_media_picture_arrived\(entity\);\s*\} else \{\s*image_screensaver_picture_arrived\(entity\);\s*\}/,
-  'a cover goes to the tiles, an image or camera picture to the screensaver');
+assert.match(images, /if \(!entityFromTopic\(topic, prefix, entity, sizeof\(entity\), &width, &height, &fit\)\) return false;/);
+assert.match(images, /if \(!parseHeader\(payload, length, header\) \|\| header\.width != width \|\| header\.height != height\) \{/,
+  'a picture has exactly the size its topic asked for');
+// One entity in several sizes (a camera on a tile and on the screensaver):
+// each topic keeps its own picture, and an empty message clears only its own.
+assert.match(images, /Picture\* slot = slotFor\(entity, width, height, fit\);/);
+assert.match(images, /if \(length == 0\) \{\s*for \(Picture& picture : g_pictures\) \{\s*if \(same\(picture, entity, width, height, fit\)\) release\(picture\);/);
+assert.match(images, /return picture\.jpeg && strcmp\(picture\.entity_id, entity_id\) == 0 && picture\.width == width &&\s*picture\.height == height && picture\.fit == fit;/);
+assert.match(images, /if \(!parseHeader\(payload, length, header\) \|\| header\.width != width \|\| header\.height != height\) \{[\s\S]*?return true;\s*\}/,
+  'a malformed picture is dropped');
+assert.match(images, /if \(strncmp\(entity, "media_player\.", 13\) == 0\) \{\s*tile_renderer_media_picture_arrived\(entity\);\s*\} else \{\s*image_screensaver_picture_arrived\(entity\);\s*camera_picture::arrived\(entity\);\s*\}/,
+  'a cover goes to the tiles, an image or camera picture to the screensaver and the Camera tiles');
+assert.match(readRepoFile('src/ui/screensaver/image_screensaver.cpp'),
+  /picture = bridge_images::find\(config\.picture_entity\.c_str\(\),\s*static_cast<uint16_t>\(grid_layout::screen_w\(\)\),\s*static_cast<uint16_t>\(grid_layout::screen_h\(\)\), config\.picture_fit\);/,
+  'the screensaver takes its own size, not a Camera tile\'s picture of the same entity');
 assert.equal((images.match(/announce\(entity\);/g) || []).length, 2, 'a new and a cleared picture are told');
 assert.match(images, /pictureSuffix\(suffix, sizeof\(suffix\), static_cast<uint16_t>\(grid_layout::screen_w\(\)\),\s*static_cast<uint16_t>\(grid_layout::screen_h\(\)\), fit, every\);/,
   'the screensaver picture has the screen\'s size as shown, upright or not, with its placement');
