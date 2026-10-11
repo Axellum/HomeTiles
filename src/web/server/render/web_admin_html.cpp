@@ -332,8 +332,8 @@ static void appendLocalCameraSettingsHtml(String& html, const i18n::Strings& tr)
 <div class="local-camera-group" id="local_camera_orientation">
 <div>
 <label for="local_camera_rotation">)html";
-  // The rotation of the layout this boot shows (the upright one kept apart).
-  appendHtmlEscaped(html, grid_layout::turned() ? tr.local_camera_rotation_upright : tr.local_camera_rotation);
+  // One rotation for every layout (an upright one adds its quarter turn).
+  appendHtmlEscaped(html, tr.local_camera_rotation);
   html += R"html(:</label>
 <select id="local_camera_rotation" onchange="saveLocalCameraRotation(this.value)">)html";
   const uint8_t rotation = local_camera::rotation();

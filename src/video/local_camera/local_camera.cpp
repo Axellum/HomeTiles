@@ -56,12 +56,11 @@ constexpr char kPrefsEnabledKey[] = "local_cam_en";
 // Live-stream mode id (local_camera_stream::kModes, 0 = Auto), u8.
 constexpr char kPrefsStreamModeKey[] = "lcam_mode";
 constexpr char kPrefsMirrorKey[] = "lcam_mirror";
-// User rotation: clockwise quarter turns 0..3 (kRotationMax), u8.
+// User rotation: clockwise quarter turns 0..3 (kRotationMax), u8. One for
+// every layout (user 2026-10-11: set once, right in every orientation); an
+// upright layout adds its quarter turn itself (displayQuarterTurns()). The
+// upright one b298-b386 kept apart ("lcam_rot_up") is no longer read.
 constexpr char kPrefsRotationKey[] = "lcam_rot";
-// The rotation of the upright layouts (Hochkant), kept apart from the
-// landscape one: a board whose upright default is wrong is put right there
-// without turning its landscape picture (user 2026-10-08).
-constexpr char kPrefsRotationUprightKey[] = "lcam_rot_up";
 // Red/blue swap for boards whose colours come out exchanged, bool.
 constexpr char kPrefsRbSwapKey[] = "lcam_rbswap";
 // On-display indicator style (IndicatorStyle as uint8_t).
@@ -176,12 +175,10 @@ std::atomic<uint8_t> g_custom_quality{local_camera_stream::CustomMode{}.quality}
 // Horizontal mirror of the delivered image (Web Admin setting).
 std::atomic<bool> g_mirror{false};
 // User rotation in clockwise quarter turns, 0..kRotationMax (Web Admin
-// setting), one for the landscape layouts and one for the upright ones; the
-// layout of this boot picks it (userTurns()). The worker reads it per frame
+// setting), the same in every layout. The worker reads it per frame
 // (applyOrientation()), the loop task for the retained status.
 std::atomic<uint8_t> g_rotation{0};
-std::atomic<uint8_t> g_rotation_upright{0};
-uint8_t userTurns() { return grid_layout::turned() ? g_rotation_upright.load() : g_rotation.load(); }
+uint8_t userTurns() { return g_rotation.load(); }
 // Red and blue exchanged in the ISP Bayer order (Web Admin setting); read by
 // the worker when it builds the pipeline, i.e. from the next capture or stream
 // start on.
@@ -307,15 +304,18 @@ String deviceTopic(const char* leaf, const char* id = nullptr) {
 // differently: clockwise on the V2 (OV02C10, hardware 2026-10-08: three
 // quarters stood upside down), counter-clockwise on the 8-inch (OV5647,
 // hardware 2026-10-08: one quarter, adding up to 180 with its mounting,
-// stood upside down). The user's mirror setting reverses it again, and so
-// does a panel that turns a turned layout the other way round
-// (grid_layout::turn_reversed: JC1060, Waveshare 7B, JC4880). Added to the
-// user turns, so the user rotation stays the same in both layouts.
+// stood upside down). A panel that turns a turned layout the other way
+// round reverses it (grid_layout::turn_reversed: JC1060, Waveshare 7B,
+// JC4880). The user's mirror does not: desiredOrientation() already moves it
+// to the other sensor axis for a quarter turn, so it mirrors the turned
+// picture; reversing the turn as well stood the picture upside down (V2,
+// user 2026-10-11). Added to the user turns, so one user rotation is right
+// in both layouts.
 uint8_t displayQuarterTurns() {
   if (!grid_layout::turned()) return 0u;
 #if defined(HOMETILES_LOCAL_CAMERA)
   const bool counter_clockwise =
-      (local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror.load()) != grid_layout::turn_reversed();
+      local_camera_board::Sensor::kUprightTurnCounterClockwise != grid_layout::turn_reversed();
   return counter_clockwise ? 3u : 1u;
 #else
   return grid_layout::turn_reversed() ? 3u : 1u;
@@ -3134,8 +3134,6 @@ void begin() {
     // Unknown rotations (e.g. from a newer firmware) fall back to none.
     const uint8_t rotation = prefs.getUChar(kPrefsRotationKey, 0);
     g_rotation.store(rotation <= kRotationMax ? rotation : 0);
-    const uint8_t rotation_upright = prefs.getUChar(kPrefsRotationUprightKey, 0);
-    g_rotation_upright.store(rotation_upright <= kRotationMax ? rotation_upright : 0);
     g_rb_swap.store(prefs.getBool(kPrefsRbSwapKey, false));
     // Unknown styles (e.g. from a newer firmware) fall back to the default.
     const uint8_t style =
@@ -3632,14 +3630,13 @@ bool setMirror(bool mirror) {
 #endif
 }
 
-// The rotation of this boot's layout (landscape or upright).
+// The user rotation (the same in every layout).
 uint8_t rotation() { return userTurns(); }
 
 bool setRotation(uint8_t quarter_turns) {
 #if defined(HOMETILES_LOCAL_CAMERA)
   if (quarter_turns > kRotationMax) return false;
   if (quarter_turns == userTurns()) return true;
-  const bool upright = grid_layout::turned();
   {
     Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
     BatchedNvsWrite::Preferences prefs;
@@ -3648,15 +3645,14 @@ bool setRotation(uint8_t quarter_turns) {
       return false;
     }
     const bool written =
-        prefs.putUChar(upright ? kPrefsRotationUprightKey : kPrefsRotationKey, quarter_turns) > 0;
+        prefs.putUChar(kPrefsRotationKey, quarter_turns) > 0;
     if (!BatchedNvsWrite::finish(prefs) || !written) {
       Serial.println("[LocalCam] Could not save the rotation setting");
       return false;
     }
   }
-  (upright ? g_rotation_upright : g_rotation).store(quarter_turns);
-  Serial.printf("[LocalCam] Rotation (%s) %u degrees, Bridge turn %u\n",
-                upright ? "upright" : "landscape", static_cast<unsigned>(quarter_turns) * 90u,
+  g_rotation.store(quarter_turns);
+  Serial.printf("[LocalCam] Rotation %u degrees, Bridge turn %u\n", static_cast<unsigned>(quarter_turns) * 90u,
                 static_cast<unsigned>(statusRotate()));
   // The quarter turn the Bridge applies may have changed; the sensor flips
   // follow with the next frame (applyOrientation()). A running stream with

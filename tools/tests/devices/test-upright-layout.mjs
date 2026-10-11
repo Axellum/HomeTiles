@@ -239,10 +239,36 @@ assert.match(handler, /const float first_row = screensaver_layout \? screensaver
 // quarter back, clockwise on the V2 (hardware 2026-10-08: three quarters
 // stood upside down), counter-clockwise on the 8-inch (hardware 2026-10-08:
 // one quarter, 180 with its mounting, stood upside down) - their pictures are
-// mirrored differently and a mirror reverses a turn, the user's mirror too.
+// mirrored differently. The user's mirror never turns the picture (V2, user
+// 2026-10-11: reversing the turn for it stood the upright picture upside down).
 const camera = read('src/video/local_camera/local_camera.cpp');
 assert.match(camera, /if \(!grid_layout::turned\(\)\) return 0u;/);
-assert.match(camera, /const bool counter_clockwise =\s*\(local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror\.load\(\)\) != grid_layout::turn_reversed\(\);\s*return counter_clockwise \? 3u : 1u;/);
+assert.match(camera, /const bool counter_clockwise =\s*local_camera_board::Sensor::kUprightTurnCounterClockwise != grid_layout::turn_reversed\(\);\s*return counter_clockwise \? 3u : 1u;/);
+{
+  const start = camera.indexOf('uint8_t displayQuarterTurns() {');
+  assert.doesNotMatch(camera.slice(start, camera.indexOf('\n}\n', start)), /g_mirror/, 'the user mirror never turns the picture');
+}
+// Why: desiredOrientation() mirrors on the other sensor axis for a quarter
+// turn, so sensor flips plus the Bridge's turn always give the user's mirror
+// of the turned picture. Coordinates (x, y), R = a clockwise quarter turn.
+{
+  const contractSource = read('src/video/local_camera/local_camera_contract.h');
+  assert.match(contractSource, /orientation\.mirror = rotated_180 != user_mirror;\s*orientation\.flip = rotated_180;\s*if \(quarter_turn\) \{\s*const bool mirror = orientation\.mirror;\s*orientation\.mirror = orientation\.flip;\s*orientation\.flip = mirror;/);
+  // `|| 0` keeps -0 apart from deepEqual's view of 0.
+  const mul = (a, b) => [[a[0][0] * b[0][0] + a[0][1] * b[1][0], a[0][0] * b[0][1] + a[0][1] * b[1][1]],
+                         [a[1][0] * b[0][0] + a[1][1] * b[1][0], a[1][0] * b[0][1] + a[1][1] * b[1][1]]].map(row => row.map(v => v || 0));
+  const I = [[1, 0], [0, 1]], R = [[0, 1], [-1, 0]], Hm = [[-1, 0], [0, 1]], Vf = [[1, 0], [0, -1]];
+  const turn = n => Array.from({length: n & 3}).reduce(m => mul(R, m), I);
+  for (const turns of [0, 1, 2, 3]) {
+    for (const userMirror of [false, true]) {
+      const rotated180 = (turns & 2) !== 0, quarter = (turns & 1) !== 0;
+      let mirror = rotated180 !== userMirror, flip = rotated180;
+      if (quarter) [mirror, flip] = [flip, mirror];
+      const delivered = mul(turn(quarter ? 1 : 0), mul(mirror ? Hm : I, flip ? Vf : I));
+      assert.deepEqual(delivered, mul(userMirror ? Hm : I, turn(turns)), `${turns} turns, mirror ${userMirror}`);
+    }
+  }
+}
 assert.match(camera, /#else\n  return grid_layout::turn_reversed\(\) \? 3u : 1u;/, 'a panel turned the other way round turns its camera back');
 assert.match(read('src/video/local_camera/sensors/ov5647/ov5647_sensor.h'), /static constexpr bool kUprightTurnCounterClockwise = true;/);
 assert.match(read('src/video/local_camera/sensors/ov02c10/ov02c10_sensor.h'), /static constexpr bool kUprightTurnCounterClockwise = false;/);
@@ -254,21 +280,19 @@ assert.equal(turnsOf(true, false, 0 + 3), 0, '8-inch upright: no flips, no Bridg
 assert.equal(turnsOf(true, false, 0), 1, '8-inch landscape: the Bridge turns 90 as before');
 assert.equal(turnsOf(false, false, 0 + 1), 1, 'V2 upright: the Bridge turns 90 clockwise');
 assert.equal(turnsOf(false, false, 0), 0, 'V2 landscape unchanged');
-// Each format keeps its own rotation (user 2026-10-08): the upright one put
-// right never turns the landscape picture.
-assert.match(camera, /constexpr char kPrefsRotationUprightKey\[\] = "lcam_rot_up";/);
-assert.match(camera, /uint8_t userTurns\(\) \{ return grid_layout::turned\(\) \? g_rotation_upright\.load\(\) : g_rotation\.load\(\); \}/);
-assert.match(camera, /prefs\.putUChar\(upright \? kPrefsRotationUprightKey : kPrefsRotationKey, quarter_turns\)/);
+// One rotation for every layout (user 2026-10-11: set once, right in every
+// orientation); an upright layout adds its quarter turn itself.
+assert.doesNotMatch(camera, /kPrefsRotationUprightKey|g_rotation_upright/);
+assert.match(camera, /uint8_t userTurns\(\) \{ return g_rotation\.load\(\); \}/);
+assert.match(camera, /prefs\.putUChar\(kPrefsRotationKey, quarter_turns\)/);
 assert.match(camera, /uint8_t rotation\(\) \{ return userTurns\(\); \}/);
 assert.doesNotMatch(camera, /g_rotation\.load\(\) \+ displayQuarterTurns\(\)/);
-// The Web Admin names the upright one, in every language.
-assert.match(read('src/web/server/render/web_admin_html.cpp'),
-  /appendHtmlEscaped\(html, grid_layout::turned\(\) \? tr\.local_camera_rotation_upright : tr\.local_camera_rotation\);/);
+// The Web Admin shows the one rotation under one name in every layout.
+assert.match(read('src/web/server/render/web_admin_html.cpp'), /appendHtmlEscaped\(html, tr\.local_camera_rotation\);/);
 const i18n = read('src/core/i18n/i18n.cpp');
-for (const [rotation, upright] of [['Drehung', 'Drehung (hochkant)'], ['Rotation', 'Rotation (portrait)'], ['Obrót', 'Obrót (pionowo)']]) {
-  assert.ok(i18n.includes(`    "${rotation}",\n    "${upright}",\n`), upright);
+for (const upright of ['Drehung (hochkant)', 'Rotation (portrait)', 'Obrót (pionowo)']) {
+  assert.ok(!i18n.includes(`"${upright}"`), upright);
 }
-assert.equal((i18n.match(/"Rotation \(portrait\)",/g) || []).length, 2, 'English and French');
 // The sensor window follows the Bridge's turn (user 2026-10-08, drawn):
 // the upright strip while it turns, the whole image otherwise.
 const strip = (quarter, user, upright) => (turnsOf(quarter, false, user + (upright ? 1 : 0)) & 1) === 1;
