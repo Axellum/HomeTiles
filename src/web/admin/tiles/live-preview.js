@@ -318,7 +318,11 @@
       if ((flags & 2) || clockWeekday) clockLines += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDateFormat, clockWeekday, (flags & 2) !== 0)) + '</div>';
       // The analog and the wall clock (grid-preview.js, layoutClockFacePreview).
       const clockStyle = Number(document.getElementById(prefix + '_clock_style')?.value || 0);
-      if (clockStyle) {
+      tileElem.dataset.clockOptions = String(packClockDateOptions(clockDateFormat, clockWeekday, false,
+        document.getElementById(prefix + '_clock_align')?.value || 0, clockStyle));
+      if (clockStyle === 3) {
+        html += clockBigDatePreviewHtml((flags & 1) !== 0, getClockPreviewTime(clockTimeFormat));
+      } else if (clockStyle) {
         const packed = packClockDateOptions(clockDateFormat, clockWeekday, false, 0, clockStyle,
           document.getElementById(prefix + '_clock_dial')?.value || 0, document.getElementById(prefix + '_clock_hands')?.value || 0);
         html += '<svg class="tile-clock-face" data-options="' + packed + '"></svg><div class="tile-clock-face-text">' + clockLines + '</div>';
@@ -344,7 +348,10 @@
     if (type === '9') tileElem.classList.toggle('clock-has-header', !!(displayTitle || iconName));
     tileElem.innerHTML = html;
     // The analog and the wall clock place their face once the tile has its size.
-    if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') layoutClockFacePreview(tileElem);
+    if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') {
+      layoutClockFacePreview(tileElem);
+      layoutClockBigDatePreview(tileElem);
+    }
     if (previewKind === 'weather') {
       const iconRecord = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       applyWeatherPreview(tileElem, parseWeatherPreviewPayload(

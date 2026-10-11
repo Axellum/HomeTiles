@@ -653,7 +653,8 @@ static const Strings kStringsDe = {
     "Marine",
     "Terrakotta",
     "Gold",
-    "Silber"};
+    "Silber",
+    "Datum groß"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1301,7 +1302,8 @@ static const Strings kStringsEn = {
     "Navy",
     "Terracotta",
     "Gold",
-    "Silver"};
+    "Silver",
+    "Big date"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1949,7 +1951,8 @@ static const Strings kStringsFr = {
     "Marine",
     "Terre cuite",
     "Or",
-    "Argent"};
+    "Argent",
+    "Grande date"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2961,6 +2964,7 @@ static const Strings kStringsPl = {
     "Terakota",
     "Złoty",
     "Srebrny",
+    "Duża data",
 };
 
 static const LocaleProfile kLocalePl = {

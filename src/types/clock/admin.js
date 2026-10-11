@@ -16,7 +16,7 @@ function getClockPreviewLanguage() {
   // clock_tile::unpack_date_options / pack_date_options: bits 0-7 the date
   // format, 8-9 the weekday (0 none, 1 short, 2 long), bit 10 rolling digits,
   // 11-12 the alignment (0 centered, 1 left, 2 right).
-  // 13-15 the style (0 digital, 1 analog, 2 wall clock), 16-18 the wall
+  // 13-15 the style (0 digital, 1 analog, 2 wall clock, 3 big date), 16-18 the wall
   // clock's dial color, 19-20 its hands' color (clock_face.h).
   function clockDateOptions(raw) {
     const num = Number(raw);
@@ -26,13 +26,13 @@ function getClockPreviewLanguage() {
     const style = (num >> 13) & 7;
     const dial = (num >> 16) & 7;
     return {format: normalizeClockDateFormat(num & 0xFF), weekday: weekday <= 2 ? weekday : 0,
-      roll: ((num >> 10) & 1) === 1, align: align <= 2 ? align : 0, style: style < 3 ? style : 0,
+      roll: ((num >> 10) & 1) === 1, align: align <= 2 ? align : 0, style: style < 4 ? style : 0,
       dial: dial < 6 ? dial : 0, hands: (num >> 19) & 3};
   }
   function packClockDateOptions(format, weekday, roll, align = 0, style = 0, dial = 0, hands = 0) {
     const day = Number(weekday), side = Number(align), kind = Number(style), face = Number(dial), ink = Number(hands);
     return normalizeClockDateFormat(format) | ((day === 1 || day === 2 ? day : 0) << 8) | (roll ? 1024 : 0)
-      | ((side === 1 || side === 2 ? side : 0) << 11) | ((kind === 1 || kind === 2 ? kind : 0) << 13)
+      | ((side === 1 || side === 2 ? side : 0) << 11) | ((kind >= 1 && kind <= 3 ? kind : 0) << 13)
       | ((face >= 0 && face < 6 ? face : 0) << 16) | ((ink >= 0 && ink < 4 ? ink : 0) << 19);
   }
   // The tile's alignment in the preview (renderer.cpp render_clock_tile).
@@ -293,6 +293,7 @@ function getClockPreviewLanguage() {
     }
     fitCompactClockPreview(tileElem);
     layoutClockFacePreview(tileElem);
+    layoutClockBigDatePreview(tileElem);
   }
 
   const CLOCK_PREVIEW_FONT_SIZES = [20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
@@ -331,7 +332,7 @@ function getClockPreviewLanguage() {
   // The date follows only from width 2 and only when it still fits.
   // The firmware applies the same rule (fit_compact_clock in clock/renderer.cpp).
   function fitCompactClockPreview(tileElem) {
-    if (!tileElem || tileElem.querySelector(':scope > .tile-clock-face')) return;
+    if (!tileElem || tileElem.querySelector(':scope > .tile-clock-face, :scope > .tile-clock-bigdate')) return;
     const lines = [tileElem.querySelector('.tile-clock-time'), tileElem.querySelector('.tile-clock-date')];
     lines.forEach(el => {
       if (!el) return;
@@ -536,6 +537,169 @@ function getClockPreviewLanguage() {
       }
     }
     return {x: Math.trunc((w - full) / 2), y, size: full, showTime: false, showDate: false};
+  }
+
+  // The big date (clock/renderer.cpp clock_big_date_sizes, _extent, _step,
+  // _fit): the sizes by the tile's spans, stepped down together until the
+  // language's longest weekday and month and the clock sample fit.
+  function clockBigDateSizes(spanW, spanH, compact, time) {
+    const s = {number: 0, weekday: 0, month: 0, time: 0, column: false, year: false, timeRight: false, monthLine: true};
+    if (compact) {
+      s.number = spanW < 2 ? 40 : 48;
+      s.weekday = s.month = 20;
+      s.time = time ? (spanW < 2 ? 20 : 40) : 0;
+      s.year = spanW >= 2;
+      s.timeRight = time && spanW >= 2;
+      s.monthLine = !(time && spanW < 2);
+      return s;
+    }
+    if (spanH >= 2) {
+      s.number = 96;
+      if (spanW < 2) Object.assign(s, {column: true, weekday: 24, month: 20, time: time ? 48 : 0});
+      else Object.assign(s, {column: !time, weekday: 28, month: 24, year: true, time: time ? 56 : 0});
+      return s;
+    }
+    if (spanW < 1.5) Object.assign(s, {number: 72, weekday: 20, month: 20, time: time ? 24 : 0});
+    else if (spanW < 2.5) Object.assign(s, {number: 72, weekday: 24, month: 20, time: time ? 28 : 0, year: true});
+    else Object.assign(s, {number: 96, weekday: time ? 24 : 28, month: time ? 20 : 24, time: time ? 40 : 0, year: true});
+    return s;
+  }
+  function clockBigDateExtent(s, m) {
+    let weekdayW = 0, monthW = 0;
+    for (const day of m.weekdays) weekdayW = Math.max(weekdayW, m.width(s.weekday, day));
+    for (const month of m.months) monthW = Math.max(monthW, m.width(s.month, s.year ? month + ' 8888' : month));
+    const numberW = m.width(s.number, '88'), timeW = s.time ? m.width(s.time, m.timeSample) : 0;
+    const monthH = s.monthLine ? m.line(s.month) : 0;
+    if (!s.monthLine) monthW = 0;
+    if (s.column) {
+      return [Math.max(weekdayW, numberW, monthW, timeW), m.line(s.weekday) + m.line(s.number) + monthH + (s.time ? m.line(s.time) : 0)];
+    }
+    const timeInColumn = s.time && !s.timeRight;
+    const columnW = Math.max(weekdayW, monthW, timeInColumn ? timeW : 0);
+    const columnH = m.line(s.weekday) + monthH + (timeInColumn ? m.line(s.time) : 0);
+    return [numberW + m.gap + columnW + (s.timeRight ? m.gap + timeW : 0),
+      Math.max(m.line(s.number), columnH, s.timeRight ? m.line(s.time) : 0)];
+  }
+  function clockBigDateStep(size) {
+    for (let i = CLOCK_PREVIEW_FONT_SIZES.length - 1; i >= 0; i--) if (CLOCK_PREVIEW_FONT_SIZES[i] < size) return CLOCK_PREVIEW_FONT_SIZES[i];
+    return size;
+  }
+  function clockBigDateFit(sizes, availW, availH, m) {
+    let s = {...sizes};
+    for (let round = 0; round < 12; round++) {
+      const [w, h] = clockBigDateExtent(s, m);
+      if (w <= availW && h <= availH) break;
+      const next = {...s, number: clockBigDateStep(s.number), weekday: clockBigDateStep(s.weekday),
+        month: clockBigDateStep(s.month), time: s.time ? clockBigDateStep(s.time) : 0};
+      if (next.number === s.number && next.weekday === s.weekday && next.month === s.month && next.time === s.time) break;
+      s = next;
+    }
+    return s;
+  }
+
+  function clockBigDateChoose(sizes, compact, availW, availH, m) {
+    const row = clockBigDateFit(sizes, availW, availH, m);
+    if (compact || sizes.column || row.number >= 2 * row.weekday) return row;
+    const column = clockBigDateFit({...sizes, column: true, timeRight: false, monthLine: true}, availW, availH, m);
+    return column.number > row.number ? column : row;
+  }
+
+  // The big date's lines (layoutClockBigDatePreview fills and places them).
+  function clockBigDatePreviewHtml(showTime, timeText) {
+    const part = name => '<div class="tile-clock-bigdate-line" data-part="' + name + '"><div class="tile-clock-bigdate-text">'
+      + (name === 'time' ? clockDigitsHtml(timeText) : '') + '</div></div>';
+    return '<div class="tile-clock-bigdate">' + part('number') + part('weekday') + part('month')
+      + (showTime ? part('time') : '') + '</div>';
+  }
+
+  // The big date in the preview: the panel's sizes for this tile, measured
+  // with the panel's widths (clockPanelTextWidth) and line heights (--lh),
+  // centered or aligned like render_clock_big_date, inside the 3 px editor
+  // border (the panel's card has none).
+  function layoutClockBigDatePreview(tileElem) {
+    const block = tileElem?.querySelector(':scope > .tile-clock-bigdate');
+    if (!block) return;
+    const style = getComputedStyle(tileElem);
+    const device = (name, fallback) => {
+      const v = parseFloat(style.getPropertyValue(name));
+      return Number.isFinite(v) ? v : fallback;
+    };
+    const scale = device('--radius-preview-scale', 0.5) || 0.5;
+    const compact = tileElem.classList.contains('clock-compact');
+    const parts = Object.fromEntries([...block.querySelectorAll('.tile-clock-bigdate-line')].map(el => [el.dataset.part, el]));
+    const text = name => parts[name]?.firstElementChild;
+    const timeEl = text('time');
+    const timeText = timeEl ? timeEl.textContent : '';
+    const i18n = typeof CLOCK_I18N === 'object' && CLOCK_I18N ? CLOCK_I18N : {};
+    const weekdays = i18n.weekdays?.length === 7 ? i18n.weekdays : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = i18n.months?.length === 12 ? i18n.months
+      : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const sample = text('number');
+    const m = {
+      width: (size, value) => clockPanelTextWidth(sample, value, size, getClockPreviewCssPx(size, size, tileElem), tileElem),
+      line: size => device('--lh' + size, size * 0.6),
+      weekdays, months, timeSample: /[AP]M/.test(timeText) ? '88:88 PM' : '88:88', gap: device('--clock-bigdate-gap', 12) * scale,
+    };
+    const padX = parseFloat(style.paddingLeft) || 0;
+    const top = tileElem.classList.contains('clock-has-header') ? device('--clock-face-header', 0) * scale : 0;
+    const margin = device('--clock-face-m-compact', 6) * scale;
+    const areaW = tileElem.offsetWidth - 2 * padX, areaY = top + margin, areaH = tileElem.offsetHeight - top - 2 * margin;
+    const s = clockBigDateChoose(clockBigDateSizes(Number(tileElem.dataset.spanW) || 1, Number(tileElem.dataset.spanH) || 1,
+      compact, !!timeEl), compact, areaW, areaH, m);
+    const now = new Date();
+    const monthName = months[now.getMonth()] || '';
+    const texts = {number: String(now.getDate()), weekday: weekdays[now.getDay()] || '',
+      month: s.year ? monthName + ' ' + now.getFullYear() : monthName};
+    const sizes = {number: s.number, weekday: s.weekday, month: s.month, time: s.time};
+    for (const name of Object.keys(parts)) {
+      const el = text(name);
+      if (texts[name] !== undefined) el.innerHTML = clockDigitsHtml(texts[name]);
+      applyClockPreviewLine(el, sizes[name], getClockPreviewCssPx(sizes[name], sizes[name], tileElem));
+      el.style.color = name === 'month' ? panelRoleHex('text-secondary', '#A0A0A0') : panelRoleHex('text', '#FFFFFF');
+    }
+    if (parts.month) parts.month.hidden = !s.monthLine;
+    // Places by the lines' own widths in the preview (their .tnum digit
+    // boxes as wide as the panel's tabular digits); the sizes above came
+    // from the panel's widths.
+    const w = name => parts[name] && !parts[name].hidden ? parts[name].offsetWidth : 0;
+    const h = name => parts[name] && !parts[name].hidden ? m.line(sizes[name]) : 0;
+    const timeInColumn = !!timeEl && !s.timeRight;
+    let blockW, blockH;
+    if (s.column) {
+      blockW = Math.max(w('number'), w('weekday'), w('month'), w('time'));
+      blockH = h('weekday') + h('number') + h('month') + h('time');
+    } else {
+      blockW = w('number') + m.gap + Math.max(w('weekday'), w('month'), timeInColumn ? w('time') : 0)
+        + (s.timeRight ? m.gap + w('time') : 0);
+      blockH = Math.max(h('number'), h('weekday') + h('month') + (timeInColumn ? h('time') : 0), h('time'));
+    }
+    const options = clockDateOptions(tileElem.dataset.clockOptions);
+    const x0 = options.align === 1 ? 0 : options.align === 2 ? areaW - blockW : (areaW - blockW) / 2;
+    const y0 = areaY + (areaH - blockH) / 2;
+    const border = tileElem.clientLeft || 0;
+    const place = (name, x, y) => {
+      if (!parts[name]) return;
+      parts[name].style.left = (padX + x - border) + 'px';
+      parts[name].style.top = (y - border) + 'px';
+    };
+    if (s.column) {
+      let y = y0;
+      for (const name of ['weekday', 'number', 'month', 'time']) {
+        if (!parts[name] || parts[name].hidden) continue;
+        const lineX = options.align === 1 ? x0 : options.align === 2 ? x0 + blockW - w(name) : x0 + (blockW - w(name)) / 2;
+        place(name, lineX, y);
+        y += h(name);
+      }
+      return;
+    }
+    place('number', x0, y0 + (blockH - h('number')) / 2);
+    const columnX = x0 + w('number') + m.gap;
+    let y = y0 + (blockH - (h('weekday') + h('month') + (timeInColumn ? h('time') : 0))) / 2;
+    place('weekday', columnX, y);
+    y += h('weekday');
+    if (!parts.month?.hidden) { place('month', columnX, y); y += h('month'); }
+    if (timeInColumn) place('time', columnX, y);
+    if (timeEl && s.timeRight) place('time', columnX + Math.max(w('weekday'), w('month')) + m.gap, y0 + (blockH - h('time')) / 2);
   }
 
   // The analog and the wall clock in the preview, placed after the tile has

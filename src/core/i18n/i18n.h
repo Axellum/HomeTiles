@@ -785,6 +785,8 @@ struct Strings {
   const char* clock_color_gold;
   // Wall clock color: silver.
   const char* clock_color_silver;
+  // Clock style: the day of the month large with weekday, month and the time when shown.
+  const char* clock_style_big_date;
 };
 
 // Locale-specific display rules and short runtime strings shared by

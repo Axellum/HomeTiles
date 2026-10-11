@@ -78,7 +78,7 @@ int main() {
   }
   // Packing: old values 0-3 stay the format alone; unknown bits drop.
   for (int raw : {0, 1, 3, 7, 0x106, 0x207, 0x405, 0x301, 0x7FF, -5, 9, 0x806, 0x1003, 0x1801, 0x2006, 0x4000, 0x6003,
-                  0x54000, 0x64000, 0x1C4000}) {
+                  0x54000, 0x64000, 0x1C4000, 0x8003}) {
     const clock_tile::TileDateOptions o = clock_tile::unpack_date_options(raw);
     std::printf("pack %d %d %d %d %d %d %d %d %d\n", raw, o.date_format, o.weekday, o.roll ? 1 : 0, o.align, o.style,
                 o.dial, o.hands, static_cast<int>(clock_tile::normalize_date_options(raw)));
@@ -117,7 +117,8 @@ if (output !== null) {
   // hands colors; unknown values drop to digital, slate and gold.
   assert.deepEqual(packs[String(0x2006)], [6, 0, 0, 0, 1, 0, 0, 0x2006], 'analog');
   assert.deepEqual(packs[String(0x4000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'wall clock');
-  assert.deepEqual(packs[String(0x6003)], [3, 0, 0, 0, 0, 0, 0, 3], 'an unknown style drops');
+  assert.deepEqual(packs[String(0x6003)], [3, 0, 0, 0, 3, 0, 0, 0x6003], 'big date');
+  assert.deepEqual(packs[String(0x8003)], [3, 0, 0, 0, 0, 0, 0, 3], 'an unknown style drops');
   assert.deepEqual(packs[String(0x54000)], [0, 0, 0, 0, 2, 5, 0, 0x54000], 'terracotta dial');
   assert.deepEqual(packs[String(0x64000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'an unknown dial drops');
   assert.deepEqual(packs[String(0x1C4000)], [0, 0, 0, 0, 2, 4, 3, 0x1C4000], 'navy dial, white hands');
