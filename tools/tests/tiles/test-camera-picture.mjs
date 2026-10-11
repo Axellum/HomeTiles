@@ -60,6 +60,17 @@ int main() {
   for (auto& p : small) p = 0x1234;
   round_corners(small, 8, 8, 10, 0x0000, wallpaper_cover::rounded_pixel_coverage);
   CHECK(small[0] == 0x1234);
+  // The title metric: whole-pixel advances per code point, a line break as a
+  // space, multi-byte UTF-8 read as one character.
+  size_t at = 0;
+  CHECK(next_codepoint("\xC3\xBC" "a", at) == 0xFC && at == 2 && next_codepoint("\xC3\xBC" "a", at) == 'a');
+  at = 0;
+  CHECK(next_codepoint("\xE2\x82\xAC", at) == 0x20AC && at == 3);
+  auto advance = [](uint32_t code) { return code == ' ' ? 5 : code == 0xFC ? 11 : 10; };
+  CHECK(title_metric("Tor", advance) == 30);
+  CHECK(title_metric("T\xC3\xBCr", advance) == 31);
+  CHECK(title_metric("A\nB", advance) == 25);
+  CHECK(title_metric("", advance) == 0 && title_metric(nullptr, advance) == 0);
   std::printf("ok\n");
   return 0;
 }
@@ -80,7 +91,8 @@ if (output !== null) {
 
 // ---- Web Admin: the same rule, the fields and their stored values ----
 const names = ['cameraEvery', 'cameraTransparency', 'cameraPictureOptionsOf', 'cameraPictureOptions',
-  'syncCameraFields', 'loadCameraFields', 'saveCameraFields', 'resetCameraFields', 'cameraPictureHead'];
+  'syncCameraFields', 'loadCameraFields', 'saveCameraFields', 'resetCameraFields', 'cameraPictureHead',
+  'cameraTitleMetric', 'cameraExtent', 'cameraDarkHead'];
 const elements = new Map();
 function element(id, value = '') {
   const hidden = new Set(['hidden']);
@@ -102,6 +114,7 @@ const context = {
   document: {getElementById: id => elements.get(id) || null},
   FormData, Math, Number, String,
   CAMERA_FITS: ['fill', 'fit', 'original'],
+  CAMERA_TILE_LAYOUT: {darkFrom: 50},
   loadIconColorFields() {}, saveIconColorFields() {}, resetIconColorFields() {},
   maybeFillTitleFromEntity() {}, syncSwitchChoices() {}
 };
@@ -150,6 +163,20 @@ if (hostLines) {
   }
 }
 
+// The preview measures the title with the panel's advances, in display
+// pixels, and the card from its column and span like tile_geometry::extent.
+const layout = {first: 32, adv: Array.from({length: 0x17F - 31}, (_, i) => (i === 0 ? 5 : 10))};
+layout.adv['ü'.codePointAt(0) - 32] = 11;
+assert.equal(context.cameraTitleMetric(layout, 'Tür Ost'), 66);
+assert.equal(context.cameraExtent(0, 1, 194, 16), 194);
+assert.equal(context.cameraExtent(0, 2, 194, 16), 404);
+assert.equal(context.cameraExtent(1.5, 1, 194, 16), 194);
+// The dark head from 50 % transparency, only with the picture at full height.
+assert.equal(context.cameraDarkHead({picture: true, transparency: 50}, false), true);
+assert.equal(context.cameraDarkHead({picture: true, transparency: 45}, false), false);
+assert.equal(context.cameraDarkHead({picture: true, transparency: 80}, true), false);
+assert.equal(context.cameraDarkHead({picture: false, transparency: 80}, false), false);
+
 // ---- The panel ----
 const options = readRepoFile('src/types/camera/picture.h');
 for (const pattern of [
@@ -181,6 +208,26 @@ assert.match(picture, /show\(\*tile, \*picture\);\s*break;/, 'one decode per loo
 assert.match(picture, /tile_icon_disc::mark_surface\(obj\);\s*lv_obj_set_style_bg_opa\(obj, static_cast<lv_opa_t>\(\(kTransparencyMax - transparency\) \* 255 \/ kTransparencyMax\), 0\);/,
   'circle and pill take the controls\' color at the tile\'s transparency');
 assert.match(picture, /tile_icon_disc::shrink_corner_disc\(obj\);/);
+// A rebuilt tile (every Web Admin change) shows its pixels at once, or the
+// waiting picture right away, never the icon look in between.
+assert.match(picture, /void delete_cb\(lv_event_t\* event\) \{[\s\S]*?park\(\*tile\);/);
+assert.match(picture, /if \(!adopt_parked\(\*picture_tile\)\) \{\s*const bridge_images::Picture\* picture = bridge_images::find\(/);
+assert.match(picture, /if \(it->fit == tile\.fit\) memcpy\(tile\.key, it->key, sizeof\(tile\.key\)\);/,
+  'pixels of another placement stay only until the new picture arrives');
+assert.match(picture, /while \(!g_parked\.empty\(\) && now - g_parked\.front\(\)\.since_ms >= kParkedMs\) \{/);
+// Panel and preview choose the same head: the title metric, not the kerned width.
+assert.match(picture, /text_w = title_metric\(lv_obj_get_style_text_font\(tile\.title, LV_PART_MAIN\), text\);/);
+assert.match(picture, /return wanted\(tile\) && tile\.span_h >= 1 && transparency\(tile\) >= kDarkHeadFrom &&\s*networkManager\.linkConfigured\(\);/);
+const tiles = readRepoFile('src/tiles/runtime/tile_renderer.cpp');
+assert.match(tiles, /if \(grid_type != GridType::SCREENSAVER && camera_picture::dark_head\(tile\)\) return tile_surface::kDark;/,
+  'the dark head draws on the dark surface in either theme');
+assert.match(tiles, /tile_has_own_color\(tile\) \|\| camera_picture::dark_head\(tile\)\) \{\s*return 0;/);
+assert.match(readRepoFile('src/types/camera/renderer.cpp'),
+  /const uint32_t card_color = camera_picture::dark_head\(tile\) \? tileDefaultBgColor\(\)/);
+const scripts = readRepoFile('src/types/camera/web_scripts.cpp');
+assert.match(scripts, /for \(uint32_t code = 0x20; code <= 0x17F; \+\+code\) \{/);
+assert.match(scripts, /lv_font_get_glyph_width\(font, code, 0\)/, 'advances without kerning, like title_metric');
+assert.match(scripts, /const lv_font_t\* font = tile_layout::header_title_font\(\);/);
 assert.match(picture, /camera_picture_layout::round_corners\(pixels, w, h,/, 'the corners are part of the picture, no clipping layer');
 assert.doesNotMatch(picture, /shadow|grad|clip_corner/, 'no shadow, no gradient, no clipping layer');
 assert.match(picture, /dsc->header\.cf = LV_COLOR_FORMAT_RGB565;/);
@@ -213,9 +260,9 @@ assert.match(html, /append_switch_choice\(html, tab_id, "camera_fit", tr\.screen
 assert.match(html, /_camera_transparency" min="0" max="100" step="5" value="0">/);
 assert.match(readRepoFile('src/types/switch/admin.js'), /'camera_display', 'camera_fit'\];/);
 assert.match(readRepoFile('src/web/admin/tiles/live-preview.js'),
-  /if \(previewKind === 'camera'\) applyCameraPicturePreview\(tileElem, cameraPictureOptions\(tab\), halfHeight\);/);
+  /applyCameraPicturePreview\(tileElem, cameraPictureOptions\(tab\), halfHeight, \{\s*col: Number\(tileElem\.dataset\.col \|\| 0\),\s*span_w: Number\(document\.getElementById\(prefix \+ '_tile_span_w'\)\?\.value \|\| 1\)\}\);/);
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
-  /if \(previewKind === 'camera'\) applyCameraPicturePreview\(el, cameraPictureOptionsOf\(tile\), Number\(tile\.span_h\) === 0\.5\);/);
+  /applyCameraPicturePreview\(el, cameraPictureOptionsOf\(tile\), Number\(tile\.span_h\) === 0\.5, tile\);/);
 assert.match(readRepoFile('src/web/admin/tiles/snapshots.js'),
   /tile\.key_code = cameraTransparency\(snapshot\.camera_transparency\);/, 'a draft keeps the options');
 assert.match(readRepoFile('src/web/admin/tiles/import-export.js'),
@@ -224,6 +271,13 @@ assert.match(readRepoFile('src/web/server/render/web_admin_styles.cpp'),
   /emit_scaled\("camera-title-pad", tile_layout::scale_480\(12\)\);/);
 const css = readRepoFile('src/web/assets/admin.css');
 assert.match(css, /\.tile\.camera-picture > \.tile-title::before \{[^}]*background:var\(--control-fill[^}]*opacity:var\(--camera-head-opa, 1\);/);
+assert.match(css, /\.tile\.camera\.camera-picture \{\s*display:block;\s*background-image:linear-gradient\(var\(--camera-picture-standin, #5c6066\), var\(--camera-picture-standin, #5c6066\)\) !important;/,
+  'the stand-in is a background layer, no extra layer below the head');
+assert.doesNotMatch(css, /\.tile\.camera\.camera-picture::before/);
+const live = readRepoFile('src/web/admin/tiles/live-preview.js');
+assert.match(live, /const cameraDark = meta\.preview === 'camera' && cameraDarkHead\(cameraPictureOptions\(tab\), halfHeight\);\s*if \(cameraDark\) tileElem\.style\.background = 'var\(--tile-default-bg\)';/);
+assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
+  /el\.style\.background = cameraDark \? 'var\(--tile-default-bg\)' : bg;/);
 assert.match(css, /\.tile\.camera-picture\.camera-head-shared > \.tile-icon::after \{ opacity:0; \}/);
 
 console.log('Camera tile picture: Sensor head with a title pill (shared when close), transparency, tile-size pictures');

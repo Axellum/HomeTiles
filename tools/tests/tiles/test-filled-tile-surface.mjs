@@ -33,7 +33,9 @@ assert.match(fn('clear_tile_tint'), /follow_tint\(card, false\);[\s\S]*kTintStor
 // The renderer gives every tile without an own color the rule in the light
 // theme (tile_surface_rule_of), not the screensaver and empty places.
 const renderer = read('src/tiles/runtime/tile_renderer.cpp');
-assert.match(renderer, /static uint8_t tile_surface_rule_of\(const Tile& tile, GridType grid_type\) \{\s*if \(grid_type == GridType::SCREENSAVER \|\| tile\.type == TILE_EMPTY \|\| !ui_theme::theme_light\(\) \|\|\s*tile_has_own_color\(tile\)\) \{\s*return 0;\s*\}/);
+// A Camera tile's dark head over its picture keeps the dark surface (no tint
+// rule; types/camera/picture.h dark_head).
+assert.match(renderer, /static uint8_t tile_surface_rule_of\(const Tile& tile, GridType grid_type\) \{\s*if \(grid_type == GridType::SCREENSAVER \|\| tile\.type == TILE_EMPTY \|\| !ui_theme::theme_light\(\) \|\|\s*tile_has_own_color\(tile\) \|\| camera_picture::dark_head\(tile\)\) \{\s*return 0;\s*\}/);
 // A tile "From icon" and a Media tile are filled from the start and stay
 // filled: no later surface change (user 2026-10-10: colors built up late).
 assert.ok(renderer.includes('if (tile_surface_rule_of(tile, grid_type) & tile_surface::kNeutralIdle) return tile_surface::kJewel;') &&

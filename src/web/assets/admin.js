@@ -7791,8 +7791,13 @@ function syncTileRadiusControls(tabEl) {
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record);
-      if (tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+      // A Camera tile's dark head over its picture: the dark surface on the
+      // dark theme's tile color (picture.h dark_head).
+      const cameraDark = meta.preview === 'camera' && cameraDarkHead(cameraPictureOptions(tab), halfHeight);
+      if (cameraDark) tileElem.style.background = 'var(--tile-default-bg)';
+      const surface = globalThis.hometilesPreviewForcedSurface ||
+        (cameraDark ? 'dark' : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      if (!cameraDark && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).
@@ -7947,7 +7952,11 @@ function syncTileRadiusControls(tabEl) {
       }
     }
     applyIconDiscTint(tileElem);
-    if (previewKind === 'camera') applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight);
+    if (previewKind === 'camera') {
+      applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight, {
+        col: Number(tileElem.dataset.col || 0),
+        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1)});
+    }
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
     if (wasActive) tileElem.classList.add('active');
@@ -10098,9 +10107,11 @@ function syncTileRadiusControls(tabEl) {
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
-    const surface = forcedSurface || (surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
+    // A Camera tile's dark head over its picture (picture.h dark_head).
+    const cameraDark = surfaceKind === 'camera' && cameraDarkHead(cameraPictureOptionsOf(tile), Number(tile?.span_h) === 0.5);
+    const surface = forcedSurface || (cameraDark ? 'dark' : surfaceType === '0' || typeof tileSurfaceOf !== 'function' ? ''
       : tileSurfaceOf(tab, surfaceKind, tile?.bg_color, tile?.icon_colors));
-    if (surfaceType !== '0' && typeof tileFollowsTint === 'function' &&
+    if (surfaceType !== '0' && !cameraDark && typeof tileFollowsTint === 'function' &&
         tileFollowsTint(tab, surfaceKind, tile?.bg_color, tile?.icon_colors)) {
       el.dataset.followTint = '1';
     } else {
@@ -10165,7 +10176,7 @@ function syncTileRadiusControls(tabEl) {
         // A fully transparent card casts no shadow (apply_slot_tile_shadows).
         el.classList.toggle('screensaver-bg-clear', opacity === 0);
       } else {
-        el.style.background = bg;
+        el.style.background = cameraDark ? 'var(--tile-default-bg)' : bg;
       }
     }
     if (typeof applyTileSurface === 'function') applyTileSurface(el, surface);
@@ -10343,7 +10354,9 @@ function syncTileRadiusControls(tabEl) {
         if (el.dataset.neutralIdle === '1' && el.dataset.surface !== 'jewel') setTileTintBackground(el, '#FFFFFF', 0, true);
       }
       applyIconDiscTint(el);
-      if (previewKind === 'camera') applyCameraPicturePreview(el, cameraPictureOptionsOf(tile), Number(tile.span_h) === 0.5);
+      if (previewKind === 'camera') {
+        applyCameraPicturePreview(el, cameraPictureOptionsOf(tile), Number(tile.span_h) === 0.5, tile);
+      }
       if (previewKind === 'cover') {
         applyCoverPreview(el, coverPreviewState, Number(tile.span_h) === 0.5);
         // The header classes need the bar class set above (switch-tall).
@@ -19045,10 +19058,38 @@ function maybeFillTitleFromMedia(tab) {
     return cameraMeasureContext.measureText(text).width;
   }
 
+  // The head rule's title width in display pixels (camera_picture_layout::
+  // title_metric): the panel's whole-pixel advances of its title font
+  // (CAMERA_TILE_LAYOUT.adv), so panel and preview choose the same head. A
+  // character outside that table is measured in the browser and scaled.
+  function cameraTitleMetric(layout, text, element, scale) {
+    let width = 0;
+    for (const char of String(text)) {
+      const advance = layout?.adv?.[char.codePointAt(0) - layout.first];
+      width += advance ? advance : (element ? cameraTextWidth(element, char) / (scale || 1) : 0);
+    }
+    return width;
+  }
+
+  // tile_geometry::extent in display pixels.
+  function cameraExtent(position, span, cell, gap) {
+    const edge = value => Math.round(value * (cell + gap));
+    return edge(position + span) - edge(position) - gap;
+  }
+
+  // picture.h dark_head: from CAMERA_TILE_LAYOUT.darkFrom transparency on the
+  // head draws on the dark surface (white title and icon on a dark veil) in
+  // either theme and tile color; its card takes the dark theme's tile color.
+  function cameraDarkHead(options, halfHeight) {
+    const from = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT.darkFrom : 50;
+    return !!options?.picture && !halfHeight && cameraTransparency(options.transparency) >= from;
+  }
+
   // The preview of a Camera tile showing its picture (live and cached grid):
   // the browser has no picture, so a neutral stand-in fills the card; the
-  // head sits like on the panel. Half-height tiles keep the icon look.
-  function applyCameraPicturePreview(tileElem, options, halfHeight) {
+  // head sits like on the panel, chosen in display pixels from the tile's
+  // column and span (`place`). Half-height tiles keep the icon look.
+  function applyCameraPicturePreview(tileElem, options, halfHeight, place) {
     if (!tileElem) return;
     const on = !!options?.picture && !halfHeight;
     tileElem.classList.toggle('camera-picture', on);
@@ -19057,14 +19098,17 @@ function maybeFillTitleFromMedia(tab) {
     tileElem.style.setProperty('--camera-head-opa', String((100 - cameraTransparency(options.transparency)) / 100));
     const title = tileElem.querySelector(':scope > .tile-title');
     if (!title || typeof getComputedStyle !== 'function') return;
-    const text = String(title.textContent || '').replace(/\s*\n\s*/g, ' ');
+    // One line, like the panel (hometiles_title single_line).
+    const lines = title.querySelectorAll ? [...title.querySelectorAll('.tile-title-line')] : [];
+    const text = lines.length ? lines.map(line => line.textContent).join(' ') : String(title.textContent || '');
     title.textContent = text;
-    const style = getComputedStyle(tileElem);
-    const px = name => parseFloat(style.getPropertyValue(name)) || 0;
-    // The card is the tile's border box (the preview's selection border).
-    const head = cameraPictureHead(tileElem.offsetWidth, px('--compact-inset'),
-      px('--icon-disc-corner') || px('--icon-disc-round'), px('--corner-disc-shrink'),
-      px('--camera-title-pad'), px('--preview-gap'), cameraTextWidth(title, text));
+    const layout = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT : null;
+    if (!layout) return;
+    const scale = parseFloat(getComputedStyle(tileElem).getPropertyValue('--radius-preview-scale')) || 0;
+    const cardW = cameraExtent(Number(place?.col) || 0, Math.max(1, Number(place?.span_w) || 1),
+                               layout.cellW, layout.gap);
+    const head = cameraPictureHead(cardW, layout.inset, layout.disc, layout.shrink, layout.pad, layout.gap,
+                                   cameraTitleMetric(layout, text, title, scale));
     tileElem.classList.toggle('camera-head-shared', head.shared);
   }
 

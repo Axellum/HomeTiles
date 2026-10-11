@@ -196,8 +196,13 @@
     if (typeof tileSurfaceOf === 'function' && typeof applyTileSurface === 'function') {
       const record = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       const bgValue = isDefaultBg ? 0 : makeTileBgValue(hexToRgb(color || defaultBg));
-      const surface = globalThis.hometilesPreviewForcedSurface || tileSurfaceOf(tab, meta.preview || '', bgValue, record);
-      if (tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
+      // A Camera tile's dark head over its picture: the dark surface on the
+      // dark theme's tile color (picture.h dark_head).
+      const cameraDark = meta.preview === 'camera' && cameraDarkHead(cameraPictureOptions(tab), halfHeight);
+      if (cameraDark) tileElem.style.background = 'var(--tile-default-bg)';
+      const surface = globalThis.hometilesPreviewForcedSurface ||
+        (cameraDark ? 'dark' : tileSurfaceOf(tab, meta.preview || '', bgValue, record));
+      if (!cameraDark && tileFollowsTint(tab, meta.preview || '', bgValue, record)) tileElem.dataset.followTint = '1';
       else delete tileElem.dataset.followTint;
       // A Media tile and a tile "From icon" show the neutral grey without a
       // tint (kNeutralIdle).
@@ -352,7 +357,11 @@
       }
     }
     applyIconDiscTint(tileElem);
-    if (previewKind === 'camera') applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight);
+    if (previewKind === 'camera') {
+      applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight, {
+        col: Number(tileElem.dataset.col || 0),
+        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1)});
+    }
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
     if (wasActive) tileElem.classList.add('active');

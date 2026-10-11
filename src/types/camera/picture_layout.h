@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // The pure parts of a Camera tile showing a picture (picture.h), run by
@@ -47,6 +48,36 @@ inline Head head(int card_w, int inset, int disc, int shrink, int pad, int gap, 
   out.text_w = card_w - inset - shrink - pad - out.text_x;
   if (out.text_w < 0) out.text_w = 0;
   return out;
+}
+
+// The next Unicode code point of UTF-8 `text` at `i` (advanced past it); 0 at
+// the end. A broken sequence counts as one byte.
+inline uint32_t next_codepoint(const char* text, size_t& i) {
+  const unsigned char first = static_cast<unsigned char>(text[i]);
+  if (!first) return 0;
+  int extra = first >= 0xF0 ? 3 : first >= 0xE0 ? 2 : first >= 0xC0 ? 1 : 0;
+  uint32_t code = extra == 3 ? (first & 0x07u) : extra == 2 ? (first & 0x0Fu) : extra == 1 ? (first & 0x1Fu) : first;
+  ++i;
+  for (; extra > 0; --extra) {
+    const unsigned char next = static_cast<unsigned char>(text[i]);
+    if ((next & 0xC0) != 0x80) return first;
+    code = (code << 6) | (next & 0x3Fu);
+    ++i;
+  }
+  return code;
+}
+
+// The title's width for the head rule: its glyphs' whole-pixel advances
+// without kerning, `advance(code point)`. The Web Admin preview adds the same
+// advances (CAMERA_TILE_LAYOUT.adv), so panel and preview choose the same
+// head; the label itself is laid out with kerning inside the pill.
+template <typename Advance>
+inline int title_metric(const char* text, Advance advance) {
+  int width = 0;
+  size_t i = 0;
+  if (!text) return 0;
+  while (const uint32_t code = next_codepoint(text, i)) width += advance(code == '\n' ? ' ' : code);
+  return width;
 }
 
 // Native RGB565 of an RGB color.

@@ -2973,10 +2973,12 @@
    other corner (camera_picture_layout::head), both in the controls' color
    (--control-fill, mark_surface) at the tile's transparency; one shared pill
    across the head when they would come closer than a grid gap. */
-.tile.camera.camera-picture { display:block; }
-.tile.camera.camera-picture::before {
-  content:""; position:absolute; inset:-3px; z-index:-2; pointer-events:none;
-  border-radius:inherit; background:var(--camera-picture-standin, #5c6066);
+/* The stand-in is a background layer over the card color: the card color
+   stays the tile's (applyIconDiscTint derives the circle from it), and no
+   extra layer sits below the head. */
+.tile.camera.camera-picture {
+  display:block;
+  background-image:linear-gradient(var(--camera-picture-standin, #5c6066), var(--camera-picture-standin, #5c6066)) !important;
 }
 .tile.camera-picture > .tile-icon {
   position:absolute; z-index:1; margin:0;

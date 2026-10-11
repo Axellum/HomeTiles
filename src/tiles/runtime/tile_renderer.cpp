@@ -1,3 +1,4 @@
+#include "src/types/camera/picture.h"
 #include "src/types/media/artwork_scale.h"
 #include "src/types/media/artwork_payload.h"
 #include "src/types/media/content_layout.h"
@@ -5029,6 +5030,9 @@ static bool tile_has_own_color(const Tile& tile) {
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type);
 
 static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
+  // A Camera tile's head over its picture from kDarkHeadFrom transparency on:
+  // the dark surface in either theme (white title and icon on a dark veil).
+  if (grid_type != GridType::SCREENSAVER && camera_picture::dark_head(tile)) return tile_surface::kDark;
   // A tile that is always filled in the light theme (kNeutralIdle: its icon's
   // color or the idle grey) is drawn filled from the start: a later tint only
   // changes its card color, like the dark theme (user 2026-10-10: colors
@@ -5050,7 +5054,7 @@ static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
 // light that is off is grey, like the dark theme's grey card).
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type) {
   if (grid_type == GridType::SCREENSAVER || tile.type == TILE_EMPTY || !ui_theme::theme_light() ||
-      tile_has_own_color(tile)) {
+      tile_has_own_color(tile) || camera_picture::dark_head(tile)) {
     return 0;
   }
   const char* record = tile.icon_colors.c_str();

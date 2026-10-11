@@ -23,6 +23,12 @@ namespace camera_picture {
 constexpr uint8_t kShowIcon = 0;
 constexpr uint8_t kShowPicture = 1;
 constexpr uint8_t kTransparencyMax = 100;
+// From this transparency on, the head over the picture draws on the dark
+// surface: a dark veil with a white title and icon, in either theme and tile
+// color (user 2026-10-11: a see-through light pill kept its dark title).
+constexpr uint8_t kDarkHeadFrom = 50;
+// The title's distance to the visible end of its pill (480 scale).
+constexpr int kTitlePad = 12;
 
 inline bool is_image(const String& entity) { return entity.startsWith("image."); }
 inline bool is_camera(const String& entity) { return entity.startsWith("camera."); }
@@ -47,9 +53,21 @@ inline uint8_t transparency(const Tile& tile) {
   return tile.key_code > kTransparencyMax ? kTransparencyMax : tile.key_code;
 }
 
+// The tile shows its picture with the dark head (kDarkHeadFrom): its card
+// draws on the dark surface from the start (tile_renderer.cpp
+// tile_surface_of), so title, icon, circle and pill take the dark rules.
+// Only over the link and at full height, where the picture can show.
+bool dark_head(const Tile& tile);
+
+// The title's width for the head rule in `font` (camera_picture_layout::
+// title_metric with the font's whole-pixel advances).
+int title_metric(const lv_font_t* font, const char* text);
+
 // The Camera renderer hands a picture tile over once its card, icon and
-// title exist (they show the icon look until the first picture). The tile
-// keeps its own decoded pixels; everything is released with the card.
+// title exist. A rebuilt tile (a Web Admin change) shows its last pixels at
+// once, a picture that waits is decoded right away; otherwise the icon look
+// stays until the first picture. The tile keeps its own decoded pixels;
+// everything is released with the card.
 void attach(lv_obj_t* card, lv_obj_t* icon, lv_obj_t* title, const Tile& tile);
 
 // A picture of `entity_id` arrived or was cleared (bridge_images.cpp).

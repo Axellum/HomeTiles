@@ -50,6 +50,23 @@ bool g_topics_due = true;
 uint32_t g_topics_ms = 0;
 constexpr uint32_t kTopicsEveryMs = 500;
 
+// The pixels of a deleted picture tile, for a while: a Web Admin change
+// deletes the card and renders it again, and the new card shows them at once
+// instead of the icon look until its picture is decoded again (user
+// 2026-10-11). The newest few; the rest and old ones are freed.
+struct Parked {
+  String entity;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  uint8_t fit = bridge_images::kFill;
+  char key[bridge_images::kKeyLength + 1] = "";
+  lv_image_dsc_t* dsc = nullptr;
+  uint32_t since_ms = 0;
+};
+std::vector<Parked> g_parked;
+constexpr size_t kParkedMax = 2;
+constexpr uint32_t kParkedMs = 10000;
+
 void free_dsc(lv_image_dsc_t*& dsc) {
   if (!dsc) return;
   // LVGL caches decoded images by address (free_media_cover_dsc).
@@ -59,11 +76,29 @@ void free_dsc(lv_image_dsc_t*& dsc) {
   dsc = nullptr;
 }
 
+void park(PictureTile& tile) {
+  if (!tile.dsc) return;
+  if (g_parked.size() >= kParkedMax) {
+    free_dsc(g_parked.front().dsc);
+    g_parked.erase(g_parked.begin());
+  }
+  Parked parked;
+  parked.entity = tile.entity;
+  parked.width = tile.width;
+  parked.height = tile.height;
+  parked.fit = tile.fit;
+  memcpy(parked.key, tile.key, sizeof(parked.key));
+  parked.dsc = tile.dsc;
+  parked.since_ms = millis();
+  tile.dsc = nullptr;
+  g_parked.push_back(parked);
+}
+
 void delete_cb(lv_event_t* event) {
   PictureTile* tile = static_cast<PictureTile*>(lv_event_get_user_data(event));
   if (!tile) return;
   g_tiles.erase(std::remove(g_tiles.begin(), g_tiles.end(), tile), g_tiles.end());
-  free_dsc(tile->dsc);
+  park(*tile);
   delete tile;
   g_topics_due = true;
 }
@@ -135,12 +170,11 @@ bool show_head(PictureTile& tile) {
   int text_w = 0;
   hometiles_title::State* title_state = tile.title ? hometiles_title::state_for(tile.title) : nullptr;
   if (tile.title) {
-    std::string text = title_state ? title_state->text : std::string(lv_label_get_text(tile.title));
-    std::replace(text.begin(), text.end(), '\n', ' ');
-    text_w = hometiles_title::text_width(tile.title, text);
+    const char* text = title_state ? title_state->text.c_str() : lv_label_get_text(tile.title);
+    text_w = title_metric(lv_obj_get_style_text_font(tile.title, LV_PART_MAIN), text);
   }
   const camera_picture_layout::Head head = camera_picture_layout::head(
-      tile.width, inset, disc, shrink, tile_layout::scale_480(12), GRID_GAP, text_w);
+      tile.width, inset, disc, shrink, tile_layout::scale_480(kTitlePad), GRID_GAP, text_w);
 
   tile.circle = head.shared ? nullptr : make_surface(card, tile.transparency);
   if (tile.circle) {
@@ -156,10 +190,14 @@ bool show_head(PictureTile& tile) {
   }
   if (tile.title) {
     if (title_state) title_state->single_line = true;
+    // Split: centered across the whole visible pill, so kerning never cuts
+    // the title its metric made room for. Shared: right-aligned where it was.
+    const int text_x = head.shared ? head.text_x : head.pill_x + shrink;
+    const int text_w = head.shared ? head.text_w : head.pill_w - 2 * shrink;
     lv_obj_set_style_text_align(tile.title, head.shared ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(tile.title, std::max(1, head.text_w));
+    lv_obj_set_width(tile.title, std::max(1, text_w));
     const int line_h = lv_font_get_line_height(lv_obj_get_style_text_font(tile.title, LV_PART_MAIN));
-    place(card, tile.title, head.text_x, inset + disc / 2 - line_h / 2);
+    place(card, tile.title, text_x, inset + disc / 2 - line_h / 2);
     if (title_state) hometiles_title::render(tile.title, title_state);
   }
   // The surfaces take the circle's color now; later colors reach them
@@ -234,7 +272,35 @@ void update_topics() {
   mqttSetTilePictures(entities.data(), suffixes.data(), entities.size());
 }
 
+// A rebuilt tile takes the pixels its card had (Parked): the same picture,
+// or for the moment one of the other placement until its own arrives.
+bool adopt_parked(PictureTile& tile) {
+  for (auto it = g_parked.begin(); it != g_parked.end(); ++it) {
+    if (!it->entity.equalsIgnoreCase(tile.entity) || it->width != tile.width || it->height != tile.height) {
+      continue;
+    }
+    if (!tile.image && !show_head(tile)) return false;
+    lv_image_set_src(tile.image, it->dsc);
+    tile.dsc = it->dsc;
+    if (it->fit == tile.fit) memcpy(tile.key, it->key, sizeof(tile.key));
+    g_parked.erase(it);
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
+
+bool dark_head(const Tile& tile) {
+  return wanted(tile) && tile.span_h >= 1 && transparency(tile) >= kDarkHeadFrom &&
+         networkManager.linkConfigured();
+}
+
+int title_metric(const lv_font_t* font, const char* text) {
+  if (!font) return 0;
+  return camera_picture_layout::title_metric(
+      text, [font](uint32_t code) { return static_cast<int>(lv_font_get_glyph_width(font, code, 0)); });
+}
 
 void attach(lv_obj_t* card, lv_obj_t* icon, lv_obj_t* title, const Tile& tile) {
   if (!card || !wanted(tile)) return;
@@ -257,6 +323,12 @@ void attach(lv_obj_t* card, lv_obj_t* icon, lv_obj_t* title, const Tile& tile) {
   lv_obj_add_event_cb(card, delete_cb, LV_EVENT_DELETE, picture_tile);
   g_tiles.push_back(picture_tile);
   g_topics_due = true;
+  // No icon look in between when the picture is at hand.
+  if (!adopt_parked(*picture_tile)) {
+    const bridge_images::Picture* picture = bridge_images::find(
+        picture_tile->entity.c_str(), picture_tile->width, picture_tile->height, picture_tile->fit);
+    if (picture) show(*picture_tile, *picture);
+  }
 }
 
 void arrived(const char* entity_id) {
@@ -268,6 +340,10 @@ void arrived(const char* entity_id) {
 
 void service() {
   const uint32_t now = millis();
+  while (!g_parked.empty() && now - g_parked.front().since_ms >= kParkedMs) {
+    free_dsc(g_parked.front().dsc);
+    g_parked.erase(g_parked.begin());
+  }
   if (g_topics_due || now - g_topics_ms >= kTopicsEveryMs) {
     g_topics_due = false;
     g_topics_ms = now;

@@ -123,10 +123,38 @@
     return cameraMeasureContext.measureText(text).width;
   }
 
+  // The head rule's title width in display pixels (camera_picture_layout::
+  // title_metric): the panel's whole-pixel advances of its title font
+  // (CAMERA_TILE_LAYOUT.adv), so panel and preview choose the same head. A
+  // character outside that table is measured in the browser and scaled.
+  function cameraTitleMetric(layout, text, element, scale) {
+    let width = 0;
+    for (const char of String(text)) {
+      const advance = layout?.adv?.[char.codePointAt(0) - layout.first];
+      width += advance ? advance : (element ? cameraTextWidth(element, char) / (scale || 1) : 0);
+    }
+    return width;
+  }
+
+  // tile_geometry::extent in display pixels.
+  function cameraExtent(position, span, cell, gap) {
+    const edge = value => Math.round(value * (cell + gap));
+    return edge(position + span) - edge(position) - gap;
+  }
+
+  // picture.h dark_head: from CAMERA_TILE_LAYOUT.darkFrom transparency on the
+  // head draws on the dark surface (white title and icon on a dark veil) in
+  // either theme and tile color; its card takes the dark theme's tile color.
+  function cameraDarkHead(options, halfHeight) {
+    const from = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT.darkFrom : 50;
+    return !!options?.picture && !halfHeight && cameraTransparency(options.transparency) >= from;
+  }
+
   // The preview of a Camera tile showing its picture (live and cached grid):
   // the browser has no picture, so a neutral stand-in fills the card; the
-  // head sits like on the panel. Half-height tiles keep the icon look.
-  function applyCameraPicturePreview(tileElem, options, halfHeight) {
+  // head sits like on the panel, chosen in display pixels from the tile's
+  // column and span (`place`). Half-height tiles keep the icon look.
+  function applyCameraPicturePreview(tileElem, options, halfHeight, place) {
     if (!tileElem) return;
     const on = !!options?.picture && !halfHeight;
     tileElem.classList.toggle('camera-picture', on);
@@ -135,13 +163,16 @@
     tileElem.style.setProperty('--camera-head-opa', String((100 - cameraTransparency(options.transparency)) / 100));
     const title = tileElem.querySelector(':scope > .tile-title');
     if (!title || typeof getComputedStyle !== 'function') return;
-    const text = String(title.textContent || '').replace(/\s*\n\s*/g, ' ');
+    // One line, like the panel (hometiles_title single_line).
+    const lines = title.querySelectorAll ? [...title.querySelectorAll('.tile-title-line')] : [];
+    const text = lines.length ? lines.map(line => line.textContent).join(' ') : String(title.textContent || '');
     title.textContent = text;
-    const style = getComputedStyle(tileElem);
-    const px = name => parseFloat(style.getPropertyValue(name)) || 0;
-    // The card is the tile's border box (the preview's selection border).
-    const head = cameraPictureHead(tileElem.offsetWidth, px('--compact-inset'),
-      px('--icon-disc-corner') || px('--icon-disc-round'), px('--corner-disc-shrink'),
-      px('--camera-title-pad'), px('--preview-gap'), cameraTextWidth(title, text));
+    const layout = typeof CAMERA_TILE_LAYOUT === 'object' ? CAMERA_TILE_LAYOUT : null;
+    if (!layout) return;
+    const scale = parseFloat(getComputedStyle(tileElem).getPropertyValue('--radius-preview-scale')) || 0;
+    const cardW = cameraExtent(Number(place?.col) || 0, Math.max(1, Number(place?.span_w) || 1),
+                               layout.cellW, layout.gap);
+    const head = cameraPictureHead(cardW, layout.inset, layout.disc, layout.shrink, layout.pad, layout.gap,
+                                   cameraTitleMetric(layout, text, title, scale));
     tileElem.classList.toggle('camera-head-shared', head.shared);
   }
