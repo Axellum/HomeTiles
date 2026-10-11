@@ -3288,6 +3288,9 @@ input[data-entity-picker].hidden + .entity-picker { display:none; }
 .entity-picker-item.selected { background:var(--accent-soft); }
 .entity-picker-item.selected .entity-picker-name { color:#5fd4c7; font-weight:600; }
 .entity-picker-item mark { background:none; color:#5fd4c7; font-weight:600; }
+/* Group heads of the open list without a search: recent, favorites, all. */
+.entity-picker-group { padding:12px 8px 4px; font-size:11.5px; line-height:15px; font-weight:600; color:var(--text-3); }
+.entity-picker-group:first-child { padding-top:6px; }
 .entity-picker-state { padding:22px 16px 26px; text-align:center; color:var(--text-3); font-size:13px; line-height:19px; }
 .entity-picker-state .mdi { display:block; margin-bottom:6px; font-size:30px; color:#777; }
 .entity-picker-state .btn { margin-top:12px; }

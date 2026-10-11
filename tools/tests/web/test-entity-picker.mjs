@@ -71,7 +71,7 @@ assert.match(read('src/web/admin/tiles/editor.js'), /bindLive\(sceneInput, 'chan
 
 // ---- Translations: every language, the documented order ----
 const header = read('src/core/i18n/i18n.h');
-assert.match(header, /const char\* entity_picker_labels\[8\];/);
+assert.match(header, /const char\* entity_picker_labels\[11\];/);
 assert.match(header, /const char\* entity_kind_labels\[22\];/);
 const picker = read('src/web/admin/tiles/entity-picker.js');
 assert.match(picker, /slot\.append\(\.\.\.parts\(input\)\);\s*entityPickerWarm\(input\);/,
@@ -82,7 +82,8 @@ const domains = picker.slice(picker.indexOf('const ENTITY_KIND_DOMAINS = ['), pi
 assert.equal((domains.match(/\[/g) || []).length - 1, 22, 'One domain group per entity_kind_labels entry');
 const scripts = read('src/web/server/render/web_admin_scripts.cpp');
 for (const key of ['entityPickerChoose', 'entityPickerSearch', 'entityPickerNoMatch', 'entityPickerLoadFailed',
-  'entityPickerRetry', 'entityPickerClear', 'entityPickerNone', 'entityPickerReleased']) {
+  'entityPickerRetry', 'entityPickerClear', 'entityPickerNone', 'entityPickerReleased',
+  'entityPickerRecent', 'entityPickerFavorites', 'entityPickerAll']) {
   assert.ok(scripts.includes(`"${key}"`), key);
   assert.ok(picker.includes(`'${key}'`), `${key} is used`);
 }
@@ -116,7 +117,7 @@ const locales = {};
 for (const match of i18n.matchAll(/static const LocaleProfile kLocale(\w+) = \{/g)) {
   const [labels, kinds, icons] = lastArrays(match.index + match[0].length - 1);
   assert.equal(icons.length, 5, `${match[1]} icon picker labels`);
-  assert.equal(labels.length, 8, `${match[1]} picker labels`);
+  assert.equal(labels.length, 11, `${match[1]} picker labels`);
   assert.equal(kinds.length, 22, `${match[1]} entity kinds`);
   for (const text of [...labels, ...kinds]) assert.ok(text.trim().length, `${match[1]} has no empty label`);
   assert.ok(labels[2].includes('{query}'), `${match[1]} no-match text names the search`);
@@ -131,6 +132,9 @@ const de = locales.De;
 const i18nKeys = ['entityPickerChoose', 'entityPickerSearch', 'entityPickerNoMatch', 'entityPickerLoadFailed',
   'entityPickerRetry', 'entityPickerClear', 'entityPickerNone'];
 const appI18n = Object.fromEntries(i18nKeys.map((key, index) => [key, de.labels[index]]));
+// The open list's group heads (#79): recent, favorites, all.
+Object.assign(appI18n, {entityPickerRecent: de.labels[8], entityPickerFavorites: de.labels[9], entityPickerAll: de.labels[10]});
+assert.deepEqual(de.labels.slice(8), ['Zuletzt', 'Favoriten', 'Alle Entitäten']);
 const page = `<!doctype html><html lang="de"><head><style>${read('src/web/assets/admin.css')}</style></head><body>
 <div class="tile-settings" id="tSettings" style="width:420px">
 <div class="tile-settings-head"><select id="t_tile_type"><option value="1">Sensor</option></select><div class="tile-entity-slot" id="t_tile_entity_slot"></div></div>
@@ -212,9 +216,24 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  clear.click();
  check(sensor.value===''&&changes===2&&field.textContent.includes(${JSON.stringify(de.labels[0])})&&clear.hidden,'Clear empties the field');
  check($('t_tile_title').value==='Eigener Titel','Clearing keeps an edited title');
+ // The chosen entity leads the list under "Zuletzt" (#79), remembered in
+ // this browser; the panel's own entities follow as favorites.
+ const recent=JSON.parse(localStorage.getItem('hometiles.entityPickerRecent')||'{}');
+ check(recent.sensors&&recent.sensors['sensor.power'][0]===1,'The choice is remembered: '+JSON.stringify(recent));
+ field.click();await tick();
+ let heads=[...document.querySelectorAll('.entity-picker-popover .entity-picker-group')].map(h=>h.textContent);
+ items=[...document.querySelectorAll('.entity-picker-popover .entity-picker-item')];
+ check(heads.join()==='Zuletzt,Favoriten','Group heads: '+heads.join());
+ check(items.map(i=>i.querySelector('.entity-picker-context').textContent).join()==='sensor.power,sensor.evil,sensor.temp_kitchen','Recent first, each entity once: '+items.map(i=>i.textContent).join(' | '));
+ check(items[0].classList.contains('active'),'The list starts at its first row');
+ // A search shows plain matches without heads.
+ const searchAgain=document.querySelector('.entity-picker-popover input');
+ searchAgain.value='e';searchAgain.dispatchEvent(new Event('input',{bubbles:true}));
+ check(!document.querySelector('.entity-picker-popover .entity-picker-group'),'No heads while searching');
+ document.body.click();
  // A click on an item chooses it; a click elsewhere closes.
  field.click();await tick();
- document.querySelector('.entity-picker-popover .entity-picker-item').click();
+ [...document.querySelectorAll('.entity-picker-popover .entity-picker-item')].find(i=>i.textContent.includes('sensor.evil')).click();
  check(sensor.value==='sensor.evil'&&changes===3,'A click chooses');
  check($('t_tile_title').value.startsWith('<img'),'Another entity replaces the edited title');
  $('t_tile_title').value='Bleibt';field.click();await tick();
@@ -311,14 +330,15 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  await wait(400);
  let rows=[...pop.querySelectorAll('.entity-picker-item')];
  check(!pop.classList.contains('waiting'),'Done waiting');
- check(rows.length===2&&rows[0].textContent.includes('EG Büro ▸ Schreibtischlampe')&&rows[1].textContent.includes('Display'),'Bridge plus own: '+rows.map(r=>r.textContent).join(' | '));
+ check(rows.length===2&&rows[0].textContent.includes('Display')&&rows[1].textContent.includes('EG Büro ▸ Schreibtischlampe'),'Own as favorites first, then the Bridge: '+rows.map(r=>r.textContent).join(' | '));
+ check([...pop.querySelectorAll('.entity-picker-group')].map(h=>h.textContent).join()==='Favoriten,Alle Entitäten','Heads: favorites, all');
  const foot=pop.querySelector('.entity-picker-foot');
  check(!foot.hidden&&foot.textContent.includes(${JSON.stringify(de.labels[7])}),'Without a password: the hint');
  // Opened again: the remembered page at once, the fresh one replaces it quietly.
  $('r_switch_entity_picker').click();
  $('r_switch_entity_picker').click();
  rows=[...pop.querySelectorAll('.entity-picker-item')];
- check(!pop.classList.contains('waiting')&&rows.length===2&&rows[0].textContent.includes('EG Büro'),
+ check(!pop.classList.contains('waiting')&&rows.length===2&&rows[1].textContent.includes('EG Büro'),
    'Remembered page at once: '+rows.map(r=>r.textContent).join(' | '));
  await wait(400);
  // Typing searches the Bridge again after a pause; with the password every

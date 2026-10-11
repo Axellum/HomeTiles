@@ -2881,6 +2881,12 @@ function syncTileRadiusControls(tabEl) {
   let entityPickerPopover = null;
   // {input, local, entries, query, active, state, remote, full, more}
   let entityPickerOpen = null;
+  // Entities chosen in this browser, per list: {entity: [times, last ms]}.
+  // The open list shows the most used and newest of them first (#79).
+  const ENTITY_RECENT_KEY = 'hometiles.entityPickerRecent';
+  const ENTITY_RECENT_KEEP = 40;
+  const ENTITY_RECENT_SHOWN = 5;
+  const ENTITY_RECENT_HALF_LIFE_MS = 14 * 24 * 3600 * 1000;
 
   function entityKindLabel(entityId) {
     const domain = String(entityId || '').split('.')[0];
@@ -3108,7 +3114,7 @@ function syncTileRadiusControls(tabEl) {
           if (!open.query) entityRemoteFirstPages.set(list, answer);
           entityPickerApplyRemote(open, answer, false);
           if (!open.query && !shown) {
-            open.active = Math.max(0, open.entries.findIndex(entry => entry.value === open.input.value));
+            open.active = entityPickerRowOf(open.input.value);
           }
           renderEntityPicker(open.input);
         }
@@ -3255,6 +3261,47 @@ function syncTileRadiusControls(tabEl) {
     entityPickerWarm(input);
   }
 
+  // ---- Recently chosen ----
+
+  function entityRecentRead() {
+    try {
+      const data = JSON.parse(window.localStorage.getItem(ENTITY_RECENT_KEY) || '{}');
+      return data && typeof data === 'object' ? data : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function entityRecentNote(list, value) {
+    if (!list || !value) return;
+    const data = entityRecentRead();
+    const items = data[list] && typeof data[list] === 'object' ? data[list] : {};
+    const previous = Array.isArray(items[value]) ? items[value] : [0, 0];
+    items[value] = [Number(previous[0]) + 1 || 1, Date.now()];
+    data[list] = Object.fromEntries(Object.entries(items)
+      .filter(([, item]) => Array.isArray(item))
+      .sort((a, b) => Number(b[1][1]) - Number(a[1][1]))
+      .slice(0, ENTITY_RECENT_KEEP));
+    try {
+      window.localStorage.setItem(ENTITY_RECENT_KEY, JSON.stringify(data));
+    } catch (error) {
+      // Without storage the list simply shows no recent group.
+    }
+  }
+
+  // The list's chosen entities: chosen often and lately first.
+  function entityRecentValues(list) {
+    const items = entityRecentRead()[list];
+    if (!items || typeof items !== 'object') return [];
+    const now = Date.now();
+    const score = item => (Number(item[0]) || 0) *
+      Math.pow(0.5, Math.max(0, now - (Number(item[1]) || 0)) / ENTITY_RECENT_HALF_LIFE_MS);
+    return Object.entries(items)
+      .filter(([, item]) => Array.isArray(item))
+      .sort((a, b) => score(b[1]) - score(a[1]) || Number(b[1][1]) - Number(a[1][1]))
+      .map(([value]) => value);
+  }
+
   // ---- Open list ----
 
   function entityPickerMatchesQuery(entry, query) {
@@ -3272,6 +3319,46 @@ function syncTileRadiusControls(tabEl) {
       return open.entries.filter(entry => entityPickerMatchesQuery(entry, open.query));
     }
     return open.local.filter(entry => entityPickerMatchesQuery(entry, open.query));
+  }
+
+  // The open list as rows {entry, head} (#79). Without a search: the entities
+  // chosen here often and lately, then the favorites, the panel's own
+  // entities (released for it in the Bridge, and the ones its tiles use),
+  // then all others; a group's head stands on its first row, and only when
+  // more than one group has rows. A search lists the favorites among its
+  // matches first.
+  function entityPickerView() {
+    const open = entityPickerOpen;
+    const matches = entityPickerMatches();
+    // The Bridge's row has area and device; the panel's own row only the name.
+    const richer = entry => entityRemoteInfo.get(entry.value) || entry;
+    const own = new Set(open.local.map(entry => entry.value));
+    if (open.query) {
+      const shown = new Set(matches.map(entry => entry.value));
+      const favorites = matches.filter(entry => own.has(entry.value)).concat(
+        open.local.filter(entry => !shown.has(entry.value) && entityPickerMatchesQuery(entry, open.query)).map(richer));
+      return favorites.concat(matches.filter(entry => !own.has(entry.value))).map(entry => ({ entry, head: '' }));
+    }
+    const list = open.input.dataset.entityPicker;
+    const byValue = new Map(matches.map(entry => [entry.value, entry]));
+    const used = new Set();
+    const take = entries => entries.filter(entry => entry && !used.has(entry.value) && used.add(entry.value));
+    const recent = take(entityRecentValues(list)
+      .filter(value => byValue.has(value) || own.has(value))
+      .slice(0, ENTITY_RECENT_SHOWN)
+      .map(value => byValue.get(value) || richer(open.local.find(entry => entry.value === value))));
+    const favorites = take(open.local.map(entry => byValue.get(entry.value) || richer(entry)));
+    const others = take(matches);
+    const groups = [[t('entityPickerRecent'), recent], [t('entityPickerFavorites'), favorites],
+      [t('entityPickerAll'), others]].filter(([, entries]) => entries.length);
+    const heads = groups.length > 1;
+    return groups.flatMap(([head, entries]) =>
+      entries.map((entry, index) => ({ entry, head: heads && !index ? head : '' })));
+  }
+
+  // The row of `value` in the open list, 0 without it.
+  function entityPickerRowOf(value) {
+    return Math.max(0, entityPickerView().findIndex(row => row.entry.value === value));
   }
 
   function renderEntityPickerList(keepScroll) {
@@ -3295,17 +3382,18 @@ function syncTileRadiusControls(tabEl) {
         '<button type="button" class="btn entity-picker-retry">' + escapeHtml(t('entityPickerRetry')) + '</button></div>';
       return;
     }
-    const matches = entityPickerMatches();
-    open.active = Math.max(0, Math.min(open.active, matches.length - 1));
-    if (!matches.length) {
+    const rows = entityPickerView();
+    open.active = Math.max(0, Math.min(open.active, rows.length - 1));
+    if (!rows.length) {
       list.innerHTML = '<div class="entity-picker-state">' + escapeHtml(open.query
         ? tf('entityPickerNoMatch', { query: open.query }) : t('entityPickerNone')) + '</div>';
       return;
     }
     const current = open.input.value;
-    list.innerHTML = matches.map((entry, index) => {
+    list.innerHTML = rows.map(({ entry, head }, index) => {
       const kind = entityKindLabel(entry.entity);
-      return '<div class="entity-picker-item' + (index === open.active ? ' active' : '') +
+      return (head ? '<div class="entity-picker-group">' + escapeHtml(head) + '</div>' : '') +
+        '<div class="entity-picker-item' + (index === open.active ? ' active' : '') +
         (entry.value === current ? ' selected' : '') + '" role="option" aria-selected="' +
         (entry.value === current ? 'true' : 'false') + '" data-index="' + index + '">' +
         entityPickerRowHtml(entry, open.query) +
@@ -3325,7 +3413,7 @@ function syncTileRadiusControls(tabEl) {
       open.state = 'ready';
       // Without a search the list starts at the chosen entity.
       if (!open.query && open.remote !== 'ready') {
-        open.active = Math.max(0, open.local.findIndex(entry => entry.value === open.input.value));
+        open.active = entityPickerRowOf(open.input.value);
       }
       renderEntityPickerList();
     };
@@ -3410,7 +3498,7 @@ function syncTileRadiusControls(tabEl) {
     const remembered = entityRemoteSupported && entityRemoteFirstPages.get(input.dataset.entityPicker);
     if (remembered) {
       entityPickerApplyRemote(entityPickerOpen, remembered, false);
-      entityPickerOpen.active = Math.max(0, entityPickerOpen.entries.findIndex(entry => entry.value === input.value));
+      entityPickerOpen.active = entityPickerRowOf(input.value);
     }
     entityPickerRemoteSearch(entityPickerOpen);
     // Drawn once the Bridge search is under way, so the panel's short list
@@ -3434,9 +3522,10 @@ function syncTileRadiusControls(tabEl) {
 
   function pickEntityPickerIndex(index) {
     const open = entityPickerOpen;
-    const entry = open ? entityPickerMatches()[index] : null;
+    const entry = open ? entityPickerView()[index]?.entry : null;
     if (!entry) return;
     closeEntityPicker(true);
+    entityRecentNote(open.input.dataset.entityPicker, entry.value);
     chooseEntityPickerValue(open.input, entry.value, entry);
   }
 
@@ -3490,7 +3579,7 @@ function syncTileRadiusControls(tabEl) {
 
   document.addEventListener('keydown', event => {
     if (!entityPickerOpen || !event.target?.closest?.('.entity-picker-search')) return;
-    const count = entityPickerMatches().length;
+    const count = entityPickerView().length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (!count) return;
