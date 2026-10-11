@@ -1287,7 +1287,9 @@ static void appendTileTabHTML(
 <div class="tile-settings-body">
 
 <div class="tile-settings-group">)html";
-  appendHtmlEscaped(html, tr.tile_group_icon);
+  // Two sections (user 2026-10-11): Color (icon color, tile color, Fill),
+  // then Advanced (the type's options); "Icon" and "Tile" apart did not fit.
+  appendHtmlEscaped(html, tr.tile_group_color);
   html += R"html(</div>
 )html";
   append_tile_icon_color_fixed_html(html, tab_id);
@@ -1308,9 +1310,6 @@ static void appendTileTabHTML(
   }
   html += R"html(            </div>
 
-<div class="tile-settings-group">)html";
-  appendHtmlEscaped(html, tr.tile_group_tile);
-  html += R"html(</div>
 <div class="tile-color-label-row no-reset"><span>)html";
   html += tr.admin_color;
   html += R"html(</span></div>
@@ -1380,6 +1379,11 @@ static void appendTileTabHTML(
 
 )html";
 
+  // The type's options; hidden when the type shows none (type-selection.js
+  // syncTileAdvancedCaption).
+  html += "<div class=\"tile-settings-group\" id=\"" + tab_id + "_tile_group_advanced\">";
+  appendHtmlEscaped(html, tr.tile_group_advanced);
+  html += "</div>";
   html += "<p class=\"settings-note\" hidden id=\"" + tab_id + "_tile_size_note\">";
   appendHtmlEscaped(html, tr.tile_fractional_type_hint);
   html += "</p>";

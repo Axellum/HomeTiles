@@ -285,7 +285,7 @@ static const Strings kStringsDe = {
     "Andere Entität",
     "Solange eine Regel zutrifft, gewinnt sie. Sonst gelten die Einstellungen oben.",
     "Icon",
-    "Kachel",
+    "Erweitert",
     "Kachel-Deckkraft",
     "Hintergrund oder Uhr anklicken. Kacheln in den beiden unteren Reihen lassen sich wie gewohnt verschieben und vergrößern.",
     "JPEG-Bilder im Ordner /images der microSD-Karte.",
@@ -633,7 +633,8 @@ static const Strings kStringsDe = {
     "Popup",
     "Vollbild",
     "Ausfüllen",
-    "Füllen"};
+    "Füllen",
+    "Farbe"};
 
 static const Strings kStringsEn = {
     "en",
@@ -913,7 +914,7 @@ static const Strings kStringsEn = {
     "Other entity",
     "While a rule matches, it wins. Otherwise the settings above apply.",
     "Icon",
-    "Tile",
+    "Advanced",
     "Tile opacity",
     "Click the background or clock. Tiles in the bottom two rows can be moved and resized as usual.",
     "JPEG images in the /images folder of the microSD card.",
@@ -1261,7 +1262,8 @@ static const Strings kStringsEn = {
     "Popup",
     "Full screen",
     "Fill",
-    "Fill"};
+    "Fill",
+    "Color"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1541,7 +1543,7 @@ static const Strings kStringsFr = {
     "Autre entité",
     "Tant qu'une règle s'applique, elle l'emporte. Sinon, les réglages ci-dessus s'appliquent.",
     "Icône",
-    "Tuile",
+    "Avancé",
     "Opacité des tuiles",
     "Clique sur l'arrière-plan ou l'horloge. Les tuiles des deux rangées du bas se déplacent et s'agrandissent comme d'habitude.",
     "Images JPEG dans le dossier /images de la carte microSD.",
@@ -1889,7 +1891,8 @@ static const Strings kStringsFr = {
     "Popup",
     "Plein écran",
     "Remplir",
-    "Remplir"};
+    "Remplir",
+    "Couleur"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2536,7 +2539,7 @@ static const Strings kStringsPl = {
     "Inna encja",
     "Dopóki reguła pasuje, ma pierwszeństwo. W przeciwnym razie obowiązują ustawienia powyżej.",
     "Ikona",
-    "Kafelek",
+    "Zaawansowane",
     "Krycie kafelków",
     "Kliknij tło lub zegar. Kafelki w dwóch dolnych rzędach można przesuwać i zmieniać rozmiar jak zwykle.",
     "Obrazy JPEG w folderze /images na karcie microSD.",
@@ -2872,6 +2875,7 @@ static const Strings kStringsPl = {
     "Pełny ekran",
     "Wypełnij",
     "Wypełnij",
+    "Kolor",
 };
 
 static const LocaleProfile kLocalePl = {

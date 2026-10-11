@@ -304,9 +304,11 @@ struct Strings {
   const char* tile_rules_own_entity;
   const char* tile_rules_other_entity;
   const char* tile_rules_priority_hint;
-  // Tile Settings group captions: what belongs to the icon, what to the tile.
+  // The icon picker's label beside the title, and the one Tile Settings
+  // caption above the colors and the type's options (user 2026-10-11: one
+  // section instead of Icon and Tile).
   const char* tile_group_icon;
-  const char* tile_group_tile;
+  const char* tile_group_advanced;
   const char* screensaver_background_opacity;
   const char* screensaver_hint;
   const char* screensaver_storage_hint;
@@ -742,6 +744,8 @@ struct Strings {
   const char* tile_fill;
   // A rule row's own fill: the tile is filled while the row matches (user 2026-10-11).
   const char* tile_rule_fill;
+  // The Tile Settings caption above the icon color, the tile color and Fill (user 2026-10-11).
+  const char* tile_group_color;
 };
 
 // Locale-specific display rules and short runtime strings shared by

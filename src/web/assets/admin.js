@@ -8001,6 +8001,22 @@ async function saveGestureEdge(select) {
     syncTileSizePolicy(tab);
     syncIconDiscFields(tab);
     placeTileEntityField(tab);
+    syncTileAdvancedCaption(tab);
+  }
+
+  // "Advanced" only above options the type shows (user 2026-10-11): its
+  // visible fields, or the half-size note.
+  function syncTileAdvancedCaption(tab) {
+    const prefix = tab;
+    const caption = document.getElementById(prefix + '_tile_group_advanced');
+    if (!caption) return;
+    const note = document.getElementById(prefix + '_tile_size_note');
+    const fields = document.querySelector('#' + prefix + 'Settings .type-fields.show');
+    const shown = el => !el.hidden && el.type !== 'hidden' && !el.closest('.hidden, [hidden]') &&
+      (!el.isConnected || !el.offsetParent || el.getClientRects().length > 0);
+    const any = (note && !note.hidden) ||
+      !!fields && [...fields.querySelectorAll('input, select, textarea, button')].some(shown);
+    caption.classList.toggle('hidden', !any);
   }
 
   function syncTileSizePolicy(tab) {
