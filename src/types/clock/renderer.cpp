@@ -917,10 +917,17 @@ static void render_clock_face(lv_obj_t* card, const Tile& tile, bool compact, bo
   config.time_alignment = config.date_alignment = l.beside ? 0 : 1;
   lv_obj_t* stack = create_clock_widget(card, config);
   if (!stack) return;
-  lv_obj_update_layout(stack);
-  const lv_coord_t sh = lv_obj_get_height(stack), sw = lv_obj_get_width(stack);
-  const lv_coord_t x = l.beside ? l.text_x : l.text_x + (l.text_w - sw) / 2;
-  lv_obj_set_pos(stack, x - pad_x, l.text_y + (l.text_h - sh) / 2 - pad_y);
+  // Aligned to the card's content box: LVGL keeps the lines centered in
+  // their box when their size changes (the time arrives after the start,
+  // "9:59" -> "10:00"); a set position would keep the first size's place.
+  const lv_coord_t content_cx = pad_x + (w - pad_x - lv_obj_get_style_pad_right(card, LV_PART_MAIN)) / 2;
+  const lv_coord_t content_cy = pad_y + (h - pad_y - lv_obj_get_style_pad_bottom(card, LV_PART_MAIN)) / 2;
+  const lv_coord_t cy = l.text_y + l.text_h / 2 - content_cy;
+  if (l.beside) {
+    lv_obj_align(stack, LV_ALIGN_LEFT_MID, l.text_x - pad_x, cy);
+  } else {
+    lv_obj_align(stack, LV_ALIGN_CENTER, l.text_x + l.text_w / 2 - content_cx, cy);
+  }
 }
 
 // The big date (user 2026-10-12, mockup build/design-mockups/clock 3 "Datum
@@ -1184,6 +1191,8 @@ static lv_obj_t* clock_big_date_label(lv_obj_t* parent, uint8_t size, uint32_t c
   if (!label) return nullptr;
   set_label_style(label, lv_color_hex(color), tabular_digits::font(ui_font_for_size(layout_clock_font_size(size))));
   lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
+  // Empty until the time is known (LVGL's labels start with "Text").
+  lv_label_set_text(label, "");
   return label;
 }
 

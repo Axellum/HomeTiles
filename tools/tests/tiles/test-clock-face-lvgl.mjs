@@ -31,6 +31,11 @@ const face = fn('render_clock_face');
 assert.match(face, /colors\.dial = clock_face::kDialColors\[/);
 assert.match(face, /tile_icon_disc::tile_fill\(card, card_color, ui_theme::icon\(\), false, false, false,/);
 assert.match(face, /config\.text_shadow = false;/);
+// b397: the lines stay centered in their box when their size changes (the
+// time arrives after the start, "9:59" -> "10:00"): aligned, not placed.
+assert.match(face, /lv_obj_align\(stack, LV_ALIGN_LEFT_MID, l\.text_x - pad_x, cy\);/);
+assert.match(face, /lv_obj_align\(stack, LV_ALIGN_CENTER, l\.text_x \+ l\.text_w \/ 2 - content_cx, cy\);/);
+assert.doesNotMatch(face, /lv_obj_set_pos\(stack/);
 const header = read('src/types/clock/clock_face.h');
 const css = read('src/web/assets/admin.css');
 const admin = read('src/types/clock/admin.js');

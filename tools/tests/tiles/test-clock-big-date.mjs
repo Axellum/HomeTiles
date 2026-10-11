@@ -24,6 +24,8 @@ assert.ok(read('src/types/clock/web_html.cpp').includes('html += tr.clock_style_
 assert.match(renderer, /d->month = clock_big_date_label\(card, d->sizes\.month, ui_theme::text_secondary\(\)\);/,
   'the month in the secondary text color, like the mockup');
 assert.match(renderer, /lv_timer_delete\(data->timer\);\s*delete data;/, 'the timer goes with the tile');
+// b397: nothing until the time is known (LVGL's labels start with "Text").
+assert.match(renderer, /lv_obj_remove_flag\(label, LV_OBJ_FLAG_CLICKABLE\);\s*\/\/[^\n]*\n\s*lv_label_set_text\(label, ""\);\s*return label;/);
 const sizesList = /static constexpr uint8_t kClockFontSizes\[\] = \{([^}]*)\};/.exec(renderer)[1];
 assert.equal(/const CLOCK_PREVIEW_FONT_SIZES = \[([^\]]*)\];/.exec(admin)[1], sizesList, 'the same size steps');
 
