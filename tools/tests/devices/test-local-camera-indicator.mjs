@@ -25,11 +25,13 @@ const tileConfig = read('src/tiles/config/tile_config.h');
 const compact = read('src/tiles/runtime/compact_sensor_layout.h');
 const popupShell = read('src/ui/popups/popup_shell.cpp');
 
-// Stripe: top margin minus the one-pixel gap, fixed width, never clickable,
+// Stripe: the profile's own grid margin minus one pixel (V2 3 px; the grid's
+// whole-gap margin since b300 made it 15 px thick, user 2026-10-11), fixed
+// width, never clickable,
 // static. The wings fade out towards their outer ends, the section along the
 // pill stays solid. No animation: it would redraw and rotate part of the
 // screen every frame while the camera shares the 2D-DMA with the display.
-assert.match(indicator, /constexpr int kStripeHeight = grid_layout::profile_grid\(\)\.pad_top > 1 \? grid_layout::profile_grid\(\)\.pad_top - 1 : 1;/);
+assert.match(indicator, /constexpr int kStripeHeight = Device::kProfile\.grid_pad > 1 \? Device::kProfile\.grid_pad - 1 : 1;/);
 assert.match(indicator, /lv_obj_remove_flag\(part, static_cast<lv_obj_flag_t>\(LV_OBJ_FLAG_CLICKABLE/,
   'The stripe never takes touch input');
 assert.doesNotMatch(indicator, /lv_obj_set_width\(/, 'The stripe no longer grows and shrinks');
@@ -105,7 +107,7 @@ assert.match(indicator, /heap_caps_malloc\(kBufferBytes, MALLOC_CAP_SPIRAM \| MA
 assert.doesNotMatch(indicator, /static uint8_t buffers/, 'No static fillet buffers in internal RAM');
 assert.match(indicator, /drawFillet\(ui\.fillet_left, ui\.fillet_buffers\[0\], fillet, ui\.pill_x - fillet, true, border\);/);
 assert.match(indicator, /drawFillet\(ui\.fillet_right, ui\.fillet_buffers\[1\], fillet, ui\.pill_x \+ ui\.pill_width, false,\s*border\);/);
-assert.match(indicator, /if \(!visible\) return;\s*updateShape\(ui\);\s*keepOnTop\(ui\);/);
+assert.match(indicator, /if \(!visible\) return;[\s\S]{0,320}?\s*updateShape\(ui\);\s*keepOnTop\(ui\);/);
 // Style (Web Admin, experimental): none hides everything, line keeps only the
 // stripe, pill adds the pill, its fillets and border.
 assert.match(indicator, /const local_camera::IndicatorStyle style = local_camera::indicatorStyle\(\);\s*const bool visible =\s*style != local_camera::IndicatorStyle::None && local_camera::indicatorActive\(\);/);
@@ -184,7 +186,16 @@ const circle = bar.slice(bar.indexOf('lv_obj_t* create_camera_circle('));
 assert.match(circle, /lv_obj_set_pos\(circle, \(grid_layout::screen_w\(\) - g\.disc\) \/ 2, g\.center_y - g\.disc \/ 2\);\s*lv_obj_set_size\(circle, g\.disc, g\.disc\);/,
   'The page circle\'s size on the head\'s centre line, in the middle of the screen');
 assert.match(circle, /lv_label_set_text\(icon, getMdiChar\("webcam"\)\.c_str\(\)\);/);
-assert.match(circle, /lv_obj_set_style_text_color\(icon, lv_color_white\(\), 0\);\s*lv_obj_center\(icon\);/);
+// The page circle's grey with the red icon (user 2026-10-11: the full red
+// circle was too loud, "Grauer Kreis"): one tone for the Home circle and the
+// camera circle, colored again when the theme changes.
+assert.match(circle, /lv_obj_center\(icon\);\s*color_camera_circle\(circle, color\);\s*return circle;/);
+assert.match(circle, /lv_obj_set_style_bg_color\(circle, lv_color_hex\(page_circle_tone\(\)\.disc\), 0\);/);
+assert.match(circle, /lv_obj_set_style_text_color\(icon, lv_color_hex\(settings_style::tone\(head_base\(\), color\)\.icon\), 0\);/);
+assert.ok(bar.includes('settings_style::Tone page_circle_tone() { return settings_style::tone(head_base(), settings_style::kGearColor); }') &&
+  bar.includes('const settings_style::Tone tone = page_circle_tone();'), 'Home and camera circle share one tone');
+assert.doesNotMatch(circle, /lv_color_white\(\)/, 'No white icon on a red circle any more');
+assert.match(indicator, /if \(ui\.head && ui\.light != light\) \{\s*ui\.light = light;\s*home_bar::color_camera_circle\(ui\.pill, kRed\);/);
 assert.match(read('src/ui/tabs/tiles/home_bar.h'), /lv_obj_t\* create_camera_circle\(lv_obj_t\* parent, uint32_t color\);/);
 assert.match(indicator, /constexpr uint32_t kPollMs = 100;/);
 assert.match(indicator, /if \(started \|\| !local_camera::supported\(\)\) return;/,

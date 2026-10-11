@@ -44,9 +44,13 @@ void build(lv_obj_t* grid, uint16_t folder_id);
 
 // The camera's circle (camera_indicator.h, user 2026-10-08): with the head
 // bar it takes the place of the camera pill. The page circle's size on the
-// head's centre line, in the middle of the screen, in `color` with the white
-// webcam icon: a button on `parent`, the caller adds its tap and shows it.
+// head's centre line, in the middle of the screen, with the webcam icon in
+// `color`: a button on `parent`, the caller adds its tap and shows it.
 lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color);
+// Colors the circle (user 2026-10-11: the full red circle was too loud): the
+// page circle's grey (page_circle_tone) with the icon readable in `color`.
+// Called again when the theme changes.
+void color_camera_circle(lv_obj_t* circle, uint32_t color);
 
 // True for the bar's object among a grid's children: it is neither a tile
 // nor an empty cell placeholder.

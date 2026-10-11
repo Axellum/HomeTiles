@@ -49,6 +49,7 @@
 #include "src/ui/popups/popup_shell.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/ui/shared/ui_theme.h"
 #include "src/ui/tabs/tiles/home_bar.h"
 #include "src/ui/ui_manager.h"
 #include "src/video/local_camera/local_camera.h"
@@ -61,9 +62,11 @@ namespace detail {
 constexpr uint32_t kPollMs = 100;
 // A darker red than the Material 600 tone: calmer on the dark UI.
 constexpr uint32_t kRed = 0xC62828;
-// Stripe: the profile grid's top margin minus the one-pixel gap to the tiles
-// (the head bar layout keeps this thin stripe at the screen's top edge).
-constexpr int kStripeHeight = grid_layout::profile_grid().pad_top > 1 ? grid_layout::profile_grid().pad_top - 1 : 1;
+// Stripe: the profile's own grid margin minus one pixel (V2 3 px), a thin
+// line at the screen's top edge in every layout. The grid's margin became a
+// whole grid gap in b300 and made the stripe 15 px thick (user 2026-10-11:
+// "so fett geworden").
+constexpr int kStripeHeight = Device::kProfile.grid_pad > 1 ? Device::kProfile.grid_pad - 1 : 1;
 // The whole stripe, pill included, spans this share of the screen width.
 constexpr int kStripePermille = 600;
 // Each wing fades in from its outer end up to this gradient position (of
@@ -108,6 +111,7 @@ struct Objects {
   int fillet = 0;
   bool border = false;
   bool head = false;       // The head bar's circle instead of the pill.
+  int8_t light = -1;       // The theme the circle is colored for (refresh()).
   bool visible = false;    // Stripe shown.
   bool with_pill = false;  // Pill, fillets and border shown as well.
 };
@@ -418,6 +422,12 @@ inline void refresh(Objects& ui) {
   }
   setVisible(ui, visible, style == local_camera::IndicatorStyle::Pill && pillAllowed());
   if (!visible) return;
+  // The head's circle follows the theme like a tile icon.
+  const int8_t light = ui_theme::theme_light() ? 1 : 0;
+  if (ui.head && ui.light != light) {
+    ui.light = light;
+    home_bar::color_camera_circle(ui.pill, kRed);
+  }
   updateShape(ui);
   keepOnTop(ui);
 }

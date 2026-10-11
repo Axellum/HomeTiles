@@ -121,6 +121,14 @@ lv_obj_t* plain(lv_obj_t* parent) {
   return obj;
 }
 
+// The head's base: the screen in the light theme (the head sits on it, not
+// on a card), the tile card in the dark one.
+uint32_t head_base() { return ui_theme::light() ? ui_theme::screen() : tileDefaultBgColor(); }
+
+// The page circle's colors (the head's Home or folder circle, and the camera
+// circle beside it): the gear's grey one step from the head's base.
+settings_style::Tone page_circle_tone() { return settings_style::tone(head_base(), settings_style::kGearColor); }
+
 }  // namespace
 
 // HH:MM in the panel's time format (12 hours without AM/PM, like a clock
@@ -217,8 +225,7 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   const char* icon_name = home ? "home" : (folder && folder->icon_name[0] ? folder->icon_name : "folder");
   // The light theme's head sits on the screen, not on a card: its circle is
   // one step from the screen like the dark theme's circle from its card.
-  const settings_style::Tone tone =
-      settings_style::tone(ui_theme::light() ? ui_theme::screen() : tileDefaultBgColor(), settings_style::kGearColor);
+  const settings_style::Tone tone = page_circle_tone();
   lv_obj_t* circle = plain(bar);
   lv_obj_set_pos(circle, g.disc_x, g.center_y - g.disc / 2);
   lv_obj_set_size(circle, g.disc, g.disc);
@@ -296,15 +303,23 @@ lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color) {
   lv_obj_set_pos(circle, (grid_layout::screen_w() - g.disc) / 2, g.center_y - g.disc / 2);
   lv_obj_set_size(circle, g.disc, g.disc);
   lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_color(circle, lv_color_hex(color), 0);
   lv_obj_set_style_bg_opa(circle, LV_OPA_COVER, 0);
   lv_obj_t* icon = lv_label_create(circle);
   lv_label_set_text(icon, getMdiChar("webcam").c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
-  // On the colored camera circle: white in both themes (text on an accent).
-  lv_obj_set_style_text_color(icon, lv_color_white(), 0);
   lv_obj_center(icon);
+  color_camera_circle(circle, color);
   return circle;
+}
+
+void color_camera_circle(lv_obj_t* circle, uint32_t color) {
+  if (!circle) return;
+  // The page circle's grey beside it, the icon readable in `color` on the
+  // head's base (user 2026-10-11: "Grauer Kreis").
+  lv_obj_set_style_bg_color(circle, lv_color_hex(page_circle_tone().disc), 0);
+  if (lv_obj_t* icon = lv_obj_get_child(circle, 0)) {
+    lv_obj_set_style_text_color(icon, lv_color_hex(settings_style::tone(head_base(), color).icon), 0);
+  }
 }
 
 }  // namespace home_bar
