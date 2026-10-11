@@ -639,7 +639,21 @@ static const Strings kStringsDe = {
     "Kurz",
     "Lang",
     "Ziffern rollen",
-    "Ausrichtung"};
+    "Ausrichtung",
+    "Stil",
+    "Digital",
+    "Analog",
+    "Wanduhr",
+    "Zifferblatt",
+    "Zeiger",
+    "Schiefer",
+    "Schwarz",
+    "Weiß",
+    "Salbei",
+    "Marine",
+    "Terrakotta",
+    "Gold",
+    "Silber"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1273,7 +1287,21 @@ static const Strings kStringsEn = {
     "Short",
     "Long",
     "Roll digits",
-    "Alignment"};
+    "Alignment",
+    "Style",
+    "Digital",
+    "Analog",
+    "Wall clock",
+    "Dial",
+    "Hands",
+    "Slate",
+    "Black",
+    "White",
+    "Sage",
+    "Navy",
+    "Terracotta",
+    "Gold",
+    "Silver"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1907,7 +1935,21 @@ static const Strings kStringsFr = {
     "Court",
     "Long",
     "Chiffres déroulants",
-    "Alignement"};
+    "Alignement",
+    "Style",
+    "Numérique",
+    "Analogique",
+    "Horloge murale",
+    "Cadran",
+    "Aiguilles",
+    "Ardoise",
+    "Noir",
+    "Blanc",
+    "Sauge",
+    "Marine",
+    "Terre cuite",
+    "Or",
+    "Argent"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2905,6 +2947,20 @@ static const Strings kStringsPl = {
     "Długi",
     "Przewijane cyfry",
     "Wyrównanie",
+    "Styl",
+    "Cyfrowy",
+    "Analogowy",
+    "Zegar ścienny",
+    "Tarcza",
+    "Wskazówki",
+    "Łupek",
+    "Czarny",
+    "Biały",
+    "Szałwia",
+    "Granat",
+    "Terakota",
+    "Złoty",
+    "Srebrny",
 };
 
 static const LocaleProfile kLocalePl = {

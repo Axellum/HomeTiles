@@ -16,18 +16,24 @@ function getClockPreviewLanguage() {
   // clock_tile::unpack_date_options / pack_date_options: bits 0-7 the date
   // format, 8-9 the weekday (0 none, 1 short, 2 long), bit 10 rolling digits,
   // 11-12 the alignment (0 centered, 1 left, 2 right).
+  // 13-15 the style (0 digital, 1 analog, 2 wall clock), 16-18 the wall
+  // clock's dial color, 19-20 its hands' color (clock_face.h).
   function clockDateOptions(raw) {
     const num = Number(raw);
-    if (!Number.isFinite(num) || num < 0) return {format: 0, weekday: 0, roll: false, align: 0};
+    if (!Number.isFinite(num) || num < 0) return {format: 0, weekday: 0, roll: false, align: 0, style: 0, dial: 0, hands: 0};
     const weekday = (num >> 8) & 3;
     const align = (num >> 11) & 3;
+    const style = (num >> 13) & 7;
+    const dial = (num >> 16) & 7;
     return {format: normalizeClockDateFormat(num & 0xFF), weekday: weekday <= 2 ? weekday : 0,
-      roll: ((num >> 10) & 1) === 1, align: align <= 2 ? align : 0};
+      roll: ((num >> 10) & 1) === 1, align: align <= 2 ? align : 0, style: style < 3 ? style : 0,
+      dial: dial < 6 ? dial : 0, hands: (num >> 19) & 3};
   }
-  function packClockDateOptions(format, weekday, roll, align = 0) {
-    const day = Number(weekday), side = Number(align);
+  function packClockDateOptions(format, weekday, roll, align = 0, style = 0, dial = 0, hands = 0) {
+    const day = Number(weekday), side = Number(align), kind = Number(style), face = Number(dial), ink = Number(hands);
     return normalizeClockDateFormat(format) | ((day === 1 || day === 2 ? day : 0) << 8) | (roll ? 1024 : 0)
-      | ((side === 1 || side === 2 ? side : 0) << 11);
+      | ((side === 1 || side === 2 ? side : 0) << 11) | ((kind === 1 || kind === 2 ? kind : 0) << 13)
+      | ((face >= 0 && face < 6 ? face : 0) << 16) | ((ink >= 0 && ink < 4 ? ink : 0) << 19);
   }
   // The tile's alignment in the preview (renderer.cpp render_clock_tile).
   function applyClockPreviewAlign(tileElem, align) {
@@ -228,6 +234,13 @@ function getClockPreviewLanguage() {
     if (rollEl) rollEl.checked = dateOptions.roll;
     const alignEl = document.getElementById(tab + '_clock_align');
     if (alignEl) alignEl.value = String(dateOptions.align);
+    const styleEl = document.getElementById(tab + '_clock_style');
+    if (styleEl) styleEl.value = String(dateOptions.style);
+    const dialEl = document.getElementById(tab + '_clock_dial');
+    if (dialEl) dialEl.value = String(dateOptions.dial);
+    const handsEl = document.getElementById(tab + '_clock_hands');
+    if (handsEl) handsEl.value = String(dateOptions.hands);
+    syncClockStyleFields(tab);
     if (data && (data.clock_show_time !== undefined || data.clock_show_date !== undefined)) {
       const showTime = String(data.clock_show_time || '0') === '1';
       const showDate = String(data.clock_show_date || '0') === '1';
@@ -279,6 +292,7 @@ function getClockPreviewLanguage() {
       applyClockPreviewTextStyle(dateEl, dateFont, 20, panelRoleHex('text', '#fff'));
     }
     fitCompactClockPreview(tileElem);
+    layoutClockFacePreview(tileElem);
   }
 
   const CLOCK_PREVIEW_FONT_SIZES = [20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
@@ -317,7 +331,7 @@ function getClockPreviewLanguage() {
   // The date follows only from width 2 and only when it still fits.
   // The firmware applies the same rule (fit_compact_clock in clock/renderer.cpp).
   function fitCompactClockPreview(tileElem) {
-    if (!tileElem) return;
+    if (!tileElem || tileElem.querySelector(':scope > .tile-clock-face')) return;
     const lines = [tileElem.querySelector('.tile-clock-time'), tileElem.querySelector('.tile-clock-date')];
     lines.forEach(el => {
       if (!el) return;
@@ -385,7 +399,10 @@ function getClockPreviewLanguage() {
       document.getElementById(tab + '_clock_date_format')?.value || '0',
       document.getElementById(tab + '_clock_weekday')?.value || '0',
       document.getElementById(tab + '_clock_roll')?.checked === true,
-      document.getElementById(tab + '_clock_align')?.value || '0')));
+      document.getElementById(tab + '_clock_align')?.value || '0',
+      document.getElementById(tab + '_clock_style')?.value || '0',
+      document.getElementById(tab + '_clock_dial')?.value || '0',
+      document.getElementById(tab + '_clock_hands')?.value || '0')));
   }
 
   function resetClockFields(tab) {
@@ -407,4 +424,166 @@ function getClockPreviewLanguage() {
     if (rollEl) rollEl.checked = false;
     const alignEl = document.getElementById(tab + '_clock_align');
     if (alignEl) alignEl.value = '0';
+    for (const id of ['_clock_style', '_clock_dial', '_clock_hands']) {
+      const el = document.getElementById(tab + id);
+      if (el) el.value = '0';
+    }
+    syncClockStyleFields(tab);
+  }
+
+  // The wall clock's colors only with the wall clock.
+  function syncClockStyleFields(tab) {
+    const wall = document.getElementById(tab + '_clock_wall_colors');
+    if (wall) wall.classList.toggle('hidden', document.getElementById(tab + '_clock_style')?.value !== '2');
+  }
+
+  // clock_face.h: the wall clock's colors; the analog clock takes the theme.
+  const CLOCK_DIAL_COLORS = ['#5E6C82', '#1E1F22', '#F4F4F2', '#7C8C74', '#26364F', '#B86B4B'];
+  const CLOCK_HAND_COLORS = ['#C9A45C', '#C3C7CC', '#1A1A1A', '#FFFFFF'];
+
+  // The analog face's circle: the theme's icon circle over the card
+  // (tile_icon_disc::tile_fill for the untinted theme icon): the light theme
+  // blends the icon grey over the card, the dark one lifts the card.
+  function clockDialColor(tileElem) {
+    const card = cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [0, 0, 0];
+    const glowRaw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
+    const glowValue = glowRaw === '' ? 25 : Number(glowRaw);
+    const glowPct = Math.min(100, Math.max(0, Number.isFinite(glowValue) ? glowValue : 25));
+    const icon = panelRole('icon') || [255, 255, 255];
+    if (panelLight()) {
+      const over = toneNoColor(icon) ? [189, 189, 189] : icon;
+      const share = Number(panelVar('--pv-light-circle', '0.8'));
+      const amount = glowPct * (Number.isFinite(share) ? share : 0.8) / 100;
+      return toneHex(glowPct ? toneBlend(card, over, Math.round(Math.min(1, amount) * 255)) : card);
+    }
+    return toneHex(toneFill(card, icon, false, glowPct).disc);
+  }
+
+  // The face (clock_face::create) as SVG in device pixels.
+  function clockFaceSvg(size, options, small, dialColor) {
+    const r = size / 2, wall = options.style === 2;
+    const ink = CLOCK_HAND_COLORS[options.hands] || CLOCK_HAND_COLORS[0];
+    const dial = wall ? (CLOCK_DIAL_COLORS[options.dial] || CLOCK_DIAL_COLORS[0]) : dialColor;
+    const major = wall ? ink : panelRoleHex('text', '#FFFFFF'), minor = wall ? ink : panelRoleHex('icon-off', '#B0B0B0');
+    const at = (deg, share) => [r + share * r * Math.sin(deg * Math.PI / 180), r - share * r * Math.cos(deg * Math.PI / 180)];
+    let marks = '';
+    for (let i = 0; i < 12; i++) {
+      const quarter = i % 3 === 0;
+      if (wall) {
+        const [x0, y0] = at(i * 30, small ? 0.62 : 0.68), [x1, y1] = at(i * 30, 0.86);
+        marks += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${ink}" stroke-width="${Math.max(1, Math.floor(size / 50))}" stroke-linecap="round"/>`;
+      } else if (quarter || !small) {
+        const [x, y] = at(i * 30, 0.8), d = Math.max(3, Math.floor(size * (quarter ? 0.048 : 0.028)));
+        marks += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${d / 2}" fill="${quarter ? major : minor}"/>`;
+      }
+    }
+    const now = new Date();
+    const hourDeg = ((now.getHours() % 12) + now.getMinutes() / 60) * 30, minDeg = now.getMinutes() * 6;
+    const hand = (deg, share, width) => {
+      const [x, y] = at(deg, share);
+      return `<line x1="${r}" y1="${r}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${wall ? ink : major}" stroke-width="${width}" stroke-linecap="round"/>`;
+    };
+    const hw = Math.max(2, Math.floor(size * (wall ? 0.022 : 0.05))), mw = Math.max(2, Math.floor(size * (wall ? 0.016 : 0.032)));
+    const center = Math.max(4, Math.floor(size * (wall ? 0.036 : 0.09)));
+    return `<circle cx="${r}" cy="${r}" r="${r}" fill="${dial}"/>${marks}`
+      + hand(hourDeg, wall ? 0.5 : 0.45, hw) + hand(minDeg, wall ? 0.78 : 0.66, mw)
+      + `<circle cx="${r}" cy="${r}" r="${center / 2}" fill="${wall ? ink : major}"/>`;
+  }
+
+  // clock/renderer.cpp clock_face_layout in device pixels (m, gap: the
+  // margins of clock_face.h, --clock-face-*; fonts: the widths of the clock
+  // sample and the line heights per time size, --tw / --lh): the face and its
+  // lines beside or below it, or the face alone.
+  const CLOCK_FACE_TIME_SIZES = [56, 40, 32, 24, 20];
+  function clockFaceTimeFit(fonts, maxSize, width, height, below) {
+    for (let i = 0; i < CLOCK_FACE_TIME_SIZES.length; i++) {
+      if (CLOCK_FACE_TIME_SIZES[i] > maxSize) continue;
+      if (fonts.timeW[i] <= width && fonts.timeH[i] + below <= height) return i;
+    }
+    return -1;
+  }
+  function clockFaceLayout(w, h, top, compact, timeLine, dateLine, fonts, m, gap) {
+    const areaH = h - top, y = top + m;
+    if (compact) {
+      const size = areaH - 2 * m, textX = size + 2 * m + gap, textW = w - textX - m;
+      const date = dateLine && textW >= 2 * size;
+      const fit = timeLine ? clockFaceTimeFit(fonts, 24, textW, areaH, date ? fonts.date20H : 0) : -1;
+      return {x: m, y, size, beside: true, textX, textY: top, textW, textH: areaH, showTime: fit >= 0,
+        showDate: date && (fit >= 0 || fonts.date20H <= areaH), timeSize: fit >= 0 ? CLOCK_FACE_TIME_SIZES[fit] : 0, dateSize: 20};
+    }
+    if ((timeLine || dateLine) && w >= 2 * areaH) {
+      const size = areaH - 2 * m, textW = w - size - 3 * m, dateH = dateLine ? fonts.date20H : 0;
+      const fit = timeLine ? clockFaceTimeFit(fonts, 56, textW, areaH, dateH) : -1;
+      if (timeLine ? fit >= 0 : dateH <= areaH) {
+        return {x: m, y, size, beside: true, textX: size + 2 * m, textY: top, textW, textH: areaH,
+          showTime: timeLine, showDate: dateLine, timeSize: fit >= 0 ? CLOCK_FACE_TIME_SIZES[fit] : 0, dateSize: 20};
+      }
+    }
+    if ((timeLine || dateLine) && areaH * 2 >= w * 3) {
+      const size = w - 2 * m, textY = y + size, dateH = dateLine ? fonts.date20H : 0;
+      const fit = timeLine ? clockFaceTimeFit(fonts, 40, w - 2 * m, h - textY, dateH) : -1;
+      if (timeLine ? fit >= 0 : dateH <= h - textY) {
+        return {x: m, y, size, beside: false, textX: 0, textY, textW: w, textH: h - textY,
+          showTime: timeLine, showDate: dateLine, timeSize: fit >= 0 ? CLOCK_FACE_TIME_SIZES[fit] : 0, dateSize: 20};
+      }
+    }
+    const full = Math.min(w, areaH) - 2 * m;
+    if (dateLine) {
+      const withDate = Math.min(w - 2 * m, areaH - 3 * m - fonts.date24H);
+      if (withDate * 10 >= full * 7) {
+        return {x: Math.trunc((w - withDate) / 2), y, size: withDate, beside: false, textX: 0, textY: y + withDate,
+          textW: w, textH: h - y - withDate, showTime: false, showDate: true, dateSize: 24};
+      }
+    }
+    return {x: Math.trunc((w - full) / 2), y, size: full, showTime: false, showDate: false};
+  }
+
+  // The analog and the wall clock in the preview, placed after the tile has
+  // its size: the device layout in device pixels, scaled like the grid
+  // (--radius-preview-scale), inside the 3 px editor border.
+  function layoutClockFacePreview(tileElem) {
+    const face = tileElem?.querySelector(':scope > .tile-clock-face');
+    if (!face) return;
+    const options = clockDateOptions(face.dataset.options);
+    const style = getComputedStyle(tileElem);
+    const devicePx = (name, fallback) => {
+      const v = parseFloat(style.getPropertyValue(name));
+      return Number.isFinite(v) ? v : fallback;
+    };
+    const scale = devicePx('--radius-preview-scale', 0.5) || 0.5;
+    const w = Math.round(tileElem.offsetWidth / scale), h = Math.round(tileElem.offsetHeight / scale);
+    const compact = tileElem.classList.contains('clock-compact');
+    const top = tileElem.classList.contains('clock-has-header') ? devicePx('--clock-face-header', 0) : 0;
+    const text = tileElem.querySelector(':scope > .tile-clock-face-text');
+    const time = text?.querySelector('.tile-clock-time'), date = text?.querySelector('.tile-clock-date');
+    // The panel's measures per nominal size, scaled (web_admin_styles.cpp).
+    const measure = (name, fallback) => Math.round(devicePx(name, fallback * scale) / scale);
+    const fonts = {timeW: CLOCK_FACE_TIME_SIZES.map(n => measure('--tw' + n, n * 4)),
+      timeH: CLOCK_FACE_TIME_SIZES.map(n => measure('--lh' + n, n * 1.21)),
+      date20H: measure('--lh20', 24), date24H: measure('--lh24', 29)};
+    const l = clockFaceLayout(w, h, top, compact, !!time, !!date, fonts,
+      devicePx(compact ? '--clock-face-m-compact' : '--clock-face-m', compact ? 6 : 16),
+      devicePx('--clock-face-gap', 6));
+    const border = tileElem.clientLeft || 0;
+    face.style.left = (l.x * scale - border) + 'px';
+    face.style.top = (l.y * scale - border) + 'px';
+    face.style.width = face.style.height = (l.size * scale) + 'px';
+    face.setAttribute('viewBox', `0 0 ${l.size} ${l.size}`);
+    face.innerHTML = clockFaceSvg(l.size, options, compact, clockDialColor(tileElem));
+    if (!text) return;
+    text.hidden = !l.showTime && !l.showDate;
+    if (text.hidden) return;
+    if (time) {
+      time.hidden = !l.showTime;
+      applyClockPreviewTextStyle(time, l.timeSize || 40, 40, panelRoleHex('text', '#fff'));
+    }
+    if (date) {
+      date.hidden = !l.showDate;
+      applyClockPreviewTextStyle(date, l.dateSize || 20, 20, panelRoleHex('text', '#fff'));
+    }
+    text.style.alignItems = l.beside ? 'flex-start' : 'center';
+    text.style.left = (l.textX * scale - border) + 'px';
+    text.style.top = (l.textY * scale - border) + 'px';
+    text.style.width = (l.textW * scale) + 'px';
+    text.style.height = (l.textH * scale) + 'px';
   }

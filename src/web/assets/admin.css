@@ -2751,6 +2751,12 @@
     .tile.clock.clock-align-right .tile-clock-time, .tile.clock.clock-align-right .tile-clock-date { text-align:right; }
     .tile.clock.clock-compact.clock-align-left { justify-content:flex-start; }
     .tile.clock.clock-compact.clock-align-right { justify-content:flex-end; }
+    /* The analog and the wall clock (renderer.cpp render_clock_face): the face
+       and its lines placed in device pixels by layoutClockFacePreview. */
+    .tile.clock .tile-clock-face { position:absolute; overflow:visible; }
+    .tile.clock .tile-clock-face-text { position:absolute; display:flex; flex-direction:column; justify-content:center; }
+    .tile.clock .tile-clock-face-text[hidden] { display:none; }
+    .clock-wall-colors.hidden { display:none; }
 
 /* Text tile (types/text/renderer.cpp): its own card padding, the title top
    left and the icon top right like the Clock, the text wrapped over the

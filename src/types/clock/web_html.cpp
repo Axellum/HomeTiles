@@ -12,6 +12,63 @@ void append_clock_fields_html(String& html, const String& tab_id) {
             <div id=")html";
   html += tab_id;
   html += R"html(_clock_fields" class="type-fields">
+              <label>)html";
+  html += tr.clock_style_label;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_clock_style">
+                <option value="0">)html";
+  html += tr.clock_style_digital;
+  html += R"html(</option>
+                <option value="1">)html";
+  html += tr.clock_style_analog;
+  html += R"html(</option>
+                <option value="2">)html";
+  html += tr.clock_style_wall;
+  html += R"html(</option>
+              </select>
+              <div class="clock-wall-colors" id=")html";
+  html += tab_id;
+  html += R"html(_clock_wall_colors">
+              <label>)html";
+  html += tr.clock_dial_label;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_clock_dial">)html";
+  {
+    // clock_face::kDialColors order.
+    const char* dials[] = {tr.clock_color_slate, tr.clock_color_black, tr.clock_color_white,
+                           tr.clock_color_sage, tr.clock_color_navy, tr.clock_color_terracotta};
+    for (int i = 0; i < 6; ++i) {
+      html += "<option value=\"";
+      html += String(i);
+      html += "\">";
+      html += dials[i];
+      html += "</option>";
+    }
+  }
+  html += R"html(</select>
+              <label>)html";
+  html += tr.clock_hands_label;
+  html += R"html(</label>
+              <select id=")html";
+  html += tab_id;
+  html += R"html(_clock_hands">)html";
+  {
+    // clock_face::kHandColors order.
+    const char* hands[] = {tr.clock_color_gold, tr.clock_color_silver, tr.clock_color_black, tr.clock_color_white};
+    for (int i = 0; i < 4; ++i) {
+      html += "<option value=\"";
+      html += String(i);
+      html += "\">";
+      html += hands[i];
+      html += "</option>";
+    }
+  }
+  html += R"html(</select>
+              </div>
               <label class="inline-checkbox"><input type="checkbox" id=")html";
   html += tab_id;
   html += R"html(_clock_tile_border" checked>)html";

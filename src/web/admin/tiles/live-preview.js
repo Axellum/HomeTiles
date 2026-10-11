@@ -313,8 +313,18 @@
       const clockDateFormat = document.getElementById(prefix + '_clock_date_format')?.value || '0';
       const clockWeekday = Number(document.getElementById(prefix + '_clock_weekday')?.value || 0);
       applyClockPreviewAlign(tileElem, document.getElementById(prefix + '_clock_align')?.value || 0);
-      if (flags & 1) html += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
-      if ((flags & 2) || clockWeekday) html += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDateFormat, clockWeekday, (flags & 2) !== 0)) + '</div>';
+      let clockLines = '';
+      if (flags & 1) clockLines += '<div class="tile-clock-time" ' + getClockPreviewTextStyle(clockTimeFont, 40, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewTime(clockTimeFormat)) + '</div>';
+      if ((flags & 2) || clockWeekday) clockLines += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDateFormat, clockWeekday, (flags & 2) !== 0)) + '</div>';
+      // The analog and the wall clock (grid-preview.js, layoutClockFacePreview).
+      const clockStyle = Number(document.getElementById(prefix + '_clock_style')?.value || 0);
+      if (clockStyle) {
+        const packed = packClockDateOptions(clockDateFormat, clockWeekday, false, 0, clockStyle,
+          document.getElementById(prefix + '_clock_dial')?.value || 0, document.getElementById(prefix + '_clock_hands')?.value || 0);
+        html += '<svg class="tile-clock-face" data-options="' + packed + '"></svg><div class="tile-clock-face-text">' + clockLines + '</div>';
+      } else {
+        html += clockLines;
+      }
     }
 
     if (previewKind === 'text') {
@@ -333,6 +343,8 @@
     // A title or icon moves the clock down (clock/renderer.cpp).
     if (type === '9') tileElem.classList.toggle('clock-has-header', !!(displayTitle || iconName));
     tileElem.innerHTML = html;
+    // The analog and the wall clock place their face once the tile has its size.
+    if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') layoutClockFacePreview(tileElem);
     if (previewKind === 'weather') {
       const iconRecord = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       applyWeatherPreview(tileElem, parseWeatherPreviewPayload(

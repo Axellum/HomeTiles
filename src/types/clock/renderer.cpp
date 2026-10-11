@@ -19,6 +19,7 @@
 #include <time.h>
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/shared/tabular_digits.h"
+#include "src/types/clock/clock_face.h"
 
 static uint8_t layout_clock_font_size(uint8_t size) {
 #if defined(DEVICE_LAYOUT_1024X600)
@@ -739,6 +740,189 @@ static void fit_compact_clock(const Tile& tile, lv_coord_t pad, ClockWidgetConfi
   }
 }
 
+// The analog and the wall clock (clock_face): the face and, where there is
+// room, the time and the date beside or below it, as in the mockup
+// (build/design-mockups/clock "Analog", user 2026-10-12): a half tile a small
+// face with its lines beside it (the date only when the text has twice the
+// face's width, like the digital clock's date from width 2); a tile at least
+// twice as wide as its area below the header the face left, the lines right;
+// a tall tile the face on top, the lines below; else the face alone, the
+// date below it when the face keeps 70 % of its size (the face shows the
+// time). The time takes the largest size whose clock sample fits beside or
+// below the face; without one the face stays alone. Places in card pixels;
+// the preview mirrors it (clock/admin.js clockFaceLayout).
+struct ClockFaceLayout {
+  lv_coord_t x = 0, y = 0, size = 0;
+  bool show_time = false;
+  bool show_date = false;
+  // The lines start at text_x (beside the face) or center in the text box.
+  bool beside = false;
+  lv_coord_t text_x = 0, text_y = 0, text_w = 0, text_h = 0;
+  uint8_t time_size = 0, date_size = 0;
+};
+
+// The time sizes the lines may take (nominal, largest first) with the
+// panel's width of the clock sample "88:88 PM" in them and their line
+// heights; the date's line heights at 20 and 24. The preview reads the same
+// as --tw<size> and --lh<size> (web_admin_styles.cpp).
+constexpr uint8_t kClockFaceTimeSizes[] = {56, 40, 32, 24, 20};
+constexpr int kClockFaceTimeCount = sizeof(kClockFaceTimeSizes) / sizeof(kClockFaceTimeSizes[0]);
+struct ClockFaceFonts {
+  lv_coord_t time_w[kClockFaceTimeCount] = {};
+  lv_coord_t time_h[kClockFaceTimeCount] = {};
+  lv_coord_t date20_h = 0;
+  lv_coord_t date24_h = 0;
+};
+
+// The largest time size up to `max_size` whose sample fits `width` and whose
+// line, with `below` under it, fits `height`; -1 without one.
+static int clock_face_time_fit(const ClockFaceFonts& fonts, uint8_t max_size, lv_coord_t width, lv_coord_t height,
+                               lv_coord_t below) {
+  for (int i = 0; i < kClockFaceTimeCount; ++i) {
+    if (kClockFaceTimeSizes[i] > max_size) continue;
+    if (fonts.time_w[i] <= width && fonts.time_h[i] + below <= height) return i;
+  }
+  return -1;
+}
+
+static ClockFaceLayout clock_face_layout(lv_coord_t w, lv_coord_t h, lv_coord_t top, bool compact, bool time_line,
+                                         bool date_line, const ClockFaceFonts& fonts) {
+  ClockFaceLayout l;
+  const lv_coord_t m = tile_layout::scale(compact ? clock_face::kCompactMargin : clock_face::kTileMargin);
+  const lv_coord_t area_h = h - top;
+  l.y = top + m;
+  if (compact) {
+    l.size = area_h - 2 * m;
+    l.x = m;
+    l.beside = true;
+    l.text_x = l.size + 2 * m + tile_layout::scale(clock_face::kCompactGap);
+    l.text_y = top;
+    l.text_w = w - l.text_x - m;
+    l.text_h = area_h;
+    l.date_size = 20;
+    const bool date = date_line && l.text_w >= 2 * l.size;
+    const int fit = time_line ? clock_face_time_fit(fonts, 24, l.text_w, area_h, date ? fonts.date20_h : 0) : -1;
+    l.show_time = fit >= 0;
+    l.time_size = l.show_time ? kClockFaceTimeSizes[fit] : 0;
+    l.show_date = date && (l.show_time || fonts.date20_h <= area_h);
+    return l;
+  }
+  if ((time_line || date_line) && w >= 2 * area_h) {
+    const lv_coord_t size = area_h - 2 * m;
+    const lv_coord_t text_w = w - size - 3 * m;
+    const lv_coord_t date_h = date_line ? fonts.date20_h : 0;
+    const int fit = time_line ? clock_face_time_fit(fonts, 56, text_w, area_h, date_h) : -1;
+    if (time_line ? fit >= 0 : date_h <= area_h) {
+      l.size = size;
+      l.x = m;
+      l.beside = true;
+      l.text_x = size + 2 * m;
+      l.text_y = top;
+      l.text_w = text_w;
+      l.text_h = area_h;
+      l.show_time = time_line;
+      l.show_date = date_line;
+      l.time_size = fit >= 0 ? kClockFaceTimeSizes[fit] : 0;
+      l.date_size = 20;
+      return l;
+    }
+  }
+  if ((time_line || date_line) && area_h * 2 >= w * 3) {
+    const lv_coord_t size = w - 2 * m;
+    const lv_coord_t text_y = l.y + size;
+    const lv_coord_t date_h = date_line ? fonts.date20_h : 0;
+    const int fit = time_line ? clock_face_time_fit(fonts, 40, w - 2 * m, h - text_y, date_h) : -1;
+    if (time_line ? fit >= 0 : date_h <= h - text_y) {
+      l.size = size;
+      l.x = m;
+      l.text_y = text_y;
+      l.text_w = w;
+      l.text_h = h - text_y;
+      l.show_time = time_line;
+      l.show_date = date_line;
+      l.time_size = fit >= 0 ? kClockFaceTimeSizes[fit] : 0;
+      l.date_size = 20;
+      return l;
+    }
+  }
+  const lv_coord_t full = LV_MIN(w, area_h) - 2 * m;
+  l.size = full;
+  if (date_line) {
+    const lv_coord_t with_date = LV_MIN(w - 2 * m, area_h - 3 * m - fonts.date24_h);
+    if (with_date * 10 >= full * 7) {
+      l.size = with_date;
+      l.show_date = true;
+      l.date_size = 24;
+      l.text_y = l.y + l.size;
+      l.text_w = w;
+      l.text_h = h - l.text_y;
+    }
+  }
+  l.x = (w - l.size) / 2;
+  return l;
+}
+
+// The panel's measures for clock_face_layout (tabular digits, like the
+// clock lines).
+static ClockFaceFonts clock_face_fonts() {
+  ClockFaceFonts fonts;
+  for (int i = 0; i < kClockFaceTimeCount; ++i) {
+    const lv_font_t* font = tabular_digits::font(ui_font_for_size(layout_clock_font_size(kClockFaceTimeSizes[i])));
+    lv_point_t sample{};
+    lv_text_get_size(&sample, "88:88 PM", font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    fonts.time_w[i] = sample.x;
+    fonts.time_h[i] = lv_font_get_line_height(font);
+  }
+  fonts.date20_h = lv_font_get_line_height(ui_font_for_size(layout_clock_font_size(20)));
+  fonts.date24_h = lv_font_get_line_height(ui_font_for_size(layout_clock_font_size(24)));
+  return fonts;
+}
+
+static void render_clock_face(lv_obj_t* card, const Tile& tile, bool compact, bool has_header, uint32_t card_color,
+                              const clock_tile::TileDateOptions& options, ClockWidgetConfig config) {
+  const lv_coord_t w = tile_geometry::extent(tile.col, tile.span_w, GRID_CELL_W, GRID_GAP);
+  const lv_coord_t h = tile_geometry::extent(tile.row, tile.span_h, GRID_CELL_H, GRID_GAP);
+  // Card pixels from the card's top left; children sit in its padding box.
+  const lv_coord_t pad_x = lv_obj_get_style_pad_left(card, LV_PART_MAIN);
+  const lv_coord_t pad_y = lv_obj_get_style_pad_top(card, LV_PART_MAIN);
+  const bool date_line = config.show_date || config.show_weekday;
+  const ClockFaceLayout l =
+      clock_face_layout(w, h, has_header ? tile_icon_disc::row_height() : 0, compact, config.show_time, date_line,
+                        clock_face_fonts());
+  clock_face::Colors colors;
+  clock_face::Marks marks = clock_face::Marks::kDots;
+  if (options.style == clock_tile::STYLE_WALL) {
+    const uint32_t ink = clock_face::kHandColors[options.hands < clock_face::kHandColorCount ? options.hands : 0];
+    colors.dial = clock_face::kDialColors[options.dial < clock_face::kDialColorCount ? options.dial : 0];
+    colors.major = colors.minor = colors.hour = colors.minute = colors.center = ink;
+    marks = clock_face::Marks::kBatons;
+  } else {
+    // The theme's icon circle on this card (an untinted tile icon's).
+    colors.dial = tile_icon_disc::tile_fill(card, card_color, ui_theme::icon(), false, false, false,
+                                            ui_surface_style::icon_glow_percent())
+                      .disc;
+    colors.major = colors.hour = colors.minute = colors.center = ui_theme::text();
+    colors.minor = ui_theme::icon_off();
+  }
+  clock_face::create(card, l.x - pad_x, l.y - pad_y, l.size, colors, marks, compact);
+  if (!l.show_time && !l.show_date) return;
+  config.fill_parent = false;
+  config.horizontal = false;
+  config.text_shadow = false;
+  config.roll = config.roll && l.show_time;
+  config.show_time = l.show_time;
+  if (!l.show_date) config.show_date = config.show_weekday = false;
+  config.time_font_size = l.time_size ? l.time_size : config.time_font_size;
+  config.date_font_size = l.date_size ? l.date_size : config.date_font_size;
+  config.time_alignment = config.date_alignment = l.beside ? 0 : 1;
+  lv_obj_t* stack = create_clock_widget(card, config);
+  if (!stack) return;
+  lv_obj_update_layout(stack);
+  const lv_coord_t sh = lv_obj_get_height(stack), sw = lv_obj_get_width(stack);
+  const lv_coord_t x = l.beside ? l.text_x : l.text_x + (l.text_w - sw) / 2;
+  lv_obj_set_pos(stack, x - pad_x, l.text_y + (l.text_h - sh) / 2 - pad_y);
+}
+
 lv_obj_t* render_clock_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint8_t index) {
   (void)index;
   lv_obj_t* card = lv_button_create(parent);
@@ -829,6 +1013,9 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   // Without a title or icon the lines use the whole card height, centered:
   // its top and bottom padding only cut large clock sizes (user 2026-10-12).
   if (!compact && !has_header) lv_obj_set_style_pad_ver(card, 0, 0);
+  if (date_options.style == clock_tile::STYLE_ANALOG || date_options.style == clock_tile::STYLE_WALL) {
+    render_clock_face(card, tile, compact, has_header, card_color, date_options, widget_config);
+  } else {
   if (compact) {
     widget_config.fill_parent = false;
     widget_config.horizontal = true;
@@ -843,6 +1030,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
                                                        : LV_ALIGN_CENTER;
     lv_obj_align(stack, place, 0,
                  has_header ? tile_layout::scale(18) : 0);
+  }
   }
 
   // Every clock tile opens the same globally configured screensaver.

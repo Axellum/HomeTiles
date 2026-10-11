@@ -445,8 +445,12 @@
           target.id === (prefix + '_clock_show_time') ||
           target.id === (prefix + '_clock_show_date') ||
           target.id === (prefix + '_clock_weekday') ||
-          target.id === (prefix + '_clock_align')
+          target.id === (prefix + '_clock_align') ||
+          target.id === (prefix + '_clock_style') ||
+          target.id === (prefix + '_clock_dial') ||
+          target.id === (prefix + '_clock_hands')
         ) {
+          if (target.id === (prefix + '_clock_style') && typeof syncClockStyleFields === 'function') syncClockStyleFields(prefix);
           ensureClockSelection(prefix);
           updateTilePreview(tab);
           updateDraft(tab);

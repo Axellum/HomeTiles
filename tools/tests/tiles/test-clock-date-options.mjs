@@ -77,10 +77,11 @@ int main() {
     std::printf("%s|\n", out);
   }
   // Packing: old values 0-3 stay the format alone; unknown bits drop.
-  for (int raw : {0, 1, 3, 7, 0x106, 0x207, 0x405, 0x301, 0x7FF, -5, 9, 0x806, 0x1003, 0x1801}) {
+  for (int raw : {0, 1, 3, 7, 0x106, 0x207, 0x405, 0x301, 0x7FF, -5, 9, 0x806, 0x1003, 0x1801, 0x2006, 0x4000, 0x6003,
+                  0x54000, 0x64000, 0x1C4000}) {
     const clock_tile::TileDateOptions o = clock_tile::unpack_date_options(raw);
-    std::printf("pack %d %d %d %d %d %d\n", raw, o.date_format, o.weekday, o.roll ? 1 : 0, o.align,
-                static_cast<int>(clock_tile::normalize_date_options(raw)));
+    std::printf("pack %d %d %d %d %d %d %d %d %d\n", raw, o.date_format, o.weekday, o.roll ? 1 : 0, o.align, o.style,
+                o.dial, o.hands, static_cast<int>(clock_tile::normalize_date_options(raw)));
   }
   return 0;
 }
@@ -103,15 +104,23 @@ if (output !== null) {
   assert.equal(at('de', 10, 1, 2, 0), 'Samstag', 'the weekday alone');
   assert.equal(at('de', 10, 1, 0, 0), '', 'nothing without both');
   const packs = Object.fromEntries(lines.slice(cases.length).map(l => l.trim().split(' ')).map(([, raw, ...v]) => [raw, v.map(Number)]));
-  assert.deepEqual(packs['3'], [3, 0, 0, 0, 3], 'an old tile: the format alone, centered');
-  assert.deepEqual(packs[String(0x106)], [6, 1, 0, 0, 0x106]);
-  assert.deepEqual(packs[String(0x405)], [5, 0, 1, 0, 0x405], 'rolling digits');
-  assert.deepEqual(packs[String(0x301)], [1, 0, 0, 0, 1], 'an unknown weekday drops');
-  assert.deepEqual(packs['-5'], [0, 0, 0, 0, 0]);
-  assert.deepEqual(packs['9'], [0, 0, 0, 0, 0], 'an unknown format falls back to Auto');
-  assert.deepEqual(packs[String(0x806)], [6, 0, 0, 1, 0x806], 'left');
-  assert.deepEqual(packs[String(0x1003)], [3, 0, 0, 2, 0x1003], 'right');
-  assert.deepEqual(packs[String(0x1801)], [1, 0, 0, 0, 1], 'an unknown alignment drops');
+  assert.deepEqual(packs['3'], [3, 0, 0, 0, 0, 0, 0, 3], 'an old tile: the format alone, centered, digital');
+  assert.deepEqual(packs[String(0x106)], [6, 1, 0, 0, 0, 0, 0, 0x106]);
+  assert.deepEqual(packs[String(0x405)], [5, 0, 1, 0, 0, 0, 0, 0x405], 'rolling digits');
+  assert.deepEqual(packs[String(0x301)], [1, 0, 0, 0, 0, 0, 0, 1], 'an unknown weekday drops');
+  assert.deepEqual(packs['-5'], [0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(packs['9'], [0, 0, 0, 0, 0, 0, 0, 0], 'an unknown format falls back to Auto');
+  assert.deepEqual(packs[String(0x806)], [6, 0, 0, 1, 0, 0, 0, 0x806], 'left');
+  assert.deepEqual(packs[String(0x1003)], [3, 0, 0, 2, 0, 0, 0, 0x1003], 'right');
+  assert.deepEqual(packs[String(0x1801)], [1, 0, 0, 0, 0, 0, 0, 1], 'an unknown alignment drops');
+  // Clock styles (user 2026-10-12): analog, the wall clock with its dial and
+  // hands colors; unknown values drop to digital, slate and gold.
+  assert.deepEqual(packs[String(0x2006)], [6, 0, 0, 0, 1, 0, 0, 0x2006], 'analog');
+  assert.deepEqual(packs[String(0x4000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'wall clock');
+  assert.deepEqual(packs[String(0x6003)], [3, 0, 0, 0, 0, 0, 0, 3], 'an unknown style drops');
+  assert.deepEqual(packs[String(0x54000)], [0, 0, 0, 0, 2, 5, 0, 0x54000], 'terracotta dial');
+  assert.deepEqual(packs[String(0x64000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'an unknown dial drops');
+  assert.deepEqual(packs[String(0x1C4000)], [0, 0, 0, 0, 2, 4, 3, 0x1C4000], 'navy dial, white hands');
 
   const helpers = ['normalizeClockDateFormat', 'resolveClockDateFormat', 'getClockPreviewLanguage', 'getClockPreviewDate',
     'clockDateOptions', 'packClockDateOptions'].map(extractDeliveredFunction).join('\n');
@@ -133,9 +142,15 @@ if (output !== null) {
     vm.runInContext(helpers, ctx);
     assert.equal(vm.runInContext('packClockDateOptions(6, 2, true)', ctx), 6 | (2 << 8) | 1024);
     assert.equal(vm.runInContext('packClockDateOptions(6, 2, true, 2)', ctx), 6 | (2 << 8) | 1024 | (2 << 11));
-    assert.equal(vm.runInContext('JSON.stringify(clockDateOptions(0x106))', ctx), JSON.stringify({format: 6, weekday: 1, roll: false, align: 0}));
-    assert.equal(vm.runInContext('JSON.stringify(clockDateOptions(0x806))', ctx), JSON.stringify({format: 6, weekday: 0, roll: false, align: 1}));
-    assert.equal(vm.runInContext('JSON.stringify(clockDateOptions(3))', ctx), JSON.stringify({format: 3, weekday: 0, roll: false, align: 0}));
+    assert.equal(vm.runInContext('JSON.stringify(clockDateOptions(3))', ctx), JSON.stringify({format: 3, weekday: 0, roll: false, align: 0, style: 0, dial: 0, hands: 0}));
+    // The preview reads and writes the styles like the panel.
+    for (const [raw, packed] of Object.entries(packs)) {
+      const [format, weekday, roll, align, style, dial, hands, normalized] = packed;
+      assert.equal(vm.runInContext(`JSON.stringify(clockDateOptions(${raw}))`, ctx),
+        JSON.stringify({format, weekday, roll: roll === 1, align, style, dial, hands}), `options ${raw}`);
+      assert.equal(vm.runInContext(`packClockDateOptions(${format}, ${weekday}, ${roll === 1}, ${align}, ${style}, ${dial}, ${hands})`, ctx),
+        normalized, `pack ${raw}`);
+    }
   }
 }
 

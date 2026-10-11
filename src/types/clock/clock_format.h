@@ -127,13 +127,27 @@ inline const char* weekday_short_name(int tm_wday, const char* language_code) {
 // The clock tile's date options in one 32-bit value (Tile::sensor_gauge_max,
 // never clamped for clocks; the Web Admin sends it as clock_date_format):
 // bits 0-7 the date format, 8-9 the weekday, bit 10 rolling digits, 11-12
-// the alignment (0 centered, 1 left, 2 right; user 2026-10-12). Tiles saved
-// before 2026-10-11 hold 0-3: the date format alone.
+// the alignment (0 centered, 1 left, 2 right; user 2026-10-12), 13-15 the
+// style (ClockStyle), 16-18 the wall clock's dial color, 19-20 its hands'
+// color (clock_face kDialColors / kHandColors). Tiles saved before
+// 2026-10-11 hold 0-3: the date format alone.
+enum ClockStyle : uint8_t {
+  STYLE_DIGITAL = 0,
+  STYLE_ANALOG = 1,
+  STYLE_WALL = 2,
+};
+constexpr uint8_t kStyleCount = 3;
+constexpr uint8_t kDialColorCount = 6;
+constexpr uint8_t kHandColorCount = 4;
+
 struct TileDateOptions {
   uint8_t date_format = DATE_FORMAT_AUTO;
   uint8_t weekday = WEEKDAY_NONE;
   bool roll = false;
   uint8_t align = 0;
+  uint8_t style = STYLE_DIGITAL;
+  uint8_t dial = 0;
+  uint8_t hands = 0;
 };
 
 // The clock widget's alignment (0 left, 1 center, 2 right) of a tile's.
@@ -148,14 +162,23 @@ inline TileDateOptions unpack_date_options(int32_t raw) {
   options.roll = ((raw >> 10) & 0x01) != 0;
   const uint8_t align = static_cast<uint8_t>((raw >> 11) & 0x03);
   options.align = align <= 2 ? align : 0;
+  const uint8_t style = static_cast<uint8_t>((raw >> 13) & 0x07);
+  options.style = style < kStyleCount ? style : STYLE_DIGITAL;
+  const uint8_t dial = static_cast<uint8_t>((raw >> 16) & 0x07);
+  options.dial = dial < kDialColorCount ? dial : 0;
+  options.hands = static_cast<uint8_t>((raw >> 19) & 0x03);
   return options;
 }
 
 inline int32_t pack_date_options(const TileDateOptions& options) {
   const uint8_t weekday = options.weekday <= WEEKDAY_LONG ? options.weekday : WEEKDAY_NONE;
   const uint8_t align = options.align <= 2 ? options.align : 0;
+  const uint8_t style = options.style < kStyleCount ? options.style : STYLE_DIGITAL;
+  const uint8_t dial = options.dial < kDialColorCount ? options.dial : 0;
+  const uint8_t hands = options.hands < kHandColorCount ? options.hands : 0;
   return static_cast<int32_t>(normalize_date_format(options.date_format)) | (static_cast<int32_t>(weekday) << 8) |
-         (options.roll ? (1 << 10) : 0) | (static_cast<int32_t>(align) << 11);
+         (options.roll ? (1 << 10) : 0) | (static_cast<int32_t>(align) << 11) | (static_cast<int32_t>(style) << 13) |
+         (static_cast<int32_t>(dial) << 16) | (static_cast<int32_t>(hands) << 19);
 }
 
 // A stored or sent value made valid (unknown bits dropped).

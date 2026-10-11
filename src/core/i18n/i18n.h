@@ -757,6 +757,34 @@ struct Strings {
   const char* clock_roll_digits;
   // Clock tile: the alignment of time and date (left, center, right; user 2026-10-12).
   const char* clock_alignment_label;
+  // Clock tile style (user 2026-10-12): digital, analog, wall clock.
+  const char* clock_style_label;
+  // Clock style: the digital time (the default).
+  const char* clock_style_digital;
+  // Clock style: hands on a round dial in the theme's circle color.
+  const char* clock_style_analog;
+  // Clock style: a designer wall clock (batons, slim hands, chosen colors).
+  const char* clock_style_wall;
+  // Wall clock: the dial color select.
+  const char* clock_dial_label;
+  // Wall clock: the color of the hands and batons.
+  const char* clock_hands_label;
+  // Wall clock color: slate blue.
+  const char* clock_color_slate;
+  // Wall clock color: black.
+  const char* clock_color_black;
+  // Wall clock color: white.
+  const char* clock_color_white;
+  // Wall clock color: sage green.
+  const char* clock_color_sage;
+  // Wall clock color: navy blue.
+  const char* clock_color_navy;
+  // Wall clock color: terracotta.
+  const char* clock_color_terracotta;
+  // Wall clock color: gold.
+  const char* clock_color_gold;
+  // Wall clock color: silver.
+  const char* clock_color_silver;
 };
 
 // Locale-specific display rules and short runtime strings shared by

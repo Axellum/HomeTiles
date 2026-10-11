@@ -9,6 +9,7 @@
 #include "src/core/config/tile_radius.h"
 #include "src/ui/shared/tone_color.h"
 #include "src/ui/shared/tabular_digits.h"
+#include "src/types/clock/clock_face.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/screensaver/screensaver_tile_shadow.h"
 #include "src/ui/tabs/settings/settings_style.h"
@@ -216,6 +217,12 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
     emit_device_px(name, size.rendered);
   }
   emit_device_px("screensaver-clock-gap", tile_layout::scale(6));
+  // The clock tile's analog face (clock_face.h, clock/renderer.cpp
+  // clock_face_layout) in device pixels.
+  emit_device_px("clock-face-m", tile_layout::scale(clock_face::kTileMargin));
+  emit_device_px("clock-face-m-compact", tile_layout::scale(clock_face::kCompactMargin));
+  emit_device_px("clock-face-gap", tile_layout::scale(clock_face::kCompactGap));
+  emit_device_px("clock-face-header", tile_icon_disc::row_height());
   // The screensaver tile shadow: LVGL blurs over the shadow width, CSS over
   // twice its blur radius.
   emit_scaled("screensaver-tile-shadow-blur", screensaver_tile_shadow::kWidth / 2.0f);
