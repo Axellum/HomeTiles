@@ -185,6 +185,7 @@ void ScreensaverConfigStore::normalize() {
       constrain(data_.time_alignment, 0, 2));
   data_.date_alignment = static_cast<uint8_t>(
       constrain(data_.date_alignment, 0, 2));
+  if (data_.theme > 2) data_.theme = 2;
   data_.time_font_size = normalize_font(data_.time_font_size, 48);
   data_.date_font_size = normalize_font(data_.date_font_size, 28, 72);
   data_.clock_x = clamp_u16(data_.clock_x, 0, 1000);
@@ -262,6 +263,7 @@ bool ScreensaverConfigStore::loadPath(const char* path) {
   loaded.tile_opacity = tile_opacity_stored_
                             ? static_cast<uint8_t>(constrain(doc["tile_opacity"].as<int>(), 0, 255))
                             : data_.tile_opacity;
+  loaded.theme = static_cast<uint8_t>(constrain(doc["theme"] | 2, 0, 2));
   loaded.show_time = doc["show_time"] | true;
   loaded.show_date = doc["show_date"] | true;
   loaded.show_weekday = doc["show_weekday"] | false;
@@ -484,6 +486,7 @@ String ScreensaverConfigStore::toJson(bool include_device_meta) const {
   doc["tile_shadow"] = data_.tile_shadow;
   doc["tile_border"] = data_.tile_border;
   doc["tile_opacity"] = data_.tile_opacity;
+  doc["theme"] = data_.theme;
   doc["show_time"] = data_.show_time;
   doc["show_date"] = data_.show_date;
   doc["show_weekday"] = data_.show_weekday;

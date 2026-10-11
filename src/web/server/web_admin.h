@@ -77,6 +77,7 @@ public:
   void handleSaveHardwareIo();
   void handleSaveTileBorders();
   void handleSaveHeadGear();
+  void handleGestures();
   void handleSaveTheme();
   void handleLocalCamera();
   void handleGetScreensaverWallpaper();

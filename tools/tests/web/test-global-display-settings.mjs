@@ -89,7 +89,12 @@ for (const marker of [
   'appendHtmlEscaped(global_panel, tr.screensaver_tile_border);',
   'global_panel += "</label><button type=\\"button\\" class=\\"layout-choice\\" onclick=\\"openLayoutWindow()\\" title=\\"";',
   'onchange=\\"saveTheme(this.value)\\"',
-  '<label class="inline-checkbox"><input id="screensaverTileBorder" type="checkbox"> )html";',
+  '"<input id=\\"screensaverTileBorder\\" type=\\"checkbox\\"> ";',
+  // The gesture menu (swipe_gestures.h): one select per edge, top first.
+  'global_panel += "<section class=\\"global-settings-panel gesture-settings\\"><h3>";',
+  'appendHtmlEscaped(global_panel, tr.swipe_gestures_heading);',
+  'const uint8_t order[swipe_gestures::kEdgeCount] = {2, 3, 0, 1};',
+  '"\\" onchange=\\"saveGestureEdge(this)\\">";',
 ]) assert.ok(html.includes(marker), `global panel HTML: ${marker}`);
 assert.doesNotMatch(html, /global-icon-disc-toggle|global-tile-radius|global-icon-glow|global-tile-color|icon-discs-off|saveIconGlow|saveTileRadius|saveIconDiscs|saveDefaultTileColor/,
   'No removed global field');

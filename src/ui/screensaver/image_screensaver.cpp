@@ -1,3 +1,4 @@
+#include <vector>
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/ui/screensaver/screensaver_tile_shadow.h"
 #include "src/ui/popups/pin/pin_popup.h"
@@ -73,7 +74,9 @@ uint16_t image_radius() {
 constexpr uint32_t kInteractionSettleBeforeSlideMs = 1500;
 #if defined(DEVICE_ESP32_S3_RGB_480)
 constexpr uint32_t kFailedWallpaperRetryMs = 60000;
-uint32_t g_wallpaper_retry_after_ms[kMaxScreensaverWallpapers]{};
+// Per image of the list, grown on the first failure (up to
+// kMaxScreensaverWallpapers images; PSRAM-first allocation on the S3).
+std::vector<uint32_t> g_wallpaper_retry_after_ms;
 #endif
 
 struct ScreensaverState {
@@ -1227,16 +1230,15 @@ int next_enabled_wallpaper(int current) {
   const auto& config = screensaverConfig.get();
   const size_t count = config.wallpapers.size();
   if (count == 0) return -1;
-  if (config.shuffle) {
-    int choices[kMaxScreensaverWallpapers];
-    size_t choice_count = 0;
-    for (size_t i = 0; i < count; ++i) {
-      if (wallpaper_usable(config.wallpapers[i]) &&
-          (static_cast<int>(i) != current || count == 1)) {
-        choices[choice_count++] = static_cast<int>(i);
-      }
+  if (config.shuffle && count > 1) {
+    // A random image other than the current one; only the picked image is
+    // checked on the card (a list of hundreds would cost one card lookup
+    // each per slide). After a few misses the next image in order follows.
+    for (int attempt = 0; attempt < 8; ++attempt) {
+      const size_t i = static_cast<size_t>(random(static_cast<long>(count)));
+      if (static_cast<int>(i) == current) continue;
+      if (wallpaper_usable(config.wallpapers[i])) return static_cast<int>(i);
     }
-    if (choice_count) return choices[random(choice_count)];
   }
   for (size_t step = 1; step <= count; ++step) {
     const size_t i = (static_cast<size_t>(current < 0 ? 0 : current) + step) % count;
@@ -1374,7 +1376,7 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
 #if defined(DEVICE_ESP32_S3_RGB_480)
   const uint32_t retry_now_ms = millis();
   if (!allow_disabled && index >= 0 &&
-      static_cast<size_t>(index) < kMaxScreensaverWallpapers &&
+      static_cast<size_t>(index) < g_wallpaper_retry_after_ms.size() &&
       g_wallpaper_retry_after_ms[index] != 0 &&
       static_cast<int32_t>(retry_now_ms -
                            g_wallpaper_retry_after_ms[index]) < 0) {
@@ -1393,13 +1395,16 @@ bool apply_wallpaper(ScreensaverState* st, int index, bool allow_fallback,
   if (!dsc) {
 #if defined(DEVICE_ESP32_S3_RGB_480)
     if (index >= 0 && static_cast<size_t>(index) < kMaxScreensaverWallpapers) {
+      if (g_wallpaper_retry_after_ms.size() <= static_cast<size_t>(index)) {
+        g_wallpaper_retry_after_ms.resize(static_cast<size_t>(index) + 1, 0);
+      }
       g_wallpaper_retry_after_ms[index] = millis() + kFailedWallpaperRetryMs;
     }
 #endif
     return false;
   }
 #if defined(DEVICE_ESP32_S3_RGB_480)
-  if (index >= 0 && static_cast<size_t>(index) < kMaxScreensaverWallpapers) {
+  if (index >= 0 && static_cast<size_t>(index) < g_wallpaper_retry_after_ms.size()) {
     g_wallpaper_retry_after_ms[index] = 0;
   }
 #endif
@@ -2162,8 +2167,7 @@ void image_screensaver_config_changed(const String& preview_wallpaper) {
   // overlay synchronously in the LVGL context, avoiding both an overlay
   // replacement and the former async-delete/use-after-free path.
 #if defined(DEVICE_ESP32_S3_RGB_480)
-  memset(g_wallpaper_retry_after_ms, 0,
-         sizeof(g_wallpaper_retry_after_ms));
+  g_wallpaper_retry_after_ms.clear();
 #endif
   if (g_state) {
     g_live_preview_wallpaper = preview_wallpaper;

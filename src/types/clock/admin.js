@@ -13,15 +13,19 @@ function getClockPreviewLanguage() {
     return (num === 1 || num === 2 || num === 3) ? num : 0;
   }
 
+  // "Auto" shows the panel's format (Settings, Localization), like the
+  // device (clock_tile::resolve_time_format); the language only without it.
   function resolveClockTimeFormat(raw) {
     const safe = normalizeClockTimeFormat(raw);
     if (safe !== 0) return safe;
+    if (typeof PANEL_TIME_FORMAT === 'number' && [1, 2].includes(PANEL_TIME_FORMAT)) return PANEL_TIME_FORMAT;
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 
   function resolveClockDateFormat(raw) {
     const safe = normalizeClockDateFormat(raw);
     if (safe !== 0) return safe;
+    if (typeof PANEL_DATE_FORMAT === 'number' && [1, 2, 3].includes(PANEL_DATE_FORMAT)) return PANEL_DATE_FORMAT;
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 

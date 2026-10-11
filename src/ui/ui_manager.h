@@ -65,8 +65,9 @@ private:
   lv_obj_t *access_gesture_pressed_object = nullptr;
   bool access_gesture_eligible = false;
   bool access_gesture_triggered = false;
-  bool settings_gesture_enabled = false;
-  uint8_t settings_gesture_edge = UINT8_MAX;
+  // The edge an armed swipe started at and its action (swipe_gestures.h).
+  uint8_t access_gesture_edge = UINT8_MAX;
+  uint8_t access_gesture_action = 0;
 
   enum class PendingAccessKind : uint8_t {
     None,
@@ -95,6 +96,7 @@ private:
   void syncSettingsGestureZone();
   void detachSettingsGesturePressedObject();
   void processSettingsGestureMotion(lv_indev_t *input, bool released);
+  void runSwipeAction(uint8_t action);
   static void settings_gesture_indev_event_cb(lv_event_t *e);
   static void settings_gesture_pressed_object_event_cb(lv_event_t *e);
   static bool verify_pending_access(const char* pin, void* context);

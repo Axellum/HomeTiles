@@ -893,22 +893,10 @@
        Settings, so the block stays low enough for the page height. */
     .global-settings-field { display:flex; align-items:center; gap:10px; min-width:0; }
     .global-settings-panel .global-settings-field > label { flex:0 0 auto; margin:0; }
-    .global-settings-grid select.global-theme { flex:1 1 auto; min-width:0; height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
+    .global-settings-grid select.global-theme,
+    .global-settings-grid select.screensaver-theme { flex:1 1 auto; min-width:0; height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
     @media (max-width:520px) { .global-settings-grid { grid-template-columns:minmax(0, 1fr); } }
     .folder-footer-options .inline-checkbox { margin:0; }
-    /* Screensaver tile options: the checkboxes in one column, the sliders
-       with their labels and values aligned in the next (user 2026-10-02). */
-    .folder-footer-options.screensaver-tile-options {
-      display:grid;
-      grid-template-columns:max-content max-content 120px max-content;
-      justify-content:start;
-      align-items:center;
-      gap:10px 12px;
-    }
-    .screensaver-tile-options > .inline-checkbox { margin-right:28px; }
-    .screensaver-tile-options > .tile-radius-control { display:contents; }
-    .screensaver-tile-options > .tile-radius-control > input[type="range"] { width:100%; }
-    .screensaver-tile-options > .tile-radius-control > output { min-width:4.5ch; text-align:left; }
     .folder-footer .hint { margin:0; }
     .btn-delete-folder { padding:8px 16px; font-size:13px; flex:0 0 auto; }
     .tile-actions { display:flex; gap:8px; margin-top:8px; }
@@ -1466,17 +1454,26 @@
        panel's data-pane picks what shows. */
     .tile-settings > .panel-tabs { flex:0 0 auto; margin:0 0 14px; }
     .tile-settings[data-pane="tile"] > .panel-tabs > [data-pane="tile"],
-    .tile-settings[data-pane="global"] > .panel-tabs > [data-pane="global"] { background:var(--accent-soft); color:#5fd4c7; }
+    .tile-settings[data-pane="global"] > .panel-tabs > [data-pane="global"],
+    .tile-settings[data-pane="options"] > .panel-tabs > [data-pane="options"] { background:var(--accent-soft); color:#5fd4c7; }
     .tile-settings[data-pane="global"] > .tile-specific-settings,
     .tile-settings[data-pane="global"] > .screensaver-clock-settings,
     .tile-settings[data-pane="tile"] > #screensaverBackgroundSettings,
-    .tile-settings[data-pane="tile"] > .panel-global { display:none; }
+    .tile-settings[data-pane="tile"] > .panel-global,
+    .tile-settings[data-pane="options"] > .tile-specific-settings,
+    .tile-settings[data-pane="options"] > .screensaver-clock-settings,
+    .tile-settings[data-pane="options"] > #screensaverBackgroundSettings,
+    .tile-settings:not([data-pane="options"]) > .panel-options { display:none; }
     /* "Tile" without a selected tile: the hint how to pick one. */
     .panel-tile-hint { display:none; margin:0; }
     .tile-settings[data-pane="tile"]:not(:has(> .tile-specific-settings:not(.hidden), > .screensaver-clock-settings:not(.hidden))) > .panel-tile-hint { display:block; }
-    .panel-global { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
-    .panel-global > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
-    .panel-global .global-settings-grid { grid-template-columns:minmax(0, 1fr); max-width:none; gap:12px; }
+    .panel-global, .panel-options { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+    .panel-global > .global-settings-panel,
+    .panel-options > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
+    .panel-global .global-settings-grid,
+    .panel-options .global-settings-grid { grid-template-columns:minmax(0, 1fr); max-width:none; gap:12px; }
+    /* The screensaver's opacity: its label, the slider and the value in one row. */
+    .screensaver-opacity-field input[type="range"] { flex:1 1 auto; min-width:0; height:18px; margin:0; accent-color:var(--accent); }
     /* The head (title + type) stays put, only the body scrolls */
     .tile-specific-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
     .screensaver-background-settings { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
@@ -2973,7 +2970,9 @@
   top:calc(var(--tile-header-icon-top, 8px) - 3px);
   left:calc(var(--tile-header-icon-left, 6px) - 3px);
 }
-.tile.camera-picture:not(.empty):not(.sensor-compact) > .tile-icon::after {
+/* .tile.camera: as specific as the :is() size rule above (its .switch:not()
+   counts twice), so the circle keeps the pill's height. */
+.tile.camera.camera-picture:not(.empty):not(.sensor-compact) > .tile-icon::after {
   left:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - var(--tile-header-icon-left, 6px));
   top:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - var(--tile-header-icon-top, 8px));
   width:calc(var(--icon-disc-corner, var(--icon-disc-round, 30px)) - 2 * var(--corner-disc-shrink, 0px));
@@ -2982,7 +2981,7 @@
   transform:none; display:block;
   background:var(--control-fill, rgba(255,255,255,0.149)); opacity:var(--camera-head-opa, 1);
 }
-.tile.camera-picture.camera-head-shared > .tile-icon::after { opacity:0; }
+.tile.camera.camera-picture.camera-head-shared:not(.empty):not(.sensor-compact) > .tile-icon::after { opacity:0; }
 .tile.camera-picture > .tile-title {
   position:absolute; z-index:0; margin:0; width:auto; max-width:none;
   top:calc(var(--compact-inset, 2px) + var(--corner-disc-shrink, 0px) - 3px);

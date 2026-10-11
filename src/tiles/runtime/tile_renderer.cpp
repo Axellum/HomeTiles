@@ -5027,6 +5027,12 @@ static bool tile_has_own_color(const Tile& tile) { return tileHasOwnColor(tile);
 static uint8_t tile_surface_rule_of(const Tile& tile, GridType grid_type);
 
 static uint8_t tile_surface_of(const Tile& tile, GridType grid_type) {
+  // The screensaver's own design (user 2026-10-11): Dark or Light for all its
+  // tiles, Automatic follows the panel.
+  if (grid_type == GridType::SCREENSAVER) {
+    const uint8_t theme = screensaverConfig.get().theme;
+    return theme == 0 ? tile_surface::kDark : theme == 1 ? tile_surface::kLight : tile_surface::kNone;
+  }
   // A Camera tile's head over its picture: dark or light in either theme,
   // or the design's (types/camera/picture.h).
   if (grid_type != GridType::SCREENSAVER && camera_picture::head_over_picture(tile)) {

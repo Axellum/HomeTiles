@@ -55,8 +55,10 @@ lv_color_t frame_line(lv_obj_t* obj) {
       (lv_obj_get_local_style_prop(obj, LV_STYLE_BG_COLOR, &value, LV_PART_MAIN | LV_STATE_DEFAULT) == LV_STYLE_RES_FOUND
            ? lv_color_to_u32(value.color)
            : lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN))) & 0xFFFFFF;
-  const uint32_t plain = ui_theme::roles_of(ui_theme::kThemeSurface).card;
-  if (card == plain) return lv_color_hex(ui_theme::theme_light() ? 0xDDDDDD : 0x292929);
+  // The plain card of either theme (a screensaver tile in the other design
+  // too) keeps that theme's fixed line.
+  if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);
+  if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);
   return tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)
                                                                   : lv_color_mix(lv_color_black(), lv_color_hex(card), 36);
 }

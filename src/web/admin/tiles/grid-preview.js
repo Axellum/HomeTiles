@@ -286,7 +286,12 @@
   // tile_surface_of() (tile_renderer.cpp): a tile in its own color follows
   // its lightness; every other tile, and the screensaver, keeps the theme.
   function tileSurfaceOf(tab, previewKind, bgValue, iconColors, typeValue) {
-    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
+    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) {
+      // The screensaver's own design (screensaver_config.h theme): Dark or
+      // Light for all its tiles, Automatic follows the panel.
+      const theme = document.getElementById('screensaverGrid')?.dataset.ssTheme;
+      return theme === '0' ? 'dark' : theme === '1' ? 'light' : '';
+    }
     if (!tileHasOwnColor(bgValue, iconColors, typeValue)) return '';
     const own = Number(bgValue) & 0xFFFFFF;
     if (!own) return '';
@@ -306,9 +311,10 @@
     if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
     const card = cssColorChannels(getComputedStyle(el).backgroundColor);
     if (!card) return;
-    const plain = panelThemeLight() ? [255, 255, 255] : [26, 26, 26];
+    // The plain card of either theme keeps that theme's fixed line.
     let line;
-    if (card.every((v, i) => v === plain[i])) line = panelThemeLight() ? [221, 221, 221] : [41, 41, 41];
+    if (card.every(v => v === 255)) line = [221, 221, 221];
+    else if (card.every(v => v === 26)) line = [41, 41, 41];
     else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
     else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
     el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
@@ -326,6 +332,12 @@
       if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');
       else el.style.removeProperty('--pv-' + name);
     }
+    // A screensaver tile in the other design paints that theme's card
+    // (tileBackgroundCss uses --tile-card).
+    const saverCard = el.closest?.('.screensaver-tile-grid') && (theme === 0 || theme === 1)
+      ? (theme === 0 ? 'var(--tile-default-bg)' : 'var(--pvl-card)') : '';
+    if (saverCard) el.style.setProperty('--tile-card', saverCard);
+    else el.style.removeProperty('--tile-card');
 
   }
   // ui_theme::unavailable_icon(): the light theme's one unavailable grey for
@@ -482,7 +494,8 @@
     // for the card From icon would give at its default strength.
     let circleCard = card;
     if (tinted && !(fill > 0) && !seeThrough && typeof tileTintBackground === 'function') {
-      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
+      // The tile's card (a screensaver tile in the other design has its own).
+      const base = String(getComputedStyle(tileElem).getPropertyValue('--tile-card') || '').trim();
       const familyHex = tileTintBackground(base || '#1A1A1A', givenHex, ICON_FILL_DEFAULT);
       circleCard = [1, 3, 5].map(i => parseInt(familyHex.slice(i, i + 2), 16));
     }

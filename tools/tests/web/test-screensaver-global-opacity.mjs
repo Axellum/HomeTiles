@@ -54,9 +54,12 @@ const i18n = read('src/core/i18n/i18n.cpp');
 for (const label of ['"Kachel-Deckkraft",', '"Tile opacity",', '"Opacité des tuiles",']) assert.ok(i18n.includes(label), label);
 console.log('Screensaver tile opacity: one global value, taken over from the tiles, used by panel and previews');
 
-// The footer (user 2026-10-02): checkboxes in one column, the sliders with
-// aligned labels and values in the next.
-assert.match(html, /<div class="folder-footer-options screensaver-tile-options">/);
+// The screensaver's Global tab (user 2026-10-11: Tile | Slideshow | Global):
+// borders, shadow, the opacity in one row and the design, in the tile page's
+// Global style; nothing stays under the preview but its hint.
+assert.ok(html.includes('html += "<div class=\\"panel-options\\"><section class=\\"global-settings-panel\\"><h3>";'));
+assert.ok(html.includes('<div class=\\"global-settings-field screensaver-opacity-field\\"><label for=\\"screensaverTileOpacity\\">'));
+assert.doesNotMatch(html, /screensaver-tile-options/);
 const css = read('src/web/assets/admin.css');
-assert.match(css, /\.folder-footer-options\.screensaver-tile-options \{\n\s*display:grid;\n\s*grid-template-columns:max-content max-content 120px max-content;/);
-assert.match(css, /\.screensaver-tile-options > \.tile-radius-control \{ display:contents; \}/);
+assert.ok(css.includes('.screensaver-opacity-field input[type="range"] { flex:1 1 auto;'));
+assert.doesNotMatch(css, /screensaver-tile-options/);

@@ -72,6 +72,7 @@ void WebAdminServer::handleSaveScreensaver() {
   const bool had_picture = before.use_wallpapers && screensaver_uses_ha_picture(before);
   const String old_entity = had_picture ? before.picture_entity : String();
   const uint8_t old_fit = before.picture_fit;
+  const uint8_t old_theme = before.theme;
   if (!screensaverConfig.replaceFromJson(payload, error, &preview_wallpaper)) {
     String json = "{\"success\":false,\"error\":\"";
     appendJsonEscaped(json, error);
@@ -89,6 +90,8 @@ void WebAdminServer::handleSaveScreensaver() {
     mqttRequestDynamicSlotsReload(1000);
   }
   image_screensaver_config_changed(preview_wallpaper);
+  // A new design draws the open screensaver's tiles again on their surface.
+  if (after.theme != old_theme) image_screensaver_tiles_changed();
   server.send(200, "application/json", "{\"success\":true}");
 }
 

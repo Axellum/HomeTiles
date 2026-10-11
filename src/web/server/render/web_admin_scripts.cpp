@@ -6,6 +6,7 @@
 #include "src/core/config/config_manager.h"
 #include "src/core/i18n/i18n.h"
 #include "src/ui/screensaver/screensaver_config.h"
+#include "src/types/clock/clock_format.h"
 
 #include <esp_system.h>
 
@@ -86,6 +87,7 @@ void appendAdminScripts(String& html) {
   appendJsEntry("screensaverSaveFailed", tr.js_screensaver_save_failed);
   appendJsEntry("screensaverLoadFailed", tr.js_screensaver_load_failed);
   appendJsEntry("screensaverNoWallpapers", tr.screensaver_no_wallpapers);
+  appendJsEntry("screensaverNoSd", tr.screensaver_no_sd);
   appendJsEntry("moveFailed", tr.js_move_failed);
   appendJsEntry("moveUp", tr.js_move_up);
   appendJsEntry("moveDown", tr.js_move_down);
@@ -254,6 +256,20 @@ void appendAdminScripts(String& html) {
           String(kScreensaverDefaultTileOpacity) + ";\n";
   html += "  const SCREENSAVER_FOLDER_ID = " +
           String(TileConfig::kScreensaverGridStorageId) + ";\n";
+  html += "  const SCREENSAVER_MAX_WALLPAPERS = " +
+          String(static_cast<unsigned>(kMaxScreensaverWallpapers)) + ";\n";
+  // The panel's time and date format (Settings, Localization) as "Auto"
+  // shows it: 1 24 h / 2 12 h, 1 DD.MM.YYYY / 2 MM/DD/YYYY / 3 YYYY/MM/DD.
+  // The language poll (core/localization.js) updates them.
+  {
+    const DeviceConfig& clock_cfg = configManager.getConfig();
+    html += "  let PANEL_TIME_FORMAT = " +
+            String(clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, clock_cfg.global_time_format,
+                                                   clock_cfg.language)) + ";\n";
+    html += "  let PANEL_DATE_FORMAT = " +
+            String(clock_tile::resolve_date_format(clock_tile::DATE_FORMAT_AUTO, clock_cfg.global_date_format,
+                                                   clock_cfg.language)) + ";\n";
+  }
   html += "  </script>\n";
 
   // Tile-type-specific runtime data (currently Climate translations) must be

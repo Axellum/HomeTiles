@@ -31,11 +31,33 @@ function t(key) {
       const response = await fetch('/api/language', {cache: 'no-store'});
       if (!response.ok) return;
       const data = await response.json();
+      applyPanelClockFormats(Number(data?.time_format), Number(data?.date_format));
       const device = String(data?.language || '').toLowerCase();
       const page = String(document.documentElement.lang || APP_LOCALE).toLowerCase();
       if (device && device !== page && !adminEditsPending()) location.reload();
     } catch (error) {
       // Offline or signed out: the next poll tries again.
+    }
+  }
+
+  // A time or date format changed on the panel or in Settings: the head's
+  // time and every clock preview on "Auto" follow without a reload.
+  function applyPanelClockFormats(time, date) {
+    const timeChanged = [1, 2].includes(time) && typeof PANEL_TIME_FORMAT === 'number' && time !== PANEL_TIME_FORMAT;
+    const dateChanged = [1, 2, 3].includes(date) && typeof PANEL_DATE_FORMAT === 'number' && date !== PANEL_DATE_FORMAT;
+    if (!timeChanged && !dateChanged) return;
+    if (timeChanged) PANEL_TIME_FORMAT = time;
+    if (dateChanged) PANEL_DATE_FORMAT = date;
+    if (typeof refreshHeadBarTime === 'function') refreshHeadBarTime();
+    if (typeof tileDataLoadedTabs !== 'undefined' && typeof renderTileFromData === 'function') {
+      tileDataLoadedTabs.forEach(tab => {
+        getTilesData(tab).forEach((tile, index) => {
+          if (tile && String(tile.type) === '9') renderTileFromData(tab, index, tile, sensorMetaCache);
+        });
+      });
+    }
+    if (typeof screensaverLoaded !== 'undefined' && screensaverLoaded && typeof renderScreensaverEditor === 'function') {
+      renderScreensaverEditor();
     }
   }
 

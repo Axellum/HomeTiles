@@ -31,11 +31,33 @@ function t(key) {
       const response = await fetch('/api/language', {cache: 'no-store'});
       if (!response.ok) return;
       const data = await response.json();
+      applyPanelClockFormats(Number(data?.time_format), Number(data?.date_format));
       const device = String(data?.language || '').toLowerCase();
       const page = String(document.documentElement.lang || APP_LOCALE).toLowerCase();
       if (device && device !== page && !adminEditsPending()) location.reload();
     } catch (error) {
       // Offline or signed out: the next poll tries again.
+    }
+  }
+
+  // A time or date format changed on the panel or in Settings: the head's
+  // time and every clock preview on "Auto" follow without a reload.
+  function applyPanelClockFormats(time, date) {
+    const timeChanged = [1, 2].includes(time) && typeof PANEL_TIME_FORMAT === 'number' && time !== PANEL_TIME_FORMAT;
+    const dateChanged = [1, 2, 3].includes(date) && typeof PANEL_DATE_FORMAT === 'number' && date !== PANEL_DATE_FORMAT;
+    if (!timeChanged && !dateChanged) return;
+    if (timeChanged) PANEL_TIME_FORMAT = time;
+    if (dateChanged) PANEL_DATE_FORMAT = date;
+    if (typeof refreshHeadBarTime === 'function') refreshHeadBarTime();
+    if (typeof tileDataLoadedTabs !== 'undefined' && typeof renderTileFromData === 'function') {
+      tileDataLoadedTabs.forEach(tab => {
+        getTilesData(tab).forEach((tile, index) => {
+          if (tile && String(tile.type) === '9') renderTileFromData(tab, index, tile, sensorMetaCache);
+        });
+      });
+    }
+    if (typeof screensaverLoaded !== 'undefined' && screensaverLoaded && typeof renderScreensaverEditor === 'function') {
+      renderScreensaverEditor();
     }
   }
 
@@ -133,7 +155,9 @@ function refreshHeadBarTime() {
   const now = new Date();
   document.querySelectorAll('.head-bar-preview .head-time').forEach(el => {
     let hour = now.getHours();
-    if (el.dataset.hour12 === '1') hour = hour % 12 || 12;
+    // The panel's format (PANEL_TIME_FORMAT follows a change, localization.js).
+    const hour12 = typeof PANEL_TIME_FORMAT === 'number' ? PANEL_TIME_FORMAT === 2 : el.dataset.hour12 === '1';
+    if (hour12) hour = hour % 12 || 12;
     el.textContent = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   });
 }
@@ -215,6 +239,81 @@ async function saveTheme(value) {
 }
 function syncGlobalDisplayControls(tabEl) {
   if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
+  if (gestureActions) showGestureActions(gestureActions, tabEl);
+}
+
+// The gesture menu (swipe_gestures.h, user 2026-10-11): one action per edge
+// (0 off, 1 Settings, 2 Home, 3 Back, 4 screensaver; edges 0 left, 1 right,
+// 2 top, 3 bottom). An action chosen on a second edge swaps the two edges.
+// Every folder's Global tab shows the same menu.
+let gestureActions = null;
+// The stored actions: each select's data-action (the select's value already
+// shows a new choice when its change event runs).
+function readGestureActions(scope) {
+  const actions = [0, 0, 0, 0];
+  scope.querySelectorAll('.gesture-edge').forEach(select => {
+    actions[Number(select.dataset.edge)] = Number(select.dataset.action) || 0;
+  });
+  return actions;
+}
+function showGestureActions(actions, scope = document) {
+  scope.querySelectorAll('.gesture-edge').forEach(select => {
+    const action = String(actions[Number(select.dataset.edge)] || 0);
+    select.value = action;
+    select.dataset.action = action;
+  });
+}
+// While a save runs the selects show the wanted actions; data-action keeps
+// the stored ones until the panel answers.
+function scopeGestureSelects(actions) {
+  document.querySelectorAll('.gesture-edge').forEach(select => {
+    select.value = String(actions[Number(select.dataset.edge)] || 0);
+  });
+}
+// The menu as the panel keeps it (after a Settings access change, which may
+// turn the Settings swipe on for a hidden tile).
+async function refreshGestureMenu() {
+  try {
+    const response = await fetch('/api/display/gestures', {cache: 'no-store'});
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!result?.success || !Array.isArray(result.actions)) return;
+    gestureActions = result.actions.map(Number);
+    showGestureActions(gestureActions);
+  } catch (error) {
+    // Offline: the menu keeps what it shows.
+  }
+}
+async function saveGestureEdge(select) {
+  const edge = Number(select.dataset.edge);
+  const before = gestureActions || readGestureActions(select.closest('.gesture-settings') || document);
+  // The select shows the new action already: the edge's former action is
+  // the one in `before`.
+  const action = Number(select.value) || 0;
+  const wanted = before.slice();
+  const other = action ? wanted.findIndex((value, index) => value === action && index !== edge) : -1;
+  if (other >= 0) wanted[other] = before[edge];
+  wanted[edge] = action;
+  scopeGestureSelects(wanted);
+  try {
+    const response = await fetch('/api/display/gestures', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({left: wanted[0], right: wanted[1], top: wanted[2], bottom: wanted[3]}).toString()
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const result = await response.json();
+    if (!result?.success || !Array.isArray(result.actions)) throw new Error('invalid response');
+    gestureActions = result.actions.map(Number);
+    showGestureActions(gestureActions);
+    if (typeof noteSettingsSwipeSaved === 'function') {
+      noteSettingsSwipeSaved(gestureActions.includes(1), Number(result.settings_edge));
+    }
+  } catch (error) {
+    gestureActions = before;
+    showGestureActions(before);
+    showNotification(t('networkErrorSave'), false);
+  }
 }
   let tabSwitchSequence = 0;
 
@@ -524,6 +623,23 @@ function syncGlobalDisplayControls(tabEl) {
       revealEdge:
         String(settingsAccessElement('settings_reveal_edge')?.value || '0')
     };
+  }
+
+  // The gesture menu saved the Settings swipe (display-borders.js
+  // saveGestureEdge): the hidden fields and the committed state carry it, so
+  // a later access save keeps it.
+  function noteSettingsSwipeSaved(enabled, edge) {
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const reveal = settingsAccessElement('settings_reveal_edge');
+    if (swipe) swipe.checked = !!enabled;
+    if (reveal && Number.isInteger(edge) && edge >= 0 && edge <= 3) reveal.value = String(edge);
+    if (settingsAccessCommittedState) {
+      settingsAccessCommittedState = {
+        ...settingsAccessCommittedState,
+        swipeEnabled: settingsAccessCommittedState.tileHidden || !!enabled,
+        revealEdge: reveal ? reveal.value : settingsAccessCommittedState.revealEdge
+      };
+    }
   }
 
   function settingsAccessStatesEqual(a, b) {
@@ -836,6 +952,9 @@ function syncGlobalDisplayControls(tabEl) {
         pinConfigured: persistPinEnabled
       };
       settingsAccessCommittedState = savedState;
+      // A hidden tile keeps its swipe: the gesture menu shows what the panel
+      // keeps.
+      if (typeof refreshGestureMenu === 'function') refreshGestureMenu();
       if (reconcileAfterSave &&
           (visibilityChanged || visibilityMismatch)) {
         await reconcileSettingsTileUi(requested.tileHidden, snapshotHint);
@@ -7181,12 +7300,14 @@ function syncGlobalDisplayControls(tabEl) {
   }
 
   // The settings panel's tabs (web_admin_html.cpp): "Tile" shows the selected
-  // tile's settings, "Global" the global tile settings (on the screensaver
-  // page its picture settings). Selecting a tile shows its settings again;
-  // the panel's data-pane picks what admin.css shows.
+  // tile's settings, "Global" the global tile settings; the screensaver page
+  // has "Tile", "Slideshow" (its picture settings, pane "global") and
+  // "Global" (its tile options and design, pane "options"). Selecting a tile
+  // shows its settings again; the panel's data-pane picks what admin.css
+  // shows.
   function setSettingsPane(tab, pane) {
     const panel = document.getElementById(tab + 'Settings');
-    if (panel) panel.dataset.pane = pane === 'tile' ? 'tile' : 'global';
+    if (panel) panel.dataset.pane = pane === 'tile' || pane === 'options' ? pane : 'global';
   }
 
   function showSettingsPane(tab, pane) {
@@ -9322,7 +9443,12 @@ function syncGlobalDisplayControls(tabEl) {
   // tile_surface_of() (tile_renderer.cpp): a tile in its own color follows
   // its lightness; every other tile, and the screensaver, keeps the theme.
   function tileSurfaceOf(tab, previewKind, bgValue, iconColors, typeValue) {
-    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) return '';
+    if (typeof isScreensaverTileTab === 'function' && isScreensaverTileTab(tab)) {
+      // The screensaver's own design (screensaver_config.h theme): Dark or
+      // Light for all its tiles, Automatic follows the panel.
+      const theme = document.getElementById('screensaverGrid')?.dataset.ssTheme;
+      return theme === '0' ? 'dark' : theme === '1' ? 'light' : '';
+    }
     if (!tileHasOwnColor(bgValue, iconColors, typeValue)) return '';
     const own = Number(bgValue) & 0xFFFFFF;
     if (!own) return '';
@@ -9342,9 +9468,10 @@ function syncGlobalDisplayControls(tabEl) {
     if (!el?.style?.setProperty || typeof getComputedStyle !== 'function') return;
     const card = cssColorChannels(getComputedStyle(el).backgroundColor);
     if (!card) return;
-    const plain = panelThemeLight() ? [255, 255, 255] : [26, 26, 26];
+    // The plain card of either theme keeps that theme's fixed line.
     let line;
-    if (card.every((v, i) => v === plain[i])) line = panelThemeLight() ? [221, 221, 221] : [41, 41, 41];
+    if (card.every(v => v === 255)) line = [221, 221, 221];
+    else if (card.every(v => v === 26)) line = [41, 41, 41];
     else if (toneOklch(card).L <= 0.72) line = card.map(v => Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000));
     else line = card.map(v => Math.floor((v * 219) * 0x8081 / 0x800000));
     el.style.setProperty('--tile-border-tint', 'rgb(' + line.join(',') + ')');
@@ -9362,6 +9489,12 @@ function syncGlobalDisplayControls(tabEl) {
       if (table) el.style.setProperty('--pv-' + name, 'var(--pv' + table + '-' + name + ')');
       else el.style.removeProperty('--pv-' + name);
     }
+    // A screensaver tile in the other design paints that theme's card
+    // (tileBackgroundCss uses --tile-card).
+    const saverCard = el.closest?.('.screensaver-tile-grid') && (theme === 0 || theme === 1)
+      ? (theme === 0 ? 'var(--tile-default-bg)' : 'var(--pvl-card)') : '';
+    if (saverCard) el.style.setProperty('--tile-card', saverCard);
+    else el.style.removeProperty('--tile-card');
 
   }
   // ui_theme::unavailable_icon(): the light theme's one unavailable grey for
@@ -9518,7 +9651,8 @@ function syncGlobalDisplayControls(tabEl) {
     // for the card From icon would give at its default strength.
     let circleCard = card;
     if (tinted && !(fill > 0) && !seeThrough && typeof tileTintBackground === 'function') {
-      const base = String(getComputedStyle(document.documentElement).getPropertyValue('--tile-card') || '').trim();
+      // The tile's card (a screensaver tile in the other design has its own).
+      const base = String(getComputedStyle(tileElem).getPropertyValue('--tile-card') || '').trim();
       const familyHex = tileTintBackground(base || '#1A1A1A', givenHex, ICON_FILL_DEFAULT);
       circleCard = [1, 3, 5].map(i => parseInt(familyHex.slice(i, i + 2), 16));
     }
@@ -12514,6 +12648,9 @@ function syncGlobalDisplayControls(tabEl) {
   let screensaverSelected = { kind: 'background', index: -1 };
   let screensaverWallpaperIndex = -1;
   let screensaverSaveTimer = null;
+  // What the display stores now (screensaverSaveKey): a click, a selection
+  // or a drag without a change saves nothing and shows no "Saved".
+  let screensaverSavedKey = '';
   const screensaverTimeFontSizes = [20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
   const screensaverDateFontSizes = [20, 24, 28, 32, 40, 48, 56, 64, 72];
 
@@ -12549,11 +12686,16 @@ function syncGlobalDisplayControls(tabEl) {
     return Math.round(ssClamp(value ?? SCREENSAVER_TILE_DEFAULT_OPACITY, 0, 255));
   }
 
-  // The new opacity on every screensaver tile preview and in the footer.
+  // The new opacity on every screensaver tile preview and in the Global tab.
   function refreshScreensaverTileOpacity() {
     const value = screensaverTileOpacity();
     const output = document.getElementById('screensaverTileOpacityValue');
     if (output) output.textContent = Math.round(value * 100 / 255) + ' %';
+    refreshScreensaverTiles();
+  }
+
+  // Draws every screensaver tile preview again (opacity, design).
+  function refreshScreensaverTiles() {
     const tiles = tilesData.screensaver || [];
     tiles.forEach((tile, index) => {
       if (tile && Number(tile.type)) renderTileFromData('screensaver', index, tile, sensorMetaCache);
@@ -12630,7 +12772,15 @@ function syncGlobalDisplayControls(tabEl) {
     // How the Bridge places it and a camera's interval (3..60 s).
     data.picture_fit = ['fit', 'original'].includes(data.picture_fit) ? data.picture_fit : 'fill';
     data.picture_every = Math.round(ssClamp(data.picture_every ?? 10, 3, 60));
+    // The tiles' design: 0 dark, 1 light, 2 automatic (the panel's).
+    data.theme = [0, 1, 2].includes(Number(data.theme)) ? Number(data.theme) : 2;
     return data;
+  }
+
+  // The stored settings without the editor's preview image: equal keys mean
+  // nothing to save.
+  function screensaverSaveKey(payload) {
+    return JSON.stringify({...payload, preview_wallpaper: ''});
   }
 
   // Keep the stored image list in step with the card: entries of deleted
@@ -12648,9 +12798,10 @@ function syncGlobalDisplayControls(tabEl) {
       data.wallpapers = kept;
     }
     const listed = new Set(data.wallpapers.map(item => key(item.file_name)));
+    const most = typeof SCREENSAVER_MAX_WALLPAPERS === 'number' ? SCREENSAVER_MAX_WALLPAPERS : 500;
     available.forEach(name => {
-      // The display stores at most 32 images.
-      if (listed.has(key(name)) || data.wallpapers.length >= 32) return;
+      // The display stores at most SCREENSAVER_MAX_WALLPAPERS images.
+      if (listed.has(key(name)) || data.wallpapers.length >= most) return;
       listed.add(key(name));
       data.wallpapers.push({
         file_name: name, enabled: true,
@@ -12685,6 +12836,7 @@ function syncGlobalDisplayControls(tabEl) {
     fetch('/api/screensaver').then(r => r.json()).then(config => {
       if (!config || !config.success) throw new Error('screensaver config');
       screensaverDraft = ssNormalizeLoaded(config);
+      screensaverSavedKey = screensaverSaveKey(ssPayload(screensaverDraft, ''));
       const imagesChanged = ssSyncCardImages(screensaverDraft);
       screensaverWallpaperIndex = screensaverDraft.wallpapers.findIndex(w => w.enabled);
       if (screensaverWallpaperIndex < 0 && screensaverDraft.wallpapers.length) screensaverWallpaperIndex = 0;
@@ -12705,6 +12857,7 @@ function syncGlobalDisplayControls(tabEl) {
       tile_shadow: !!d.tile_shadow,
       tile_border: d.tile_border !== false,
       tile_opacity: Math.round(ssClamp(d.tile_opacity ?? SCREENSAVER_TILE_DEFAULT_OPACITY, 0, 255)),
+      theme: [0, 1, 2].includes(Number(d.theme)) ? Number(d.theme) : 2,
       show_time: !!d.show_time,
       show_date: !!d.show_date,
       show_weekday: !!d.show_weekday,
@@ -12740,12 +12893,16 @@ function syncGlobalDisplayControls(tabEl) {
 
   function saveScreensaverNow() {
     if (!screensaverLoaded) return;
+    const payload = ssPayload();
+    const key = screensaverSaveKey(payload);
+    if (key === screensaverSavedKey) return;
     fetch('/api/screensaver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(ssPayload())
+      body: JSON.stringify(payload)
     }).then(async response => {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'save');
+      screensaverSavedKey = key;
       showNotification(t('screensaverSaved'));
     }).catch(() => {
       showNotification(t('screensaverSaveFailed'), false);
@@ -12753,7 +12910,8 @@ function syncGlobalDisplayControls(tabEl) {
   }
 
   function ssCurrentWallpaper() {
-    if (!screensaverDraft || screensaverWallpaperIndex < 0) return null;
+    // Without a card no image is shown or edited (its entries stay stored).
+    if (!screensaverDraft || screensaverWallpaperIndex < 0 || screensaverDraft.sd_ready !== true) return null;
     return screensaverDraft.wallpapers[screensaverWallpaperIndex] || null;
   }
 
@@ -12797,6 +12955,15 @@ function syncGlobalDisplayControls(tabEl) {
     const list = document.getElementById('screensaverWallpaperList');
     if (!list || !screensaverDraft) return;
     list.innerHTML = '';
+    // Only the images on the card (user 2026-10-11): without a card the list
+    // is empty; the stored entries return with it.
+    if (screensaverDraft.sd_ready !== true) {
+      const empty = document.createElement('div');
+      empty.className = 'screensaver-save-state';
+      empty.textContent = t('screensaverNoSd');
+      list.appendChild(empty);
+      return;
+    }
     screensaverDraft.wallpapers.forEach((wallpaper, index) => {
       const row = document.createElement('div');
       row.className = 'screensaver-wallpaper-row' + (index === screensaverWallpaperIndex ? ' active' : '');
@@ -12889,8 +13056,6 @@ function syncGlobalDisplayControls(tabEl) {
     if (source && source.value !== d.picture_source) source.value = d.picture_source;
     document.getElementById('screensaverHaPicture')?.classList.toggle('hidden', !fromHa);
     document.getElementById('screensaverSdPicture')?.classList.toggle('hidden', fromHa);
-    const heading = document.getElementById('screensaverBackgroundHeading');
-    if (heading) heading.textContent = fromHa ? heading.dataset.ha : heading.dataset.sd;
     const pictureEntity = document.getElementById('screensaver_picture_entity');
     if (pictureEntity && pictureEntity.value !== d.picture_entity) pictureEntity.value = d.picture_entity;
     const pictureFit = document.getElementById('screensaverPictureFit');
@@ -12968,6 +13133,8 @@ function syncGlobalDisplayControls(tabEl) {
     document.getElementById('screensaverShuffle').checked = !!d.shuffle;
     document.getElementById('screensaverTileShadow').checked = !!d.tile_shadow;
     document.getElementById('screensaverTileBorder').checked = d.tile_border !== false;
+    const theme = document.getElementById('screensaverTheme');
+    if (theme && theme.value !== String(d.theme)) theme.value = String(d.theme);
     const opacityInput = document.getElementById('screensaverTileOpacity');
     if (opacityInput) opacityInput.value = String(screensaverTileOpacity());
     document.getElementById('screensaverShowTime').checked = !!d.show_time;
@@ -13122,6 +13289,13 @@ function syncGlobalDisplayControls(tabEl) {
     bind('screensaverShuffle', 'change', el => { screensaverDraft.shuffle = el.checked; });
     bind('screensaverTileShadow', 'change', el => { screensaverDraft.tile_shadow = el.checked; });
     bind('screensaverTileBorder', 'change', el => { screensaverDraft.tile_border = el.checked; });
+    // The tiles' design: the preview draws them on that surface at once.
+    bind('screensaverTheme', 'change', el => {
+      screensaverDraft.theme = [0, 1, 2].includes(Number(el.value)) ? Number(el.value) : 2;
+      const grid = document.getElementById('screensaverGrid');
+      if (grid) grid.dataset.ssTheme = String(screensaverDraft.theme);
+      refreshScreensaverTiles();
+    });
     bind('screensaverTileOpacity', 'input', el => {
       screensaverDraft.tile_opacity = Number(el.value);
       refreshScreensaverTileOpacity();
@@ -18626,6 +18800,18 @@ function maybeFillTitleFromMedia(tab) {
 
   // The picture options of stored tile data (GET /api/tiles, drafts, imports).
   function cameraPictureOptionsOf(tile) {
+    // A copied tile and a draft carry the editor's field names
+    // (saveCameraFields); a stored tile its packed fields.
+    if (tile && tile.camera_display !== undefined) {
+      return {
+        picture: String(tile.camera_display) === '1',
+        fit: CAMERA_FITS.includes(tile.camera_fit) ? tile.camera_fit : 'fill',
+        every: cameraEvery(tile.camera_every),
+        transparency: cameraTransparency(tile.camera_transparency),
+        head: ['dark', 'light'].includes(tile.camera_head) ? tile.camera_head : 'auto',
+        tap: String(tile.camera_tap) === '1' ? '1' : '0'
+      };
+    }
     const flags = Number(tile?.key_modifier) || 0;
     return {
       picture: Number(tile?.sensor_display_mode) === 1,
@@ -18817,10 +19003,12 @@ function loadAnimationFields(tab, data) {
       el.value = val;
       if (el.value !== val) el.value = '';  // saved file gone from SD -> none
     }
-    // Speed (fps) is stored in image_slideshow_sec for this tile type.
+    // Speed (fps) is stored in image_slideshow_sec for this tile type; a
+    // copied tile or a draft carries the field's own name.
     const fps = document.getElementById(tab + '_animation_fps');
     if (fps) {
-      let v = data && data.image_slideshow_sec ? parseInt(data.image_slideshow_sec, 10) : 10;
+      const raw = data && data.animation_fps !== undefined ? data.animation_fps : data && data.image_slideshow_sec;
+      let v = raw ? parseInt(raw, 10) : 10;
       if (!(v >= 1 && v <= 30)) v = 10;
       fps.value = v;
       const lbl = document.getElementById(tab + '_animation_fps_val');
@@ -18886,15 +19074,19 @@ function getClockPreviewLanguage() {
     return (num === 1 || num === 2 || num === 3) ? num : 0;
   }
 
+  // "Auto" shows the panel's format (Settings, Localization), like the
+  // device (clock_tile::resolve_time_format); the language only without it.
   function resolveClockTimeFormat(raw) {
     const safe = normalizeClockTimeFormat(raw);
     if (safe !== 0) return safe;
+    if (typeof PANEL_TIME_FORMAT === 'number' && [1, 2].includes(PANEL_TIME_FORMAT)) return PANEL_TIME_FORMAT;
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 
   function resolveClockDateFormat(raw) {
     const safe = normalizeClockDateFormat(raw);
     if (safe !== 0) return safe;
+    if (typeof PANEL_DATE_FORMAT === 'number' && [1, 2, 3].includes(PANEL_DATE_FORMAT)) return PANEL_DATE_FORMAT;
     return getClockPreviewLanguage().toLowerCase().startsWith('de') ? 1 : 2;
   }
 

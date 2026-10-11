@@ -15,6 +15,7 @@
 #include "src/ui/popups/camera/camera_popup.h"
 #include "src/core/display/display_manager.h"
 #include "src/core/config/config_manager.h"
+#include "src/core/config/swipe_gestures.h"
 #include "src/core/i18n/i18n.h"
 #include "src/devices/device_select.h"
 #include "src/tiles/icons/mdi_icons.h"
@@ -121,8 +122,8 @@ void UIManager::buildUI(scene_publish_cb_t scene_cb, hotspot_start_cb_t hotspot_
   active_tab_index = UINT8_MAX;
   nav_container = nullptr;
   tab_content_container = nullptr;
-  settings_gesture_enabled = false;
-  settings_gesture_edge = UINT8_MAX;
+  access_gesture_edge = UINT8_MAX;
+  access_gesture_action = 0;
 
 
   tab_content_container = lv_obj_create(scr);
@@ -683,20 +684,11 @@ void UIManager::refreshSettingsGestureZone() {
   syncSettingsGestureZone();
 }
 
+// The edge swipes read the config on every press (swipe_gestures.h); a
+// changed gesture menu only cancels a swipe that is under way.
 void UIManager::syncSettingsGestureZone() {
-  const DeviceConfig& config = configManager.getConfig();
-  const bool enabled = config.settings_swipe_enabled;
-  const uint8_t edge = config.settings_reveal_edge <=
-                               static_cast<uint8_t>(SettingsRevealEdge::Bottom)
-                           ? config.settings_reveal_edge
-                           : static_cast<uint8_t>(SettingsRevealEdge::Left);
-
-  if (!enabled || settings_gesture_edge != edge) {
-    access_gesture_eligible = false;
-    detachSettingsGesturePressedObject();
-  }
-  settings_gesture_enabled = enabled;
-  settings_gesture_edge = edge;
+  access_gesture_eligible = false;
+  detachSettingsGesturePressedObject();
 }
 
 void UIManager::detachSettingsGesturePressedObject() {
@@ -717,9 +709,11 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
     return;
   }
 
-  const DeviceConfig& config = configManager.getConfig();
-  if (active_tab_index != 0 || !settings_gesture_enabled ||
-      !config.settings_swipe_enabled) {
+  // The armed edge must still open its action (the menu may have changed).
+  uint8_t actions[swipe_gestures::kEdgeCount];
+  swipe_gestures::actions(configManager.getConfig(), actions);
+  if (active_tab_index != 0 || access_gesture_edge >= swipe_gestures::kEdgeCount ||
+      actions[access_gesture_edge] != access_gesture_action) {
     access_gesture_eligible = false;
     detachSettingsGesturePressedObject();
     return;
@@ -734,7 +728,7 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
   const int32_t threshold = kSettingsGestureThreshold;
 
   bool matches = false;
-  switch (static_cast<SettingsRevealEdge>(config.settings_reveal_edge)) {
+  switch (static_cast<SettingsRevealEdge>(access_gesture_edge)) {
     case SettingsRevealEdge::Left:
       matches = dx >= threshold && abs_dx > abs_dy;
       break;
@@ -765,7 +759,32 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
 
-  requestSettingsAccess();
+  runSwipeAction(access_gesture_action);
+}
+
+// What an edge swipe opens (swipe_gestures.h): Settings (through its PIN),
+// Home, one folder back (like the head's X) or the screensaver.
+void UIManager::runSwipeAction(uint8_t action) {
+  const uint16_t root = tileConfig.rootFolderId();
+  const uint16_t folder = tileConfig.getActiveFolderId();
+  switch (action) {
+    case swipe_gestures::kSettings:
+      requestSettingsAccess();
+      break;
+    case swipe_gestures::kHome:
+      if (folder != root) switchToFolder(root);
+      break;
+    case swipe_gestures::kBack:
+      if (folder != root) switchToFolder(tileConfig.getFolderParent(folder));
+      break;
+    case swipe_gestures::kScreensaver:
+      show_image_screensaver();
+      break;
+    default:
+      return;
+  }
+  Serial.printf("[Swipe] action=%u edge=%u\n", static_cast<unsigned>(action),
+                static_cast<unsigned>(access_gesture_edge));
 }
 
 void UIManager::settings_gesture_pressed_object_event_cb(lv_event_t* event) {
@@ -795,16 +814,11 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
   if (!input) return;
   const lv_event_code_t code = lv_event_get_code(event);
 
-  const DeviceConfig& config = configManager.getConfig();
   if (code == LV_EVENT_PRESSED) {
     self->detachSettingsGesturePressedObject();
     self->access_gesture_eligible = false;
     self->access_gesture_triggered = false;
-    if (self->active_tab_index != 0 ||
-        !self->settings_gesture_enabled ||
-        !config.settings_swipe_enabled) {
-      return;
-    }
+    if (self->active_tab_index != 0) return;
 
     lv_obj_t* pressed_object =
         static_cast<lv_obj_t*>(lv_event_get_param(event));
@@ -820,23 +834,23 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
 
     lv_point_t point{};
     lv_indev_get_point(input, &point);
-    const int32_t edge_zone = kSettingsGestureCaptureWidth;
-    bool starts_at_edge = false;
-    switch (static_cast<SettingsRevealEdge>(config.settings_reveal_edge)) {
-      case SettingsRevealEdge::Left:
-        starts_at_edge = point.x < edge_zone;
-        break;
-      case SettingsRevealEdge::Right:
-        starts_at_edge = point.x >= grid_layout::screen_w() - edge_zone;
-        break;
-      case SettingsRevealEdge::Top:
-        starts_at_edge = point.y < edge_zone;
-        break;
-      case SettingsRevealEdge::Bottom:
-        starts_at_edge = point.y >= grid_layout::screen_h() - edge_zone;
-        break;
+    // The nearest edge with an action within the capture zone
+    // (swipe_gestures.h: one action per edge).
+    uint8_t actions[swipe_gestures::kEdgeCount];
+    swipe_gestures::actions(configManager.getConfig(), actions);
+    const int32_t distance[swipe_gestures::kEdgeCount] = {
+        point.x, grid_layout::screen_w() - 1 - point.x, point.y, grid_layout::screen_h() - 1 - point.y};
+    int32_t nearest = kSettingsGestureCaptureWidth;
+    uint8_t edge = swipe_gestures::kEdgeOff;
+    for (uint8_t candidate = 0; candidate < swipe_gestures::kEdgeCount; ++candidate) {
+      if (actions[candidate] != swipe_gestures::kOff && distance[candidate] < nearest) {
+        nearest = distance[candidate];
+        edge = candidate;
+      }
     }
-    if (!starts_at_edge) return;
+    if (edge == swipe_gestures::kEdgeOff) return;
+    self->access_gesture_edge = edge;
+    self->access_gesture_action = actions[edge];
     self->access_gesture_start = point;
     self->access_gesture_eligible = true;
     self->access_gesture_pressed_object = pressed_object;

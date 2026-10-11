@@ -52,12 +52,16 @@ assert.doesNotMatch(html, /data-tab-target="tab-hardware"/, 'I/O has no tab of i
 
 // --- Issue #73 server side ---------------------------------------------------------------------
 assert.match(routes, /server\.on\("\/api\/language", HTTP_GET,\s*guarded\(\[this\]\(\) \{ this->handleLanguage\(\); \}\)\);/);
-assert.match(handlers, /void WebAdminServer::handleLanguage\(\) \{[\s\S]*i18n::strings\(configManager\.getConfig\(\)\.language\)\.html_lang/,
+assert.match(handlers, /void WebAdminServer::handleLanguage\(\) \{\s*const DeviceConfig& cfg = configManager\.getConfig\(\);[\s\S]*i18n::strings\(cfg\.language\)\.html_lang/,
   'the language arrives as the page\'s own <html lang> code');
+// With the time and date format "Auto" shows, so the previews' clocks follow
+// a change made on the panel.
+assert.match(handlers, /json \+= "\\",\\"time_format\\":";\s*json \+= String\(clock_tile::resolve_time_format\(clock_tile::TIME_FORMAT_AUTO, cfg\.global_time_format, cfg\.language\)\);/);
+assert.match(handlers, /json \+= ",\\"date_format\\":";\s*json \+= String\(clock_tile::resolve_date_format\(clock_tile::DATE_FORMAT_AUTO, cfg\.global_date_format, cfg\.language\)\);/);
 
 // --- Browser behavior --------------------------------------------------------------------------
 const functions = ['settingsTabActive', 'updateSettingsScrollbarWidth', 'runSettingsPageWork',
-  'showSettingsPage', 'openSettingsPage', 'adminEditsPending', 'checkDeviceLanguage']
+  'showSettingsPage', 'openSettingsPage', 'adminEditsPending', 'applyPanelClockFormats', 'checkDeviceLanguage']
   .map(name => extractDeliveredFunction(name))
   // location.reload() cannot be replaced in the browser; count it instead.
   .map(source => source.replace('location.reload()', 'window.reloads++'))

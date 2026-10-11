@@ -46,6 +46,23 @@
     };
   }
 
+  // The gesture menu saved the Settings swipe (display-borders.js
+  // saveGestureEdge): the hidden fields and the committed state carry it, so
+  // a later access save keeps it.
+  function noteSettingsSwipeSaved(enabled, edge) {
+    const swipe = settingsAccessElement('settings_swipe_enabled');
+    const reveal = settingsAccessElement('settings_reveal_edge');
+    if (swipe) swipe.checked = !!enabled;
+    if (reveal && Number.isInteger(edge) && edge >= 0 && edge <= 3) reveal.value = String(edge);
+    if (settingsAccessCommittedState) {
+      settingsAccessCommittedState = {
+        ...settingsAccessCommittedState,
+        swipeEnabled: settingsAccessCommittedState.tileHidden || !!enabled,
+        revealEdge: reveal ? reveal.value : settingsAccessCommittedState.revealEdge
+      };
+    }
+  }
+
   function settingsAccessStatesEqual(a, b) {
     return !!a && !!b &&
       a.pinEnabled === b.pinEnabled &&
@@ -356,6 +373,9 @@
         pinConfigured: persistPinEnabled
       };
       settingsAccessCommittedState = savedState;
+      // A hidden tile keeps its swipe: the gesture menu shows what the panel
+      // keeps.
+      if (typeof refreshGestureMenu === 'function') refreshGestureMenu();
       if (reconcileAfterSave &&
           (visibilityChanged || visibilityMismatch)) {
         await reconcileSettingsTileUi(requested.tileHidden, snapshotHint);

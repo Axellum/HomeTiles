@@ -1,5 +1,6 @@
 // The settings panel's tabs (user 2026-10-10): "Tile" | "Global" on every
-// tile page, "Tile" | "Screensaver" on the screensaver page; selecting a tile
+// tile page, "Tile" | "Slideshow" | "Global" on the screensaver page (user
+// 2026-10-11); the top bar names the screensaver; selecting a tile
 // shows its settings again. The global tile settings live in the panel, and
 // the panel may give way so a wide grid never cuts its right edge off.
 import assert from 'node:assert/strict';
@@ -12,8 +13,13 @@ const html = read('src/web/server/render/web_admin_html.cpp');
 assert.ok(html.includes('html += R"html(Settings" data-pane="global">'), 'the panel starts on the global pane');
 assert.ok(html.includes('onclick=\\"showSettingsPane(\'" + tab_id + "\',\'tile\')\\"') &&
   html.includes('onclick=\\"showSettingsPane(\'" + tab_id + "\',\'global\')\\"'), 'two tab buttons');
-assert.ok(html.includes('appendHtmlEscaped(html, screensaver_mode ? tr.panel_tab_screensaver : tr.panel_tab_global);'),
-  'the second tab names the screensaver on its page');
+assert.ok(html.includes('appendHtmlEscaped(html, screensaver_mode ? tr.admin_slideshow : tr.panel_tab_global);'),
+  'the second tab is the slideshow on the screensaver page');
+assert.ok(html.includes('data-pane=\\"options\\" onclick=\\"showSettingsPane(\'" + tab_id + "\',\'options\')\\">') &&
+  html.includes('html += "<div class=\\"panel-options\\"><section class=\\"global-settings-panel\\"><h3>";'),
+  'the screensaver page has its own Global tab');
+assert.ok(html.includes('appendHtmlEscaped(html, tr.panel_tab_screensaver);') && !html.includes('<span class="tab-label">Screensaver</span>'),
+  'the top bar names the screensaver in the panel language');
 assert.ok(html.includes('html += "<div class=\\"panel-global\\">";') && html.includes('html += global_panel;'),
   'the global settings sit in the panel');
 assert.ok(html.includes('if (screensaver_mode) html += R"html(          <div class="folder-footer">'),
@@ -34,8 +40,10 @@ assert.equal(context.folder1Settings.dataset.pane, 'tile');
 context.showSettingsPane('folder1', 'global');
 assert.equal(context.folder1Settings.dataset.pane, 'global');
 context.showSettingsPane('screensaver', 'global');
-assert.ok(calls.includes('background'), 'the screensaver tab selects its background');
+assert.ok(calls.includes('background'), 'the slideshow tab selects its background');
 assert.equal(context.screensaverSettings.dataset.pane, 'global');
+context.showSettingsPane('screensaver', 'options');
+assert.equal(context.screensaverSettings.dataset.pane, 'options');
 
 assert.ok(read('src/web/admin/tiles/editor.js').match(/setSettingsPane\(tab, 'tile'\);/), 'a selected tile shows its settings');
 assert.ok(read('src/web/admin/tiles/editor.js').includes("setSettingsPane('folder0', 'tile');"), 'the parked Settings tile too');
@@ -47,7 +55,8 @@ assert.ok(read('src/web/admin/bundle.json').includes('"src/web/admin/tiles/setti
 const css = read('src/web/assets/admin.css');
 assert.ok(css.includes('flex:0 1 var(--settings-panel-width, 390px);'), 'the panel may shrink');
 assert.ok(css.includes('.tile-settings[data-pane="global"] > .tile-specific-settings,') &&
-  css.includes('.tile-settings[data-pane="tile"] > .panel-global { display:none; }'), 'the pane picks what shows');
+  css.includes('.tile-settings[data-pane="options"] > #screensaverBackgroundSettings,') &&
+  css.includes('.tile-settings:not([data-pane="options"]) > .panel-options { display:none; }'), 'the pane picks what shows');
 
 // Every language names the tabs.
 const header = read('src/core/i18n/i18n.h');

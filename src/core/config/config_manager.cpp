@@ -1,5 +1,6 @@
 #include "src/core/config/config_manager.h"
 #include "src/core/config/settings_access_record.h"
+#include "src/core/config/swipe_gestures.h"
 #include "src/core/text/title_text.h"
 #include "src/core/config/batched_nvs_write.h"
 #include "src/core/i18n/i18n.h"
@@ -77,6 +78,9 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.settings_tile_hidden == b.settings_tile_hidden &&
          a.settings_swipe_enabled == b.settings_swipe_enabled &&
          a.settings_reveal_edge == b.settings_reveal_edge &&
+         a.home_swipe_edge == b.home_swipe_edge &&
+         a.back_swipe_edge == b.back_swipe_edge &&
+         a.screensaver_swipe_edge == b.screensaver_swipe_edge &&
          memcmp(a.settings_pin_salt, b.settings_pin_salt,
                 sizeof(a.settings_pin_salt)) == 0 &&
          memcmp(a.settings_pin_hash, b.settings_pin_hash,
@@ -248,9 +252,13 @@ ConfigManager::ConfigManager() {
   config.wifi_static_enabled = false;
   config.settings_pin_enabled = false;
   config.settings_tile_hidden = false;
-  config.settings_swipe_enabled = false;
-  config.settings_reveal_edge =
-      static_cast<uint8_t>(SettingsRevealEdge::Left);
+  // New panels (user 2026-10-11): Settings from the top, Home from the
+  // bottom (swipe_gestures.h).
+  config.settings_swipe_enabled = true;
+  config.settings_reveal_edge = swipe_gestures::kDefaultSettingsEdge;
+  config.home_swipe_edge = swipe_gestures::kDefaultHomeEdge;
+  config.back_swipe_edge = swipe_gestures::kEdgeOff;
+  config.screensaver_swipe_edge = swipe_gestures::kEdgeOff;
   clear_settings_tile_snapshot(config);
 }
 
@@ -455,11 +463,15 @@ bool ConfigManager::load() {
     // One-time compatibility path for test builds that wrote the original
     // individual keys. The next successful save replaces them with one
     // checksummed NVS blob.
+    // A panel without any stored access (new, or never changed) starts with
+    // the Settings swipe from the top (user 2026-10-11).
+    const bool stored_access = prefs.isKey("set_pin_en") || prefs.isKey("set_hidden") || prefs.isKey("set_edge");
     config.settings_pin_enabled = prefs.getBool("set_pin_en", false);
     config.settings_tile_hidden = prefs.getBool("set_hidden", false);
-    config.settings_swipe_enabled = config.settings_tile_hidden;
+    config.settings_swipe_enabled = stored_access ? config.settings_tile_hidden : true;
     config.settings_reveal_edge = prefs.getUChar(
-        "set_edge", static_cast<uint8_t>(SettingsRevealEdge::Left));
+        "set_edge", stored_access ? static_cast<uint8_t>(SettingsRevealEdge::Left)
+                                  : swipe_gestures::kDefaultSettingsEdge);
     if (prefs.getBytesLength("set_pin_salt") ==
         sizeof(config.settings_pin_salt)) {
       prefs.getBytes("set_pin_salt", config.settings_pin_salt,
@@ -485,6 +497,12 @@ bool ConfigManager::load() {
                               sizeof(config.settings_pin_value));
     }
   }
+
+  // The other edge swipes; one action per edge, Settings keeps its edge.
+  config.home_swipe_edge = prefs.getUChar("sw_home", swipe_gestures::kDefaultHomeEdge);
+  config.back_swipe_edge = prefs.getUChar("sw_back", swipe_gestures::kEdgeOff);
+  config.screensaver_swipe_edge = prefs.getUChar("sw_saver", swipe_gestures::kEdgeOff);
+  swipe_gestures::normalize(config);
 
   // Keep the access record binary compatible; long titles use an optional key.
   auto& stored_snapshot = config.settings_tile_snapshot;
@@ -569,6 +587,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   if (normalized.settings_tile_hidden) {
     normalized.settings_swipe_enabled = true;
   }
+  swipe_gestures::normalize(normalized);
   if (!normalized.settings_pin_enabled ||
       !pin_access::credentialIsSet(normalized.settings_pin_salt,
                                    normalized.settings_pin_hash)) {
@@ -680,6 +699,9 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
       prefs.putBytes(SETTINGS_ACCESS_KEY, &settings_access,
                      sizeof(settings_access)) == sizeof(settings_access);
   pin_access::secureClear(&settings_access, sizeof(settings_access));
+  prefs.putUChar("sw_home", normalized.home_swipe_edge);
+  prefs.putUChar("sw_back", normalized.back_swipe_edge);
+  prefs.putUChar("sw_saver", normalized.screensaver_swipe_edge);
 
   const char* snapshot_title = normalized.settings_tile_snapshot.valid &&
       strlen(normalized.settings_tile_snapshot.title) >= 32
@@ -1073,9 +1095,13 @@ void ConfigManager::clear() {
   config.status_date_font_size = 24;
   config.settings_pin_enabled = false;
   config.settings_tile_hidden = false;
-  config.settings_swipe_enabled = false;
-  config.settings_reveal_edge =
-      static_cast<uint8_t>(SettingsRevealEdge::Left);
+  // New panels (user 2026-10-11): Settings from the top, Home from the
+  // bottom (swipe_gestures.h).
+  config.settings_swipe_enabled = true;
+  config.settings_reveal_edge = swipe_gestures::kDefaultSettingsEdge;
+  config.home_swipe_edge = swipe_gestures::kDefaultHomeEdge;
+  config.back_swipe_edge = swipe_gestures::kEdgeOff;
+  config.screensaver_swipe_edge = swipe_gestures::kEdgeOff;
   pin_access::clearCredential(config.settings_pin_salt,
                               config.settings_pin_hash);
   clear_settings_tile_snapshot(config);

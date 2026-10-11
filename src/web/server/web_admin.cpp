@@ -208,6 +208,10 @@ bool WebAdminServer::start() {
               guarded(withStorageHold([this]() { this->handleSaveHardwareIo(); })));
     server.on("/api/display/tile-borders", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveTileBorders(); })));
+    server.on("/api/display/gestures", HTTP_GET,
+              guarded([this]() { this->handleGestures(); }));
+    server.on("/api/display/gestures", HTTP_POST,
+              guarded(withStorageHold([this]() { this->handleGestures(); })));
     server.on("/api/display/head-gear", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveHeadGear(); })));
     server.on("/api/display/theme", HTTP_POST,

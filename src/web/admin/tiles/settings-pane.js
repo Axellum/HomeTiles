@@ -1,11 +1,13 @@
 
   // The settings panel's tabs (web_admin_html.cpp): "Tile" shows the selected
-  // tile's settings, "Global" the global tile settings (on the screensaver
-  // page its picture settings). Selecting a tile shows its settings again;
-  // the panel's data-pane picks what admin.css shows.
+  // tile's settings, "Global" the global tile settings; the screensaver page
+  // has "Tile", "Slideshow" (its picture settings, pane "global") and
+  // "Global" (its tile options and design, pane "options"). Selecting a tile
+  // shows its settings again; the panel's data-pane picks what admin.css
+  // shows.
   function setSettingsPane(tab, pane) {
     const panel = document.getElementById(tab + 'Settings');
-    if (panel) panel.dataset.pane = pane === 'tile' ? 'tile' : 'global';
+    if (panel) panel.dataset.pane = pane === 'tile' || pane === 'options' ? pane : 'global';
   }
 
   function showSettingsPane(tab, pane) {

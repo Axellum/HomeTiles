@@ -30,6 +30,7 @@
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
 #include "src/ui/screensaver/screensaver_config.h"
+#include "src/core/config/swipe_gestures.h"
 #include "src/ui/tabs/settings/settings_model.h"
 #include "src/ui/tabs/tiles/home_bar.h"
 #include "src/video/local_camera/local_camera.h"
@@ -445,7 +446,8 @@ static void appendTileTabHTML(
 <!-- Grid Preview -->
 <div class="tile-grid)html";
   if (screensaver_mode) {
-    html += " screensaver-tile-grid";
+    html += " screensaver-tile-grid\" data-ss-theme=\"";
+    html += String(screensaverConfig.get().theme);
   } else if (configManager.getConfig().tile_borders) {
     html += " tiles-bordered";
   }
@@ -971,27 +973,38 @@ static void appendTileTabHTML(
       global_panel += "</option>";
     }
     global_panel += "</select></div></div></section>\n";
+    // The gesture menu (swipe_gestures.h, user 2026-10-11): one action per
+    // edge, each action once (tiles/gestures.js swaps on a second use).
+    {
+      uint8_t actions[swipe_gestures::kEdgeCount];
+      swipe_gestures::actions(display, actions);
+      const char* edge_labels[swipe_gestures::kEdgeCount] = {tr.edge_left, tr.edge_right, tr.edge_top, tr.edge_bottom};
+      const char* action_labels[swipe_gestures::kActionCount] = {tr.icon_disc_off, tr.tile_type_settings, tr.home,
+                                                                tr.tile_type_back, tr.panel_tab_screensaver};
+      // Top, bottom, left, right: the usual order of a phone's gestures.
+      const uint8_t order[swipe_gestures::kEdgeCount] = {2, 3, 0, 1};
+      global_panel += "<section class=\"global-settings-panel gesture-settings\"><h3>";
+      appendHtmlEscaped(global_panel, tr.swipe_gestures_heading);
+      global_panel += "</h3><div class=\"global-settings-grid\">";
+      for (const uint8_t edge : order) {
+        const String id = tab_id + "_gesture_" + String(edge);
+        global_panel += "<div class=\"global-settings-field\"><label for=\"" + id + "\">";
+        appendHtmlEscaped(global_panel, edge_labels[edge]);
+        global_panel += "</label><select class=\"gesture-edge\" id=\"" + id + "\" data-edge=\"" + String(edge) +
+                        "\" data-action=\"" + String(actions[edge]) + "\" onchange=\"saveGestureEdge(this)\">";
+        for (uint8_t action = 0; action < swipe_gestures::kActionCount; ++action) {
+          global_panel += "<option value=\"" + String(action) + "\"";
+          if (actions[edge] == action) global_panel += " selected";
+          global_panel += ">";
+          appendHtmlEscaped(global_panel, action_labels[action]);
+          global_panel += "</option>";
+        }
+        global_panel += "</select></div>";
+      }
+      global_panel += "</div></section>\n";
+    }
   } else {
-    html += R"html(            <div class="folder-footer-options screensaver-tile-options">
-<label class="inline-checkbox"><input id="screensaverTileBorder" type="checkbox"> )html";
-    html += tr.screensaver_tile_border;
-    html += R"html(</label>
-)html";
-    html += R"html(              <label class="inline-checkbox"><input id="screensaverTileShadow" type="checkbox"> )html";
-    html += tr.screensaver_tile_shadow;
-    html += R"html(</label>
-)html";
-    // One opacity for every screensaver tile, beside its other tile options.
-    const uint8_t tile_opacity = screensaverConfig.get().tile_opacity;
-    html += "<label class=\"tile-radius-control\"><span>";
-    appendHtmlEscaped(html, tr.screensaver_background_opacity);
-    html += "</span><input id=\"screensaverTileOpacity\" type=\"range\" min=\"0\" max=\"255\" step=\"1\" value=\"";
-    html += String(tile_opacity);
-    html += "\"><output id=\"screensaverTileOpacityValue\" class=\"global-tile-opacity-value\">";
-    html += String((tile_opacity * 100 + 127) / 255);
-    html += " %</output></label>";
-    html += R"html(            </div>
-<p class="hint">)html";
+    html += R"html(<p class="hint">)html";
   }
   if (screensaver_mode) {
     html += tr.screensaver_hint;
@@ -1007,13 +1020,18 @@ static void appendTileTabHTML(
   html += R"html(Settings" data-pane="global">
 )html";
   // Tabs on top of the panel: the selected tile's settings, or the global
-  // tile settings (on the screensaver page its picture settings). Selecting
-  // a tile shows its settings again (tiles/settings-pane.js).
+  // tile settings; the screensaver page has Tile | Slideshow | Global (user
+  // 2026-10-11). Selecting a tile shows its settings again
+  // (tiles/settings-pane.js).
   html += "<div class=\"icon-color-segmented choice-row panel-tabs\" role=\"tablist\">";
   html += "<button type=\"button\" data-pane=\"tile\" onclick=\"showSettingsPane('" + tab_id + "','tile')\">";
   appendHtmlEscaped(html, tr.panel_tab_tile);
   html += "</button><button type=\"button\" data-pane=\"global\" onclick=\"showSettingsPane('" + tab_id + "','global')\">";
-  appendHtmlEscaped(html, screensaver_mode ? tr.panel_tab_screensaver : tr.panel_tab_global);
+  appendHtmlEscaped(html, screensaver_mode ? tr.admin_slideshow : tr.panel_tab_global);
+  if (screensaver_mode) {
+    html += "</button><button type=\"button\" data-pane=\"options\" onclick=\"showSettingsPane('" + tab_id + "','options')\">";
+    appendHtmlEscaped(html, tr.panel_tab_global);
+  }
   html += "</button></div><p class=\"hint panel-tile-hint\">";
   html += tr.admin_tile_hint;
   html += "</p>";
@@ -1023,14 +1041,33 @@ static void appendTileTabHTML(
     html += "</div>";
   }
   if (screensaver_mode) {
+    const ScreensaverConfigData& saver = screensaverConfig.get();
+    html += "<div class=\"panel-options\"><section class=\"global-settings-panel\"><h3>";
+    appendHtmlEscaped(html, tr.global_settings_heading);
+    html += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
+            "<input id=\"screensaverTileBorder\" type=\"checkbox\"> ";
+    appendHtmlEscaped(html, tr.screensaver_tile_border);
+    html += "</label><label class=\"inline-checkbox\"><input id=\"screensaverTileShadow\" type=\"checkbox\"> ";
+    appendHtmlEscaped(html, tr.screensaver_tile_shadow);
+    html += "</label><div class=\"global-settings-field screensaver-opacity-field\"><label for=\"screensaverTileOpacity\">";
+    appendHtmlEscaped(html, tr.screensaver_background_opacity);
+    html += "</label><input id=\"screensaverTileOpacity\" type=\"range\" min=\"0\" max=\"255\" step=\"1\" value=\"";
+    html += String(saver.tile_opacity);
+    html += "\"><output id=\"screensaverTileOpacityValue\" class=\"global-tile-opacity-value\">";
+    html += String((saver.tile_opacity * 100 + 127) / 255);
+    html += " %</output></div><div class=\"global-settings-field\"><label for=\"screensaverTheme\">";
+    appendHtmlEscaped(html, tr.theme_label);
+    html += "</label><select class=\"screensaver-theme\" id=\"screensaverTheme\">";
+    // Dark, Light, Automatic (the panel's design), like the panel's field.
+    for (uint8_t theme = 0; theme < 3; ++theme) {
+      html += "<option value=\"" + String(theme) + "\"";
+      if (saver.theme == theme) html += " selected";
+      html += ">";
+      appendHtmlEscaped(html, theme == 2 ? tr.theme_auto : theme ? tr.theme_light : tr.theme_dark);
+      html += "</option>";
+    }
+    html += "</select></div></div></section></div>\n";
     html += R"html(            <div id="screensaverBackgroundSettings" class="screensaver-background-settings">
-<div class="tile-settings-head"><h3 id="screensaverBackgroundHeading" style="margin-top:0;" data-sd=")html";
-    appendHtmlEscaped(html, tr.admin_slideshow);
-    html += "\" data-ha=\"";
-    appendHtmlEscaped(html, tr.screensaver_source_ha);
-    html += "\">";
-    html += tr.admin_slideshow;
-    html += R"html(</h3></div>
 <div class="tile-settings-body">
 <div class="screensaver-fixed-type"><label for="screensaverPictureSource">)html";
     html += tr.admin_type;
@@ -2295,7 +2332,9 @@ String WebAdminServer::getAdminPage() {
 <button class="tab-btn" type="button" data-tab-target="tab-tiles-screensaver"
 onclick="switchTab('tab-tiles-screensaver')">
 <span class="tab-disc"><i class="mdi mdi-monitor"></i></span>
-<span class="tab-label">Screensaver</span>
+<span class="tab-label">)html";
+  appendHtmlEscaped(html, tr.panel_tab_screensaver);
+  html += R"html(</span>
 </button>
 <button class="tab-btn" type="button" data-tab-target="tab-network"
 onclick="switchTab('tab-network')">
@@ -2322,7 +2361,7 @@ onclick="switchTab('tab-network')">
   screensaver_folder.id = TileConfig::kScreensaverGridStorageId;
   screensaver_folder.parent_id = 0;
   snprintf(screensaver_folder.name, sizeof(screensaver_folder.name), "%s",
-           "Screensaver");
+           tr.panel_tab_screensaver);
   snprintf(screensaver_folder.icon_name, sizeof(screensaver_folder.icon_name),
            "%s", "monitor");
   appendTileTabHTML(html, TileConfig::kScreensaverGridStorageId,

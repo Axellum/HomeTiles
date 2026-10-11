@@ -23,6 +23,18 @@
 
   // The picture options of stored tile data (GET /api/tiles, drafts, imports).
   function cameraPictureOptionsOf(tile) {
+    // A copied tile and a draft carry the editor's field names
+    // (saveCameraFields); a stored tile its packed fields.
+    if (tile && tile.camera_display !== undefined) {
+      return {
+        picture: String(tile.camera_display) === '1',
+        fit: CAMERA_FITS.includes(tile.camera_fit) ? tile.camera_fit : 'fill',
+        every: cameraEvery(tile.camera_every),
+        transparency: cameraTransparency(tile.camera_transparency),
+        head: ['dark', 'light'].includes(tile.camera_head) ? tile.camera_head : 'auto',
+        tap: String(tile.camera_tap) === '1' ? '1' : '0'
+      };
+    }
     const flags = Number(tile?.key_modifier) || 0;
     return {
       picture: Number(tile?.sensor_display_mode) === 1,

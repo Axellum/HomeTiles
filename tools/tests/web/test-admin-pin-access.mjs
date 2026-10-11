@@ -31,7 +31,6 @@ for (const marker of [
   'settings-access-toggles',
   'settings-access-columns',
   'settings-pin-fields',
-  'settings-edge-fields',
   'settings_pin_enabled',
   'data-pin-configured=\\"',
   'settings_pin',
@@ -49,10 +48,15 @@ for (const marker of [
 
 const togglesPosition = settingsHtml.indexOf('settings-access-toggles');
 const pinFieldsPosition = settingsHtml.indexOf('settings-pin-fields');
-const edgeFieldsPosition = settingsHtml.indexOf('settings-edge-fields');
-if (togglesPosition < 0 || pinFieldsPosition < togglesPosition ||
-    edgeFieldsPosition < pinFieldsPosition) {
-  throw new Error('Settings access controls must render as top toggles, then PIN and edge');
+if (togglesPosition < 0 || pinFieldsPosition < togglesPosition) {
+  throw new Error('Settings access controls must render as top toggles, then PIN');
+}
+// The swipe is set in the gesture menu (swipe_gestures.h, Global tab): the
+// tile keeps hidden fields so access saves carry the current swipe.
+if (settingsHtml.includes('settings-edge-fields') || settingsHtml.includes('tr.settings_reveal_edge') ||
+    !settingsHtml.includes('<input type=\\"checkbox\\" hidden id=\\"" + prefix + "settings_swipe_enabled\\"') ||
+    !settingsHtml.includes('<input type=\\"hidden\\" id=\\"" + prefix + "settings_reveal_edge\\" value=\\"')) {
+  throw new Error('The Settings tile keeps its swipe only in hidden fields');
 }
 
 for (const forbidden of [

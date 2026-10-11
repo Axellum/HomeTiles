@@ -338,6 +338,8 @@ const live = readRepoFile('src/web/admin/tiles/live-preview.js');
 assert.match(live, /const cameraHead = meta\.preview === 'camera' \? cameraHeadSurface\(cameraPictureOptions\(tab\), halfHeight\) : '';\s*if \(cameraHead\) tileElem\.style\.background = cameraHeadBackground\(cameraHead\);/);
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
   /el\.style\.background = cameraHead \? cameraHeadBackground\(cameraHead\) : bg;/);
-assert.match(css, /\.tile\.camera-picture\.camera-head-shared > \.tile-icon::after \{ opacity:0; \}/);
+// Computed in a browser in test-camera-head-css.mjs (the selector must win
+// over the :is() size rule of icons above a title).
+assert.match(css, /\.tile\.camera\.camera-picture\.camera-head-shared:not\(\.empty\):not\(\.sensor-compact\) > \.tile-icon::after \{ opacity:0; \}/);
 
 console.log('Camera tile picture: Sensor head with a title pill (shared when close), transparency, tile-size pictures');

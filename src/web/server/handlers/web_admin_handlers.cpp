@@ -15,6 +15,7 @@
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/theme_schedule.h"
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/core/config/swipe_gestures.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/types/clock/clock_format.h"
 #include "src/web/server/web_admin_utils.h"
@@ -45,6 +46,13 @@ void WebAdminServer::handleSaveMQTT() {
     strncpy(cfg.mqtt_base_topic, "hometiles", CONFIG_MQTT_BASE_MAX - 1);
     strncpy(cfg.ha_prefix, "ha/statestream", CONFIG_HA_PREFIX_MAX - 1);
     cfg.tile_borders = true;
+    // The swipes of a new panel (swipe_gestures.h): Settings from the top,
+    // Home from the bottom.
+    cfg.settings_swipe_enabled = true;
+    cfg.settings_reveal_edge = swipe_gestures::kDefaultSettingsEdge;
+    cfg.home_swipe_edge = swipe_gestures::kDefaultHomeEdge;
+    cfg.back_swipe_edge = swipe_gestures::kEdgeOff;
+    cfg.screensaver_swipe_edge = swipe_gestures::kEdgeOff;
   }
   const DeviceConfig previous_cfg = cfg;
 
@@ -624,11 +632,18 @@ void WebAdminServer::handleStatus() {
 }
 
 // The same code as the page's <html lang>, so the page compares like with
-// like. A poll, so it does not count as Web Admin activity.
+// like, and the time and date format "Auto" shows (the previews' clocks
+// follow a change made on the panel). A poll, so it does not count as Web
+// Admin activity.
 void WebAdminServer::handleLanguage() {
+  const DeviceConfig& cfg = configManager.getConfig();
   String json = "{\"language\":\"";
-  json += i18n::strings(configManager.getConfig().language).html_lang;
-  json += "\"}";
+  json += i18n::strings(cfg.language).html_lang;
+  json += "\",\"time_format\":";
+  json += String(clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format, cfg.language));
+  json += ",\"date_format\":";
+  json += String(clock_tile::resolve_date_format(clock_tile::DATE_FORMAT_AUTO, cfg.global_date_format, cfg.language));
+  json += "}";
   server.send(200, "application/json", json);
 }
 
@@ -716,6 +731,45 @@ void WebAdminServer::handleRestart() {
   prepareDisplayForRestart();
   delay(200);
   BoardHAL::restart();
+}
+
+// The gesture menu (swipe_gestures.h): GET answers the action of each edge
+// (left, right, top, bottom), POST takes "left", "right", "top" and "bottom"
+// (0 off, 1 Settings, 2 Home, 3 Back, 4 screensaver) and answers what the
+// panel keeps (one action per edge; a hidden Settings tile keeps its swipe).
+void WebAdminServer::handleGestures() {
+  webAdminMarkActivity();
+  if (server.method() == HTTP_POST) {
+    uint8_t wanted[swipe_gestures::kEdgeCount];
+    const char* names[swipe_gestures::kEdgeCount] = {"left", "right", "top", "bottom"};
+    for (uint8_t edge = 0; edge < swipe_gestures::kEdgeCount; ++edge) {
+      const String value = server.arg(names[edge]);
+      if (value.length() != 1 || value[0] < '0' || value[0] >= '0' + swipe_gestures::kActionCount) {
+        sendJsonError(server, 400, "Invalid gesture");
+        return;
+      }
+      wanted[edge] = static_cast<uint8_t>(value[0] - '0');
+    }
+    DeviceConfig cfg = configManager.getConfig();
+    swipe_gestures::apply(cfg, wanted);
+    if (!configManager.save(cfg)) {
+      sendJsonError(server, 500, "Could not save the gestures");
+      return;
+    }
+    // Runs in the main loop like the access saves: an armed swipe ends.
+    uiManager.refreshSettingsGestureZone();
+  }
+  uint8_t actions[swipe_gestures::kEdgeCount];
+  swipe_gestures::actions(configManager.getConfig(), actions);
+  String json = "{\"success\":true,\"actions\":[";
+  for (uint8_t edge = 0; edge < swipe_gestures::kEdgeCount; ++edge) {
+    if (edge) json += ",";
+    json += String(actions[edge]);
+  }
+  json += "],\"settings_edge\":";
+  json += String(configManager.getConfig().settings_reveal_edge);
+  json += "}";
+  server.send(200, "application/json", json);
 }
 
 // The gear in Home's head with a bar layout (home_bar.cpp): the heads are

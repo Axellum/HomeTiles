@@ -15,8 +15,8 @@ const style = read('src/ui/shared/ui_surface_style.cpp');
 const header = read('src/ui/shared/ui_surface_style.h');
 const frame = style.slice(style.indexOf('lv_color_t frame_line(lv_obj_t* obj) {'), style.indexOf('void apply_style('));
 for (const marker of [
-  'const uint32_t plain = ui_theme::roles_of(ui_theme::kThemeSurface).card;',
-  'if (card == plain) return lv_color_hex(ui_theme::theme_light() ? 0xDDDDDD : 0x292929);',
+  'if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);',
+  'if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);',
   'tone_color::from_rgb(card).L <= ui_theme::kLightSurfaceL ? lv_color_mix(lv_color_white(), lv_color_hex(card), 23)',
   ': lv_color_mix(lv_color_black(), lv_color_hex(card), 36);',
 ]) assert.ok(frame.includes(marker), 'frame_line: ' + marker);
@@ -29,14 +29,16 @@ assert.match(read('src/tiles/runtime/tile_icon_source.cpp'), /ui_surface_style::
 // Preview: the same thresholds, neutrals and mixes.
 const preview = read('src/web/admin/tiles/grid-preview.js');
 const fn = preview.slice(preview.indexOf('function applyFrameLine(el) {'), preview.indexOf('function applyTileSurface('));
-assert.ok(fn.includes("const plain = panelThemeLight() ? [255, 255, 255] : [26, 26, 26];"));
-assert.ok(fn.includes("line = panelThemeLight() ? [221, 221, 221] : [41, 41, 41];"));
+// The plain card of either theme (a screensaver tile in the other design
+// too) keeps that theme's fixed line.
+assert.ok(fn.includes("if (card.every(v => v === 255)) line = [221, 221, 221];"));
+assert.ok(fn.includes("else if (card.every(v => v === 26)) line = [41, 41, 41];"));
 assert.ok(fn.includes('toneOklch(card).L <= 0.72'));
 assert.ok(fn.includes('Math.floor((255 * 23 + v * 232) * 0x8081 / 0x800000)'));
 assert.ok(fn.includes('Math.floor((v * 219) * 0x8081 / 0x800000)'));
 const theme = read('src/ui/shared/ui_theme.h');
 assert.ok(theme.includes('inline constexpr float kLightSurfaceL = 0.72f;'), 'Same light threshold as the preview');
-assert.match(theme, /kDark = \{0x000000, 0x1A1A1A,/, 'Dark plain card #1A1A1A like the preview');
+assert.match(theme, /kDark = \{0x000000, 0x1A1A1A,/, 'Dark plain card #1A1A1A like the preview (26)');
 assert.match(theme, /kLight = \{0xE9EBEE, 0xFFFFFF,/, 'Light plain card #FFFFFF like the preview');
 // Both previews draw it after the surface is known.
 assert.match(preview, /if \(typeValue !== '0'\) applyFrameLine\(el\);/);

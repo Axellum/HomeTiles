@@ -121,6 +121,10 @@ struct DeviceConfig {
   bool settings_tile_hidden;
   bool settings_swipe_enabled;
   uint8_t settings_reveal_edge;
+  // The other edge swipes (swipe_gestures.h): an edge 0..3 or kEdgeOff.
+  uint8_t home_swipe_edge;
+  uint8_t back_swipe_edge;
+  uint8_t screensaver_swipe_edge;
   uint8_t settings_pin_salt[pin_access::kSaltSize];
   uint8_t settings_pin_hash[pin_access::kHashSize];
   char settings_pin_value[pin_access::kUserPinMaxDigits + 1];

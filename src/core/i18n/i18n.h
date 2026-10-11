@@ -223,6 +223,8 @@ struct Strings {
   const char* screensaver_tile_border;
   // Web Admin: global display settings row below the grid preview.
   const char* global_settings_heading;
+  // The gesture menu in the Global tab (swipe_gestures.h).
+  const char* swipe_gestures_heading;
   // The theme field (ui_theme.h) and its choices; a tile's own Design field
   // offers the same three.
   const char* theme_label;
@@ -308,6 +310,8 @@ struct Strings {
   const char* screensaver_background_opacity;
   const char* screensaver_hint;
   const char* screensaver_storage_hint;
+  // The slideshow list without a card.
+  const char* screensaver_no_sd;
   const char* screensaver_no_wallpapers;
   const char* js_screensaver_saved;
   const char* js_screensaver_save_failed;
@@ -448,11 +452,8 @@ struct Strings {
   const char* settings_pin_placeholder;
   const char* settings_pin_configured;
   const char* settings_pin_not_configured;
-  const char* settings_swipe_enable;
   // With a bar layout: the gear in Home's head opens Settings too.
   const char* settings_head_gear;
-  const char* settings_reveal_edge;
-  const char* settings_swipe_note;
   const char* edge_left;
   const char* edge_right;
   const char* edge_top;

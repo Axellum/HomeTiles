@@ -7,7 +7,10 @@
 #include "src/tiles/config/grid_layout.h"
 #include "src/tiles/config/tile_config.h"
 
-static constexpr size_t kMaxScreensaverWallpapers = 32;
+// Images the slideshow keeps settings for (an issue reported the former 32
+// as too few for a full card). The slideshow never walks the whole list per
+// slide: it checks only the picked image on the card.
+static constexpr size_t kMaxScreensaverWallpapers = 500;
 static constexpr uint8_t kScreensaverDefaultTileOpacity = 217;  // approximately 85%
 
 struct ScreensaverWallpaperConfig {
@@ -29,6 +32,9 @@ struct ScreensaverConfigData {
   // One background opacity for every screensaver tile (user 2026-10-02:
   // set beside borders, radius and shadows instead of per tile).
   uint8_t tile_opacity = kScreensaverDefaultTileOpacity;
+  // The design of the screensaver's tiles (user 2026-10-11): 0 dark, 1 light,
+  // 2 automatic = the panel's design (ui_theme.h).
+  uint8_t theme = 2;
   bool show_time = true;
   bool show_date = true;
   bool show_weekday = false;

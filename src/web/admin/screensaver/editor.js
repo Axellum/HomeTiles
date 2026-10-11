@@ -5,6 +5,9 @@
   let screensaverSelected = { kind: 'background', index: -1 };
   let screensaverWallpaperIndex = -1;
   let screensaverSaveTimer = null;
+  // What the display stores now (screensaverSaveKey): a click, a selection
+  // or a drag without a change saves nothing and shows no "Saved".
+  let screensaverSavedKey = '';
   const screensaverTimeFontSizes = [20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96];
   const screensaverDateFontSizes = [20, 24, 28, 32, 40, 48, 56, 64, 72];
 
@@ -40,11 +43,16 @@
     return Math.round(ssClamp(value ?? SCREENSAVER_TILE_DEFAULT_OPACITY, 0, 255));
   }
 
-  // The new opacity on every screensaver tile preview and in the footer.
+  // The new opacity on every screensaver tile preview and in the Global tab.
   function refreshScreensaverTileOpacity() {
     const value = screensaverTileOpacity();
     const output = document.getElementById('screensaverTileOpacityValue');
     if (output) output.textContent = Math.round(value * 100 / 255) + ' %';
+    refreshScreensaverTiles();
+  }
+
+  // Draws every screensaver tile preview again (opacity, design).
+  function refreshScreensaverTiles() {
     const tiles = tilesData.screensaver || [];
     tiles.forEach((tile, index) => {
       if (tile && Number(tile.type)) renderTileFromData('screensaver', index, tile, sensorMetaCache);
@@ -121,7 +129,15 @@
     // How the Bridge places it and a camera's interval (3..60 s).
     data.picture_fit = ['fit', 'original'].includes(data.picture_fit) ? data.picture_fit : 'fill';
     data.picture_every = Math.round(ssClamp(data.picture_every ?? 10, 3, 60));
+    // The tiles' design: 0 dark, 1 light, 2 automatic (the panel's).
+    data.theme = [0, 1, 2].includes(Number(data.theme)) ? Number(data.theme) : 2;
     return data;
+  }
+
+  // The stored settings without the editor's preview image: equal keys mean
+  // nothing to save.
+  function screensaverSaveKey(payload) {
+    return JSON.stringify({...payload, preview_wallpaper: ''});
   }
 
   // Keep the stored image list in step with the card: entries of deleted
@@ -139,9 +155,10 @@
       data.wallpapers = kept;
     }
     const listed = new Set(data.wallpapers.map(item => key(item.file_name)));
+    const most = typeof SCREENSAVER_MAX_WALLPAPERS === 'number' ? SCREENSAVER_MAX_WALLPAPERS : 500;
     available.forEach(name => {
-      // The display stores at most 32 images.
-      if (listed.has(key(name)) || data.wallpapers.length >= 32) return;
+      // The display stores at most SCREENSAVER_MAX_WALLPAPERS images.
+      if (listed.has(key(name)) || data.wallpapers.length >= most) return;
       listed.add(key(name));
       data.wallpapers.push({
         file_name: name, enabled: true,
@@ -176,6 +193,7 @@
     fetch('/api/screensaver').then(r => r.json()).then(config => {
       if (!config || !config.success) throw new Error('screensaver config');
       screensaverDraft = ssNormalizeLoaded(config);
+      screensaverSavedKey = screensaverSaveKey(ssPayload(screensaverDraft, ''));
       const imagesChanged = ssSyncCardImages(screensaverDraft);
       screensaverWallpaperIndex = screensaverDraft.wallpapers.findIndex(w => w.enabled);
       if (screensaverWallpaperIndex < 0 && screensaverDraft.wallpapers.length) screensaverWallpaperIndex = 0;
@@ -196,6 +214,7 @@
       tile_shadow: !!d.tile_shadow,
       tile_border: d.tile_border !== false,
       tile_opacity: Math.round(ssClamp(d.tile_opacity ?? SCREENSAVER_TILE_DEFAULT_OPACITY, 0, 255)),
+      theme: [0, 1, 2].includes(Number(d.theme)) ? Number(d.theme) : 2,
       show_time: !!d.show_time,
       show_date: !!d.show_date,
       show_weekday: !!d.show_weekday,
@@ -231,12 +250,16 @@
 
   function saveScreensaverNow() {
     if (!screensaverLoaded) return;
+    const payload = ssPayload();
+    const key = screensaverSaveKey(payload);
+    if (key === screensaverSavedKey) return;
     fetch('/api/screensaver', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(ssPayload())
+      body: JSON.stringify(payload)
     }).then(async response => {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'save');
+      screensaverSavedKey = key;
       showNotification(t('screensaverSaved'));
     }).catch(() => {
       showNotification(t('screensaverSaveFailed'), false);
@@ -244,7 +267,8 @@
   }
 
   function ssCurrentWallpaper() {
-    if (!screensaverDraft || screensaverWallpaperIndex < 0) return null;
+    // Without a card no image is shown or edited (its entries stay stored).
+    if (!screensaverDraft || screensaverWallpaperIndex < 0 || screensaverDraft.sd_ready !== true) return null;
     return screensaverDraft.wallpapers[screensaverWallpaperIndex] || null;
   }
 
@@ -288,6 +312,15 @@
     const list = document.getElementById('screensaverWallpaperList');
     if (!list || !screensaverDraft) return;
     list.innerHTML = '';
+    // Only the images on the card (user 2026-10-11): without a card the list
+    // is empty; the stored entries return with it.
+    if (screensaverDraft.sd_ready !== true) {
+      const empty = document.createElement('div');
+      empty.className = 'screensaver-save-state';
+      empty.textContent = t('screensaverNoSd');
+      list.appendChild(empty);
+      return;
+    }
     screensaverDraft.wallpapers.forEach((wallpaper, index) => {
       const row = document.createElement('div');
       row.className = 'screensaver-wallpaper-row' + (index === screensaverWallpaperIndex ? ' active' : '');
@@ -380,8 +413,6 @@
     if (source && source.value !== d.picture_source) source.value = d.picture_source;
     document.getElementById('screensaverHaPicture')?.classList.toggle('hidden', !fromHa);
     document.getElementById('screensaverSdPicture')?.classList.toggle('hidden', fromHa);
-    const heading = document.getElementById('screensaverBackgroundHeading');
-    if (heading) heading.textContent = fromHa ? heading.dataset.ha : heading.dataset.sd;
     const pictureEntity = document.getElementById('screensaver_picture_entity');
     if (pictureEntity && pictureEntity.value !== d.picture_entity) pictureEntity.value = d.picture_entity;
     const pictureFit = document.getElementById('screensaverPictureFit');
@@ -459,6 +490,8 @@
     document.getElementById('screensaverShuffle').checked = !!d.shuffle;
     document.getElementById('screensaverTileShadow').checked = !!d.tile_shadow;
     document.getElementById('screensaverTileBorder').checked = d.tile_border !== false;
+    const theme = document.getElementById('screensaverTheme');
+    if (theme && theme.value !== String(d.theme)) theme.value = String(d.theme);
     const opacityInput = document.getElementById('screensaverTileOpacity');
     if (opacityInput) opacityInput.value = String(screensaverTileOpacity());
     document.getElementById('screensaverShowTime').checked = !!d.show_time;
@@ -613,6 +646,13 @@
     bind('screensaverShuffle', 'change', el => { screensaverDraft.shuffle = el.checked; });
     bind('screensaverTileShadow', 'change', el => { screensaverDraft.tile_shadow = el.checked; });
     bind('screensaverTileBorder', 'change', el => { screensaverDraft.tile_border = el.checked; });
+    // The tiles' design: the preview draws them on that surface at once.
+    bind('screensaverTheme', 'change', el => {
+      screensaverDraft.theme = [0, 1, 2].includes(Number(el.value)) ? Number(el.value) : 2;
+      const grid = document.getElementById('screensaverGrid');
+      if (grid) grid.dataset.ssTheme = String(screensaverDraft.theme);
+      refreshScreensaverTiles();
+    });
     bind('screensaverTileOpacity', 'input', el => {
       screensaverDraft.tile_opacity = Number(el.value);
       refreshScreensaverTileOpacity();

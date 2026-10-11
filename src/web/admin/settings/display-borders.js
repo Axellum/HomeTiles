@@ -68,7 +68,9 @@ function refreshHeadBarTime() {
   const now = new Date();
   document.querySelectorAll('.head-bar-preview .head-time').forEach(el => {
     let hour = now.getHours();
-    if (el.dataset.hour12 === '1') hour = hour % 12 || 12;
+    // The panel's format (PANEL_TIME_FORMAT follows a change, localization.js).
+    const hour12 = typeof PANEL_TIME_FORMAT === 'number' ? PANEL_TIME_FORMAT === 2 : el.dataset.hour12 === '1';
+    if (hour12) hour = hour % 12 || 12;
     el.textContent = String(hour).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   });
 }
@@ -150,4 +152,79 @@ async function saveTheme(value) {
 }
 function syncGlobalDisplayControls(tabEl) {
   if (themeChosen !== null) tabEl.querySelectorAll('.global-theme').forEach(select => { select.value = themeChosen; });
+  if (gestureActions) showGestureActions(gestureActions, tabEl);
+}
+
+// The gesture menu (swipe_gestures.h, user 2026-10-11): one action per edge
+// (0 off, 1 Settings, 2 Home, 3 Back, 4 screensaver; edges 0 left, 1 right,
+// 2 top, 3 bottom). An action chosen on a second edge swaps the two edges.
+// Every folder's Global tab shows the same menu.
+let gestureActions = null;
+// The stored actions: each select's data-action (the select's value already
+// shows a new choice when its change event runs).
+function readGestureActions(scope) {
+  const actions = [0, 0, 0, 0];
+  scope.querySelectorAll('.gesture-edge').forEach(select => {
+    actions[Number(select.dataset.edge)] = Number(select.dataset.action) || 0;
+  });
+  return actions;
+}
+function showGestureActions(actions, scope = document) {
+  scope.querySelectorAll('.gesture-edge').forEach(select => {
+    const action = String(actions[Number(select.dataset.edge)] || 0);
+    select.value = action;
+    select.dataset.action = action;
+  });
+}
+// While a save runs the selects show the wanted actions; data-action keeps
+// the stored ones until the panel answers.
+function scopeGestureSelects(actions) {
+  document.querySelectorAll('.gesture-edge').forEach(select => {
+    select.value = String(actions[Number(select.dataset.edge)] || 0);
+  });
+}
+// The menu as the panel keeps it (after a Settings access change, which may
+// turn the Settings swipe on for a hidden tile).
+async function refreshGestureMenu() {
+  try {
+    const response = await fetch('/api/display/gestures', {cache: 'no-store'});
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!result?.success || !Array.isArray(result.actions)) return;
+    gestureActions = result.actions.map(Number);
+    showGestureActions(gestureActions);
+  } catch (error) {
+    // Offline: the menu keeps what it shows.
+  }
+}
+async function saveGestureEdge(select) {
+  const edge = Number(select.dataset.edge);
+  const before = gestureActions || readGestureActions(select.closest('.gesture-settings') || document);
+  // The select shows the new action already: the edge's former action is
+  // the one in `before`.
+  const action = Number(select.value) || 0;
+  const wanted = before.slice();
+  const other = action ? wanted.findIndex((value, index) => value === action && index !== edge) : -1;
+  if (other >= 0) wanted[other] = before[edge];
+  wanted[edge] = action;
+  scopeGestureSelects(wanted);
+  try {
+    const response = await fetch('/api/display/gestures', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({left: wanted[0], right: wanted[1], top: wanted[2], bottom: wanted[3]}).toString()
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const result = await response.json();
+    if (!result?.success || !Array.isArray(result.actions)) throw new Error('invalid response');
+    gestureActions = result.actions.map(Number);
+    showGestureActions(gestureActions);
+    if (typeof noteSettingsSwipeSaved === 'function') {
+      noteSettingsSwipeSaved(gestureActions.includes(1), Number(result.settings_edge));
+    }
+  } catch (error) {
+    gestureActions = before;
+    showGestureActions(before);
+    showNotification(t('networkErrorSave'), false);
+  }
 }
