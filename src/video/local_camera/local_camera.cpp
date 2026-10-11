@@ -307,15 +307,18 @@ String deviceTopic(const char* leaf, const char* id = nullptr) {
 // differently: clockwise on the V2 (OV02C10, hardware 2026-10-08: three
 // quarters stood upside down), counter-clockwise on the 8-inch (OV5647,
 // hardware 2026-10-08: one quarter, adding up to 180 with its mounting,
-// stood upside down). The user's mirror setting reverses it again. Added to
-// the user turns, so the user rotation stays the same in both layouts.
+// stood upside down). The user's mirror setting reverses it again, and so
+// does a panel that turns a turned layout the other way round
+// (grid_layout::turn_reversed: JC1060, Waveshare 7B, JC4880). Added to the
+// user turns, so the user rotation stays the same in both layouts.
 uint8_t displayQuarterTurns() {
   if (!grid_layout::turned()) return 0u;
 #if defined(HOMETILES_LOCAL_CAMERA)
-  const bool counter_clockwise = local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror.load();
+  const bool counter_clockwise =
+      (local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror.load()) != grid_layout::turn_reversed();
   return counter_clockwise ? 3u : 1u;
 #else
-  return 1u;
+  return grid_layout::turn_reversed() ? 3u : 1u;
 #endif
 }
 

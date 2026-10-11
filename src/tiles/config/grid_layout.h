@@ -171,19 +171,32 @@ constexpr bool available(Layout layout) { return layout != Layout::kPortrait || 
 constexpr bool needs_rotation(Layout layout) {
   return layout != Layout::kClassic && layout_grid(layout).portrait != native_portrait();
 }
-// The panel shows a turned layout. Every P4 panel here is upright by itself
-// and its driver turns the landscape UI into it; an upright layout is drawn
-// without that turn (the shared path, p4_dsi_camera_presenter.h
+// The panel shows a turned layout. Most P4 panels here are upright by
+// themselves and their drivers turn the landscape UI into them; an upright
+// layout is drawn without that turn (the shared path, p4_dsi_camera_presenter.h
 // drawUpright), the touch is turned once for all in DisplayManager, and the
 // tile grid takes the half row (user 2026-10-08: one general way, tested on
 // the Guition V2). The 1024 x 600 panels (JC1060, Waveshare 7B) are landscape
-// by themselves and the JC4880's profile is upright: they would need a real
-// quarter turn and stay without (classic and landscape layouts only).
+// by themselves and the JC4880 is upright: their drivers turn a turned layout
+// a real quarter, the same turn the other way round (draw_turned_area, user
+// 2026-10-11), so the shared touch turn holds for them too.
 constexpr bool upright_ready() {
 #if defined(DEVICE_GUITION_JC8012P4A1) || defined(DEVICE_GUITION_JC8012P4A1_V2) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
-    defined(DEVICE_M5STACKS_TAB5)
+    defined(DEVICE_M5STACKS_TAB5) || \
+    defined(DEVICE_GUITION_JC1060P470C) || defined(DEVICE_GUITION_JC1060P470C_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || defined(DEVICE_GUITION_JC4880P443_PORTRAIT)
+  return true;
+#else
+  return false;
+#endif
+}
+// The panels that turn a turned layout a quarter the other way round (their
+// drivers' draw_turned_area): the own camera's picture turns the other way too.
+constexpr bool turn_reversed() {
+#if defined(DEVICE_GUITION_JC1060P470C) || defined(DEVICE_GUITION_JC1060P470C_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || defined(DEVICE_GUITION_JC4880P443_PORTRAIT)
   return true;
 #else
   return false;

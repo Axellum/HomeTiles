@@ -30,13 +30,24 @@ if (!compiler) {
   const v2Touch = landscape(v2, '  if (g_rotation & 0x02) {\n    mapped_x = logical_w - 1', '  if (mapped_x < 0) mapped_x = 0;');
   const eightTouch = landscape(eight, '  if (g_rotation & 0x02) {\n    mapped_x = static_cast<int32_t>(display_cfg.height)',
     '  const int32_t logical_w = static_cast<int32_t>(display_cfg.height);');
+  // The panels turned the other way round (JC1060, Waveshare 7B, JC4880):
+  // their draw_turned_area geometry, taken from the driver.
+  const jc1060 = read('src/devices/guition_jc1060p470c_v2/device_guition_jc1060p470c_v2.cpp');
+  const turnedDst = /  const int32_t dst_x = \(turn & 0x02\) \? y : panel_w - y - h;\n  const int32_t dst_y = \(turn & 0x02\) \? panel_h - x - w : x;\n/.exec(jc1060)[0];
   const code = `#include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 ${read('src/devices/common/p4_dsi_cpu_rotate.h').replace('#pragma once', '')}
 constexpr int32_t W = 800, H = 1280;  // the panel, upright
-namespace grid_layout { inline bool turned() { return true; } inline int screen_w() { return W; } }
+int g_screen_w = W;
+namespace grid_layout { inline bool turned() { return true; } inline int screen_w() { return g_screen_w; } }
+// draw_turned_area's place for a UI area on a panel_w x panel_h panel.
+void turned_dst(int32_t panel_w, int32_t panel_h, uint8_t turn, int32_t x, int32_t y, int32_t w, int32_t h,
+                int32_t& out_x, int32_t& out_y) {
+${turnedDst}  out_x = dst_x; out_y = dst_y;
+}
 struct { int width = W, height = H; } display_cfg;
 // The landscape UI point (x, y) in the framebuffer (draw_landscape_area).
 void landscape_to_fb(int x, int y, bool flip, int& fx, int& fy) {
@@ -68,6 +79,36 @@ int main() {
       assert(x == ux && y == uy);
     }
   }
+  // The panels turned the other way round: a 1024 x 600 landscape panel
+  // shown upright (JC1060, Waveshare 7B) and the 480 x 800 JC4880 shown in
+  // landscape. Every UI pixel lands where a finger on it maps back to it.
+  for (const auto& panel : {std::pair<int32_t, int32_t>{1024, 600}, std::pair<int32_t, int32_t>{480, 800}}) {
+    const int32_t pw = panel.first, ph = panel.second;
+    g_screen_w = ph;  // the turned UI is as wide as the panel is high
+    for (uint8_t rotation : {0, 2}) {
+      const uint8_t turn = rotation ^ 0x02;
+      const int32_t ax = 7, ay = 11, aw = 5, ah = 3;  // a UI area
+      std::vector<uint16_t> fb(pw * ph, 0), src(aw * ah);
+      for (int i = 0; i < aw * ah; ++i) src[i] = static_cast<uint16_t>(i + 1);
+      int32_t dx = 0, dy = 0;
+      turned_dst(pw, ph, turn, ax, ay, aw, ah, dx, dy);
+      p4_dsi_cpu_rotate::rotate_into(fb.data(), pw, dx, dy, aw, ah, src.data(), (turn & 0x02) != 0);
+      int found = 0;
+      for (int32_t fy = 0; fy < ph; ++fy) for (int32_t fx = 0; fx < pw; ++fx) {
+        const uint16_t v = fb[fy * pw + fx];
+        if (!v) continue;
+        ++found;
+        // The drivers' touch: the panel's point, with 180 the mirrored one.
+        int16_t x = static_cast<int16_t>(rotation ? pw - 1 - fx : fx);
+        int16_t y = static_cast<int16_t>(rotation ? ph - 1 - fy : fy);
+        central(x, y);
+        const int i = v - 1;
+        assert(x == ax + i % aw && y == ay + i / aw);
+      }
+      assert(found == aw * ah);
+    }
+  }
+  g_screen_w = W;
   // The copy: straight, 180 into the mirrored place, and bytes swapped.
   std::vector<uint16_t> fb(W * H, 0), src(5 * 3);
   for (int i = 0; i < 15; ++i) src[i] = static_cast<uint16_t>(0x0100 * (i + 1) + i);
@@ -122,16 +163,47 @@ assert.match(tab5, /\} else \{\n    dst_x = kLogicalHeight - y - h;\n    dst_y =
 assert.match(tab5, /p4_dsi_cpu_rotate::copy_into\(g_panel_fb, kPanelWidth, kPanelWidth, kPanelHeight, x, y, w, h, data, flipped, true\);/);
 assert.match(tab5, /oper\.rotation_angle = g_upright \? \(\(g_rotation & 0x02\) \? PPA_SRM_ROTATION_ANGLE_180/);
 assert.ok(!/M5\.Display\.setRotation\([^)]*g_upright/.test(tab5), 'M5GFX keeps its landscape rotation');
-// The JC1060 and the Waveshare 7B are landscape panels (no turn today) and
-// the JC4880's profile is upright: no upright layout there yet.
+// The JC1060 and the Waveshare 7B are landscape panels and the JC4880 is
+// upright (user 2026-10-11): their drivers turn a turned layout a real
+// quarter, the same turn the other way round (draw_turned_area: the shared
+// PPA and CPU turn with the rotation's 180 bit flipped), checked natively
+// above against the shared touch turn.
 const upright = /constexpr bool upright_ready\(\) \{\n#if ([\s\S]*?)\n  return true;/.exec(read('src/tiles/config/grid_layout.h'))[1];
-for (const name of ['JC8012P4A1)', 'JC8012P4A1_V2)', 'LCD_4_3)', 'LCD_7)', 'LCD_8)', 'LCD_10_1)', 'TAB5)']) {
+for (const name of ['JC8012P4A1)', 'JC8012P4A1_V2)', 'LCD_4_3)', 'LCD_7)', 'LCD_8)', 'LCD_10_1)', 'TAB5)',
+  'JC1060P470C)', 'JC1060P470C_V2)', 'LCD_7B)', 'JC4880P443_PORTRAIT)']) {
   assert.ok(upright.includes(name), name);
 }
-for (const name of ['JC1060', 'LCD_7B', 'JC4880']) assert.ok(!upright.includes(name), name + ' stays without');
+const reversed = /constexpr bool turn_reversed\(\) \{\n#if ([\s\S]*?)\n  return true;/.exec(read('src/tiles/config/grid_layout.h'))[1];
+for (const name of ['JC1060P470C)', 'JC1060P470C_V2)', 'LCD_7B)', 'JC4880P443_PORTRAIT)']) assert.ok(reversed.includes(name), name);
+assert.ok(!reversed.includes('JC8012') && !reversed.includes('TAB5'), 'the panels upright by themselves turn as before');
 assert.ok(read('src/devices/device.cpp').includes('void displaySetUpright(bool upright) {\n#if ' + upright + '\n  DeviceImpl::displaySetUpright(upright);'));
+const turnedDraw = body => body.slice(body.indexOf('bool draw_turned_area('), body.indexOf('}  // namespace\n\nbool Device'));
+const turnedRef = turnedDraw(read('src/devices/guition_jc1060p470c_v2/device_guition_jc1060p470c_v2.cpp'));
+assert.ok(turnedRef.includes('g_turn_ppa.rotate(g_camera_presenter, panel_w, panel_h, x, y, w, h, data, turn);') &&
+  turnedRef.includes('p4_dsi_cpu_rotate::rotate_into(fb, panel_w, dst_x, dst_y, w, h, data, (turn & 0x02) != 0);'),
+  'the shared PPA and CPU turn');
+for (const [file, ns, own] of [
+  ['guition_jc1060p470c/device_guition_jc1060p470c.cpp', 'DeviceGuitionJC1060P470C', 'draw_landscape_area'],
+  ['guition_jc1060p470c_v2/device_guition_jc1060p470c_v2.cpp', 'DeviceGuitionJC1060P470CV2', 'draw_landscape_area'],
+  ['waveshare_touch_lcd_7b/device_waveshare_touch_lcd_7b.cpp', 'DeviceWaveshareTouchLCD7B', 'draw_landscape_area'],
+  ['guition_jc4880p443_portrait/device_guition_jc4880p443_portrait.cpp', 'DeviceGuitionJC4880P443Portrait', 'draw_portrait_area']]) {
+  const source = read('src/devices/' + file);
+  assert.equal(turnedDraw(source), turnedRef, `${file}: the same turned draw`);
+  assert.match(source, /uint8_t turn_rotation\(\) \{ return g_rotation \^ 0x02; \}/, `${file}: the other way round`);
+  assert.equal((source.match(new RegExp(`  if \\(g_turned\\) \\{\\n    draw_turned_area\\(x, y, w, h, data\\);\\n    return;\\n  \\}\\n  ${own}\\(x, y, w, h, data\\);`, 'g')) || []).length, 2,
+    `${file}: both pushes draw turned`);
+  assert.ok(source.includes('byte_swap, frame_rotation(),') && source.includes('fullFrameInfo(frame_rotation(), '),
+    `${file}: the camera frames turn with the UI`);
+  assert.ok(source.includes(`void ${ns}::displaySetUpright(bool upright) {\n  // The turned layout: the UI and the camera popup's frames a quarter turned.\n  g_turned = upright;`) &&
+    source.includes('  g_camera_presenter.setUpright(upright);\n}'), `${file}: the shared hook`);
+  // Their touch reports the panel's point (with 180 the mirrored one), as the
+  // native check above assumes.
+  assert.match(source, /  if \(g_rotation & 0x02\) \{\n    mapped_x = static_cast<int32_t>\(display_cfg\.width\) - 1 - static_cast<int32_t>\(px\[selected\]\);\n    mapped_y = static_cast<int32_t>\(display_cfg\.height\) - 1 - static_cast<int32_t>\(py\[selected\]\);\n  \} else \{\n    mapped_x = static_cast<int32_t>\(px\[selected\]\);\n    mapped_y = static_cast<int32_t>\(py\[selected\]\);/,
+    `${file}: touch on the panel's own axes`);
+}
 const presenter = read('src/devices/common/p4_dsi_camera_presenter.cpp');
-assert.match(presenter, /config_\.transform = upright \? Transform::Native0Or180 : landscape_transform_;/);
+assert.match(presenter, /config_\.transform = upright \? turned\(own_transform_\) : own_transform_;/);
+assert.match(presenter, /return own == Transform::Portrait90Or270 \? Transform::Native0Or180 : Transform::Portrait90Or270;/);
 assert.match(presenter, /p4_dsi_cpu_rotate::copy_into\(framebuffer, config_\.panel_width/);
 
 // --- The switch and the boot.
@@ -170,7 +242,8 @@ assert.match(handler, /const float first_row = screensaver_layout \? screensaver
 // mirrored differently and a mirror reverses a turn, the user's mirror too.
 const camera = read('src/video/local_camera/local_camera.cpp');
 assert.match(camera, /if \(!grid_layout::turned\(\)\) return 0u;/);
-assert.match(camera, /const bool counter_clockwise = local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror\.load\(\);\s*return counter_clockwise \? 3u : 1u;/);
+assert.match(camera, /const bool counter_clockwise =\s*\(local_camera_board::Sensor::kUprightTurnCounterClockwise != g_mirror\.load\(\)\) != grid_layout::turn_reversed\(\);\s*return counter_clockwise \? 3u : 1u;/);
+assert.match(camera, /#else\n  return grid_layout::turn_reversed\(\) \? 3u : 1u;/, 'a panel turned the other way round turns its camera back');
 assert.match(read('src/video/local_camera/sensors/ov5647/ov5647_sensor.h'), /static constexpr bool kUprightTurnCounterClockwise = true;/);
 assert.match(read('src/video/local_camera/sensors/ov02c10/ov02c10_sensor.h'), /static constexpr bool kUprightTurnCounterClockwise = false;/);
 assert.match(read('src/video/local_camera/sensors/sc202cs/sc202cs_sensor.h'), /static constexpr bool kUprightTurnCounterClockwise = false;/);

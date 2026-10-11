@@ -75,12 +75,19 @@ bool rectInside(int32_t x, int32_t y, int32_t w, int32_t h,
   }
 }
 
+// A turned layout's transform: the other one than the driver's own (a panel
+// upright by itself shows its upright UI straight, a landscape panel and the
+// JC4880 in landscape a quarter turned).
+static Transform turned(Transform own) {
+  return own == Transform::Portrait90Or270 ? Transform::Native0Or180 : Transform::Portrait90Or270;
+}
+
 bool Presenter::init(const Config& config, esp_lcd_panel_handle_t panel,
                      SemaphoreHandle_t refresh_done,
                      uint16_t* framebuffer0, uint16_t* framebuffer1) {
   config_ = config;
-  landscape_transform_ = config.transform;
-  if (upright_) config_.transform = Transform::Native0Or180;
+  own_transform_ = config.transform;
+  if (upright_) config_.transform = turned(own_transform_);
   panel_ = panel;
   refresh_done_ = refresh_done;
   framebuffers_[0] = framebuffer0;
@@ -97,9 +104,9 @@ bool Presenter::init(const Config& config, esp_lcd_panel_handle_t panel,
 
 void Presenter::setUpright(bool upright) {
   upright_ = upright;
-  config_.transform = upright ? Transform::Native0Or180 : landscape_transform_;
+  config_.transform = upright ? turned(own_transform_) : own_transform_;
   Serial.printf("[CameraDisplay/%s] UI %s\n", config_.device_name ? config_.device_name : "P4",
-                upright ? "upright (no quarter turn)" : "landscape");
+                upright ? "turned against the driver's own" : "the driver's own");
 }
 
 bool Presenter::drawUpright(int32_t x, int32_t y, int32_t w, int32_t h,

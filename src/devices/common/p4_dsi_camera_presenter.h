@@ -60,8 +60,10 @@ class Presenter {
 
   uint16_t* activeFramebuffer() const;
   bool active() const { return double_buffer_active_; }
-  // The upright layout (grid_layout::turned()): the UI and the camera frames
-  // go into the panel without the quarter turn the landscape UI needs.
+  // The turned layout (grid_layout::turned()): the UI and the camera frames
+  // take the other transform than the driver's own: without the quarter turn
+  // on a panel upright by itself, with one on a landscape panel (JC1060,
+  // Waveshare 7B upright) and on the JC4880 in landscape.
   void setUpright(bool upright);
   bool upright() const { return upright_; }
   // An upright UI area straight into the active framebuffer (rotation 2:
@@ -124,9 +126,8 @@ class Presenter {
                                         uint8_t rotation) const;
 
   Config config_{};
-  // The driver's transform for the landscape UI (init()); upright the
-  // frames go in Native0Or180.
-  Transform landscape_transform_ = Transform::Portrait90Or270;
+  // The driver's own transform (init()); a turned layout takes the other.
+  Transform own_transform_ = Transform::Portrait90Or270;
   bool upright_ = false;
   esp_lcd_panel_handle_t panel_ = nullptr;
   SemaphoreHandle_t refresh_done_ = nullptr;

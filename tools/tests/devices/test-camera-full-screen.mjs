@@ -58,7 +58,9 @@ const presenterDevices = ['guition_jc8012p4a1_v2', 'guition_jc8012p4a1', 'guitio
 for (const name of presenterDevices) {
   const source = read(`src/devices/${name}/device_${name}.cpp`);
   const header = read(`src/devices/${name}/device_${name}.h`);
-  assert.match(source, /g_camera_presenter\.fullFrameInfo\(g_rotation, width, height, turn_cw\)/, name);
+  // The panels that turn a turned layout the other way round pass the turn
+  // they draw the UI with (frame_rotation, test-upright-layout.mjs).
+  assert.match(source, /g_camera_presenter\.fullFrameInfo\((?:g_rotation|frame_rotation\(\)), width, height, turn_cw\)/, name);
   assert.match(source, /return g_panel_fb_ready && g_camera_presenter\.beginFullFrames\(\);/, name);
   assert.match(source, /return g_panel_fb_ready \? g_camera_presenter\.acquireFullFrame\(bytes\) : nullptr;/, name);
   assert.match(source, /return g_panel_fb_ready && g_camera_presenter\.submitFullFrame\(\);/, name);
