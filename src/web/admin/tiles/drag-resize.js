@@ -307,7 +307,7 @@
     }
     // A page taken out of the slots (page-slots.js) onto Home's grid.
     if (dragSource.kind === 'page-slot') {
-      const candidate = {col: targetCol, row: targetRow, span_w: 1, span_h: 1};
+      const candidate = {col: targetCol, row: targetRow, span_w: sourceLayout.span_w, span_h: sourceLayout.span_h};
       ensureDragPlaceholder(tab)?.classList.toggle('invalid', !canPlacePageTile(candidate));
       return;
     }
@@ -365,7 +365,7 @@
       return;
     }
     if (dragSource.kind === 'page-slot') {
-      const candidate = {col: targetCol, row: targetRow, span_w: 1, span_h: 1};
+      const candidate = {col: targetCol, row: targetRow, span_w: sourceLayout.span_w, span_h: sourceLayout.span_h};
       if (!fits || !canPlacePageTile(candidate)) {
         showNotification(t('tileDoesNotFit'), false);
         return;

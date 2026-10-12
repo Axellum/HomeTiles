@@ -363,11 +363,19 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
     const DotSizes d = dot_sizes();
     const int row_x = (grid_layout::screen_w() - dots_width(count)) / 2;
-    lv_obj_t* dots = create_dots(bar, count, page, row_x, g.center_y - d.dot / 2);
+    // A press shows (user 2026-10-12: no sign of a press): the X's light
+    // fill in its pressed height, as a pill around the row.
+    const int press_pad = (pressed - d.dot) / 2;
+    lv_obj_t* dots = create_dots(bar, count, page, row_x - press_pad, g.center_y - pressed / 2);
+    lv_obj_set_size(dots, dots_width(count) + 2 * press_pad, pressed);
+    lv_obj_set_style_pad_hor(dots, press_pad, 0);
+    lv_obj_set_style_radius(dots, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(dots, lv_color_hex(ui_theme::icon()), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(dots, LV_OPA_20, LV_STATE_PRESSED);
     lv_obj_set_user_data(dots, &g_dots_marker);
     // The tap reaches them over the circle's height.
     lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(dots, (g.disc - d.dot) / 2);
+    lv_obj_set_ext_click_area(dots, g.disc > pressed ? (g.disc - pressed) / 2 : 0);
     lv_obj_add_event_cb(dots, on_dots, LV_EVENT_CLICKED, nullptr);
     // The title ends a gap before them.
     if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
@@ -385,6 +393,15 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_size(title, title_w, lv_font_get_line_height(font));
   lv_label_set_text(title, title_text);
   lv_obj_set_pos(title, g.title_x, g.center_y - lv_font_get_line_height(font) / 2);
+}
+
+void rebuild(lv_obj_t* grid, uint16_t folder_id) {
+  if (!grid) return;
+  for (uint32_t i = lv_obj_get_child_count(grid); i-- > 0;) {
+    lv_obj_t* child = lv_obj_get_child(grid, static_cast<int32_t>(i));
+    if (is_bar(child)) lv_obj_delete(child);
+  }
+  build(grid, folder_id);
 }
 
 int dots_width(int count) {

@@ -58,6 +58,8 @@ lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y);
 // Home and its pages (tile_layouts::pages, user 2026-10-12) show the page
 // dots in the middle and the gear; a folder its X.
 void build(lv_obj_t* grid, uint16_t folder_id);
+// The pages changed: the grid's bar again, with its new dots, gear or X.
+void rebuild(lv_obj_t* grid, uint16_t folder_id);
 // The folder's grid became visible: coming from another page, its active
 // dot glides over from that page's dot.
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id);

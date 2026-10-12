@@ -53,6 +53,10 @@ void tiles_invalidate_folder_only(uint16_t folder_id);
 // waiting for the deferred reload (which waits for a quiet Web Admin). Loop
 // task only, outside LVGL callbacks. False when nothing is shown.
 bool tiles_show_active_layout_now();
+// The pages changed (Web Admin): every prepared grid's head shows its new
+// dots, gear or X; the grids stay. With draw_now the visible head is drawn
+// at once. Loop task only, outside LVGL callbacks.
+void tiles_rebuild_heads(bool draw_now);
 
 // One tile of a page's picture (page_preview.h): its shown place in cells
 // and its card's color.

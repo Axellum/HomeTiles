@@ -19,9 +19,9 @@ ${readRepoFile('src/web/assets/admin.css')}
 <div class="tile-grid-scroll"><div class="tile-grid head-bar-grid" id="folder0Grid">${head('Home', 'head-gear')}
 ${Array.from({length: TILES}, (_, i) => `<div class="tile empty" id="folder0-tile-${i}" data-index="${i}" data-type="0" draggable="true"></div>`).join('')}
 </div></div>
-<div class="settings-hidden-parking page-parking"><div id="pageSlots" class="page-slots" data-pages="">${
-  Array.from({length: 5}, () => '<div class="page-slot empty" draggable="false"><i class="mdi mdi-tray-arrow-down"></i></div>').join('')}</div>
-<div id="settingsHiddenSlot" class="tile-grid settings-hidden-slot"><div id="settingsHiddenTile" class="tile settings-hidden-tile empty" data-hidden="0"></div></div></div>
+<div class="settings-hidden-parking page-stack"><div class="page-group"><div class="page-parking-label">Pages</div><div class="page-parking" style="--slot-cols:5"><div id="pageSlots" class="page-slots" data-pages="">${
+  Array.from({length: 5}, () => '<div class="page-slot empty" draggable="false"></div>').join('')}</div></div></div>
+<div class="page-group"><div class="page-parking-label">Settings</div><div class="page-parking page-settings"><div id="settingsHiddenSlot" class="tile-grid settings-hidden-slot"><div id="settingsHiddenTile" class="tile settings-hidden-tile empty" data-hidden="0"></div></div></div></div></div>
 </div></div></div>
 <div id="tab-tiles-folder1" class="tile-tab tab-content" data-folder-id="1"><div class="tile-grid head-bar-grid" id="folder1Grid">${head('Lights', '')}</div></div>
 <div id="folder0Settings" class="tile-settings"><div class="tile-specific-settings">
@@ -199,6 +199,37 @@ ${inlineScriptSafe(readAdminDeliverySource())}
         slots()[1].dataset.folder === '3', 'Its tile is back, its place free, the other page stays');
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-window-close') &&
         !dots('folder1'), 'A folder again: its X, no dots');
+
+  // A half-high folder comes back in its own size and look (user
+  // 2026-10-12: it came back one cell high and looked broken).
+  {
+    const index = homeFolderTileIndex(2);
+    const tile = getTilesData('folder0')[index];
+    Object.assign(tile, {col: 0, row: 3, span_w: 2, span_h: 0.5});
+    Object.assign(device[1], {col: 0, row: 3, span_w: 2, span_h: 0.5});
+    renderTileFromData('folder0', index, tile, {});
+    layoutTiles('folder0', getTilesData('folder0'));
+    const look = tileOf(2).className;
+    const lookOf = names => [...new Set(names.split(' '))].filter(name => !['active', 'tile-unplaced'].includes(name)).sort().join(' ');
+    await dropOnSlot(tileOf(2), 0);
+    check(pages.join() === '2,3', 'The half-high folder is a page: ' + pages.join());
+    const slot = slots()[0];
+    const transfer = new DataTransfer();
+    slot.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slot)}));
+    grid.dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...cellPoint(3, 3)}));
+    grid.dispatchEvent(new DragEvent('drop', {bubbles:true,cancelable:true,dataTransfer:transfer,...cellPoint(3, 3)}));
+    // At once, before the device answers.
+    const shown = getTilesData('folder0')[index];
+    check(shown.span_w === 2 && shown.span_h === 0.5 && lookOf(tileOf(2).className) === lookOf(look),
+          'At once in its size and look: ' + shown.span_w + 'x' + shown.span_h + ' ' + tileOf(2).className);
+    slot.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
+    await settle();
+    const back = getTilesData('folder0')[index];
+    check(back.span_w === 2 && back.span_h === 0.5 && !back.layout_hidden,
+          'It keeps its size: ' + back.span_w + 'x' + back.span_h);
+    check(lookOf(tileOf(2).className) === lookOf(look),
+          'It keeps its look: ' + tileOf(2).className + ' / ' + look);
+  }
 
   // Five pages: no free place, nothing is sent.
   slotsEl.dataset.pages = '3,11,12,13,14';

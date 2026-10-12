@@ -2175,6 +2175,21 @@ bool tiles_show_active_layout_now() {
   return true;
 }
 
+void tiles_rebuild_heads(bool draw_now) {
+  page_preview::close();
+  const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
+  bool active_done = false;
+  for (size_t i = 0; i < g_folder_cache_slot_count; ++i) {
+    FolderCacheEntry& entry = g_folder_cache[i];
+    if (!entry.grid) continue;
+    home_bar::rebuild(entry.grid, entry.folder_id);
+    active_done = active_done || entry.grid == g_tiles_grids[idx];
+  }
+  if (g_tiles_grids[idx] && !active_done) home_bar::rebuild(g_tiles_grids[idx], tileConfig.getActiveFolderId());
+  lv_display_t* disp = g_tiles_grids[idx] ? lv_obj_get_display(g_tiles_grids[idx]) : nullptr;
+  if (draw_now && disp) lv_refr_now(disp);
+}
+
 // Loop-only: actually drop the cached folder grids so they rebuild from NVS.
 static void process_folder_cache_invalidation() {
   if (!g_folder_cache_invalidate_requested) {

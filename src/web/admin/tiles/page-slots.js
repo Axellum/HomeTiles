@@ -149,6 +149,8 @@
         tile.layout_hidden = page;
         if (!page && out && out.folder === folder) {
           Object.assign(tile, {col: out.col, row: out.row, span_w: out.span_w, span_h: out.span_h});
+          // Drawn again in its size (a half-high tile has its own look).
+          renderTileFromData('folder0', Number(el.dataset.index), tile, sensorMetaCache);
         }
       }
       el.classList.toggle('tile-unplaced', page);
@@ -213,6 +215,7 @@
         const place = tile ? data.places?.[ACTIVE_LAYOUT]?.['0']?.[String(tile.view_id)] : null;
         if (place) {
           Object.assign(tile, {col: place[0], row: place[1], span_w: place[2], span_h: place[3]});
+          renderTileFromData('folder0', Number(el.dataset.index), tile, sensorMetaCache);
           layoutTiles('folder0', getTilesData('folder0'));
         } else {
           const tiles = await fetchTileGridData('folder0', true);
@@ -234,6 +237,15 @@
     return tile?.dataset.type === '4' ? Number(tile.dataset.navigateTarget || 0) : 0;
   }
 
+  // A page's folder tile's own size: from its data, else its markup; one
+  // cell when it has none the editor allows.
+  function pageTileSize(index) {
+    const data = getTilesData('folder0')?.[index];
+    const el = document.getElementById('folder0-tile-' + index);
+    const size = {span_w: Number(data?.span_w ?? el?.dataset.spanW ?? 1), span_h: Number(data?.span_h ?? el?.dataset.spanH ?? 1)};
+    return supportedTileLayout(4, {col: 0, row: 0, ...size}) ? size : {span_w: 1, span_h: 1};
+  }
+
   // A page leaving the slots onto Home's grid (drag-resize.js handleGridDrop).
   function canPlacePageTile(candidate) {
     if (!dragSource || dragSource.kind !== 'page-slot') return false;
@@ -243,11 +255,9 @@
   function dropPageOnGrid(candidate) {
     const folder = dragSource.folder;
     dragSource.dropCommitted = true;
-    // The device keeps the tile's size when it fits there (/api/pages).
-    const tile = getTilesData('folder0')?.[dragSource.index];
-    const size = tile && tile.span_w >= 1 && tile.span_h >= 1 &&
-      canPlacePageTile({col: candidate.col, row: candidate.row, span_w: tile.span_w, span_h: tile.span_h})
-      ? {span_w: tile.span_w, span_h: tile.span_h} : {span_w: 1, span_h: 1};
+    // Its own size when it fits there, else one cell, like the device
+    // (/api/pages).
+    const size = canPlacePageTile(candidate) ? {span_w: candidate.span_w, span_h: candidate.span_h} : {span_w: 1, span_h: 1};
     // Its place stays free.
     savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, col: candidate.col, row: candidate.row, ...size});
   }
@@ -334,9 +344,9 @@
           tab: 'folder0',
           index,
           folder,
-          // One cell, like the slot; the device keeps a larger tile's size
-          // when it fits (/api/pages).
-          layout: {col: 0, row: 0, span_w: 1, span_h: 1},
+          // Its own size, a half-high one too (the device keeps it when it
+          // fits, /api/pages).
+          layout: {col: 0, row: 0, ...pageTileSize(index)},
           grabCellCol: 0,
           grabCellRow: 0,
           dropOffset: grabOffset,

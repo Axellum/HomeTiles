@@ -1876,8 +1876,10 @@ void WebAdminServer::handleSavePages() {
     Tile* tile = std::find(wanted.begin(), wanted.end(), id) == wanted.end() ? folder_tile(id) : nullptr;
     if (!tile || !tile->view_id) continue;
     tile_layouts::Place place{};
-    const float span_w = tile->span_w >= 1 ? tile->span_w : 1;
-    const float span_h = tile->span_h >= 1 ? tile->span_h : 1;
+    // Its own size, a half-high one too; one cell when that size is none.
+    const bool own_size = tile_geometry::supported_size(tile->type, 0, 0, tile->span_w, tile->span_h);
+    const float span_w = own_size ? tile->span_w : 1;
+    const float span_h = own_size ? tile->span_h : 1;
     bool placed = false;
     if (out_folder == id && server.hasArg("col") && server.hasArg("row")) {
       // The dropped spot with the tile's size, else one cell there.
@@ -1924,15 +1926,35 @@ void WebAdminServer::handleSavePages() {
     tile_layouts::set(grid_layout::active(), TileConfig::rootFolderId(), spot.view, spot.place);
   }
   tile_layouts::set_pages(wanted.data(), wanted.size());
+  // The panel shows it before the flash write (about a second), like a moved
+  // tile, and keeps its prepared grids (user 2026-10-12: dragging a folder in
+  // or out took long; every page was built again): each head gets its new
+  // dots, gear or X, Home's tiles move or go without a rebuild.
+  const uint32_t show_started_ms = millis();
+  const bool awake = !powerManager.isInSleep();
+  for (const uint16_t id : wanted) {
+    if (Tile* tile = id ? folder_tile(id) : nullptr) tile->layout_hidden = true;
+  }
+  tiles_rebuild_heads(awake);
+  const bool home_shown = tileConfig.getActiveFolderId() == TileConfig::rootFolderId();
+  const bool shown_now = awake && home_shown &&
+                         tileConfig.previewActiveFolderGrid(TileConfig::rootFolderId(), *home) &&
+                         tiles_show_active_layout_now();
+  const uint32_t save_started_ms = millis();
   if (!tile_layouts::commit()) {
     sendJsonError(server, 500, "Save failed");
     return;
   }
-  // Every cached grid shows the new dots; Home its folder tiles.
-  tileConfig.setActiveFolder(tileConfig.getActiveFolderId());
-  tiles_invalidate_folder(tileConfig.getActiveFolderId());
-  tiles_request_reload(GridType::TAB0);
-  Serial.printf("[WebAdmin] Pages saved: %u slots\n", static_cast<unsigned>(wanted.size()));
+  // Home's own grid when it was not updated above: built again from the
+  // saved places (shown now, or when it is opened).
+  if (!shown_now) {
+    tiles_invalidate_folder_only(TileConfig::rootFolderId());
+    if (home_shown && tileConfig.setActiveFolder(TileConfig::rootFolderId())) tiles_request_reload(GridType::TAB0);
+  }
+  Serial.printf("[WebAdmin] Pages saved: %u slots shown=%u show=%lu ms save=%lu ms\n",
+                static_cast<unsigned>(wanted.size()), shown_now ? 1U : 0U,
+                static_cast<unsigned long>(save_started_ms - show_started_ms),
+                static_cast<unsigned long>(millis() - save_started_ms));
   String json = "{\"success\":true,\"places\":";
   tile_layouts::append_json(json);
   json += "}";

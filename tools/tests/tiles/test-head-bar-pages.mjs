@@ -117,7 +117,10 @@ assert.match(bar, /void on_dots\(lv_event_t\* event\) \{ page_preview::open\(/);
 const preview = read('src/ui/tabs/tiles/page_preview.cpp');
 assert.match(preview, /const int card_y = head\.center_y - geo\.pad_top - geo\.head_h \/ 2;/);
 assert.match(preview, /home_bar::create_dots\(card, count, current, \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x,\s*head\.center_y - dot\.dot \/ 2 - card_y\);/);
-assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x, g\.center_y - d\.dot \/ 2\);/,
+// The head's row sits where the card's does; its box takes the X's pressed
+// height around it, a pill shown while pressed (user 2026-10-12: no sign
+// of a press).
+assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,200}?const int press_pad = \(pressed - d\.dot\) \/ 2;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - press_pad, g\.center_y - pressed \/ 2\);\s*lv_obj_set_size\(dots, dots_width\(count\) \+ 2 \* press_pad, pressed\);\s*lv_obj_set_style_pad_hor\(dots, press_pad, 0\);\s*lv_obj_set_style_radius\(dots, LV_RADIUS_CIRCLE, 0\);\s*lv_obj_set_style_bg_color\(dots, lv_color_hex\(ui_theme::icon\(\)\), LV_STATE_PRESSED\);\s*lv_obj_set_style_bg_opa\(dots, LV_OPA_20, LV_STATE_PRESSED\);/,
   'The head and the card build the same row');
 assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No dimming');
 assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
@@ -170,13 +173,32 @@ assert.match(access, /if \(enable && tile_layouts::page_number\(folder_id\) > 0\
 assert.match(read('src/types/navigate/admin.js'), /if \(fields\) fields\.classList\.toggle\('is-hidden', !isFolderTile \|\| isPage\);/);
 // The card's dots close it like the head's.
 assert.match(preview, /lv_obj_add_event_cb\(card_dots, on_catcher, LV_EVENT_CLICKED, nullptr\);/);
-// The Web Admin: five slots and the Settings slot in one row under Home,
-// no texts there (user 2026-10-12).
+// A page change shows before the flash write and keeps the prepared grids
+// (user 2026-10-12: dragging in or out took long, every page was built
+// again): their heads are built again, Home's tiles move without a rebuild.
+assert.ok(handler.indexOf('tiles_rebuild_heads(awake);') > handler.indexOf('tile_layouts::set_pages(') &&
+          handler.indexOf('tiles_show_active_layout_now()') > handler.indexOf('tiles_rebuild_heads(awake);') &&
+          handler.indexOf('tile_layouts::commit()') > handler.indexOf('tiles_show_active_layout_now()'),
+          'Shown first, written after');
+assert.doesNotMatch(handler, /tiles_invalidate_folder\(/, 'No prepared grid is dropped');
+assert.match(handler, /if \(Tile\* tile = id \? folder_tile\(id\) : nullptr\) tile->layout_hidden = true;/);
+const tabs = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
+assert.match(slice(tabs, 'void tiles_rebuild_heads(bool draw_now) {', '\n}\n'), /home_bar::rebuild\(entry\.grid, entry\.folder_id\);/);
+assert.match(slice(bar, 'void rebuild(lv_obj_t* grid, uint16_t folder_id) {', '\n}\n'), /if \(is_bar\(child\)\) lv_obj_delete\(child\);[\s\S]*build\(grid, folder_id\);/);
+
+// The Web Admin: the five page slots in a box, the Settings slot in its own
+// below it, one word over each box (user 2026-10-12).
 const markup = read('src/web/server/render/web_admin_html.cpp');
 assert.ok(markup.indexOf('id=\\"pageSlots\\"') > markup.indexOf('<!-- Grid Preview -->'), 'The slots under the preview');
 assert.ok(markup.indexOf('id=\\"pageSlots\\"') < markup.indexOf('id=\\"settingsHiddenSlot\\"'), 'Left of the Settings slot');
 assert.match(markup, /if \(!page_slots\) \{\s*html \+= "<div class=\\"settings-parking-texts/);
-// One word over each part (user 2026-10-12: one cannot tell what the row is).
-assert.match(markup, /appendHtmlEscaped\(html, tr\.pages_title\);\s*html \+= "<\/div><div class=\\"page-parking-label settings-label\\">";\s*appendHtmlEscaped\(html, tr\.tile_type_settings\);/);
+// One word over each box, outside it (user 2026-10-12: not inside).
+assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-label\\">";\s*appendHtmlEscaped\(html, tr\.pages_title\);\s*html \+= "<\/div><div class=\\"page-parking\\" style=\\"--slot-cols:";/);
+assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-label\\">";\s*appendHtmlEscaped\(html, tr\.tile_type_settings\);\s*html \+= "<\/div><div class=\\"page-parking page-settings\\">";/);
+// Beside a square or upright preview two columns, under a landscape one a
+// row under its columns (a 4-column one: four, the fifth below).
+assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout::screen_w\(\) <= grid_layout::screen_h\(\);\s*\}/);
+assert.match(markup, /html \+= String\(previewSlotsBeside\(\) \? 2 : \(shown_cols < max_pages \? shown_cols : max_pages\)\);/);
+assert.match(markup, /if \(previewSlotsBeside\(\)\) html \+= " compact-grid";/);
 
 console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');

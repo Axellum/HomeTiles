@@ -411,6 +411,14 @@ static void appendLocalCameraSettingsHtml(String& html, const i18n::Strings& tr)
 )html";
 }
 
+// A square or upright screen (the shown layout's): its preview keeps its
+// size and Home's slots stand beside it (admin.css .compact-grid); a
+// landscape one has them below (user 2026-10-12: "bei den quadratischen
+// oder hochkant da wo Settings ist").
+static bool previewSlotsBeside() {
+  return grid_layout::screen_w() <= grid_layout::screen_h();
+}
+
 // Helper function to generate tile tab HTML (unified for all folders)
 static void appendTileTabHTML(
     String& html,
@@ -887,33 +895,23 @@ static void appendTileTabHTML(
     char hidden_color_hex[8];
     snprintf(hidden_color_hex, sizeof(hidden_color_hex), "#%06X",
              static_cast<unsigned>(hidden_color));
-    // The head bar layouts (user 2026-10-12): the page slots and, right of
-    // them, the Settings slot in one row under Home, without texts;
-    // page-slots.js fills the slots from the Home grid's folder tiles and
-    // saves them through /api/pages. Not a .tile-grid with .tile children:
-    // the editor finds Home's grid and its tiles by those classes.
+    // The head bar layouts (user 2026-10-12): the five page slots in a box
+    // of their own and, apart below it on the left, the Settings slot; one
+    // word over each box, outside it, no sentences. Under a landscape
+    // preview one row, every cell under a column of the preview (a 4-column
+    // preview: four, the fifth below); beside a square or upright one two
+    // columns. page-slots.js fills the slots from the Home grid's folder
+    // tiles and saves them through /api/pages. Not a .tile-grid with .tile
+    // children: the editor finds Home's grid and its tiles by those classes.
     const bool page_slots = grid_layout::head_bar();
-    // Under a wide preview one row (six columns: the pages, then Settings;
-    // five: Settings below the last); beside a narrow one (admin.css
-    // .compact-grid) two columns with Settings at the bottom (user
-    // 2026-10-12).
-    const bool beside = GRID_COLS <= 4 || grid_layout::shown().cols <= 4;
-    const int slot_cols = beside ? 2 : (grid_layout::shown().cols < 6 ? grid_layout::shown().cols : 6);
-    const int slot_rows = (static_cast<int>(tile_layouts::kMaxPages) + 1 + slot_cols - 1) / slot_cols;
+    const int shown_cols = grid_layout::shown().cols;
+    const int max_pages = static_cast<int>(tile_layouts::kMaxPages);
     if (page_slots) {
-      html += "<div class=\"settings-hidden-parking page-parking";
-      if (slot_cols == static_cast<int>(tile_layouts::kMaxPages) + 1) html += " single-row";
-      html += "\" style=\"--slot-cols:" + String(slot_cols) + ";--slot-last-row:" + String(slot_rows + 1) + "\">";
-    } else {
-      html += "<div class=\"settings-hidden-parking\">";
-    }
-    if (page_slots) {
-      // One word over each part, no sentences (user 2026-10-12).
-      html += "<div class=\"page-parking-label\">";
+      html += "<div class=\"settings-hidden-parking page-stack\"><div class=\"page-group\"><div class=\"page-parking-label\">";
       appendHtmlEscaped(html, tr.pages_title);
-      html += "</div><div class=\"page-parking-label settings-label\">";
-      appendHtmlEscaped(html, tr.tile_type_settings);
-      html += "</div>";
+      html += "</div><div class=\"page-parking\" style=\"--slot-cols:";
+      html += String(previewSlotsBeside() ? 2 : (shown_cols < max_pages ? shown_cols : max_pages));
+      html += "\">";
       uint16_t pages[tile_layouts::kMaxPages];
       const size_t count = tile_layouts::page_slots(pages);
       html += "<div id=\"pageSlots\" class=\"page-slots\" data-pages=\"";
@@ -925,7 +923,11 @@ static void appendTileTabHTML(
       for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
         html += "<div class=\"page-slot empty\" draggable=\"false\"></div>";
       }
-      html += "</div>";
+      html += "</div></div></div><div class=\"page-group\"><div class=\"page-parking-label\">";
+      appendHtmlEscaped(html, tr.tile_type_settings);
+      html += "</div><div class=\"page-parking page-settings\">";
+    } else {
+      html += "<div class=\"settings-hidden-parking\">";
     }
     html += "<div id=\"settingsHiddenSlot\" class=\"tile-grid settings-hidden-slot";
     if (configManager.getConfig().tile_borders) html += " tiles-bordered";
@@ -966,6 +968,7 @@ static void appendTileTabHTML(
       html += "><i class=\"mdi mdi-tray-arrow-down tile-icon\"></i>";
     }
     html += "</div></div>";
+    if (page_slots) html += "</div></div>";
     // The classic layout: beside the slot its drop hint while it is empty,
     // and the tile editing hint the other grids show in their footer.
     if (!page_slots) {
@@ -2338,10 +2341,10 @@ String WebAdminServer::getAdminPage() {
 </head>
 <body>
 <div class="wrapper)html";
-  // Four-column devices keep their preview size on the wide page; the
-  // Settings slot moves beside it (admin.css .compact-grid). So does an
-  // upright layout's narrow preview (user 2026-10-11: "like the square ones").
-  if (GRID_COLS <= 4 || grid_layout::shown().cols <= 4) html += " compact-grid";
+  // Square and upright previews keep their size on the wide page; the
+  // Settings slot moves beside them (admin.css .compact-grid; user
+  // 2026-10-11: an upright layout "like the square ones").
+  if (previewSlotsBeside()) html += " compact-grid";
   html += R"html(">
 <div class="card">
 <div class="brand">
