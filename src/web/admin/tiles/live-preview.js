@@ -142,8 +142,7 @@
         sensorMetaCache.icons);
     }
 
-    tileElem.className = 'tile';
-    if (meta.css) tileElem.classList.add(meta.css);
+    resetTileClasses(tileElem, meta.css ? ['tile', meta.css] : ['tile']);
     if (type === '5') applySwitchPreviewLayout(tileElem, switchStyle, halfHeight);
     tileElem.style.background = '';
     delete tileElem.dataset.bgOpacity;

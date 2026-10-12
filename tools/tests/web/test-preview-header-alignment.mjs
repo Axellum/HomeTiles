@@ -16,7 +16,7 @@ const helpers = [
   'rgbToHex', 'applyTileAriaLabel',
   'resolveUnitValue', 'isScreensaverTileTab', 'getTileResizeHandlesHtml',
   'applyCompactSensorPreview', 'compactValueSize', 'syncCompactValueFontOptions', 'isCompactSensorType', 'isEditableValueType', 'editableCompactValueFont',
-  'syncEditableValueFontOptions', 'renderTileFromData', 'updateTilePreview',
+  'syncEditableValueFontOptions', 'renderTileFromData', 'updateTilePreview', 'resetTileClasses',
   'parseWeatherPreviewPayload', 'applyWeatherPreview', 'parseMediaPreviewPayload', 'applyMediaPreview', 'applyMediaCoverTint'
 ].map(extractDeliveredFunction).join('\n') + '\n' +
   // The preview's color constants, taken from the real source.

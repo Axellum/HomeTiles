@@ -55,6 +55,7 @@ const productionFunctions = [
   extractDeliveredFunction('isEditablePreview'),
   extractDeliveredFunction('editablePreviewText'),
   extractDeliveredFunction('updateTilePreview'),
+  extractDeliveredFunction('resetTileClasses'),
   extractDeliveredFunction('applyCompactSensorPreview'),
   extractDeliveredFunction('compactValueSize'),
   extractDeliveredFunction('syncCompactValueFontOptions'),

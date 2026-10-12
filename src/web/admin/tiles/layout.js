@@ -202,6 +202,18 @@
 
   }
 
+  // A render sets a tile's classes anew through here: the grid place's class
+  // (setTileGridPosition, the server's fractional-tile) stays. Without it a
+  // half-step tile was one grid cell until layoutTiles ran, and everything
+  // measured in between read that cell (user 2026-10-12: the V2's 2x1.5
+  // analog clock showed its 1x1 face at every page load and after every
+  // render).
+  function resetTileClasses(el, classes) {
+    const fractional = el.classList.contains('fractional-tile');
+    el.className = classes.join(' ');
+    if (fractional) el.classList.add('fractional-tile');
+  }
+
   function getTileElementLayout(tab, index) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return null;

@@ -6369,6 +6369,18 @@ async function saveGestureEdge(select) {
 
   }
 
+  // A render sets a tile's classes anew through here: the grid place's class
+  // (setTileGridPosition, the server's fractional-tile) stays. Without it a
+  // half-step tile was one grid cell until layoutTiles ran, and everything
+  // measured in between read that cell (user 2026-10-12: the V2's 2x1.5
+  // analog clock showed its 1x1 face at every page load and after every
+  // render).
+  function resetTileClasses(el, classes) {
+    const fractional = el.classList.contains('fractional-tile');
+    el.className = classes.join(' ');
+    if (fractional) el.classList.add('fractional-tile');
+  }
+
   function getTileElementLayout(tab, index) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return null;
@@ -7628,8 +7640,7 @@ async function saveGestureEdge(select) {
         sensorMetaCache.icons);
     }
 
-    tileElem.className = 'tile';
-    if (meta.css) tileElem.classList.add(meta.css);
+    resetTileClasses(tileElem, meta.css ? ['tile', meta.css] : ['tile']);
     if (type === '5') applySwitchPreviewLayout(tileElem, switchStyle, halfHeight);
     tileElem.style.background = '';
     delete tileElem.dataset.bgOpacity;
@@ -10138,13 +10149,7 @@ async function saveGestureEdge(select) {
     let cls = ['tile'];
     if (meta.css) cls.push(meta.css);
     if (typeValue === '0' && (!meta.css || meta.css !== 'empty')) cls.push('empty');
-    // The tile keeps its grid place (setTileGridPosition, the server's
-    // fractional-tile): without the class a half-step tile fell back to one
-    // grid cell until layoutTiles ran, and all it measured in between read
-    // that cell (user 2026-10-12: the V2's 2x1.5 analog clock showed its 1x1
-    // face at every page load and after every grid render).
-    if (el.classList.contains('fractional-tile')) cls.push('fractional-tile');
-    el.className = cls.join(' ');
+    resetTileClasses(el, cls);
     if (typeValue === '5') applySwitchPreviewLayout(el, tile.switch_style, Number(tile.span_h) === 0.5);
     el.dataset.type = typeValue;
     // Every circle shows, in its icon's color (user 2026-10-11: no circle options).
