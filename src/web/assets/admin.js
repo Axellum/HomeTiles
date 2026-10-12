@@ -12185,10 +12185,11 @@ async function saveGestureEdge(select) {
     if (el?.dataset.type === '4' && pageFolders().includes(Number(el.dataset.navigateTarget))) renderPageSlots();
   }
 
-  // Under a square preview the row shrinks alike to the editor column (user
-  // 2026-10-12: on the S3 the boxes slid under the settings panel).
+  // Beside an upright preview or under a square one the boxes shrink alike to
+  // the editor column (user 2026-10-12: on the S3 they slid under the
+  // settings panel; on 600 and 480 px wide upright panels they would too).
   function fitPageStack() {
-    const stack = document.querySelector('.compact-grid.page-slots-under .settings-hidden-parking.page-stack');
+    const stack = document.querySelector('.compact-grid .settings-hidden-parking.page-stack');
     const main = stack?.closest('.tile-editor-main');
     if (!stack || !main) return;
     stack.style.zoom = '';

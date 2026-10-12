@@ -247,7 +247,9 @@ assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout
 // 2026-10-12: on the S3 the boxes slid under the settings panel).
 assert.match(markup, /html \+= String\(pageSlotsUnder\(\) \? max_pages : 2\);/);
 assert.match(markup, /static bool pageSlotsUnder\(\) \{\s*return grid_layout::screen_w\(\) >= grid_layout::screen_h\(\);/);
-assert.match(read('src/web/admin/tiles/page-slots.js'), /function fitPageStack\(\) \{/);
+assert.match(read('src/web/admin/tiles/page-slots.js'),
+  /function fitPageStack\(\) \{\s*const stack = document\.querySelector\('\.compact-grid \.settings-hidden-parking\.page-stack'\);/,
+  'Beside an upright preview and under a square one the boxes fit the column');
 // Under a landscape preview Settings right of the pages, both smaller alike
 // to the preview's width (user 2026-10-12).
 assert.match(read('src/web/assets/admin.css'), /\.wrapper:not\(\.compact-grid\) \.settings-hidden-parking\.page-stack \{ flex-direction:row; zoom:var\(--slot-zoom, 1\); \}/);
