@@ -53,7 +53,6 @@ ${constant('CLOCK_HAND_COLORS')}
 ${escapes}
 ${constant('CLOCK_WIDTH_SAMPLE')}
 const fitCompactClockPreview = () => {};
-const layoutClockBigDatePreview = () => {};
 // Colors are not this test's subject: the panel roles and tones stubbed.
 const panelRoleHex = (name, fallback) => fallback;
 const panelRole = () => [255, 255, 255];

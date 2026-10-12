@@ -146,10 +146,10 @@ enum ClockStyle : uint8_t {
   STYLE_DIGITAL = 0,
   STYLE_ANALOG = 1,
   STYLE_WALL = 2,
-  // The day of the month large (clock/renderer.cpp render_clock_big_date).
-  STYLE_BIG_DATE = 3,
+  // 3 was the big date (b396-b402), removed (user 2026-10-12: buggy, not
+  // liked): such tiles show the digital clock.
 };
-constexpr uint8_t kStyleCount = 4;
+constexpr uint8_t kStyleCount = 3;
 constexpr uint8_t kDialColorCount = 6;
 constexpr uint8_t kHandColorCount = 4;
 

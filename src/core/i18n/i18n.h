@@ -785,8 +785,6 @@ struct Strings {
   const char* clock_color_gold;
   // Wall clock color: silver.
   const char* clock_color_silver;
-  // Clock style: the day of the month large with weekday, month and the time when shown.
-  const char* clock_style_big_date;
   // Text tile: the horizontal alignment select.
   const char* text_align_horizontal;
   // Text tile: the vertical alignment select.
@@ -799,6 +797,11 @@ struct Strings {
   const char* alignment_bottom;
   // Tile color: no card at all (Clock and Text, black stored).
   const char* tile_color_mode_transparent;
+  // A new panel's first page (new_panel_tiles.h): two folders and the
+  // welcome text.
+  const char* new_panel_lights;
+  const char* new_panel_climate;
+  const char* new_panel_welcome;
 };
 
 // Locale-specific display rules and short runtime strings shared by

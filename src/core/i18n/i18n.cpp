@@ -653,13 +653,15 @@ static const Strings kStringsDe = {
     "Terrakotta",
     "Gold",
     "Silber",
-    "Datum groß",
     "Waagerecht",
     "Senkrecht",
     "Oben",
     "Mitte",
     "Unten",
-    "Transparent"};
+    "Transparent",
+    "Licht",
+    "Klima",
+    "Willkommen"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1307,13 +1309,15 @@ static const Strings kStringsEn = {
     "Terracotta",
     "Gold",
     "Silver",
-    "Big date",
     "Horizontal",
     "Vertical",
     "Top",
     "Middle",
     "Bottom",
-    "Transparent"};
+    "Transparent",
+    "Lights",
+    "Climate",
+    "Welcome"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1961,13 +1965,15 @@ static const Strings kStringsFr = {
     "Terre cuite",
     "Or",
     "Argent",
-    "Grande date",
     "Horizontal",
     "Vertical",
     "En haut",
     "Milieu",
     "En bas",
-    "Transparent"};
+    "Transparent",
+    "Lumières",
+    "Climat",
+    "Bienvenue"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2978,14 +2984,15 @@ static const Strings kStringsPl = {
     "Terakota",
     "Złoty",
     "Srebrny",
-    "Duża data",
     "W poziomie",
     "W pionie",
     "Góra",
     "Środek",
     "Dół",
     "Przezroczysty",
-};
+    "Światła",
+    "Klimat",
+    "Witaj"};
 
 static const LocaleProfile kLocalePl = {
     "pl",

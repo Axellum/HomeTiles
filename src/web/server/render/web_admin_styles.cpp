@@ -224,7 +224,6 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   emit_device_px("clock-face-m-compact", tile_layout::scale(clock_face::kCompactMargin));
   emit_device_px("clock-face-gap", tile_layout::scale(clock_face::kCompactGap));
   emit_device_px("clock-face-header", tile_icon_disc::row_height());
-  emit_device_px("clock-bigdate-gap", tile_layout::scale(clock_face::kBigDateGap));
   // The screensaver tile shadow: LVGL blurs over the shadow width, CSS over
   // twice its blur radius.
   emit_scaled("screensaver-tile-shadow-blur", screensaver_tile_shadow::kWidth / 2.0f);

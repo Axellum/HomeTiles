@@ -11,6 +11,7 @@
 #include "src/network/link/link_config.h"
 #include "src/network/transport/network_transport.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/new_panel_tiles.h"
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/ui/ui_manager.h"
@@ -475,6 +476,8 @@ uint8_t locale_selected(LocaleList list) {
 void locale_selected_changed(LocaleList list, uint8_t index) {
   if (index >= locale_option_count(list)) return;
   DeviceConfig cfg = configManager.getConfig();
+  char language_before[sizeof(cfg.language)];
+  memcpy(language_before, cfg.language, sizeof(language_before));
   switch (list) {
     case LocaleList::Language:
       strncpy(cfg.language, i18n::language_code_at(index), sizeof(cfg.language) - 1);
@@ -499,6 +502,12 @@ void locale_selected_changed(LocaleList list, uint8_t index) {
     return;
   }
   if (list == LocaleList::Keyboard) return;
+  // During the first-start setup the new panel's default folder names and
+  // welcome text follow the language (new_panel_tiles.h); later the user's
+  // names stay.
+  if (list == LocaleList::Language && setup_step() >= 0) {
+    new_panel_tiles::follow_language(language_before, cfg.language);
+  }
   // As the former Save button did: texts, clock and tiles follow at once.
   if (list == LocaleList::Language) settings_refresh_language();
   if (list == LocaleList::TimeZone) uiManager.scheduleNtpSync(0);

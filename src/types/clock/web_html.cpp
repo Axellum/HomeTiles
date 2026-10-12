@@ -27,9 +27,6 @@ void append_clock_fields_html(String& html, const String& tab_id) {
                 <option value="2">)html";
   html += tr.clock_style_wall;
   html += R"html(</option>
-                <option value="3">)html";
-  html += tr.clock_style_big_date;
-  html += R"html(</option>
               </select>
               <div class="clock-wall-colors" id=")html";
   html += tab_id;

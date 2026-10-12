@@ -40,9 +40,6 @@ constexpr uint32_t kHandColors[kHandColorCount] = {0xC9A45C, 0xC3C7CC, 0x1A1A1A,
 constexpr int kTileMargin = 16;
 constexpr int kCompactMargin = 6;
 constexpr int kCompactGap = 6;
-// The big date's gap between the day number and its lines
-// (render_clock_big_date).
-constexpr int kBigDateGap = 12;
 
 // A face of `size` x `size` at (x, y) in `parent`, not clickable (a tap
 // reaches the tile). `small` keeps only the quarter dots. It owns its

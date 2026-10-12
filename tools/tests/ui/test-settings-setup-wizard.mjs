@@ -184,7 +184,7 @@ assert.match(prompt, /if \(settings_model::setup_step\(\) >= 0\) \{\s*settings_m
   'the pairing prompt opens the setup step, not System');
 // The sketch: defaults before the network starts, the setup after the UI is built.
 const load = sketch.indexOf('bool has_config = configManager.load();');
-const begins = sketch.indexOf('if (!has_config) has_config = settings_begin_new_panel();');
+const begins = sketch.indexOf('const bool new_panel = !has_config && settings_begin_new_panel();');
 const network = sketch.indexOf('networkManager.init();');
 assert.ok(load >= 0 && begins > load && network > begins, 'a new panel stores its defaults before the network starts');
 const rawSketch = readRepoFile('HomeTiles.ino');

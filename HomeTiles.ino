@@ -54,6 +54,7 @@
 #include "src/video/camera_transport.h"
 #include "src/network/secure/command_channel.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/new_panel_tiles.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/tiles/runtime/tile_update_service.h"
 #include "src/types/media/update_service.h"
@@ -778,7 +779,8 @@ void setup() {
   // A new panel stores its defaults and starts the first-start setup: its
   // network then starts like any configured one, so neither the setup's WiFi
   // search nor the Bridge link needs a restart.
-  if (!has_config) has_config = settings_begin_new_panel();
+  const bool new_panel = !has_config && settings_begin_new_panel();
+  if (!has_config) has_config = new_panel;
   // The shown tile grid of this boot (grid_layout.h): the layout's, or the
   // classic one while the stored layout cannot be shown yet. Before anything
   // builds or measures tiles.
@@ -791,6 +793,10 @@ void setup() {
                 grid_layout::shown().cell_w, grid_layout::shown().cell_h);
   haBridgeConfig.load();
   tileConfig.load();
+  // A new panel's first page (new_panel_tiles.h): the head bar layout with a
+  // clock, two folders and a welcome text, after the first load made its
+  // Home and the layout file.
+  if (new_panel) new_panel_tiles::seed();
   // An upright layout on a landscape panel: the screen turns before the
   // splash (Hochkant, grid_layout::switchable). After tileConfig.load(): a
   // layout without places falls back to the classic one there.

@@ -2778,11 +2778,6 @@
     .tile.clock .tile-clock-face-text > div { white-space:nowrap; }
     .tile.clock .tile-clock-face-text[hidden] { display:none; }
     .clock-wall-colors.hidden { display:none; }
-    /* The big date (renderer.cpp render_clock_big_date): lines placed in
-       device pixels by layoutClockBigDatePreview. */
-    .tile.clock .tile-clock-bigdate-line { position:absolute; white-space:nowrap; }
-    .tile.clock .tile-clock-bigdate-line[hidden] { display:none; }
-    .tile.clock .tile-clock-bigdate-text { position:relative; }
 
 /* Text tile (types/text/renderer.cpp): its own card padding, the title top
    left and the icon top right like the Clock, the text wrapped over the

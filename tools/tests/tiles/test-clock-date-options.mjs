@@ -117,7 +117,8 @@ if (output !== null) {
   // hands colors; unknown values drop to digital, slate and gold.
   assert.deepEqual(packs[String(0x2006)], [6, 0, 0, 0, 1, 0, 0, 0x2006], 'analog');
   assert.deepEqual(packs[String(0x4000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'wall clock');
-  assert.deepEqual(packs[String(0x6003)], [3, 0, 0, 0, 3, 0, 0, 0x6003], 'big date');
+  // The big date (3) was removed (user 2026-10-12): such tiles are digital.
+  assert.deepEqual(packs[String(0x6003)], [3, 0, 0, 0, 0, 0, 0, 3], 'the removed big date shows the digital clock');
   assert.deepEqual(packs[String(0x8003)], [3, 0, 0, 0, 0, 0, 0, 3], 'an unknown style drops');
   assert.deepEqual(packs[String(0x54000)], [0, 0, 0, 0, 2, 5, 0, 0x54000], 'terracotta dial');
   assert.deepEqual(packs[String(0x64000)], [0, 0, 0, 0, 2, 0, 0, 0x4000], 'an unknown dial drops');

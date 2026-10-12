@@ -1020,9 +1020,7 @@
         if ((flags & 2) || clockDate.weekday) clockLines += '<div class="tile-clock-date" ' + getClockPreviewTextStyle(clockDateFont, 20, panelRoleHex('text', '#fff')) + '>' + clockDigitsHtml(getClockPreviewDate(clockDate.format, clockDate.weekday, (flags & 2) !== 0)) + '</div>';
         // The analog and the wall clock: a face and the lines beside or below
         // it (layoutClockFacePreview, after the tile has its size).
-        // The big date: its own lines (layoutClockBigDatePreview).
-        if (clockDate.style === 3) html += clockBigDatePreviewHtml((flags & 1) !== 0, getClockPreviewTime(clockTimeFormat));
-        else html += clockDate.style ? '<svg class="tile-clock-face" data-options="' + Number(tile.sensor_gauge_max || 0) + '"></svg>'
+        html += clockDate.style ? '<svg class="tile-clock-face" data-options="' + Number(tile.sensor_gauge_max || 0) + '"></svg>'
           + '<div class="tile-clock-face-text">' + clockLines + '</div>' : clockLines;
       }
       if (previewKind === 'text') {
@@ -1078,7 +1076,6 @@
         fitCompactClockPreview(el);
         el.dataset.clockOptions = String(Number(tile.sensor_gauge_max || 0));
         layoutClockFacePreview(el);
-        layoutClockBigDatePreview(el);
       }
     }
     if (currentTileTab === tab && currentTileIndex === index) el.classList.add('active');
