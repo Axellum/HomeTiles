@@ -66,6 +66,7 @@ public:
   void handleGetLayouts();
   void handleSaveLayouts();
   void handleSwitchLayout();
+  void handleSavePages();
   void handleGetSensorValues();
   void handleGetEntityOptions();
   void handleGetMdiIcons();

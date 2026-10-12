@@ -121,7 +121,8 @@ const bar = read('src/ui/tabs/tiles/home_bar.cpp');
 assert.ok(bar.includes('if (configManager.getConfig().settings_pin_enabled) {') &&
   bar.includes('lv_obj_add_event_cb(glyph, gear_lock_event_cb, LV_EVENT_DRAW_POST, nullptr);') &&
   bar.includes('icon_lock_mark::draw(lv_event_get_layer(event), icon, icon_lock_mark::behind(button, under));'));
-assert.ok(server.includes('html += home && configManager.getConfig().settings_pin_enabled'));
+// Home and its pages (user 2026-10-12) have the gear.
+assert.ok(server.includes('html += home_level && configManager.getConfig().settings_pin_enabled'));
 assert.ok(between(access, '  function refreshSettingsTileLock(', '\n  }\n').includes(
   "if (locked) icon.insertAdjacentHTML('beforeend', PREVIEW_LOCK_MARK);"));
 

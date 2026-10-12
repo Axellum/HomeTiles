@@ -183,8 +183,15 @@ assert.match(indicator, /if \(ui\.head\) return;  \/\/ The circle has no fillets
 assert.match(indicator, /if \(with_pill && !ui\.head\) \{/, 'No pill texts on the circle');
 const bar = read('src/ui/tabs/tiles/home_bar.cpp');
 const circle = bar.slice(bar.indexOf('lv_obj_t* create_camera_circle('));
-assert.match(circle, /lv_obj_set_pos\(circle, \(grid_layout::screen_w\(\) - g\.disc\) \/ 2, g\.center_y - g\.disc \/ 2\);\s*lv_obj_set_size\(circle, g\.disc, g\.disc\);/,
-  'The page circle\'s size on the head\'s centre line, in the middle of the screen');
+assert.match(circle, /lv_obj_set_pos\(circle, camera_circle_x\(\), g\.center_y - g\.disc \/ 2\);\s*lv_obj_set_size\(circle, g\.disc, g\.disc\);/,
+  'The page circle\'s size on the head\'s centre line');
+// In the middle of the screen; with pages the dots hold the middle and the
+// circle sits before the time (user 2026-10-12), placed again on every
+// refresh because the time moves with the gear.
+const circleX = bar.slice(bar.indexOf('static int camera_circle_x()'), bar.indexOf('void place_camera_circle('));
+assert.match(circleX, /if \(!tile_layouts::pages\(pages\)\) return \(grid_layout::screen_w\(\) - g\.disc\) \/ 2;/);
+assert.match(circleX, /return \(gear_hidden \? g\.time_x_alone : g\.time_x\) - g\.disc \/ 5 - g\.disc;/);
+assert.match(indicator, /if \(ui\.head\) home_bar::place_camera_circle\(ui\.pill\);/);
 assert.match(circle, /lv_label_set_text\(icon, getMdiChar\("webcam"\)\.c_str\(\)\);/);
 // The page circle's grey with the red icon (user 2026-10-11: the full red
 // circle was too loud, "Grauer Kreis"): one tone for the Home circle and the

@@ -3808,6 +3808,12 @@ static void applyLayoutPlaces(uint16_t folder_id, TileGridConfig& grid) {
       tile.layout_hidden = tile_layouts::classic_hidden(folder_id, tile.view_id);
       continue;
     }
+    // A page's folder tile stays off Home: the page sits beside it.
+    if (folder_id == TileConfig::rootFolderId() && tile.type == TILE_FOLDER &&
+        tile_layouts::page_number(getNavigateTargetId(tile)) > 0) {
+      tile.layout_hidden = true;
+      continue;
+    }
     tile_layouts::Place place{};
     // Inside the shown grid (an upright one has more rows than the profile).
     const bool placed = tile.type != TILE_BACK &&

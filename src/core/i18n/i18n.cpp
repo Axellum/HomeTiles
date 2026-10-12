@@ -664,7 +664,12 @@ static const Strings kStringsDe = {
     "Klima",
     "Willkommen bei HomeTiles!",
     "Quer",
-    "Hochkant"};
+    "Hochkant",
+    "Seiten",
+    "Ordner hierher ziehen: Er wird eine Seite neben Home, am Panel nach links und rechts wischen. Zurück ins Raster ziehen macht ihn wieder zur Kachel.",
+    "Höchstens 6 Seiten",
+    "Dieser Ordner ist mit einer PIN gesperrt. Seiten haben keine PIN. Sperre entfernen und als Seite zeigen?",
+    "Seiten gespeichert"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1323,7 +1328,12 @@ static const Strings kStringsEn = {
     "Climate",
     "Welcome to HomeTiles!",
     "Landscape",
-    "Portrait"};
+    "Portrait",
+    "Pages",
+    "Drag a folder here: it becomes a page beside Home, swipe left and right on the panel. Drag it back onto the grid to make it a tile again.",
+    "At most 6 pages",
+    "This folder is locked with a PIN. Pages have no PIN. Remove the lock and show it as a page?",
+    "Pages saved"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1982,7 +1992,12 @@ static const Strings kStringsFr = {
     "Climat",
     "Bienvenue sur HomeTiles\u00A0!",
     "Paysage",
-    "Portrait"};
+    "Portrait",
+    "Pages",
+    "Glissez un dossier ici\u00A0: il devient une page à côté de l'accueil, balayez à gauche et à droite sur le panneau. Remettez-le dans la grille pour en refaire une tuile.",
+    "6 pages au maximum",
+    "Ce dossier est verrouillé par un code PIN. Les pages n'ont pas de code PIN. Supprimer le verrouillage et l'afficher comme page\u00A0?",
+    "Pages enregistrées"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -3007,7 +3022,12 @@ static const Strings kStringsPl = {
     "Klimat",
     "Witaj w HomeTiles!",
     "Poziomo",
-    "Pionowo"};
+    "Pionowo",
+    "Strony",
+    "Przeciągnij tu folder: stanie się stroną obok ekranu głównego, na panelu przesuwaj w lewo i w prawo. Przeciągnij go z powrotem na siatkę, aby znów był kafelkiem.",
+    "Maksymalnie 6 stron",
+    "Ten folder jest zablokowany kodem PIN. Strony nie mają kodu PIN. Usunąć blokadę i pokazać go jako stronę?",
+    "Zapisano strony"};
 
 static const LocaleProfile kLocalePl = {
     "pl",

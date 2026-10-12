@@ -37,6 +37,9 @@ public:
                            uint32_t icon_color = 0xFFFFFF);
   void lockProtectedAccess();
   void finishFolderSwitch(uint16_t folder_id, bool success);
+  // Home (0) or one of its pages (1.., tile_layouts::pages): the swipes and
+  // the page dots' preview open them.
+  void showPage(int number);
   void refreshSettingsGestureZone();
 
   // The theme (dark/light) applies while running, like the global tile
@@ -98,7 +101,9 @@ private:
   void syncSettingsGestureZone();
   void detachSettingsGesturePressedObject();
   void processSettingsGestureMotion(lv_indev_t *input, bool released);
+  void processPageSwipeMotion(lv_indev_t *input, bool released);
   void runSwipeAction(uint8_t action);
+  void turnPage(int step);
   static void settings_gesture_indev_event_cb(lv_event_t *e);
   static void settings_gesture_pressed_object_event_cb(lv_event_t *e);
   static bool verify_pending_access(const char* pin, void* context);

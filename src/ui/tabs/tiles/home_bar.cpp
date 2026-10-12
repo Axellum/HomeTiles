@@ -10,6 +10,7 @@
 #include "src/ui/shared/icon_lock_mark.h"
 #include "src/tiles/config/grid_layout.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/tile_layouts.h"
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/types/clock/clock_format.h"
 #include "src/ui/popups/popup_layout.h"
@@ -28,6 +29,8 @@ namespace {
 
 // Its address marks the bar among a grid's children (lv_obj user data).
 int g_marker = 0;
+// And the page dots' row inside a bar.
+int g_dots_marker = 0;
 
 // The time labels of every built bar (one per cached grid); the timer keeps
 // them current, a deleted bar takes its label out.
@@ -130,7 +133,64 @@ uint32_t head_base() { return ui_theme::light() ? ui_theme::screen() : tileDefau
 // circle beside it): the gear's grey one step from the head's base.
 settings_style::Tone page_circle_tone() { return settings_style::tone(head_base(), settings_style::kGearColor); }
 
+int dots_width(int count) {
+  const DotSizes d = dot_sizes();
+  return count * d.dot + (d.active - d.dot) + (count - 1) * d.gap;
+}
+
+lv_obj_t* find_dots(lv_obj_t* grid) {
+  if (!grid) return nullptr;
+  const uint32_t count = lv_obj_get_child_count(grid);
+  for (uint32_t i = 0; i < count; ++i) {
+    lv_obj_t* bar = lv_obj_get_child(grid, static_cast<int32_t>(i));
+    if (!is_bar(bar)) continue;
+    const uint32_t parts = lv_obj_get_child_count(bar);
+    for (uint32_t j = 0; j < parts; ++j) {
+      lv_obj_t* part = lv_obj_get_child(bar, static_cast<int32_t>(j));
+      if (lv_obj_get_user_data(part) == &g_dots_marker) return part;
+    }
+  }
+  return nullptr;
+}
+
+// The glide (user 2026-10-12: no sliding pages, the dot glides): the left
+// page's dot shrinks while the new one grows, the row keeps its width.
+struct Glide {
+  lv_obj_t* from;
+  lv_obj_t* to;
+};
+Glide g_glide{};
+void glide_step(void*, int32_t value) {
+  const DotSizes d = dot_sizes();
+  const int grow = (d.active - d.dot) * value / 256;
+  if (g_glide.from) lv_obj_set_width(g_glide.from, d.active - grow);
+  if (g_glide.to) lv_obj_set_width(g_glide.to, d.dot + grow);
+}
+void glide_done(lv_anim_t*) {
+  if (g_glide.from) lv_obj_set_style_bg_color(g_glide.from, lv_color_hex(dot_color(false)), 0);
+  g_glide = {};
+}
+void forget_glide(lv_event_t* event) {
+  lv_obj_t* dot = static_cast<lv_obj_t*>(lv_event_get_target(event));
+  if (g_glide.from != dot && g_glide.to != dot) return;
+  lv_anim_delete(&g_glide, glide_step);
+  g_glide = {};
+}
+
 }  // namespace
+
+// Sized by the screen's short side like the mockup (12, the active one 34,
+// on an 800 px side).
+DotSizes dot_sizes() {
+  const int side = grid_layout::screen_w() < grid_layout::screen_h() ? grid_layout::screen_w() : grid_layout::screen_h();
+  const int dot = (12 * side + 400) / 800;
+  return {dot, (34 * side + 400) / 800, dot};
+}
+
+uint32_t dot_color(bool active) {
+  if (active) return ui_theme::text();
+  return ui_theme::light() ? ui_theme::kLight.icon_unavailable : 0x5C5C5C;
+}
 
 // HH:MM in the panel's time format (12 hours without AM/PM, like a clock
 // face); dashes until the clock is set.
@@ -209,6 +269,10 @@ bool is_bar(const lv_obj_t* obj) { return obj && lv_obj_get_user_data(const_cast
 void build(lv_obj_t* grid, uint16_t folder_id) {
   if (!grid || !grid_layout::head_bar()) return;
   const bool home = folder_id == 0;  // the root folder (TileConfig)
+  // Home and its pages (tile_layouts::pages) are one level: the dots in the
+  // middle, the gear and the time on the right; a folder has its X instead.
+  const int page = tile_layouts::page_number(folder_id);
+  const bool home_level = home || page > 0;
   const DeviceConfig& config = configManager.getConfig();
   const i18n::Strings& tr = i18n::strings(config.language);
   const Geometry g = geometry();
@@ -245,7 +309,7 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   // the X's box.
   const int pressed = settings_style::kClosePressed;
   lv_obj_t* button = plain(bar);
-  const bool gear_hidden = home && !configManager.getConfig().head_gear;
+  const bool gear_hidden = home_level && !configManager.getConfig().head_gear;
   if (gear_hidden) lv_obj_add_flag(button, LV_OBJ_FLAG_HIDDEN);
   lv_obj_set_pos(button, g.close_x + (g.close - pressed) / 2, g.center_y - pressed / 2);
   lv_obj_set_size(button, pressed, pressed);
@@ -255,11 +319,11 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_style_bg_opa(button, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_ext_click_area(button, popup_layout::kCloseButtonClickArea + (g.close - pressed) / 2);
   lv_obj_t* glyph = lv_label_create(button);
-  lv_label_set_text(glyph, getMdiChar(home ? "cog" : "window-close").c_str());
+  lv_label_set_text(glyph, getMdiChar(home_level ? "cog" : "window-close").c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(glyph, FONT_MDI_ICONS, 0);
   lv_obj_set_style_text_color(glyph, lv_color_hex(ui_theme::text()), 0);
   lv_obj_center(glyph);
-  if (home) {
+  if (home_level) {
     lv_obj_add_event_cb(button, on_gear, LV_EVENT_CLICKED, nullptr);
     if (configManager.getConfig().settings_pin_enabled) {
       lv_obj_add_event_cb(glyph, gear_lock_event_cb, LV_EVENT_DRAW_POST, nullptr);
@@ -284,9 +348,36 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   remember_time_label(time_label);
   if (!g_time_timer) g_time_timer = lv_timer_create(time_tick, 5000, nullptr);
 
-  // Home or the folder's name, one line between the circle and the time.
+  // The dots in the middle of the head, Home's first.
+  int title_end = g.title_x + (gear_hidden ? g.title_w_alone : g.title_w);
+  if (page >= 0) {
+    uint16_t pages[tile_layouts::kMaxPages];
+    const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
+    const DotSizes d = dot_sizes();
+    const int row_x = (grid_layout::screen_w() - dots_width(count)) / 2;
+    lv_obj_t* dots = plain(bar);
+    lv_obj_set_user_data(dots, &g_dots_marker);
+    lv_obj_set_size(dots, dots_width(count), d.dot);
+    lv_obj_set_pos(dots, row_x, g.center_y - d.dot / 2);
+    lv_obj_set_flex_flow(dots, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(dots, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(dots, d.gap, 0);
+    for (int i = 0; i < count; ++i) {
+      lv_obj_t* dot = plain(dots);
+      lv_obj_set_size(dot, i == page ? d.active : d.dot, d.dot);
+      lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+      lv_obj_set_style_bg_color(dot, lv_color_hex(dot_color(i == page)), 0);
+      lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+      lv_obj_add_event_cb(dot, forget_glide, LV_EVENT_DELETE, nullptr);
+    }
+    // The title ends a gap before them.
+    if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
+  }
+
+  // Home or the folder's name, one line between the circle and the time
+  // (or the dots).
   const char* title_text = home ? tr.home : (folder && folder->name[0] ? folder->name : tr.home);
-  const int title_w = gear_hidden ? g.title_w_alone : g.title_w;
+  const int title_w = title_end > g.title_x ? title_end - g.title_x : 1;
   const lv_font_t* font = title_font(title_text, title_w);
   lv_obj_t* title = lv_label_create(bar);
   lv_obj_set_style_text_font(title, font, 0);
@@ -297,12 +388,59 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_pos(title, g.title_x, g.center_y - lv_font_get_line_height(font) / 2);
 }
 
+void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {
+  const int page = tile_layouts::page_number(folder_id);
+  const int from = tile_layouts::page_number(previous_folder_id);
+  if (page < 0 || from < 0 || from == page) return;
+  lv_obj_t* dots = find_dots(grid);
+  if (!dots || static_cast<uint32_t>(from) >= lv_obj_get_child_count(dots) ||
+      static_cast<uint32_t>(page) >= lv_obj_get_child_count(dots)) {
+    return;
+  }
+  lv_anim_delete(&g_glide, glide_step);
+  glide_done(nullptr);
+  g_glide = {lv_obj_get_child(dots, from), lv_obj_get_child(dots, page)};
+  // The left page's dot keeps the text color while it shrinks; the new one
+  // has it already, only the widths move.
+  const DotSizes d = dot_sizes();
+  lv_obj_set_style_bg_color(g_glide.from, lv_color_hex(dot_color(true)), 0);
+  lv_obj_set_width(g_glide.from, d.active);
+  lv_obj_set_width(g_glide.to, d.dot);
+  lv_anim_t anim;
+  lv_anim_init(&anim);
+  lv_anim_set_var(&anim, &g_glide);
+  lv_anim_set_exec_cb(&anim, glide_step);
+  lv_anim_set_values(&anim, 0, 256);
+  lv_anim_set_duration(&anim, 150);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
+  lv_anim_set_completed_cb(&anim, glide_done);
+  lv_anim_start(&anim);
+}
+
+// With pages the dots hold the middle: the camera circle sits before the
+// time (user 2026-10-12), which moves right on Home and its pages without
+// the gear.
+static int camera_circle_x() {
+  const Geometry g = geometry();
+  uint16_t pages[tile_layouts::kMaxPages];
+  if (!tile_layouts::pages(pages)) return (grid_layout::screen_w() - g.disc) / 2;
+  const bool gear_hidden = tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
+                           !configManager.getConfig().head_gear;
+  return (gear_hidden ? g.time_x_alone : g.time_x) - g.disc / 5 - g.disc;
+}
+
+void place_camera_circle(lv_obj_t* circle) {
+  if (!circle) return;
+  const Geometry g = geometry();
+  lv_obj_set_pos(circle, camera_circle_x(), g.center_y - g.disc / 2);
+}
+
 lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color) {
   const Geometry g = geometry();
   lv_obj_t* circle = lv_button_create(parent);
   lv_obj_remove_style_all(circle);
   lv_obj_remove_flag(circle, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_pos(circle, (grid_layout::screen_w() - g.disc) / 2, g.center_y - g.disc / 2);
+  lv_obj_set_pos(circle, camera_circle_x(), g.center_y - g.disc / 2);
   lv_obj_set_size(circle, g.disc, g.disc);
   lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_opa(circle, LV_OPA_COVER, 0);

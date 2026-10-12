@@ -5,6 +5,7 @@
 #include "src/core/power/power_manager.h"
 #include "src/core/display/lvgl_tick_service.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/tile_layouts.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
@@ -282,6 +283,18 @@ static void schedule_navigation_preload(
     uint16_t source_folder_id, const TileGridConfig& config,
     uint32_t initial_delay_ms = kNavigationPreloadIdleMs) {
   clear_navigation_preload_plan();
+
+  // Home and its pages: the pages beside it come first, so a swipe shows
+  // them at once (user 2026-10-12).
+  const int page = grid_layout::head_bar() ? tile_layouts::page_number(source_folder_id) : -1;
+  if (page >= 0) {
+    uint16_t pages[tile_layouts::kMaxPages];
+    const int count = static_cast<int>(tile_layouts::pages(pages));
+    for (const int neighbour : {page + 1, page - 1}) {
+      if (neighbour < 0 || neighbour > count) continue;
+      navigation_preload_add_target(source_folder_id, neighbour == 0 ? TileConfig::rootFolderId() : pages[neighbour - 1]);
+    }
+  }
 
   // Back is always the most useful warm target and is admitted before normal
   // folder buttons even if it appears later in the grid layout.
@@ -2300,6 +2313,7 @@ void tiles_process_reload_requests() {
           lv_obj_add_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
+        home_bar::shown(target->grid, folder_id, previous ? previous->folder_id : kInvalidFolderId);
         // The regular path is followed by the normal LVGL refresh. The
         // post-input fast path refreshes once after this function returns, so
         // never nest a full-screen refresh inside the cache transaction.
@@ -2347,6 +2361,7 @@ void tiles_process_reload_requests() {
           lv_obj_add_flag(previous->grid, LV_OBJ_FLAG_HIDDEN);
         }
         lv_obj_clear_flag(target->grid, LV_OBJ_FLAG_HIDDEN);
+        home_bar::shown(target->grid, folder_id, previous ? previous->folder_id : kInvalidFolderId);
         lv_obj_invalidate(target->grid);
         target->last_used_ms = millis();
         schedule_preview_load(GridType::TAB0);

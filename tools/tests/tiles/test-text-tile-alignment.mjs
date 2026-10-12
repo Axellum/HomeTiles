@@ -51,7 +51,8 @@ for (const [table, words] of Object.entries({kStringsEn: ['"Horizontal"', '"Vert
   kStringsPl: ['"W poziomie"', '"W pionie"', '"Góra"', '"Środek"', '"Dół"']})) {
   const start = i18n.indexOf(`static const Strings ${table} = {`);
   const body = i18n.slice(start, i18n.indexOf('};', start));
-  const tail = body.slice(-400);
+  // Near the table's end (the page texts, b413, came after them).
+  const tail = body.slice(-1400);
   for (const word of words) assert.ok(tail.includes(word), `${table} ${word}`);
 }
 

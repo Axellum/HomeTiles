@@ -30,6 +30,8 @@ struct Entry {
 };
 
 std::vector<Entry, PsramAllocator<Entry>> g_entries;
+uint16_t g_pages[kMaxPages] = {};
+size_t g_page_count = 0;
 // Changes not written yet; the generation tells a change made while the file
 // was being written.
 bool g_dirty = false;
@@ -87,6 +89,21 @@ Layout layout_from_key(const char* key) {
                                       : Layout::kClassic;
 }
 
+// Under the lock: the first kMaxPages folders, each once, never Home.
+bool store_pages_locked(const uint16_t* folders, size_t count) {
+  uint16_t wanted[kMaxPages] = {};
+  size_t wanted_count = 0;
+  for (size_t i = 0; i < count && wanted_count < kMaxPages; ++i) {
+    const uint16_t folder = folders[i];
+    if (!folder || std::find(wanted, wanted + wanted_count, folder) != wanted + wanted_count) continue;
+    wanted[wanted_count++] = folder;
+  }
+  if (wanted_count == g_page_count && std::equal(wanted, wanted + wanted_count, g_pages)) return false;
+  std::copy(wanted, wanted + kMaxPages, g_pages);
+  g_page_count = wanted_count;
+  return true;
+}
+
 }  // namespace
 
 void begin() {
@@ -127,8 +144,15 @@ void begin() {
       g_entries.push_back({folder_id, view.as<uint16_t>(), static_cast<uint8_t>(Layout::kClassic), 0, 0, 0, 0});
     }
   }
+  uint16_t pages_read[kMaxPages] = {};
+  size_t pages_count = 0;
+  for (JsonVariantConst folder : doc["pages"].as<JsonArrayConst>()) {
+    if (pages_count < kMaxPages) pages_read[pages_count++] = folder.as<uint16_t>();
+  }
+  store_pages_locked(pages_read, pages_count);
   g_dirty = false;
-  Serial.printf("[Layouts] %u places loaded\n", static_cast<unsigned>(g_entries.size()));
+  Serial.printf("[Layouts] %u places, %u pages loaded\n", static_cast<unsigned>(g_entries.size()),
+                static_cast<unsigned>(g_page_count));
 }
 
 bool find(Layout layout, uint16_t folder_id, uint16_t view_id, Place& out) {
@@ -228,14 +252,46 @@ void retain(uint16_t folder_id, const std::vector<uint16_t>& views) {
 void drop_folder(uint16_t folder_id) {
   Guard guard;
   erase_if_locked([](const Entry& entry, uint16_t folder, uint16_t) { return entry.folder == folder; }, folder_id, 0);
+  // A deleted page leaves the dots.
+  uint16_t kept[kMaxPages] = {};
+  size_t kept_count = 0;
+  for (size_t i = 0; i < g_page_count; ++i) {
+    if (g_pages[i] != folder_id) kept[kept_count++] = g_pages[i];
+  }
+  if (store_pages_locked(kept, kept_count)) touch();
+}
+
+size_t pages(uint16_t out[kMaxPages]) {
+  Guard guard;
+  std::copy(g_pages, g_pages + kMaxPages, out);
+  return g_page_count;
+}
+
+int page_number(uint16_t folder_id) {
+  Guard guard;
+  if (!g_page_count) return -1;
+  if (folder_id == 0) return 0;
+  for (size_t i = 0; i < g_page_count; ++i) {
+    if (g_pages[i] == folder_id) return static_cast<int>(i) + 1;
+  }
+  return -1;
+}
+
+void set_pages(const uint16_t* folders, size_t count) {
+  Guard guard;
+  if (store_pages_locked(folders, count)) touch();
 }
 
 void append_json(String& out) {
   // Grouped by layout and folder for the file and the Web Admin.
   std::vector<Entry, PsramAllocator<Entry>> sorted;
+  uint16_t page_list[kMaxPages] = {};
+  size_t page_count = 0;
   {
     Guard guard;
     sorted = g_entries;
+    std::copy(g_pages, g_pages + kMaxPages, page_list);
+    page_count = g_page_count;
   }
   std::sort(sorted.begin(), sorted.end(), [](const Entry& a, const Entry& b) {
     if (a.layout != b.layout) return a.layout < b.layout;
@@ -287,7 +343,12 @@ void append_json(String& out) {
     if (folder >= 0) out += "}";
     out += "}";
   }
-  out += "}";
+  out += ",\"pages\":[";
+  for (size_t i = 0; i < page_count; ++i) {
+    if (i) out += ",";
+    out += String(page_list[i]);
+  }
+  out += "]}";
 }
 
 bool commit() {

@@ -20,6 +20,7 @@
 #include "src/web/server/assets/web_admin_fonts.h"
 #include "src/web/server/handlers/web_admin_tile_helpers.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/tile_layouts.h"
 #include "src/types/types_registry.h"
 #include "src/core/diagnostics/crash_log.h"
 #include "src/core/firmware/firmware_version.h"
@@ -442,7 +443,33 @@ static void appendTileTabHTML(
   html += R"html(">
 <div class="tile-editor">
 <div class="tile-editor-main">
-<div class="tile-grid-scroll">
+)html";
+  // The page slots above Home (head bar layouts, user 2026-10-12): six
+  // cells like the Settings parking slot; page-slots.js fills them from the
+  // Home grid's folder tiles and saves them through /api/pages.
+  if (!screensaver_mode && folder_id == 0 && grid_layout::head_bar()) {
+    uint16_t pages[tile_layouts::kMaxPages];
+    const size_t count = tile_layouts::pages(pages);
+    html += "<div class=\"page-slots-row\"><div class=\"page-slots-hint\"><strong>";
+    appendHtmlEscaped(html, tr.pages_title);
+    html += "</strong> ";
+    appendHtmlEscaped(html, tr.pages_hint);
+    // Not a .tile-grid with .tile children: the editor finds Home's grid and
+    // its tiles by those classes.
+    html += "</div><div id=\"pageSlots\" class=\"page-slots";
+    if (configManager.getConfig().tile_borders) html += " tiles-bordered";
+    html += "\" data-pages=\"";
+    for (size_t i = 0; i < count; ++i) {
+      if (i) html += ",";
+      html += String(pages[i]);
+    }
+    html += "\">";
+    for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
+      html += "<div class=\"page-slot empty\" draggable=\"false\"><i class=\"mdi mdi-tray-arrow-down\"></i></div>";
+    }
+    html += "</div></div>\n";
+  }
+  html += R"html(<div class="tile-grid-scroll">
 <!-- Grid Preview -->
 <div class="tile-grid)html";
   if (screensaver_mode) {
@@ -462,6 +489,9 @@ static void appendTileTabHTML(
     // page's circle and title, the time, and the gear (Home) or the X.
     // Hidden without a bar layout; the layout window shows it.
     const bool home = folder_id == 0;  // the root folder (TileConfig)
+    // Home and its pages: the dots in the middle and the gear (home_bar.cpp).
+    const int page = tile_layouts::page_number(folder_id);
+    const bool home_level = home || page > 0;
     const String icon = home ? String("home")
                              : normalizeMdiIconName(folder.icon_name[0] ? String(folder.icon_name) : String("folder"));
     char time_text[8];
@@ -469,11 +499,22 @@ static void appendTileTabHTML(
     const uint8_t time_format = clock_tile::resolve_time_format(
         clock_tile::TIME_FORMAT_AUTO, configManager.getConfig().global_time_format,
         configManager.getConfig().language);
-    html += "<div class=\"head-bar-preview\" aria-hidden=\"true\"><span class=\"head-disc\"><i class=\"mdi mdi-";
+    uint16_t pages[tile_layouts::kMaxPages];
+    const size_t page_count = tile_layouts::pages(pages);
+    // With pages the dots' count sizes the title (admin.css .has-dots).
+    html += "<div class=\"head-bar-preview";
+    if (page >= 0) html += " has-dots\" style=\"--head-dots-n:" + String(page_count + 1);
+    html += "\" aria-hidden=\"true\"><span class=\"head-disc\"><i class=\"mdi mdi-";
     appendHtmlEscaped(html, icon);
     html += "\"></i></span><span class=\"head-title\">";
     appendHtmlEscaped(html, home || !folder.name[0] ? String(tr.home) : String(folder.name));
-    html += "</span><span class=\"head-time\" data-hour12=\"";
+    html += "</span>";
+    if (page >= 0) {
+      html += "<span class=\"head-dots\">";
+      for (int i = 0; i <= static_cast<int>(page_count); ++i) html += i == page ? "<i class=\"on\"></i>" : "<i></i>";
+      html += "</span>";
+    }
+    html += "<span class=\"head-time\" data-hour12=\"";
     html += time_format == clock_tile::TIME_FORMAT_12H ? "1" : "0";
     html += "\">";
     // Fixed-width digits like the panel's head (tabular_digits, .tnum).
@@ -486,13 +527,14 @@ static void appendTileTabHTML(
         html += *c;
       }
     }
-    // The gear on Home only when chosen (Settings tile option).
-    html += home ? (configManager.getConfig().head_gear ? "</span><span class=\"head-button head-gear\"><i class=\"mdi mdi-"
-                                                        : "</span><span class=\"head-button head-gear is-off\"><i class=\"mdi mdi-")
-                 : "</span><span class=\"head-button\"><i class=\"mdi mdi-";
-    html += home ? "cog" : "window-close";
+    // The gear on Home and its pages only when chosen (Settings tile option).
+    html += home_level ? (configManager.getConfig().head_gear
+                              ? "</span><span class=\"head-button head-gear\"><i class=\"mdi mdi-"
+                              : "</span><span class=\"head-button head-gear is-off\"><i class=\"mdi mdi-")
+                       : "</span><span class=\"head-button\"><i class=\"mdi mdi-";
+    html += home_level ? "cog" : "window-close";
     // A Settings PIN: the gear's lock like the Settings tile's.
-    html += home && configManager.getConfig().settings_pin_enabled
+    html += home_level && configManager.getConfig().settings_pin_enabled
                 ? "\"><span class=\"tile-icon-lock mdi mdi-lock\" aria-hidden=\"true\"></span></i></span></div>\n"
                 : "\"></i></span></div>\n";
   }

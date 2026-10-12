@@ -20,7 +20,7 @@ const owners = {
     'Restart', 'LinkSetup', 'SaveTileBorders', 'SaveHeadGear', 'SaveTheme', 'Gestures'],
   'web_admin_tiles.cpp': ['GetTiles', 'SaveTiles', 'ReorderTiles', 'GetSensorValues',
     'GetEntityOptions', 'GetMdiIcons', 'StartEntitySearch', 'GetEntitySearch', 'GetFolders', 'GetFolderTab', 'SaveFolderAccess', 'DeleteFolder',
-    'GetLayouts', 'SaveLayouts', 'SwitchLayout'],
+    'GetLayouts', 'SaveLayouts', 'SwitchLayout', 'SavePages'],
   'web_admin_screensaver.cpp': ['GetScreensaver', 'SaveScreensaver', 'GetScreensaverWallpaper'],
   'web_admin_files.cpp': ['GetSdImages', 'GetSdIcons', 'UploadIcon', 'UploadIconDone',
     'FileManagerList', 'FileManagerDownload', 'FileManagerDelete', 'FileManagerRename',

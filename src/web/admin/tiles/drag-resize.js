@@ -305,6 +305,12 @@
       dragSource.hiddenTarget = valid ? candidate : null;
       return;
     }
+    // A page taken out of the slots (page-slots.js) onto Home's grid.
+    if (dragSource.kind === 'page-slot') {
+      const candidate = {col: targetCol, row: targetRow, span_w: 1, span_h: 1};
+      ensureDragPlaceholder(tab)?.classList.toggle('invalid', !canPlacePageTile(candidate));
+      return;
+    }
 
     if (targetCol === sourceLayout.col && targetRow === sourceLayout.row) {
       dragSource.previewKey = targetCol + ':' + targetRow;
@@ -356,6 +362,15 @@
       }
       dragSource.dropCommitted = true;
       restoreHiddenSettingsTile(candidate.col, candidate.row);
+      return;
+    }
+    if (dragSource.kind === 'page-slot') {
+      const candidate = {col: targetCol, row: targetRow, span_w: 1, span_h: 1};
+      if (!fits || !canPlacePageTile(candidate)) {
+        showNotification(t('tileDoesNotFit'), false);
+        return;
+      }
+      dropPageOnGrid(candidate);
       return;
     }
 

@@ -190,6 +190,8 @@
     const screensaverTab = document.getElementById('tab-tiles-screensaver');
     networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
     syncFolderFragmentWithRoot(tabEl);
+    // Markup kept from before a page change shows the pages as they are now.
+    syncPageHeads();
     associateFieldLabels(tabEl);
 
     initTileTabs();

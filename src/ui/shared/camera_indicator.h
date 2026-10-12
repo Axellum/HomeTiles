@@ -428,6 +428,7 @@ inline void refresh(Objects& ui) {
     ui.light = light;
     home_bar::color_camera_circle(ui.pill, kRed);
   }
+  if (ui.head) home_bar::place_camera_circle(ui.pill);
   updateShape(ui);
   keepOnTop(ui);
 }

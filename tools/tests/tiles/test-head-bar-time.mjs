@@ -39,9 +39,13 @@ assert.match(bar, /const int top_gap = g\.center_y - g\.time_line \/ 2 \+ ink_to
 assert.match(bar, /g\.time_x_alone = grid_layout::screen_w\(\) - top_gap \+ right_bearing - g\.time_w;/);
 assert.match(styles, /emit_scaled\("head-time-x-alone", head\.time_x_alone\);/);
 assert.match(bar, /g\.title_w_alone = g\.title_w \+ g\.time_x_alone - g\.time_x;/);
-assert.match(bar, /const bool gear_hidden = home && !configManager\.getConfig\(\)\.head_gear;/);
+// Home and its pages (user 2026-10-12) are one level: both have the gear.
+assert.match(bar, /const bool home_level = home \|\| page > 0;/);
+assert.match(bar, /const bool gear_hidden = home_level && !configManager\.getConfig\(\)\.head_gear;/);
 assert.match(bar, /lv_obj_set_pos\(time_label, gear_hidden \? g\.time_x_alone : g\.time_x,/);
-assert.match(bar, /const int title_w = gear_hidden \? g\.title_w_alone : g\.title_w;/);
+// The title ends before the time, or before the page dots.
+assert.match(bar, /int title_end = g\.title_x \+ \(gear_hidden \? g\.title_w_alone : g\.title_w\);/);
+assert.match(bar, /if \(row_x - g\.disc \/ 5 < title_end\) title_end = row_x - g\.disc \/ 5;/);
 
 // The preview: the same font and place (the gear's is-off follows the
 // Settings tile option live).

@@ -188,6 +188,8 @@ bool WebAdminServer::start() {
               guarded(withStorageHold([this]() { this->handleSaveLayouts(); })));
     server.on("/api/layouts/active", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSwitchLayout(); })));
+    server.on("/api/pages", HTTP_POST,
+              guarded(withStorageHold([this]() { this->handleSavePages(); })));
     server.on("/api/sensor_values", HTTP_GET,
               guarded([this]() { this->handleGetSensorValues(); }));
     server.on("/api/entity_options", HTTP_GET,

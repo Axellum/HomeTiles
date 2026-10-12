@@ -20,6 +20,7 @@
 #include "src/devices/device_select.h"
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/tiles/config/tile_layouts.h"
 #include "src/network/mqtt/mqtt_handlers.h"
 #include "src/network/transport/network_transport.h"
 #include "src/fonts/ui_fonts.h"
@@ -535,6 +536,8 @@ void UIManager::switchToFolder(uint16_t folder_id) {
 static constexpr uint8_t kSettingsTab = 3;
 static constexpr int kSettingsGestureCaptureWidth = popup_layout::scale(56);
 static constexpr int kSettingsGestureThreshold = popup_layout::scale(48);
+// An armed swipe inside the screen that turns the page (no edge action).
+static constexpr uint8_t kPageSwipe = 0xFE;
 
 // The PIN popup before Settings looks the same from the Settings tile, the
 // head's gear and the swipe (user 2026-10-08): the global tile color, the
@@ -702,6 +705,32 @@ void UIManager::detachSettingsGesturePressedObject() {
   access_gesture_pressed_object = nullptr;
 }
 
+// Left and right inside the screen turn the page (user 2026-10-12); a drag
+// that goes rather up or down never does. Armed like an edge swipe.
+void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
+  lv_point_t current{};
+  lv_indev_get_point(input, &current);
+  const int32_t dx = current.x - access_gesture_start.x;
+  const int32_t dy = current.y - access_gesture_start.y;
+  const int32_t abs_dx = dx < 0 ? -dx : dx;
+  const int32_t abs_dy = dy < 0 ? -dy : dy;
+  const bool same_tab = active_tab_index == access_gesture_tab;
+  if (!same_tab || abs_dx < kSettingsGestureThreshold || abs_dx <= abs_dy) {
+    if (released || !same_tab) {
+      access_gesture_eligible = false;
+      detachSettingsGesturePressedObject();
+    }
+    return;
+  }
+  access_gesture_triggered = true;
+  access_gesture_eligible = false;
+  detachSettingsGesturePressedObject();
+  // No tap on the tile the swipe started on.
+  if (!released) lv_indev_wait_release(input);
+  lv_indev_reset(input, nullptr);
+  turnPage(dx < 0 ? 1 : -1);
+}
+
 void UIManager::processSettingsGestureMotion(lv_indev_t* input,
                                              bool released) {
   if (!input || !access_gesture_eligible || access_gesture_triggered) {
@@ -709,6 +738,11 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
       access_gesture_eligible = false;
       detachSettingsGesturePressedObject();
     }
+    return;
+  }
+
+  if (access_gesture_action == kPageSwipe) {
+    processPageSwipeMotion(input, released);
     return;
   }
 
@@ -800,6 +834,29 @@ void UIManager::runSwipeAction(uint8_t action) {
                 static_cast<unsigned>(access_gesture_edge));
 }
 
+void UIManager::turnPage(int step) {
+  const int page = tile_layouts::page_number(tileConfig.getActiveFolderId());
+  if (page >= 0) showPage(page + step);
+}
+
+void UIManager::showPage(int number) {
+  uint16_t pages[tile_layouts::kMaxPages];
+  const int count = static_cast<int>(tile_layouts::pages(pages));
+  if (number < 0 || number > count) return;
+  const uint16_t folder_id = number == 0 ? TileConfig::rootFolderId() : pages[number - 1];
+  if (folder_id == tileConfig.getActiveFolderId()) return;
+  Serial.printf("[Pages] page %d (folder %u)\n", number, static_cast<unsigned>(folder_id));
+  if (number == 0) {
+    switchToFolder(folder_id);
+    return;
+  }
+  const FolderEntry* folder = tileConfig.getFolder(folder_id);
+  if (!folder) return;
+  // Pages have no PIN (the Web Admin removes it); one set anyway still asks.
+  tile_icon_source::open_popup_without_tile();
+  requestFolderAccess(folder_id, folder->name, folder->icon_name);
+}
+
 void UIManager::settings_gesture_pressed_object_event_cb(lv_event_t* event) {
   UIManager* self = static_cast<UIManager*>(lv_event_get_user_data(event));
   if (!self) return;
@@ -869,9 +926,24 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
         edge = candidate;
       }
     }
-    if (edge == swipe_gestures::kEdgeOff) return;
-    self->access_gesture_edge = edge;
-    self->access_gesture_action = actions[edge];
+    if (edge != swipe_gestures::kEdgeOff) {
+      self->access_gesture_edge = edge;
+      self->access_gesture_action = actions[edge];
+    } else {
+      // Inside the screen on Home or one of its pages: a swipe turns the
+      // page, except on a control that drags itself (it keeps its gestures,
+      // like the level bar of a dimmer or a cover).
+      if (tab != 0 || !grid_layout::head_bar() ||
+          tile_layouts::page_number(tileConfig.getActiveFolderId()) < 0) {
+        return;
+      }
+      for (lv_obj_t* object = pressed_object; object && object != self->tab_panels[tab];
+           object = lv_obj_get_parent(object)) {
+        if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) return;
+      }
+      self->access_gesture_edge = swipe_gestures::kEdgeOff;
+      self->access_gesture_action = kPageSwipe;
+    }
     self->access_gesture_tab = tab;
     self->access_gesture_start = point;
     self->access_gesture_eligible = true;

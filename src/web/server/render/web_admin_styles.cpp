@@ -555,10 +555,24 @@ static void appendHeadBarVars(String& html) {
   emit_scaled("head-time-font", 32);
 #endif
   emit_scaled("head-icon", kPreviewIconSize);
-  char color[40];
-  snprintf(color, sizeof(color), "--head-disc-color:#%06X;",
+  // The page dots (home_bar::dot_sizes, dot_color).
+  const home_bar::DotSizes dots = home_bar::dot_sizes();
+  emit_scaled("head-dot", dots.dot);
+  emit_scaled("head-dot-active", dots.active);
+  emit_scaled("head-dot-gap", dots.gap);
+  char color[96];
+  snprintf(color, sizeof(color), "--head-disc-color:#%06X;--head-dot-on:#%06X;--head-dot-off:#%06X;",
            static_cast<unsigned>(settings_style::tone(ui_theme::light() ? ui_theme::screen() : tileDefaultBgColor(),
-                                                      settings_style::kGearColor).disc));
+                                                      settings_style::kGearColor).disc),
+           static_cast<unsigned>(home_bar::dot_color(true)), static_cast<unsigned>(home_bar::dot_color(false)));
   html += color;
+  // The six page slots above Home are as wide as the preview at most: one
+  // cell each, smaller on a grid with fewer columns.
+  const float cols = grid_layout::shown().cols;
+  float slot_scale = (cols * GRID_CELL_W + (cols - 6) * GRID_GAP) / (6.0f * GRID_CELL_W);
+  if (slot_scale > 1) slot_scale = 1;
+  char slots[48];
+  snprintf(slots, sizeof(slots), "--page-slot-scale:%.4f;", static_cast<double>(slot_scale));
+  html += slots;
   html += "}</style>\n";
 }

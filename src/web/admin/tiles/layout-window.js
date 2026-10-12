@@ -20,8 +20,13 @@
   function layoutUsed(tile) { return !!tile && Number(tile.type || 0) !== 0; }
   function layoutNavType(type) { return [7, 8].includes(Number(type)); }
   // The bar layouts' head has the X: no Back tile there. The Settings tile
-  // is a tile like any other (user 2026-10-08).
-  function layoutBarHidden(type) { return Number(type) === 8; }
+  // is a tile like any other (user 2026-10-08). A page's folder tile is not
+  // on Home there either (/api/layouts "pages", user 2026-10-12).
+  function layoutBarHidden(tile, tab) {
+    if (Number(tile.type) === 8) return true;
+    return Number(tile.type) === 4 && layoutFolderId(tab) === '0' &&
+      (layoutWindow?.data?.places?.pages || []).map(Number).includes(Number(tile.navigate_target));
+  }
   // Tiles that must be reached in every layout, so never in its storage:
   // folders, and the Settings tile (user 2026-10-12: always to be tapped;
   // whoever wants it gone parks it, independent of the gear in the head).
@@ -239,7 +244,7 @@
         if (layoutUsed(p) && layoutInside(p, from)) {
           Object.assign(tile, {col: p.col, row: p.row + shift, span_w: p.span_w, span_h: p.span_h});
           delete tile._unplaced;
-        } else if (!layoutBarHidden(tile.type)) {
+        } else if (!layoutBarHidden(tile, tab)) {
           // Back keeps its classic place, here in this layout's columns.
           // Not on that screen: into this layout's storage too. Back keeps
           // its classic place.
@@ -247,7 +252,7 @@
         }
       });
     }
-    return layoutSettle(key, L.bar ? tiles.map(tile => (layoutUsed(tile) && layoutBarHidden(tile.type)
+    return layoutSettle(key, L.bar ? tiles.map(tile => (layoutUsed(tile) && layoutBarHidden(tile, tab)
       ? layoutEmptyTile() : tile)) : tiles);
   }
 
@@ -272,7 +277,7 @@
     if (!places) return takeoverTiles(tab, key, 'classic');
     return layoutSettle(key, layoutBase(tab).map(tile => {
       if (!layoutUsed(tile)) return tile;
-      if (layoutBarHidden(tile.type)) return layoutEmptyTile();
+      if (layoutBarHidden(tile, tab)) return layoutEmptyTile();
       const p = places[tile.view_id];
       if (p) {
         Object.assign(tile, {col: p[0], row: p[1], span_w: p[2], span_h: p[3]});
@@ -737,7 +742,7 @@
     for (const tab of layoutTabs()) {
       const places = folders[layoutFolderId(tab)] = {};
       getTilesData(tab).forEach(tile => {
-        if (!layoutUsed(tile) || !tile.view_id || (key !== 'classic' && layoutBarHidden(tile.type))) return;
+        if (!layoutUsed(tile) || !tile.view_id || (key !== 'classic' && layoutBarHidden(tile, tab))) return;
         places[tile.view_id] = [tile.col, tile.row, tile.span_w, tile.span_h];
       });
     }

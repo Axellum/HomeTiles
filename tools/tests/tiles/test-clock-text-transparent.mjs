@@ -30,7 +30,8 @@ const i18n = read('src/core/i18n/i18n.cpp');
 for (const [table, word] of [['kStringsEn', '"Transparent"'], ['kStringsDe', '"Transparent"'], ['kStringsFr', '"Transparent"'],
   ['kStringsPl', '"Przezroczysty"']]) {
   const start = i18n.indexOf(`static const Strings ${table} = {`);
-  assert.ok(i18n.slice(start, i18n.indexOf('};', start)).slice(-300).includes(word), `${table} ${word}`);
+  // Near the table's end (the page texts, b413, came after it).
+  assert.ok(i18n.slice(start, i18n.indexOf('};', start)).slice(-1100).includes(word), `${table} ${word}`);
 }
 
 // New Clocks and Texts: Transparent, no frame line.

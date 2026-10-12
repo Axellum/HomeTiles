@@ -38,15 +38,34 @@ const lv_font_t* time_font();
 // HH:MM in the panel's time format; dashes until the clock is set.
 void format_time(char* out, size_t size);
 
+// The page dots (user 2026-10-12, mockup build/design-mockups/pages): their
+// size, the active one's width and the gap; the active one in the text
+// color, the others light grey. The Web Admin preview draws the same.
+struct DotSizes {
+  int dot;
+  int active;
+  int gap;
+};
+DotSizes dot_sizes();
+uint32_t dot_color(bool active);
+
 // Builds the bar into a tile grid (one floating child at the screen's top,
 // in the grid's top margin). Does nothing without the head bar layout.
+// Home and its pages (tile_layouts::pages, user 2026-10-12) show the page
+// dots in the middle and the gear; a folder its X.
 void build(lv_obj_t* grid, uint16_t folder_id);
+// The folder's grid became visible: coming from another page, its active
+// dot glides over from that page's dot.
+void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id);
 
 // The camera's circle (camera_indicator.h, user 2026-10-08): with the head
 // bar it takes the place of the camera pill. The page circle's size on the
 // head's centre line, in the middle of the screen, with the webcam icon in
 // `color`: a button on `parent`, the caller adds its tap and shows it.
 lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color);
+// With pages the circle sits before the time instead (user 2026-10-12);
+// called whenever the indicator refreshes (the time moves with the gear).
+void place_camera_circle(lv_obj_t* circle);
 // Colors the circle (user 2026-10-11: the full red circle was too loud): the
 // page circle's grey (page_circle_tone) with the icon readable in `color`.
 // Called again when the theme changes.
