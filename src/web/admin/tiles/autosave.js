@@ -216,6 +216,11 @@
               ? data.navigate_target
               : (snapshot.navigate_target || '0'));
             snapshot.navigate_target = resolvedNavTarget;
+            // The tile knows its folder at once (user 2026-10-12: a new folder
+            // went into a page slot only after a few clicks; an autosave
+            // draws nothing again).
+            const tileEl = document.getElementById(tab + '-tile-' + tileIndex);
+            if (tileEl) tileEl.dataset.navigateTarget = resolvedNavTarget;
             if (tilesData[tab] && tilesData[tab][tileIndex]) {
               tilesData[tab][tileIndex].navigate_target = parseInt(resolvedNavTarget, 10) || 0;
               tilesData[tab][tileIndex].folder_pin_enabled =

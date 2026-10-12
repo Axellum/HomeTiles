@@ -130,7 +130,7 @@ assert.match(windowJs, /row\.classList\.toggle\('is-off', !LAYOUTS\[layoutWindow
 assert.match(windowJs, /bindLayoutPages\(backdrop\.querySelector\('\.setup-pages'\)\);/);
 assert.match(windowJs, /if \(pageSlots\) pageSlots\.dataset\.pages = encodePageSlots\(state\.savedPageSlots\);/);
 const pageSlots = readRepoFile('src/web/admin/tiles/page-slots.js');
-assert.match(pageSlots, /if \(typeof layoutWindowOpen === 'function' && layoutWindowOpen\(\)\) \{\s*layoutPageOut\(folder, \{col: candidate\.col, row: candidate\.row, \.\.\.size\}\);\s*return;\s*\}/,
+assert.match(pageSlots, /if \(typeof layoutWindowOpen === 'function' && layoutWindowOpen\(\)\) \{\s*layoutPageOut\(folder, place\);\s*return;\s*\}/,
   'a page dropped on the window\'s area is not sent to /api/pages');
 assert.match(pageSlots, /function syncPageHeads\(pages = pageFolders\(\)\) \{/);
 assert.match(readRepoFile('src/web/assets/admin.css'), /\.setup-pages\.is-off \{ visibility:hidden; \}/);
@@ -146,10 +146,20 @@ assert.match(save, /if \(const char\* error = checkPageSlots\(pages\)\) \{/);
 assert.match(save, /lockedNewPage\(pages, before, before_count, doc\["unlock"\] \| false\)/);
 assert.match(save, /readFolderPlaces\(folder\.value\(\)\.as<JsonObjectConst>\(\), \*grid, screen,\s*home_pages \? &pages : nullptr, places\)/,
   'a page needs no place, a folder back from the pages does');
-assert.match(save, /findFreeLayoutPlace\(other_screen, taken, own_size \? tile->span_w : 1, own_size \? tile->span_h : 1, place\) \|\|\s*findFreeLayoutPlace\(other_screen, taken, 1, 1, place\)/);
+// A folder dragged in is a 1x1 tile and comes back as one (user 2026-10-12).
+assert.match(save, /if \(findFreeLayoutPlace\(other_screen, taken, 1, 1, place\)\) \{/);
+assert.doesNotMatch(server, /own_size/);
 assert.match(save, /\} else if \(other == grid_layout::active\(\)\) \{\s*\/\/ The panel shows that layout: the folder would be out of reach\.\s*sendJsonError\(server, 409, "No free cell"\);/);
 assert.match(save, /tile_layouts::set_pages\(pages\.data\(\), pages\.size\(\)\);/);
 assert.match(save, /if \(pages_changed && grid_layout::active\(\) != grid_layout::Layout::kClassic\) \{\s*tiles_rebuild_heads\(!powerManager\.isInSleep\(\)\);/);
 const pagesHandler = server.slice(server.indexOf('void WebAdminServer::handleSavePages() {'));
 assert.match(pagesHandler, /if \(const char\* error = checkPageSlots\(wanted\)\) \{/, 'one check for both ways');
+assert.match(pagesHandler, /const tile_layouts::Place dropped\{server\.arg\("col"\)\.toFloat\(\), server\.arg\("row"\)\.toFloat\(\), 1, 1\};[\s\S]*?if \(!placed\) placed = findFreeShownPlace\(\*home, \*tile, 1, 1, place\);/);
+assert.match(windowJs, /window: true,\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*layout: \{col: 0, row: 0, span_w: 1, span_h: 1\},/);
+assert.match(pageSlots, /const place = \{col: candidate\.col, row: candidate\.row, span_w: 1, span_h: 1\};/);
+// A new folder goes into a page slot at once: the save tells its tile the
+// folder (user 2026-10-12: only after a few clicks; an autosave draws
+// nothing again).
+assert.match(readRepoFile('src/web/admin/tiles/autosave.js'),
+  /const tileEl = document\.getElementById\(tab \+ '-tile-' \+ tileIndex\);\s*if \(tileEl\) tileEl\.dataset\.navigateTarget = resolvedNavTarget;/);
 console.log('Layout window page row: kept like the places, stored with them');

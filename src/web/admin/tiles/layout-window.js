@@ -378,7 +378,8 @@
       back = true;
       const moved = layoutClone(own);
       delete moved.layout_hidden;
-      if (layoutUsed(tile)) Object.assign(moved, {col: tile.col, row: tile.row, span_w: tile.span_w, span_h: tile.span_h});
+      Object.assign(moved, layoutUsed(tile) ? {col: tile.col, row: tile.row, span_w: tile.span_w, span_h: tile.span_h}
+        : {span_w: 1, span_h: 1});
       return Object.assign(moved, {_unplaced: true, _screen: true});
     });
     return back ? layoutSettle(key, out) : out;
@@ -509,9 +510,6 @@
           event.preventDefault();
           return;
         }
-        // Its own size, a half-high one too; one cell when it has none.
-        const own = layoutWindow.pages[layoutHomeTab()][index];
-        const size = {span_w: Number(own.span_w || 1), span_h: Number(own.span_h || 1)};
         const rect = slot.getBoundingClientRect();
         const grabOffset = getDragGrabOffset(rect, event.clientX, event.clientY);
         dragSource = {
@@ -520,7 +518,9 @@
           index,
           folder,
           window: true,
-          layout: {col: 0, row: 0, ...(supportedTileLayout(4, {col: 0, row: 0, ...size}) ? size : {span_w: 1, span_h: 1})},
+          // A folder dragged in is a 1x1 tile and comes back as one (user
+          // 2026-10-12).
+          layout: {col: 0, row: 0, span_w: 1, span_h: 1},
           grabCellCol: 0,
           grabCellRow: 0,
           dropOffset: grabOffset,

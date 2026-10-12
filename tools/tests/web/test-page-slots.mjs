@@ -73,7 +73,8 @@ window.fetch = async (url, options) => {
     device.forEach(tile => {
       if (tile.type !== 4) return;
       tile.layout_hidden = wanted.includes(tile.navigate_target);
-      if (Number(body.out) === tile.navigate_target) { tile.col = Number(body.col); tile.row = Number(body.row); }
+      // Back as one cell, like the device (/api/pages).
+      if (Number(body.out) === tile.navigate_target) Object.assign(tile, {col: Number(body.col), row: Number(body.row), span_w: 1, span_h: 1});
     });
     pages = wanted;
     return {ok:true, status:200, json:async()=>({success:true})};
@@ -200,8 +201,8 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-window-close') &&
         !dots('folder1'), 'A folder again: its X, no dots');
 
-  // A half-high folder comes back in its own size and look (user
-  // 2026-10-12: it came back one cell high and looked broken).
+  // A folder dragged in is a 1x1 tile: a half-high one comes back as one
+  // cell (user 2026-10-12: it changed its size in and out).
   {
     const index = homeFolderTileIndex(2);
     const tile = getTilesData('folder0')[index];
@@ -209,8 +210,6 @@ ${inlineScriptSafe(readAdminDeliverySource())}
     Object.assign(device[1], {col: 0, row: 3, span_w: 2, span_h: 0.5});
     renderTileFromData('folder0', index, tile, {});
     layoutTiles('folder0', getTilesData('folder0'));
-    const look = tileOf(2).className;
-    const lookOf = names => [...new Set(names.split(' '))].filter(name => !['active', 'tile-unplaced'].includes(name)).sort().join(' ');
     await dropOnSlot(tileOf(2), 0);
     check(pages.join() === '2,3', 'The half-high folder is a page: ' + pages.join());
     const slot = slots()[0];
@@ -220,15 +219,12 @@ ${inlineScriptSafe(readAdminDeliverySource())}
     grid.dispatchEvent(new DragEvent('drop', {bubbles:true,cancelable:true,dataTransfer:transfer,...cellPoint(3, 3)}));
     // At once, before the device answers.
     const shown = getTilesData('folder0')[index];
-    check(shown.span_w === 2 && shown.span_h === 0.5 && lookOf(tileOf(2).className) === lookOf(look),
-          'At once in its size and look: ' + shown.span_w + 'x' + shown.span_h + ' ' + tileOf(2).className);
+    check(shown.span_w === 1 && shown.span_h === 1, 'At once as one cell: ' + shown.span_w + 'x' + shown.span_h);
     slot.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
     await settle();
     const back = getTilesData('folder0')[index];
-    check(back.span_w === 2 && back.span_h === 0.5 && !back.layout_hidden,
-          'It keeps its size: ' + back.span_w + 'x' + back.span_h);
-    check(lookOf(tileOf(2).className) === lookOf(look),
-          'It keeps its look: ' + tileOf(2).className + ' / ' + look);
+    check(back.span_w === 1 && back.span_h === 1 && !back.layout_hidden,
+          'One cell on the device too: ' + back.span_w + 'x' + back.span_h);
   }
 
   // Five pages: no free place, nothing is sent.

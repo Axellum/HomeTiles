@@ -236,15 +236,6 @@
     return tile?.dataset.type === '4' ? Number(tile.dataset.navigateTarget || 0) : 0;
   }
 
-  // A page's folder tile's own size: from its data, else its markup; one
-  // cell when it has none the editor allows.
-  function pageTileSize(index) {
-    const data = getTilesData('folder0')?.[index];
-    const el = document.getElementById('folder0-tile-' + index);
-    const size = {span_w: Number(data?.span_w ?? el?.dataset.spanW ?? 1), span_h: Number(data?.span_h ?? el?.dataset.spanH ?? 1)};
-    return supportedTileLayout(4, {col: 0, row: 0, ...size}) ? size : {span_w: 1, span_h: 1};
-  }
-
   // A page leaving the slots onto Home's grid (drag-resize.js handleGridDrop).
   function canPlacePageTile(candidate) {
     if (!dragSource || dragSource.kind !== 'page-slot') return false;
@@ -254,16 +245,15 @@
   function dropPageOnGrid(candidate) {
     const folder = dragSource.folder;
     dragSource.dropCommitted = true;
-    // Its own size when it fits there, else one cell, like the device
-    // (/api/pages).
-    const size = canPlacePageTile(candidate) ? {span_w: candidate.span_w, span_h: candidate.span_h} : {span_w: 1, span_h: 1};
+    // One cell, like the device (/api/pages).
+    const place = {col: candidate.col, row: candidate.row, span_w: 1, span_h: 1};
     // In the layout window it stays there until "Speichern" (layout-window.js).
     if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) {
-      layoutPageOut(folder, {col: candidate.col, row: candidate.row, ...size});
+      layoutPageOut(folder, place);
       return;
     }
     // Its place stays free.
-    savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, col: candidate.col, row: candidate.row, ...size});
+    savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, ...place});
   }
 
   // The editor picked a tile: the teal selection on its page's slot only,
@@ -368,9 +358,9 @@
           tab: 'folder0',
           index,
           folder,
-          // Its own size, a half-high one too (the device keeps it when it
-          // fits, /api/pages).
-          layout: {col: 0, row: 0, ...pageTileSize(index)},
+          // A folder dragged in is a 1x1 tile and comes back as one (user
+          // 2026-10-12: a half-high one changed its size in and out).
+          layout: {col: 0, row: 0, span_w: 1, span_h: 1},
           grabCellCol: 0,
           grabCellRow: 0,
           dropOffset: grabOffset,

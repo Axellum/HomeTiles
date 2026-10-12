@@ -1763,8 +1763,8 @@ void WebAdminServer::handleSaveLayouts() {
     }
   }
   // A folder leaving the pages: in the other bar layout at its place there,
-  // else at the first free spot of its own size (one cell when that size is
-  // none), like the editor's page slots give it one (handleSavePages).
+  // else at the first free cell, like the editor's page slots give it one
+  // (handleSavePages).
   struct OtherSpot {
     uint16_t view;
     tile_layouts::Place place;
@@ -1802,10 +1802,8 @@ void WebAdminServer::handleSaveLayouts() {
         }
       }
       for (const Tile* tile : leaving) {
-        const bool own_size = tile_geometry::supported_size(tile->type, 0, 0, tile->span_w, tile->span_h);
         tile_layouts::Place place{};
-        if (findFreeLayoutPlace(other_screen, taken, own_size ? tile->span_w : 1, own_size ? tile->span_h : 1, place) ||
-            findFreeLayoutPlace(other_screen, taken, 1, 1, place)) {
+        if (findFreeLayoutPlace(other_screen, taken, 1, 1, place)) {
           taken.push_back(place);
           other_spots.push_back({tile->view_id, place});
         } else if (other == grid_layout::active()) {
@@ -2035,27 +2033,16 @@ void WebAdminServer::handleSavePages() {
     Tile* tile = std::find(wanted.begin(), wanted.end(), id) == wanted.end() ? folder_tile(id) : nullptr;
     if (!tile || !tile->view_id) continue;
     tile_layouts::Place place{};
-    // Its own size, a half-high one too; one cell when that size is none.
-    const bool own_size = tile_geometry::supported_size(tile->type, 0, 0, tile->span_w, tile->span_h);
-    const float span_w = own_size ? tile->span_w : 1;
-    const float span_h = own_size ? tile->span_h : 1;
+    // One cell, whatever size it had (user 2026-10-12: a folder dragged in is
+    // a 1x1 tile; a half-high one changed its size in and out): the dropped
+    // spot, else the first free one.
     bool placed = false;
     if (out_folder == id && server.hasArg("col") && server.hasArg("row")) {
-      // The dropped spot with the tile's size, else one cell there.
-      const float col = server.arg("col").toFloat();
-      const float row = server.arg("row").toFloat();
-      for (const tile_layouts::Place candidate :
-           {tile_layouts::Place{col, row, span_w, span_h}, tile_layouts::Place{col, row, 1, 1}}) {
-        if (!shownPlaceFree(*home, *tile, candidate)) continue;
-        place = candidate;
-        placed = true;
-        break;
-      }
+      const tile_layouts::Place dropped{server.arg("col").toFloat(), server.arg("row").toFloat(), 1, 1};
+      placed = shownPlaceFree(*home, *tile, dropped);
+      if (placed) place = dropped;
     }
-    if (!placed) {
-      placed = findFreeShownPlace(*home, *tile, span_w, span_h, place) ||
-               findFreeShownPlace(*home, *tile, 1, 1, place);
-    }
+    if (!placed) placed = findFreeShownPlace(*home, *tile, 1, 1, place);
     if (!placed) {
       sendJsonError(server, 409, "No free cell");
       return;
