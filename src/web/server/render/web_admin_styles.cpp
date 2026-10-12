@@ -10,6 +10,7 @@
 #include "src/ui/shared/tone_color.h"
 #include "src/ui/shared/tabular_digits.h"
 #include "src/types/clock/clock_face.h"
+#include "src/types/text/text_options.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/screensaver/screensaver_tile_shadow.h"
 #include "src/ui/tabs/settings/settings_style.h"
@@ -304,6 +305,11 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   emit_right_header("clock-header", tile_layout::scale_480(24), tile_layout::scale_480(20));
   emit_right_header("text-header", tile_layout::scale_480(16), tile_layout::scale_480(18));
   emit_scaled("text-header-shift", tile_layout::scale(12));
+  // The Text tile's alignment (types/text/text_options.h): the header row a
+  // top-aligned text starts below, in device pixels, and a half tile's
+  // padding above and below.
+  emit_device_px("text-header-h", tile_icon_disc::row_height());
+  emit_scaled("text-compact-pad-v", tile_layout::scale_480(text_tile::kCompactPadV480));
   // The device places a corner header's disc in the tile corner like the
   // half-height disc and centers the icon in it; the header labels move with
   // the icon (tile_icon_disc::corner_header). The preview header follows.

@@ -787,6 +787,16 @@ struct Strings {
   const char* clock_color_silver;
   // Clock style: the day of the month large with weekday, month and the time when shown.
   const char* clock_style_big_date;
+  // Text tile: the horizontal alignment select.
+  const char* text_align_horizontal;
+  // Text tile: the vertical alignment select.
+  const char* text_align_vertical;
+  // Vertical alignment: at the top.
+  const char* alignment_top;
+  // Vertical alignment: in the middle.
+  const char* alignment_middle;
+  // Vertical alignment: at the bottom.
+  const char* alignment_bottom;
 };
 
 // Locale-specific display rules and short runtime strings shared by

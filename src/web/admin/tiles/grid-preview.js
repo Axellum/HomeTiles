@@ -1003,6 +1003,7 @@
           + '<div class="tile-clock-face-text">' + clockLines + '</div>' : clockLines;
       }
       if (previewKind === 'text') {
+        applyTextPreviewAlign(el, tile.sensor_gauge_max);
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
         if (textValue) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);

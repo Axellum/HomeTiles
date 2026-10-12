@@ -2797,6 +2797,25 @@
     .tile.text .tile-text.sensor-value-size-32 { font-size:var(--fs32, 16px); line-height:var(--lh32, 1.31); }
     .tile.text .tile-text.sensor-value-size-24 { font-size:var(--fs24, 12px); line-height:var(--lh24, 1.29); }
     .tile.text .tile-text.sensor-value-size-20 { font-size:var(--fs20, 10px); line-height:var(--lh20, 1.35); }
+    /* The alignment (types/text/text_options.h, render_text_tile): the lines
+       left or right, the block at the top (below a title or icon: the
+       header row, tile_icon_disc::row_height) or the bottom padding; inside
+       the 3 px editor border. */
+    .tile.text.text-h-left .tile-text { text-align:left; }
+    .tile.text.text-h-right .tile-text { text-align:right; }
+    .tile.text.text-v-top .tile-text { top:calc(var(--text-header-pad-v, 8px) - 3px); transform:none; }
+    .tile.text.text-v-top:has(> .tile-title, > .tile-icon) .tile-text {
+      top:calc(var(--text-header-h, 67px) * var(--radius-preview-scale, 0.5) - 3px);
+    }
+    .tile.text.text-v-bottom .tile-text { top:auto; bottom:calc(var(--text-header-pad-v, 8px) - 3px); transform:none; }
+    /* A half-height Text tile (tile_geometry::compact_text): the text alone,
+       less padding above and below. */
+    .tile.text.text-compact { padding-top:var(--text-compact-pad-v, 3px); padding-bottom:var(--text-compact-pad-v, 3px); }
+    .tile.text.text-compact > .tile-title,
+    .tile.text.text-compact > .tile-icon { display:none; }
+    .tile.text.text-compact .tile-text { transform:translateY(-50%); }
+    .tile.text.text-compact.text-v-top .tile-text { top:calc(var(--text-compact-pad-v, 3px) - 3px); transform:none; }
+    .tile.text.text-compact.text-v-bottom .tile-text { top:auto; bottom:calc(var(--text-compact-pad-v, 3px) - 3px); transform:none; }
     .tile.text .tile-icon {
       position:absolute;
       top:calc(var(--text-header-icon-top, 8px) - 3px);

@@ -161,6 +161,8 @@
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const textInput = document.getElementById(prefix + '_text_value');
     const textFontInput = document.getElementById(prefix + '_text_value_font');
+    const textAlignInput = document.getElementById(prefix + '_text_align');
+    const textValignInput = document.getElementById(prefix + '_text_valign');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
     const folderPinToggle = document.getElementById(prefix + '_folder_pin_enabled');
     const folderPinApply = document.getElementById(prefix + '_folder_pin_apply');
@@ -303,6 +305,8 @@
     bindLive(sceneInput, 'change', 'sceneAlias', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textInput, 'input', 'textValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textFontInput, 'change', 'textFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textAlignInput, 'change', 'textAlign', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textValignInput, 'change', 'textValign', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(navigateSelect, 'change', 'navigateTarget', () => {
       syncFolderPinControls(tab);
       updateTilePreview(tab);

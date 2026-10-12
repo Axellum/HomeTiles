@@ -11,7 +11,7 @@ const read = file => readRepoFile(file).replace(/\r\n?/g, '\n');
 // Firmware geometry.
 const geometry = read('src/tiles/config/tile_geometry.h');
 assert.match(geometry, /inline bool icon_title\(int type\) \{\s*return type == TILE_SCENE \|\| type == TILE_FOLDER \|\| type == TILE_BACK \|\| type == TILE_CAMERA \|\| type == TILE_SETTINGS;/);
-assert.match(geometry, /inline bool half_size\(int type\) \{\s*return sensor\(type\) \|\| type == TILE_CLOCK \|\| icon_title\(type\) \|\| type == TILE_SWITCH \|\| type == TILE_COVER \|\|\s*type == TILE_CLIMATE \|\| editable\(type\) \|\| device_control\(type\);\s*\}/);
+assert.match(geometry, /inline bool half_size\(int type\) \{\s*return sensor\(type\) \|\| type == TILE_CLOCK \|\| type == TILE_TEXT \|\| icon_title\(type\) \|\| type == TILE_SWITCH \|\|\s*type == TILE_COVER \|\| type == TILE_CLIMATE \|\| editable\(type\) \|\| device_control\(type\);\s*\}/);
 assert.doesNotMatch(geometry, /type == TILE_BACK\) &&\s*\(fractional/, 'Back may use half steps');
 assert.match(geometry, /inline bool compact_icon_title\(int type, float w, float h\) \{\s*return icon_title\(type\) && w >= 1 && h == 0\.5f;/);
 assert.doesNotMatch(geometry, /compact_back/);
@@ -24,8 +24,9 @@ for (const type of [2, 4, 7, 8, 18]) {
   assert.ok(supportsHalfSize(type) && supportsHalfSize(String(type)), `type ${type} may be half a row high`);
   assert.ok(supportedTileLayout(type, {col: 0, row: 0.5, span_w: 1, span_h: 0.5}), `type ${type} 1x0.5`);
 }
-// Switch is half-capable (compact header, tile_geometry::compact_switch); Text is not.
-assert.ok(supportsHalfSize(5) && supportsHalfSize(17) && supportsHalfSize(19) && !supportsHalfSize(10));
+// Switch is half-capable (compact header, tile_geometry::compact_switch);
+// Text too since 2026-10-12 (the text alone, tile_geometry::compact_text).
+assert.ok(supportsHalfSize(5) && supportsHalfSize(17) && supportsHalfSize(19) && supportsHalfSize(10));
 assert.ok(supportedTileLayout(8, {col: 0, row: 0.5, span_w: 1, span_h: 0.5}), 'Back 1x0.5');
 assert.ok(supportedTileLayout(8, {col: 1.5, row: 0, span_w: 1.5, span_h: 1}), 'Back half steps');
 assert.ok(!supportedTileLayout(8, {col: 0, row: 0, span_w: 0.5, span_h: 1}), 'Back stays at least one cell wide');

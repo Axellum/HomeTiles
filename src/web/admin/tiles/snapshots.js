@@ -159,6 +159,11 @@
       tile.sensor_gauge_max = Number.isFinite(num) ? num : 100;
     }
 
+    // The Text tile's alignment in its stored field (types/text/text_options.h).
+    if (Number(tile.type) === 10 && snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'text_options')) {
+      const num = Number(snapshot.text_options);
+      tile.sensor_gauge_max = Number.isFinite(num) ? num : 100;
+    }
     if ([8,9,10].includes(Number(tile.type)) && snapshot?.tile_border !== undefined) {
       tile.sensor_display_mode = ['0','false'].includes(String(snapshot.tile_border)) ? 1 : 0;
     }

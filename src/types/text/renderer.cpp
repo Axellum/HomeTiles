@@ -1,5 +1,7 @@
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/types/text/renderer.h"
+#include "src/types/text/text_options.h"
+#include "src/tiles/config/tile_geometry.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/ui/shared/tone_color.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
@@ -31,8 +33,11 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   ui_surface_style::apply_radius(card, tile_layout::scale_480(22), 0);
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 0, 0);
+  // A half-height tile shows the text alone with less padding above and
+  // below (tile_geometry::compact_text).
+  const bool compact = tile_geometry::compact_text(tile.type, tile.span_w, tile.span_h);
   lv_obj_set_style_pad_hor(card, tile_layout::scale_480(18), 0);
-  lv_obj_set_style_pad_ver(card, tile_layout::scale_480(16), 0);
+  lv_obj_set_style_pad_ver(card, tile_layout::scale_480(compact ? text_tile::kCompactPadV480 : 16), 0);
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   disable_pressed_button_animation(card);
 
@@ -40,7 +45,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
 
   // Icon (optional)
   String iconChar;
-  if (tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
+  if (!compact && tile.icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
     iconChar = getMdiChar(tile.icon_name);
   }
   const bool has_icon = iconChar.length() > 0;
@@ -58,7 +63,7 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
   }
 
   // Title (optional)
-  if (tile.title.length() > 0) {
+  if (!compact && tile.title.length() > 0) {
     lv_obj_t* title_lbl = lv_label_create(card);
     if (title_lbl) {
       set_label_style(title_lbl, lv_color_hex(ui_theme::text()),
@@ -97,10 +102,24 @@ lv_obj_set_style_bg_grad_dir(card, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRE
       lv_label_set_text(text_lbl, text.c_str());
       lv_label_set_long_mode(text_lbl, LV_LABEL_LONG_WRAP);
       lv_obj_set_width(text_lbl, lv_pct(100));
-      lv_obj_set_style_text_align(text_lbl, LV_TEXT_ALIGN_CENTER, 0);
-      int16_t y_offset =
-          (tile.title.length() || has_icon) ? tile_layout::scale(12) : 0;
-      lv_obj_align(text_lbl, LV_ALIGN_CENTER, 0, y_offset);
+      // The alignment (text_options.h): the lines left, centered or right in
+      // the card, the block at the top (below a title or icon), in the
+      // middle or at the bottom.
+      const text_tile::Options options = text_tile::unpack(tile.sensor_gauge_max);
+      lv_obj_set_style_text_align(text_lbl,
+                                  options.h == text_tile::H_LEFT    ? LV_TEXT_ALIGN_LEFT
+                                  : options.h == text_tile::H_RIGHT ? LV_TEXT_ALIGN_RIGHT
+                                                                    : LV_TEXT_ALIGN_CENTER,
+                                  0);
+      const bool header = !compact && (tile.title.length() || has_icon);
+      if (options.v == text_tile::V_TOP) {
+        lv_obj_align(text_lbl, LV_ALIGN_TOP_MID, 0,
+                     header ? tile_icon_disc::row_height() - lv_obj_get_style_pad_top(card, LV_PART_MAIN) : 0);
+      } else if (options.v == text_tile::V_BOTTOM) {
+        lv_obj_align(text_lbl, LV_ALIGN_BOTTOM_MID, 0, 0);
+      } else {
+        lv_obj_align(text_lbl, LV_ALIGN_CENTER, 0, header ? tile_layout::scale(12) : 0);
+      }
     }
   }
 

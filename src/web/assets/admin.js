@@ -4233,6 +4233,11 @@ async function saveGestureEdge(select) {
       tile.sensor_gauge_max = Number.isFinite(num) ? num : 100;
     }
 
+    // The Text tile's alignment in its stored field (types/text/text_options.h).
+    if (Number(tile.type) === 10 && snapshot && Object.prototype.hasOwnProperty.call(snapshot, 'text_options')) {
+      const num = Number(snapshot.text_options);
+      tile.sensor_gauge_max = Number.isFinite(num) ? num : 100;
+    }
     if ([8,9,10].includes(Number(tile.type)) && snapshot?.tile_border !== undefined) {
       tile.sensor_display_mode = ['0','false'].includes(String(snapshot.tile_border)) ? 1 : 0;
     }
@@ -6198,7 +6203,7 @@ async function saveGestureEdge(select) {
   // Switch and Cover show their state (tile_geometry::compact_switch,
   // compact_cover).
   function supportsHalfSize(type) {
-    return isCompactSensorType(type) || isEditableValueType(type) || [2, 4, 5, 7, 8, 9, 17, 18, 19, 24, 25, 26].includes(Number(type));
+    return isCompactSensorType(type) || isEditableValueType(type) || [2, 4, 5, 7, 8, 9, 10, 17, 18, 19, 24, 25, 26].includes(Number(type));
   }
   // Every type resizes in half steps from 1x1; only half-size types may be half
   // a row high (mirrors tile_geometry::supported).
@@ -6284,6 +6289,8 @@ async function saveGestureEdge(select) {
     el.classList.toggle('compact-value-24', valueSize === 24);
     el.classList.toggle('compact-value-28', valueSize === 28);
     el.classList.toggle('clock-compact', Number(type) === 9 && halfHeight);
+    // A half-height Text tile: the text alone (tile_geometry::compact_text).
+    el.classList.toggle('text-compact', Number(type) === 10 && halfHeight);
     if (Number(type) === 9) fitCompactClockPreview(el);
   }
 
@@ -7061,6 +7068,8 @@ async function saveGestureEdge(select) {
       const sceneInput = document.getElementById(prefix + '_scene_alias');
     const textInput = document.getElementById(prefix + '_text_value');
     const textFontInput = document.getElementById(prefix + '_text_value_font');
+    const textAlignInput = document.getElementById(prefix + '_text_align');
+    const textValignInput = document.getElementById(prefix + '_text_valign');
     const navigateSelect = document.getElementById(prefix + '_navigate_target');
     const folderPinToggle = document.getElementById(prefix + '_folder_pin_enabled');
     const folderPinApply = document.getElementById(prefix + '_folder_pin_apply');
@@ -7203,6 +7212,8 @@ async function saveGestureEdge(select) {
     bindLive(sceneInput, 'change', 'sceneAlias', () => { maybeFillTitleFromScene(tab); updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textInput, 'input', 'textValue', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(textFontInput, 'change', 'textFont', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textAlignInput, 'change', 'textAlign', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
+    bindLive(textValignInput, 'change', 'textValign', () => { updateTilePreview(tab); updateDraft(tab); scheduleAutoSave(tab); });
     bindLive(navigateSelect, 'change', 'navigateTarget', () => {
       syncFolderPinControls(tab);
       updateTilePreview(tab);
@@ -7794,6 +7805,8 @@ async function saveGestureEdge(select) {
     }
 
     if (previewKind === 'text') {
+      applyTextPreviewAlign(tileElem, packTextTileOptions(document.getElementById(prefix + '_text_align')?.value || 0,
+        document.getElementById(prefix + '_text_valign')?.value || 0));
       const textValue = document.getElementById(prefix + '_text_value')?.value || '';
       if (textValue) {
         const textFont = document.getElementById(prefix + '_text_value_font')?.value || '0';
@@ -9183,6 +9196,7 @@ async function saveGestureEdge(select) {
     } else if (safeType === 10) {
       fd.append('text_value', tile.text_value || tile.scene_alias || tile.key_macro || '');
       fd.append('text_value_font', tile.text_value_font || tile.sensor_value_font || '0');
+      fd.append('text_options', (tile.sensor_gauge_max !== undefined && tile.sensor_gauge_max !== null) ? tile.sensor_gauge_max : 100);
       fd.append('tile_border', Number(tile.sensor_display_mode) === 1 ? '0' : '1');
     } else if (safeType === 9) {
       fd.append('tile_border', Number(tile.sensor_display_mode) === 1 ? '0' : '1');
@@ -10277,6 +10291,7 @@ async function saveGestureEdge(select) {
           + '<div class="tile-clock-face-text">' + clockLines + '</div>' : clockLines;
       }
       if (previewKind === 'text') {
+        applyTextPreviewAlign(el, tile.sensor_gauge_max);
         const textValue = tile.text_value || tile.scene_alias || tile.key_macro || '';
         if (textValue) {
           const textClass = getSensorValueFontClass(tile.sensor_value_font);
@@ -19987,7 +20002,30 @@ function getClockPreviewLanguage() {
     text.style.height = (l.textH * scale) + 'px';
   }
 
-function normalizeTextValueFont(value) {
+// types/text/text_options.h: the alignment in sensor_gauge_max, bits 11-12
+  // horizontal (0 centered, 1 left, 2 right), 13-14 vertical (0 middle,
+  // 1 top, 2 bottom); the low bits keep 100 (a tile saved before).
+  function textTileOptions(raw) {
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num < 0) return {h: 0, v: 0};
+    const h = (num >> 11) & 3, v = (num >> 13) & 3;
+    return {h: h <= 2 ? h : 0, v: v <= 2 ? v : 0};
+  }
+  function packTextTileOptions(h, v) {
+    const x = Number(h), y = Number(v);
+    return 100 | ((x === 1 || x === 2 ? x : 0) << 11) | ((y === 1 || y === 2 ? y : 0) << 13);
+  }
+  // The preview's alignment classes (admin.css .text-h-* / .text-v-*).
+  function applyTextPreviewAlign(tileElem, raw) {
+    if (!tileElem?.classList) return;
+    const options = textTileOptions(raw);
+    tileElem.classList.toggle('text-h-left', options.h === 1);
+    tileElem.classList.toggle('text-h-right', options.h === 2);
+    tileElem.classList.toggle('text-v-top', options.v === 1);
+    tileElem.classList.toggle('text-v-bottom', options.v === 2);
+  }
+
+  function normalizeTextValueFont(value) {
     const v = String(value || '0');
     return (['1','2','3','4'].includes(v)) ? v : '0';
   }
@@ -20009,6 +20047,12 @@ function normalizeTextValueFont(value) {
     } else {
       textEl.value = '';
     }
+    const options = textTileOptions(data?.text_options !== undefined ? data.text_options
+      : (data?.sensor_gauge_max !== undefined ? data.sensor_gauge_max : 100));
+    const alignEl = document.getElementById(prefix + '_text_align');
+    if (alignEl) alignEl.value = String(options.h);
+    const valignEl = document.getElementById(prefix + '_text_valign');
+    if (valignEl) valignEl.value = String(options.v);
     if (fontEl) {
       if (data && data.text_value_font !== undefined) {
         fontEl.value = normalizeTextValueFont(data.text_value_font);
@@ -20026,6 +20070,8 @@ function normalizeTextValueFont(value) {
     const prefix = tab;
     formData.append('text_value', document.getElementById(prefix + '_text_value')?.value || '');
     formData.append('text_value_font', document.getElementById(prefix + '_text_value_font')?.value || '0');
+    formData.append('text_options', String(packTextTileOptions(document.getElementById(prefix + '_text_align')?.value || '0',
+      document.getElementById(prefix + '_text_valign')?.value || '0')));
   }
 
   function resetTextFields(tab) {
@@ -20037,6 +20083,10 @@ function normalizeTextValueFont(value) {
     if (textEl) textEl.value = '';
     const fontEl = document.getElementById(prefix + '_text_value_font');
     if (fontEl) fontEl.value = '0';
+    for (const id of ['_text_align', '_text_valign']) {
+      const el = document.getElementById(prefix + id);
+      if (el) el.value = '0';
+    }
   }
   function isEditablePreview(kind) { return ['number', 'select', 'datetime'].includes(kind); }
   function editablePreviewText(entity, kind, meta = sensorMetaCache) {

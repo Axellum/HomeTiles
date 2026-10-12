@@ -332,6 +332,8 @@
     }
 
     if (previewKind === 'text') {
+      applyTextPreviewAlign(tileElem, packTextTileOptions(document.getElementById(prefix + '_text_align')?.value || 0,
+        document.getElementById(prefix + '_text_valign')?.value || 0));
       const textValue = document.getElementById(prefix + '_text_value')?.value || '';
       if (textValue) {
         const textFont = document.getElementById(prefix + '_text_value_font')?.value || '0';

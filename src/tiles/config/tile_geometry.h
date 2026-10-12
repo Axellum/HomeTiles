@@ -19,8 +19,8 @@ inline bool editable(int type) { return type == TILE_NUMBER || type == TILE_SELE
 inline bool device_control(int type) { return type == TILE_LOCK || type == TILE_ALARM || type == TILE_FAN; }
 // Types that may use half-cell sizes (mirrors supportsHalfSize in layout.js).
 inline bool half_size(int type) {
-  return sensor(type) || type == TILE_CLOCK || icon_title(type) || type == TILE_SWITCH || type == TILE_COVER ||
-         type == TILE_CLIMATE || editable(type) || device_control(type);
+  return sensor(type) || type == TILE_CLOCK || type == TILE_TEXT || icon_title(type) || type == TILE_SWITCH ||
+         type == TILE_COVER || type == TILE_CLIMATE || editable(type) || device_control(type);
 }
 inline bool fractional(float value) { return value != std::floor(value); }
 // Every type resizes in half steps from 1x1; only half-size types may be half
@@ -64,6 +64,11 @@ inline bool compact_editable(int type, float w, float h) {
 }
 inline bool compact_clock(int type, float w, float h) {
   return type == TILE_CLOCK && w >= 1 && h == 0.5f;
+}
+// A half-height Text tile: the text alone, without title and icon, like the
+// half-height clock (user 2026-10-12).
+inline bool compact_text(int type, float w, float h) {
+  return type == TILE_TEXT && w >= 1 && h == 0.5f;
 }
 // A half-height icon-and-title tile (Scene, Folder, Settings, Back, Camera) uses the
 // half-height Sensor header layout without a value line.
