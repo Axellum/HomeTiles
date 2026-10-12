@@ -57,6 +57,8 @@ bool tiles_show_active_layout_now();
 // dots, gear or X; the grids stay. With draw_now the visible head is drawn
 // at once. Loop task only, outside LVGL callbacks.
 void tiles_rebuild_heads(bool draw_now);
+// The tiles tab's visible grid (its head bar's dots follow a page drag).
+lv_obj_t* tiles_visible_grid();
 
 // One tile of a page's picture (page_preview.h): its shown place in cells
 // and its card's color.

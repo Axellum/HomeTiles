@@ -60,9 +60,15 @@ lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y);
 void build(lv_obj_t* grid, uint16_t folder_id);
 // The pages changed: the grid's bar again, with its new dots, gear or X.
 void rebuild(lv_obj_t* grid, uint16_t folder_id);
-// The folder's grid became visible: coming from another page, its active
-// dot glides over from that page's dot.
+// The folder's grid became visible: coming from another page, its line
+// goes over from that page's dot (on from where a drag left it).
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id);
+// A sideways drag in the head or from a side edge (UIManager, user
+// 2026-10-12): the line follows the finger (dx since the press).
+void drag(lv_obj_t* grid, int32_t dx);
+// The finger left (speed in px/ms, + to the right): the step the page turns
+// (+1 next, -1 back), or 0 and the line goes back by itself.
+int release(lv_obj_t* grid, int32_t dx, float speed);
 
 // The camera's circle (camera_indicator.h, user 2026-10-08): with the head
 // bar it takes the place of the camera pill. The page circle's size on the

@@ -896,21 +896,20 @@ static void appendTileTabHTML(
     snprintf(hidden_color_hex, sizeof(hidden_color_hex), "#%06X",
              static_cast<unsigned>(hidden_color));
     // The head bar layouts (user 2026-10-12): the five page slots in a box
-    // of their own and, apart below it on the left, the Settings slot; one
-    // word over each box, outside it, no sentences. Under a landscape
-    // preview one row, every cell under a column of the preview (a 4-column
-    // preview: four, the fifth below); beside a square or upright one two
-    // columns. page-slots.js fills the slots from the Home grid's folder
-    // tiles and saves them through /api/pages. Not a .tile-grid with .tile
-    // children: the editor finds Home's grid and its tiles by those classes.
+    // of their own and the Settings slot in another, one word over each box,
+    // outside it, no sentences. Under a landscape preview both in one row,
+    // smaller alike to the preview's width (admin.css --slot-zoom); beside a
+    // square or upright one the pages in two columns, Settings below.
+    // page-slots.js fills the slots from the Home grid's folder tiles and
+    // saves them through /api/pages. Not a .tile-grid with .tile children:
+    // the editor finds Home's grid and its tiles by those classes.
     const bool page_slots = grid_layout::head_bar();
-    const int shown_cols = grid_layout::shown().cols;
     const int max_pages = static_cast<int>(tile_layouts::kMaxPages);
     if (page_slots) {
       html += "<div class=\"settings-hidden-parking page-stack\"><div class=\"page-group\"><div class=\"page-parking-label\">";
       appendHtmlEscaped(html, tr.pages_title);
       html += "</div><div class=\"page-parking\" style=\"--slot-cols:";
-      html += String(previewSlotsBeside() ? 2 : (shown_cols < max_pages ? shown_cols : max_pages));
+      html += String(previewSlotsBeside() ? 2 : max_pages);
       html += "\">";
       uint16_t pages[tile_layouts::kMaxPages];
       const size_t count = tile_layouts::page_slots(pages);

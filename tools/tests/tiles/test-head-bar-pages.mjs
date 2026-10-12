@@ -51,13 +51,27 @@ assert.match(build, /const int page = tile_layouts::page_number\(folder_id\);\s*
 assert.match(build, /getMdiChar\(home_level \? "cog" : "window-close"\)/);
 assert.match(build, /if \(page >= 0\) \{/);
 assert.match(build, /const int count = static_cast<int>\(tile_layouts::pages\(pages\)\) \+ 1;/);
-assert.match(slice(bar, 'lv_obj_t* create_dots(', '\n}\n'), /lv_obj_set_size\(dot, i == active \? d\.active : d\.dot, d\.dot\);/);
+// The grey dots and, last, the line in the text color (user 2026-10-12:
+// it follows the finger; mockup build/design-mockups/pages/dots-swipe.html).
+const dotsRow = slice(bar, 'lv_obj_t* create_dots(', '\n}\n');
+assert.match(dotsRow, /for \(int i = 0; i <= count; \+\+i\) \{[\s\S]*lv_obj_set_size\(dot, i == count \? d\.active : d\.dot, d\.dot\);[\s\S]*lv_color_hex\(dot_color\(i == count\)\)/);
+assert.match(dotsRow, /lay_out_line\(dots, active, active, 0, 0\);/);
+const line = slice(bar, 'void lay_out_line(lv_obj_t* dots, int i, int j, float p, int stretch) {', '\n}\n');
+assert.match(line, /left = l0 \+ \(l1 - l0\) \* ease_in\(p\);\s*right = l0 \+ d\.active \+ \(l1 - l0\) \* ease_out\(p\);/, 'Its leading edge runs ahead');
+assert.match(line, /const float x = k == i \? to_x : k == j \? from_x : from_x \+ \(to_x - from_x\) \* p;/, 'The grey dots stand still');
 // Sized like the mockup: 12 and 34 on an 800 px short side.
 assert.match(bar, /const int dot = \(12 \* side \+ 400\) \/ 800;\s*return \{dot, \(34 \* side \+ 400\) \/ 800, dot\};/);
-// The glide: only between two pages, 150 ms.
+// Between two pages the line goes over in 180 ms, on from where the finger
+// left it.
 const shown = slice(bar, 'void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {', '\n}\n');
-assert.match(shown, /if \(page < 0 \|\| from < 0 \|\| from == page\) return;/);
-assert.match(shown, /lv_anim_set_duration\(&anim, 150\);/);
+assert.match(shown, /const float p0 = handoff\.from == from && handoff\.to == page \? handoff\.p : 0\.0f;\s*move_line\(dots, from, page, p0, 1\.0f, 0\);/);
+assert.match(slice(bar, 'void move_line(', '\n}\n'), /lv_anim_set_duration\(&anim, 180\);/);
+// Let go from a quarter of the way or with a flick it turns, else it goes
+// back by itself.
+const release = slice(bar, 'int release(lv_obj_t* grid, int32_t dx, float speed) {', '\n}\n');
+assert.match(release, /if \(p >= 0\.25f \|\| flick\) \{\s*g_handoff = \{page, target, p\};\s*return step;\s*\}\s*move_line\(dots, page, target, p, 0\.0f, 0\);/);
+// The press pill shows only once the finger rests (user 2026-10-12).
+assert.match(bar, /g_press_timer = lv_timer_create\(press_show, 90, nullptr\);/);
 const tiles = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
 assert.equal((tiles.match(/home_bar::shown\(target->grid, folder_id, previous \? previous->folder_id : kInvalidFolderId\);/g) || []).length, 2,
   'Both folder switch paths report the shown grid');
@@ -85,8 +99,14 @@ assert.match(motion, /if \(!matches\) \{\s*if \(access_page_swipe && abs_dx >= t
 assert.match(read('src/tiles/runtime/level_bar.h'), /lv_obj_remove_flag\(bar, LV_OBJ_FLAG_GESTURE_BUBBLE\);/,
   'The level bar keeps its drags');
 const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n');
-assert.match(swipe, /abs_dx < kSettingsGestureThreshold \|\| abs_dx <= abs_dy/);
-assert.match(swipe, /lv_indev_reset\(input, nullptr\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
+assert.match(swipe, /abs_dx < kPageDragStart \|\| abs_dx <= abs_dy/);
+// The line follows from the first pixels, read from the input while it
+// waits for the release (no click on a tile under the finger).
+assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);/);
+assert.match(swipe, /g_page_drag\.timer = lv_timer_create\(page_drag_tick, 15, nullptr\);/);
+const tick = slice(manager, 'void UIManager::page_drag_tick(lv_timer_t*) {', '\n}\n');
+assert.match(tick, /if \(input && lv_indev_get_state\(input\) == LV_INDEV_STATE_PRESSED\) \{\s*home_bar::drag\(tiles_visible_grid\(\), dx\);/);
+assert.match(tick, /const int step = home_bar::release\(tiles_visible_grid\(\), dx, speed\);\s*if \(step\) uiManager\.turnPage\(step\);/);
 const showPage = slice(manager, 'void UIManager::showPage(int number) {', '\n}\n');
 assert.match(showPage, /if \(number < 0 \|\| number > count\) return;/);
 assert.match(showPage, /requestFolderAccess\(folder_id, folder->name, folder->icon_name\);/, 'A lock set anyway still asks');
@@ -117,10 +137,9 @@ assert.match(bar, /void on_dots\(lv_event_t\* event\) \{ page_preview::open\(/);
 const preview = read('src/ui/tabs/tiles/page_preview.cpp');
 assert.match(preview, /const int card_y = head\.center_y - geo\.pad_top - geo\.head_h \/ 2;/);
 assert.match(preview, /home_bar::create_dots\(card, count, current, \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x,\s*head\.center_y - dot\.dot \/ 2 - card_y\);/);
-// The head's row sits where the card's does; its box takes the X's pressed
-// height around it, a pill shown while pressed (user 2026-10-12: no sign
-// of a press).
-assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,200}?const int press_pad = \(pressed - d\.dot\) \/ 2;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - press_pad, g\.center_y - pressed \/ 2\);\s*lv_obj_set_size\(dots, dots_width\(count\) \+ 2 \* press_pad, pressed\);\s*lv_obj_set_style_pad_hor\(dots, press_pad, 0\);\s*lv_obj_set_style_radius\(dots, LV_RADIUS_CIRCLE, 0\);\s*lv_obj_set_style_bg_color\(dots, lv_color_hex\(ui_theme::icon\(\)\), LV_STATE_PRESSED\);\s*lv_obj_set_style_bg_opa\(dots, LV_OPA_20, LV_STATE_PRESSED\);/,
+// The head's row sits where the card's does; its box a small pill around
+// it, half a dot wide (user 2026-10-12: smaller).
+assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,200}?const int press_pad = d\.dot \/ 2;\s*const int box_h = d\.dot \+ 2 \* press_pad;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - press_pad, g\.center_y - box_h \/ 2\);\s*lv_obj_set_size\(dots, dots_width\(count\) \+ 2 \* press_pad, box_h\);\s*lv_obj_set_style_pad_all\(dots, press_pad, 0\);\s*lv_obj_set_style_radius\(dots, LV_RADIUS_CIRCLE, 0\);\s*lv_obj_set_style_bg_color\(dots, lv_color_hex\(ui_theme::icon\(\)\), LV_STATE_USER_1\);\s*lv_obj_set_style_bg_opa\(dots, LV_OPA_20, LV_STATE_USER_1\);/,
   'The head and the card build the same row');
 assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No dimming');
 assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
@@ -198,7 +217,11 @@ assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-lab
 // Beside a square or upright preview two columns, under a landscape one a
 // row under its columns (a 4-column one: four, the fifth below).
 assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout::screen_w\(\) <= grid_layout::screen_h\(\);\s*\}/);
-assert.match(markup, /html \+= String\(previewSlotsBeside\(\) \? 2 : \(shown_cols < max_pages \? shown_cols : max_pages\)\);/);
+assert.match(markup, /html \+= String\(previewSlotsBeside\(\) \? 2 : max_pages\);/);
+// Under a landscape preview Settings right of the pages, both smaller alike
+// to the preview's width (user 2026-10-12).
+assert.match(read('src/web/assets/admin.css'), /\.wrapper:not\(\.compact-grid\) \.settings-hidden-parking\.page-stack \{ flex-direction:row; zoom:var\(--slot-zoom, 1\); \}/);
+assert.match(read('src/web/server/render/web_admin_styles.cpp'), /--slot-zoom:%\.4f;/);
 assert.match(markup, /if \(previewSlotsBeside\(\)\) html \+= " compact-grid";/);
 
 console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');

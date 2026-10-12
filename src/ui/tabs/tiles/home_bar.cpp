@@ -1,6 +1,7 @@
 #include "src/ui/tabs/tiles/home_bar.h"
 
 #include <Arduino.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -150,31 +151,157 @@ lv_obj_t* find_dots(lv_obj_t* grid) {
   return nullptr;
 }
 
-// The glide (user 2026-10-12: no sliding pages, the dot glides): the left
-// page's dot shrinks while the new one grows, the row keeps its width.
-struct Glide {
-  lv_obj_t* from;
-  lv_obj_t* to;
-};
-Glide g_glide{};
-void glide_step(void*, int32_t value) {
+// The line over the dots (user 2026-10-12: it follows the finger and joins
+// the dots fluidly; mockup build/design-mockups/pages/dots-swipe.html). The
+// grey dots stand still; the line in the text color goes from page i's
+// place to page j's, its leading edge ahead, the trailing one following,
+// and fades the dots it covers out and the ones it leaves in (no grey
+// slivers at its round ends). The row's last child is the line.
+int rest_x(int k, int active) {
   const DotSizes d = dot_sizes();
-  const int grow = (d.active - d.dot) * value / 256;
-  if (g_glide.from) lv_obj_set_width(g_glide.from, d.active - grow);
-  if (g_glide.to) lv_obj_set_width(g_glide.to, d.dot + grow);
+  return k * (d.dot + d.gap) + (k > active ? d.active - d.dot : 0);
 }
+float ease_in(float t) { return t * t; }
+float ease_out(float t) { return 1.0f - (1.0f - t) * (1.0f - t); }
+float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+
+void lay_out_line(lv_obj_t* dots, int i, int j, float p, int stretch) {
+  if (!dots) return;
+  const uint32_t children = lv_obj_get_child_count(dots);
+  if (children < 2) return;
+  const int count = static_cast<int>(children) - 1;
+  if (i < 0 || j < 0 || i >= count || j >= count) return;
+  const DotSizes d = dot_sizes();
+  const float l0 = static_cast<float>(rest_x(i, i));
+  const float l1 = static_cast<float>(rest_x(j, j));
+  float left = l0;
+  float right = l0 + d.active;
+  if (j > i) {
+    left = l0 + (l1 - l0) * ease_in(p);
+    right = l0 + d.active + (l1 - l0) * ease_out(p);
+  } else if (j < i) {
+    left = l0 + (l1 - l0) * ease_out(p);
+    right = l0 + d.active + (l1 - l0) * ease_in(p);
+  }
+  if (stretch > 0) right += stretch;
+  if (stretch < 0) left += stretch;
+  for (int k = 0; k < count; ++k) {
+    const float from_x = static_cast<float>(rest_x(k, i));
+    const float to_x = static_cast<float>(rest_x(k, j));
+    // Page i's dot where it ends up, page j's where it was, the others on
+    // their way (only a jump over several pages moves them).
+    const float x = k == i ? to_x : k == j ? from_x : from_x + (to_x - from_x) * p;
+    float shown = 1;
+    if (k == i && j == i) shown = 0;
+    else if (k == i) shown = j > i ? clamp01((left - x) / d.dot) : clamp01((x + d.dot - right) / d.dot);
+    else if (k == j) shown = j > i ? clamp01((x + d.dot - right) / d.dot) : clamp01((left - x) / d.dot);
+    lv_obj_t* dot = lv_obj_get_child(dots, k);
+    lv_obj_set_x(dot, static_cast<int32_t>(lroundf(x)));
+    lv_obj_set_style_bg_opa(dot, static_cast<lv_opa_t>(lroundf(shown * LV_OPA_COVER)), 0);
+  }
+  lv_obj_t* line = lv_obj_get_child(dots, count);
+  const int32_t l = static_cast<int32_t>(lroundf(left));
+  lv_obj_set_x(line, l);
+  lv_obj_set_width(line, static_cast<int32_t>(lroundf(right)) - l);
+}
+
+// The line's own way after the finger (180 ms): on to the new page, back to
+// the old one, or back from a pull past the first or last page.
+struct Motion {
+  lv_obj_t* dots;
+  int from;
+  int to;
+  float p0;
+  float p1;
+  int stretch;
+};
+Motion g_motion{};
+void motion_step(void*, int32_t value) {
+  const float t = static_cast<float>(value) / 1024.0f;
+  lay_out_line(g_motion.dots, g_motion.from, g_motion.to, g_motion.p0 + (g_motion.p1 - g_motion.p0) * t,
+               static_cast<int>(lroundf(static_cast<float>(g_motion.stretch) * (1.0f - t))));
+}
+void motion_done(lv_anim_t*) {
+  const int page = g_motion.p1 >= 1.0f ? g_motion.to : g_motion.from;
+  lay_out_line(g_motion.dots, page, page, 0, 0);
+  g_motion = {};
+}
+void stop_motion() {
+  lv_anim_delete(&g_motion, motion_step);
+  g_motion = {};
+}
+void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch) {
+  stop_motion();
+  g_motion = {dots, from, to, p0, p1, stretch};
+  motion_step(nullptr, 0);
+  lv_anim_t anim;
+  lv_anim_init(&anim);
+  lv_anim_set_var(&anim, &g_motion);
+  lv_anim_set_exec_cb(&anim, motion_step);
+  lv_anim_set_values(&anim, 0, 1024);
+  lv_anim_set_duration(&anim, 180);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
+  lv_anim_set_completed_cb(&anim, motion_done);
+  lv_anim_start(&anim);
+}
+
+// A turn the finger began: the new page's row goes on from there.
+struct Handoff {
+  int from = -1;
+  int to = -1;
+  float p = 0;
+};
+Handoff g_handoff;
+
+// The finger's way for a whole step, and the pull past the first or last
+// page (it stretches the line a little and gives way), by the short side
+// like the dots (300 and 14 px on an 800 px side).
+float short_side() {
+  return static_cast<float>(grid_layout::screen_w() < grid_layout::screen_h() ? grid_layout::screen_w()
+                                                                               : grid_layout::screen_h());
+}
+float drag_span() { return short_side() * 3.0f / 8.0f; }
+int pull(int32_t dx) {
+  const float s = short_side() / 800.0f;
+  const float distance = static_cast<float>(dx < 0 ? -dx : dx);
+  return static_cast<int>(lroundf(14.0f * s * (1.0f - expf(-distance / (160.0f * s)))));
+}
+
 // A tap on the head's dots opens the pages' preview right there.
 void on_dots(lv_event_t* event) { page_preview::open(static_cast<lv_obj_t*>(lv_event_get_current_target(event))); }
 
-void glide_done(lv_anim_t*) {
-  if (g_glide.from) lv_obj_set_style_bg_color(g_glide.from, lv_color_hex(dot_color(false)), 0);
-  g_glide = {};
+// The press shows once the finger rests on the dots (a tap, not a swipe;
+// user 2026-10-12: it showed at once and was too large).
+lv_timer_t* g_press_timer = nullptr;
+lv_obj_t* g_press_dots = nullptr;
+void press_show(lv_timer_t*) {
+  g_press_timer = nullptr;
+  if (g_press_dots && lv_obj_has_state(g_press_dots, LV_STATE_PRESSED)) lv_obj_add_state(g_press_dots, LV_STATE_USER_1);
 }
-void forget_glide(lv_event_t* event) {
-  lv_obj_t* dot = static_cast<lv_obj_t*>(lv_event_get_target(event));
-  if (g_glide.from != dot && g_glide.to != dot) return;
-  lv_anim_delete(&g_glide, glide_step);
-  g_glide = {};
+void release_press(lv_obj_t* dots) {
+  if (dots) lv_obj_remove_state(dots, LV_STATE_USER_1);
+  if (g_press_dots == dots) g_press_dots = nullptr;
+}
+void dots_event(lv_event_t* event) {
+  lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
+  const lv_event_code_t code = lv_event_get_code(event);
+  if (code == LV_EVENT_PRESSED) {
+    g_press_dots = dots;
+    if (g_press_timer) {
+      lv_timer_reset(g_press_timer);
+    } else {
+      g_press_timer = lv_timer_create(press_show, 90, nullptr);
+      lv_timer_set_repeat_count(g_press_timer, 1);
+    }
+  } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    release_press(dots);
+  }
+}
+// The row is gone: nothing may reach it any more.
+void forget_dots(lv_event_t* event) {
+  lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_target(event));
+  if (g_motion.dots == dots) stop_motion();
+  if (g_press_dots == dots) g_press_dots = nullptr;
 }
 
 }  // namespace
@@ -363,19 +490,23 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
     const DotSizes d = dot_sizes();
     const int row_x = (grid_layout::screen_w() - dots_width(count)) / 2;
-    // A press shows (user 2026-10-12: no sign of a press): the X's light
-    // fill in its pressed height, as a pill around the row.
-    const int press_pad = (pressed - d.dot) / 2;
-    lv_obj_t* dots = create_dots(bar, count, page, row_x - press_pad, g.center_y - pressed / 2);
-    lv_obj_set_size(dots, dots_width(count) + 2 * press_pad, pressed);
-    lv_obj_set_style_pad_hor(dots, press_pad, 0);
+    // A resting press shows a small pill hugging the row in the X's light
+    // fill (user 2026-10-12: smaller, not at once).
+    const int press_pad = d.dot / 2;
+    const int box_h = d.dot + 2 * press_pad;
+    lv_obj_t* dots = create_dots(bar, count, page, row_x - press_pad, g.center_y - box_h / 2);
+    lv_obj_set_size(dots, dots_width(count) + 2 * press_pad, box_h);
+    lv_obj_set_style_pad_all(dots, press_pad, 0);
     lv_obj_set_style_radius(dots, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(dots, lv_color_hex(ui_theme::icon()), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(dots, LV_OPA_20, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(dots, lv_color_hex(ui_theme::icon()), LV_STATE_USER_1);
+    lv_obj_set_style_bg_opa(dots, LV_OPA_20, LV_STATE_USER_1);
     lv_obj_set_user_data(dots, &g_dots_marker);
     // The tap reaches them over the circle's height.
     lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(dots, g.disc > pressed ? (g.disc - pressed) / 2 : 0);
+    lv_obj_set_ext_click_area(dots, g.disc > box_h ? (g.disc - box_h) / 2 : 0);
+    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESS_LOST, nullptr);
     lv_obj_add_event_cb(dots, on_dots, LV_EVENT_CLICKED, nullptr);
     // The title ends a gap before them.
     if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
@@ -414,47 +545,78 @@ lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y) {
   lv_obj_t* dots = plain(parent);
   lv_obj_set_size(dots, dots_width(count), d.dot);
   lv_obj_set_pos(dots, x, y);
-  lv_obj_set_flex_flow(dots, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(dots, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(dots, d.gap, 0);
-  for (int i = 0; i < count; ++i) {
+  // The grey dots, then the line (lay_out_line places them).
+  for (int i = 0; i <= count; ++i) {
     lv_obj_t* dot = plain(dots);
-    lv_obj_set_size(dot, i == active ? d.active : d.dot, d.dot);
+    lv_obj_set_size(dot, i == count ? d.active : d.dot, d.dot);
     lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(dot, lv_color_hex(dot_color(i == active)), 0);
+    lv_obj_set_style_bg_color(dot, lv_color_hex(dot_color(i == count)), 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-    lv_obj_add_event_cb(dot, forget_glide, LV_EVENT_DELETE, nullptr);
   }
+  lay_out_line(dots, active, active, 0, 0);
+  lv_obj_add_event_cb(dots, forget_dots, LV_EVENT_DELETE, nullptr);
   return dots;
 }
 
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {
   const int page = tile_layouts::page_number(folder_id);
   const int from = tile_layouts::page_number(previous_folder_id);
-  if (page < 0 || from < 0 || from == page) return;
+  const Handoff handoff = g_handoff;
+  g_handoff = {};
   lv_obj_t* dots = find_dots(grid);
-  if (!dots || static_cast<uint32_t>(from) >= lv_obj_get_child_count(dots) ||
-      static_cast<uint32_t>(page) >= lv_obj_get_child_count(dots)) {
+  if (!dots || page < 0) return;
+  if (from < 0 || from == page) {
+    // At rest (a drag may have left it on its way).
+    if (g_motion.dots != dots) lay_out_line(dots, page, page, 0, 0);
     return;
   }
-  lv_anim_delete(&g_glide, glide_step);
-  glide_done(nullptr);
-  g_glide = {lv_obj_get_child(dots, from), lv_obj_get_child(dots, page)};
-  // The left page's dot keeps the text color while it shrinks; the new one
-  // has it already, only the widths move.
-  const DotSizes d = dot_sizes();
-  lv_obj_set_style_bg_color(g_glide.from, lv_color_hex(dot_color(true)), 0);
-  lv_obj_set_width(g_glide.from, d.active);
-  lv_obj_set_width(g_glide.to, d.dot);
-  lv_anim_t anim;
-  lv_anim_init(&anim);
-  lv_anim_set_var(&anim, &g_glide);
-  lv_anim_set_exec_cb(&anim, glide_step);
-  lv_anim_set_values(&anim, 0, 256);
-  lv_anim_set_duration(&anim, 150);
-  lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
-  lv_anim_set_completed_cb(&anim, glide_done);
-  lv_anim_start(&anim);
+  // On from where the finger left it, else from the old page's place.
+  const float p0 = handoff.from == from && handoff.to == page ? handoff.p : 0.0f;
+  move_line(dots, from, page, p0, 1.0f, 0);
+}
+
+void drag(lv_obj_t* grid, int32_t dx) {
+  lv_obj_t* dots = find_dots(grid);
+  if (!dots) return;
+  release_press(dots);
+  stop_motion();
+  uint16_t pages[tile_layouts::kMaxPages];
+  const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
+  const int page = tile_layouts::page_number(tileConfig.getActiveFolderId());
+  if (page < 0) return;
+  const int step = dx < 0 ? 1 : -1;
+  const int target = page + step;
+  if (target < 0 || target >= count) {
+    lay_out_line(dots, page, page, 0, step * pull(dx));
+    return;
+  }
+  const float p = static_cast<float>(dx < 0 ? -dx : dx) / drag_span();
+  lay_out_line(dots, page, target, p > 1.0f ? 1.0f : p, 0);
+}
+
+int release(lv_obj_t* grid, int32_t dx, float speed) {
+  lv_obj_t* dots = find_dots(grid);
+  uint16_t pages[tile_layouts::kMaxPages];
+  const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
+  const int page = tile_layouts::page_number(tileConfig.getActiveFolderId());
+  if (!dots || page < 0) return 0;
+  release_press(dots);
+  const int step = dx < 0 ? 1 : -1;
+  const int target = page + step;
+  if (target < 0 || target >= count) {
+    move_line(dots, page, page, 0, 0, step * pull(dx));
+    return 0;
+  }
+  float p = static_cast<float>(dx < 0 ? -dx : dx) / drag_span();
+  if (p > 1.0f) p = 1.0f;
+  // A quarter of the way or a quick flick that way turns the page.
+  const bool flick = static_cast<float>(-step) * speed > 0.6f * short_side() / 800.0f;
+  if (p >= 0.25f || flick) {
+    g_handoff = {page, target, p};
+    return step;
+  }
+  move_line(dots, page, target, p, 0.0f, 0);
+  return 0;
 }
 
 // With pages the dots hold the middle: the camera circle sits before the

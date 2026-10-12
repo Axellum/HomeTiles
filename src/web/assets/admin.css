@@ -3014,6 +3014,9 @@
   min-width:0;
 }
 .page-group { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+/* Under a landscape preview the two boxes side by side, smaller alike when
+   the row would be wider than the preview (--slot-zoom, user 2026-10-12). */
+.wrapper:not(.compact-grid) .settings-hidden-parking.page-stack { flex-direction:row; zoom:var(--slot-zoom, 1); }
 .compact-grid .tile-editor-main > .settings-hidden-parking.page-stack { width:fit-content; align-self:start; }
 .page-parking {
   display:grid;
