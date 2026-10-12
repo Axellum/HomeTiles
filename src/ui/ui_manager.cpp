@@ -2,6 +2,7 @@
 #include "src/ui/ui_manager.h"
 
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
+#include "src/ui/tabs/tiles/page_preview.h"
 #include "src/ui/tabs/settings/tab_settings.h"
 #include "src/ui/popups/light/light_popup.h"
 #include "src/ui/popups/sensor/sensor_popup.h"
@@ -230,6 +231,7 @@ void UIManager::processThemeChange() {
   // Popups and the shell were built in the old colors: closed, deleted and
   // built again (their fixed labels take the colors when created).
   viewNavigationClosePopups();
+  page_preview::close();
   settings_screen::close_overlays();
   popup_shell_delete_popups();
   preloadPopups();
@@ -403,6 +405,7 @@ lv_obj_t* UIManager::createTabPanel(lv_obj_t *parent) {
 }
 
 void UIManager::switchToTab(uint8_t index) {
+  page_preview::close();
   viewNavigationClosePopups();
   if (index >= TAB_COUNT) return;
   if (active_tab_index == index) return;

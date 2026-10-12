@@ -1,0 +1,22 @@
+#pragma once
+
+#include <lvgl.h>
+#include <stdint.h>
+
+// The pages' preview (user 2026-10-12, mockup build/design-mockups/pages): a
+// tap on the head's dots opens a small card right there, grown out of the
+// dots (its dot row lies exactly on the head's), with a schematic picture of
+// every page (its tiles as rectangles in their card colors, no text), three
+// per row, the name under each and the current one marked like the active
+// dot. A tap on a picture shows that page, a tap anywhere else closes it. No
+// dimming and no animation (both cost whole-screen redraws); the popups'
+// cached card shadow.
+namespace page_preview {
+
+// Opens over the head of the shown grid; `dots` (the head's dot row) hides
+// while the card shows its own in the same place.
+void open(lv_obj_t* dots);
+void close();
+bool is_open();
+
+}  // namespace page_preview

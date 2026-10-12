@@ -26,12 +26,14 @@
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/ui/tabs/tiles/home_bar.h"
+#include "src/ui/tabs/tiles/page_preview.h"
 #include <misc/cache/instance/lv_image_cache.h>
 #include <Arduino.h>
 #include <atomic>
 #include <cstring>
 #include <strings.h>
 #include <esp_heap_caps.h>
+#include <memory>
 #include <new>
 #include "src/ui/shared/ui_theme.h"
 
@@ -1937,6 +1939,7 @@ void tiles_request_release_all() {
 
 void tiles_switch_to_folder(uint16_t folder_id) {
   viewNavigationClosePopups();
+  page_preview::close();
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
   if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
     uiManager.finishFolderSwitch(folder_id, false);
@@ -2429,6 +2432,39 @@ void tiles_process_reload_requests() {
   release_folder_cache_under_pressure();
 #endif
   if (!did_reload) process_navigation_preload();
+}
+
+size_t tiles_page_schematic(uint16_t folder_id, PageTileRect* out, size_t max) {
+  const TileGridConfig* config = nullptr;
+  lv_obj_t* const* objs = nullptr;
+  std::unique_ptr<TileGridConfig> stored;
+  FolderCacheEntry* entry = find_folder_cache(folder_id);
+  if (g_active_cache && g_active_cache->folder_id == folder_id && g_active_cache->grid) {
+    config = &tileConfig.getActiveGrid();
+    objs = g_tiles_objs[static_cast<uint8_t>(GridType::TAB0)];
+  } else if (entry && entry->grid && entry->grid_loaded && entry->widgets_valid && !entry->dirty) {
+    config = &entry->grid_config;
+    objs = entry->tile_objs;
+  } else {
+    stored.reset(new (std::nothrow) TileGridConfig{});
+    if (!stored || !tileConfig.loadFolderGrid(folder_id, *stored)) return 0;
+    config = stored.get();
+  }
+  size_t count = 0;
+  for (size_t i = 0; i < TILES_PER_GRID && count < max; ++i) {
+    const Tile& tile = config->tiles[i];
+    float col = 0, row = 0, span_w = 1, span_h = 1;
+    if (tile.type == TILE_EMPTY || !shownTileLayout(tile, col, row, span_w, span_h)) continue;
+    uint32_t color = ui_theme::card();
+    if (lv_obj_t* obj = objs ? objs[i] : nullptr) {
+      if (lv_obj_get_style_bg_opa(obj, LV_PART_MAIN) < LV_OPA_50) continue;
+      color = lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN)) & 0xFFFFFF;
+    } else if (tileTransparent(tile)) {
+      continue;
+    }
+    out[count++] = {col, row, span_w, span_h, color};
+  }
+  return count;
 }
 
 void tiles_process_pending_folder_switch() {

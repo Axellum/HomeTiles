@@ -14,6 +14,7 @@
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/types/clock/clock_format.h"
 #include "src/ui/popups/popup_layout.h"
+#include "src/ui/tabs/tiles/page_preview.h"
 #include "src/ui/tabs/settings/settings_style.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/ui_theme.h"
@@ -133,11 +134,6 @@ uint32_t head_base() { return ui_theme::light() ? ui_theme::screen() : tileDefau
 // circle beside it): the gear's grey one step from the head's base.
 settings_style::Tone page_circle_tone() { return settings_style::tone(head_base(), settings_style::kGearColor); }
 
-int dots_width(int count) {
-  const DotSizes d = dot_sizes();
-  return count * d.dot + (d.active - d.dot) + (count - 1) * d.gap;
-}
-
 lv_obj_t* find_dots(lv_obj_t* grid) {
   if (!grid) return nullptr;
   const uint32_t count = lv_obj_get_child_count(grid);
@@ -166,6 +162,9 @@ void glide_step(void*, int32_t value) {
   if (g_glide.from) lv_obj_set_width(g_glide.from, d.active - grow);
   if (g_glide.to) lv_obj_set_width(g_glide.to, d.dot + grow);
 }
+// A tap on the head's dots opens the pages' preview right there.
+void on_dots(lv_event_t* event) { page_preview::open(static_cast<lv_obj_t*>(lv_event_get_current_target(event))); }
+
 void glide_done(lv_anim_t*) {
   if (g_glide.from) lv_obj_set_style_bg_color(g_glide.from, lv_color_hex(dot_color(false)), 0);
   g_glide = {};
@@ -355,21 +354,12 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
     const DotSizes d = dot_sizes();
     const int row_x = (grid_layout::screen_w() - dots_width(count)) / 2;
-    lv_obj_t* dots = plain(bar);
+    lv_obj_t* dots = create_dots(bar, count, page, row_x, g.center_y - d.dot / 2);
     lv_obj_set_user_data(dots, &g_dots_marker);
-    lv_obj_set_size(dots, dots_width(count), d.dot);
-    lv_obj_set_pos(dots, row_x, g.center_y - d.dot / 2);
-    lv_obj_set_flex_flow(dots, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(dots, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(dots, d.gap, 0);
-    for (int i = 0; i < count; ++i) {
-      lv_obj_t* dot = plain(dots);
-      lv_obj_set_size(dot, i == page ? d.active : d.dot, d.dot);
-      lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-      lv_obj_set_style_bg_color(dot, lv_color_hex(dot_color(i == page)), 0);
-      lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-      lv_obj_add_event_cb(dot, forget_glide, LV_EVENT_DELETE, nullptr);
-    }
+    // The tap reaches them over the circle's height.
+    lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(dots, (g.disc - d.dot) / 2);
+    lv_obj_add_event_cb(dots, on_dots, LV_EVENT_CLICKED, nullptr);
     // The title ends a gap before them.
     if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
   }
@@ -386,6 +376,30 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_size(title, title_w, lv_font_get_line_height(font));
   lv_label_set_text(title, title_text);
   lv_obj_set_pos(title, g.title_x, g.center_y - lv_font_get_line_height(font) / 2);
+}
+
+int dots_width(int count) {
+  const DotSizes d = dot_sizes();
+  return count * d.dot + (d.active - d.dot) + (count - 1) * d.gap;
+}
+
+lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y) {
+  const DotSizes d = dot_sizes();
+  lv_obj_t* dots = plain(parent);
+  lv_obj_set_size(dots, dots_width(count), d.dot);
+  lv_obj_set_pos(dots, x, y);
+  lv_obj_set_flex_flow(dots, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(dots, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(dots, d.gap, 0);
+  for (int i = 0; i < count; ++i) {
+    lv_obj_t* dot = plain(dots);
+    lv_obj_set_size(dot, i == active ? d.active : d.dot, d.dot);
+    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(dot, lv_color_hex(dot_color(i == active)), 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    lv_obj_add_event_cb(dot, forget_glide, LV_EVENT_DELETE, nullptr);
+  }
+  return dots;
 }
 
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {

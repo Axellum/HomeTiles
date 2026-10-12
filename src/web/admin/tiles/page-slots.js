@@ -4,21 +4,29 @@
   // a page dragged onto the grid becomes a folder tile again, and the slot
   // order is the order of the panel's dots.
   const PAGE_SLOT_COUNT = 6;
-  let pageSlotsSaving = false;
 
   function pageSlotsElement() {
     return document.getElementById('pageSlots');
   }
 
+  // The pages in slot order; a folder deleted meanwhile has left.
   function pageFolders() {
     const slots = pageSlotsElement();
     if (!slots) return [];
-    return String(slots.dataset.pages || '').split(',').map(Number).filter(id => id > 0);
+    return String(slots.dataset.pages || '').split(',').map(Number).filter(id => id > 0 && homeFolderTile(id));
+  }
+
+  // Home's folder tile of a folder, from the page itself: the server and
+  // the browser both mark it (data-navigate-target), also before the tile
+  // data has loaded.
+  function homeFolderTile(folderId) {
+    return getTileGrid('folder0')?.querySelector(
+      ':scope > .tile[data-type="4"][data-navigate-target="' + Number(folderId) + '"]') || null;
   }
 
   function homeFolderTileIndex(folderId) {
-    return (getTilesData('folder0') || []).findIndex(
-      tile => Number(tile?.type || 0) === 4 && Number(tile.navigate_target) === folderId);
+    const tile = homeFolderTile(folderId);
+    return tile ? Number(tile.dataset.index) : -1;
   }
 
   // A filled slot shows the page's folder tile as the grid draws it (its
@@ -32,7 +40,7 @@
       slot.dataset.folder = folder ? String(folder) : '';
       slot.draggable = !!folder;
       slot.classList.toggle('has-tile', !!folder);
-      const source = folder ? document.getElementById('folder0-tile-' + homeFolderTileIndex(folder)) : null;
+      const source = folder ? homeFolderTile(folder) : null;
       slot.className = 'page-slot ' + (folder && source ? 'has-tile' : 'empty');
       if (!folder || !source) {
         slot.innerHTML = '<i class="mdi mdi-tray-arrow-down"></i>';
@@ -49,6 +57,8 @@
         tile.style.setProperty(property, source.style.getPropertyValue(property));
       }
       tile.innerHTML = source.innerHTML;
+      // Picked in the editor: the teal selection like in the grid.
+      tile.classList.toggle('active', currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index));
       slot.replaceChildren(tile);
     });
     syncPageHeads();
@@ -87,13 +97,56 @@
     });
   }
 
-  async function savePages(pages, extra = {}, unlock = false) {
-    if (pageSlotsSaving) return false;
-    pageSlotsSaving = true;
+  // Shows a change of the pages at once, like the Settings parking slot:
+  // the slots, Home's folder tiles and the heads. `previous` are the pages
+  // before; a folder leaving them comes back on the grid (`out`: at its
+  // dropped spot).
+  function showPagesLocally(pages, previous, out = null) {
+    pageSlotsElement().dataset.pages = pages.join(',');
+    const loaded = tileDataLoadedTabs.has('folder0');
+    const tiles = getTilesData('folder0') || [];
+    const folders = new Set([...pages, ...previous]);
+    folders.forEach(folder => {
+      const el = homeFolderTile(folder);
+      if (!el) return;
+      const page = pages.includes(folder);
+      const tile = loaded ? tiles[Number(el.dataset.index)] : null;
+      if (tile) {
+        tile.layout_hidden = page;
+        if (!page && out && out.folder === folder) {
+          Object.assign(tile, {col: out.col, row: out.row, span_w: out.span_w, span_h: out.span_h});
+        }
+      }
+      el.classList.toggle('tile-unplaced', page);
+    });
+    if (loaded) layoutTiles('folder0', tiles);
+    renderPageSlots();
+  }
+
+  // The saves go out one after the other; each shows before it is sent.
+  let pageSlotsQueue = Promise.resolve();
+
+  function savePages(pages, extra = {}, unlock = false) {
+    const previous = pageFolders();
+    const out = extra.out ? {folder: Number(extra.out), col: Number(extra.col), row: Number(extra.row),
+      span_w: Number(extra.span_w || 1), span_h: Number(extra.span_h || 1)} : null;
+    showPagesLocally(pages, previous, out);
+    pageSlotsQueue = pageSlotsQueue.then(() => sendPages(pages, previous, extra, unlock));
+    return pageSlotsQueue;
+  }
+
+  async function sendPages(pages, previous, extra, unlock) {
+    const undo = message => {
+      showPagesLocally(previous, pages);
+      showNotification(message, false);
+      return false;
+    };
     try {
       const body = new URLSearchParams({pages: pages.join(',')});
       if (unlock) body.set('unlock', '1');
-      Object.entries(extra).forEach(([key, value]) => body.set(key, String(value)));
+      ['out', 'col', 'row'].forEach(key => {
+        if (extra[key] !== undefined) body.set(key, String(extra[key]));
+      });
       const response = await fetch('/api/pages', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -101,37 +154,47 @@
       });
       let data = {};
       try { data = await response.json(); } catch (_) {}
-      if (response.status === 409 && data.error === 'locked') {
-        pageSlotsSaving = false;
-        // Pages have no PIN: the lock goes once the user agrees.
-        if (!window.confirm(t('pageUnlockConfirm'))) return false;
-        return savePages(pages, extra, true);
-      }
       if (!response.ok || !data.success) {
-        showNotification(data.error === 'No free cell' ? t('tileDoesNotFit') : t('networkErrorSave'), false);
-        return false;
+        return undo(data.error === 'No free cell' ? t('tileDoesNotFit') : t('networkErrorSave'));
       }
-      pageSlotsElement().dataset.pages = pages.join(',');
-      // Home's grid: a page's folder tile leaves it, a folder taken out of
-      // the slots comes back at its new place.
-      const tiles = await fetchTileGridData('folder0', true);
-      tiles.forEach((tile, index) => renderTileFromData('folder0', index, tile, sensorMetaCache));
-      layoutTiles('folder0', tiles);
-      renderPageSlots();
+      // A page has no PIN: its lock went with the save.
+      if (unlock) {
+        pages.forEach(folder => {
+          const el = homeFolderTile(folder);
+          if (!el) return;
+          el.dataset.folderPinEnabled = '0';
+          el.querySelector('.tile-icon-lock')?.remove();
+          const tile = getTilesData('folder0')?.[Number(el.dataset.index)];
+          if (tile) tile.folder_pin_enabled = false;
+        });
+        renderPageSlots();
+      }
+      // A folder back on the grid: the place the device gave it.
+      if (extra.out !== undefined) {
+        const el = homeFolderTile(Number(extra.out));
+        const tile = el ? getTilesData('folder0')?.[Number(el.dataset.index)] : null;
+        const place = tile ? data.places?.[ACTIVE_LAYOUT]?.['0']?.[String(tile.view_id)] : null;
+        if (place) {
+          Object.assign(tile, {col: place[0], row: place[1], span_w: place[2], span_h: place[3]});
+          layoutTiles('folder0', getTilesData('folder0'));
+        } else {
+          const tiles = await fetchTileGridData('folder0', true);
+          tiles.forEach((data, index) => renderTileFromData('folder0', index, data, sensorMetaCache));
+          layoutTiles('folder0', tiles);
+          renderPageSlots();
+        }
+      }
       showNotification(t('pagesSaved'));
       return true;
     } catch (error) {
-      showNotification(t('networkErrorSave'), false);
-      return false;
-    } finally {
-      pageSlotsSaving = false;
+      return undo(t('networkErrorSave'));
     }
   }
 
   function draggedHomeFolder() {
     if (!dragSource || dragSource.kind !== 'grid-tile' || dragSource.tab !== 'folder0') return 0;
-    const tile = getTilesData('folder0')?.[dragSource.index];
-    return Number(dragSource.type || tile?.type || 0) === 4 ? Number(tile?.navigate_target || 0) : 0;
+    const tile = document.getElementById('folder0-tile-' + dragSource.index);
+    return tile?.dataset.type === '4' ? Number(tile.dataset.navigateTarget || 0) : 0;
   }
 
   // A page leaving the slots onto Home's grid (drag-resize.js handleGridDrop).
@@ -143,7 +206,29 @@
   function dropPageOnGrid(candidate) {
     const folder = dragSource.folder;
     dragSource.dropCommitted = true;
-    savePages(pageFolders().filter(id => id !== folder), {out: folder, col: candidate.col, row: candidate.row});
+    // The device keeps the tile's size when it fits there (/api/pages).
+    const tile = getTilesData('folder0')?.[dragSource.index];
+    const size = tile && tile.span_w >= 1 && tile.span_h >= 1 &&
+      canPlacePageTile({col: candidate.col, row: candidate.row, span_w: tile.span_w, span_h: tile.span_h})
+      ? {span_w: tile.span_w, span_h: tile.span_h} : {span_w: 1, span_h: 1};
+    savePages(pageFolders().filter(id => id !== folder), {out: folder, col: candidate.col, row: candidate.row, ...size});
+  }
+
+  // The slots follow their folder tiles: an edited title, icon or color, the
+  // editor's selection. The head's dots (syncPageHeads) are no reason.
+  function watchPageFolderTiles() {
+    const grid = getTileGrid('folder0');
+    if (!grid || typeof MutationObserver !== 'function') return;
+    let frame = 0;
+    new MutationObserver(records => {
+      if (frame || records.every(record => record.target.closest?.('.head-bar-preview') ||
+          record.target.parentElement?.closest('.head-bar-preview'))) return;
+      // A timer, not a frame: a hidden tab gets no frames.
+      frame = setTimeout(() => {
+        frame = 0;
+        renderPageSlots();
+      }, 30);
+    }).observe(grid, {subtree: true, childList: true, attributes: true, characterData: true});
   }
 
   function enablePageSlots() {
@@ -151,7 +236,13 @@
     if (!slots || slots.dataset.bound === '1') return;
     slots.dataset.bound = '1';
     renderPageSlots();
+    watchPageFolderTiles();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
+      // A page is edited like its folder tile: a tap picks it.
+      slot.addEventListener('click', () => {
+        const index = homeFolderTileIndex(Number(slot.dataset.folder || 0));
+        if (index >= 0) selectTile(index, 'folder0');
+      });
       const accepts = () => draggedHomeFolder() > 0 ||
         (dragSource?.kind === 'page-slot' && dragSource.tab === 'folder0');
       slot.addEventListener('dragover', event => {
@@ -181,10 +272,13 @@
           showNotification(t('pagesFull'), false);
           return;
         }
+        // Pages have no PIN: a locked folder asks before it becomes one.
+        const unlock = from < 0 && homeFolderTile(folder)?.dataset.folderPinEnabled === '1';
+        if (unlock && !window.confirm(t('pageUnlockConfirm'))) return;
         if (from >= 0) pages.splice(from, 1);
         pages.splice(Math.min(i, pages.length), 0, folder);
         dragSource.dropCommitted = true;
-        savePages(pages);
+        savePages(pages, {}, unlock);
       });
       slot.addEventListener('dragstart', event => {
         const folder = Number(slot.dataset.folder || 0);

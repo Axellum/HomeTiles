@@ -54,4 +54,18 @@ void tiles_invalidate_folder_only(uint16_t folder_id);
 // task only, outside LVGL callbacks. False when nothing is shown.
 bool tiles_show_active_layout_now();
 
+// One tile of a page's picture (page_preview.h): its shown place in cells
+// and its card's color.
+struct PageTileRect {
+  float col;
+  float row;
+  float span_w;
+  float span_h;
+  uint32_t color;
+};
+// A folder's shown tiles: from its built grid when it is cached (the card
+// colors as drawn), else from its stored grid in the theme's card color.
+// Transparent cards are left out. Loop task only.
+size_t tiles_page_schematic(uint16_t folder_id, PageTileRect* out, size_t max);
+
 #endif // TAB_TILES_UNIFIED_H

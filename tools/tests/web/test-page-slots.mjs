@@ -44,7 +44,11 @@ const empty = () => ({type:0});
 const device = Array.from({length: ${TILES}}, empty);
 device[0] = {type:4,title:'Lights',icon_name:'lightbulb',navigate_target:1,col:0,row:0,span_w:1,span_h:1};
 device[1] = {type:4,title:'Climate',icon_name:'thermostat',navigate_target:2,col:1,row:0,span_w:1,span_h:1};
-device[2] = {type:4,title:'Alarm',icon_name:'shield',navigate_target:3,col:2,row:0,span_w:1,span_h:1};
+device[2] = {type:4,title:'Alarm',icon_name:'shield',navigate_target:3,col:2,row:0,span_w:1,span_h:1,folder_pin_enabled:true};
+// More Home folders for the six-pages limit.
+[11, 12, 13, 14, 15].forEach((folder, i) => {
+  device[3 + i] = {type:4,title:'F' + folder,icon_name:'folder',navigate_target:folder,col:(3 + i) % 6,row:Math.floor((3 + i) / 6),span_w:1,span_h:1};
+});
 const locked = new Set([3]);
 let pages = [];
 const log = [];
@@ -96,6 +100,21 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   const dots = tab => [...document.querySelectorAll('#tab-tiles-' + tab + ' .head-dots > i')].map(dot => dot.classList.contains('on') ? 'O' : 'o').join('');
   const settle = () => wait(300);
   folderByTab.folder0 = 0;
+  // A reloaded page (user 2026-10-12: the slots came up empty): the server's
+  // tile markup is there, the tile data not yet; the slots find their
+  // folders by the markup.
+  {
+    const served = document.getElementById('folder0-tile-0');
+    served.className = 'tile navigate tile-unplaced';
+    served.dataset.type = '4';
+    served.dataset.navigateTarget = '1';
+    served.innerHTML = '<div class="tile-title">Lights</div>';
+    slotsEl.dataset.pages = '1';
+    renderPageSlots();
+    check(slots()[0].classList.contains('has-tile') && slots()[0].querySelector('.tile-title')?.textContent === 'Lights',
+          'Before the tile data loads the slot shows its folder');
+    slotsEl.dataset.pages = '';
+  }
   tileDataLoadedTabs.add('folder0');
   tilesData.folder0 = JSON.parse(JSON.stringify(device));
   tilesData.folder0.forEach((tile, i) => renderTileFromData('folder0', i, tile, {}));
@@ -118,7 +137,19 @@ ${inlineScriptSafe(readAdminDeliverySource())}
 
   // A folder becomes a page: in the first slot with its tile's look, gone
   // from Home's preview, the dots on Home and on the page, the page's gear.
-  await dropOnSlot(tileOf(1), 3);
+  // Shown at once, before the device answers (user 2026-10-12: dragging in
+  // took long).
+  {
+    const transfer = new DataTransfer();
+    const source = tileOf(1);
+    source.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(source)}));
+    slots()[3].dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[3])}));
+    slots()[3].dispatchEvent(new DragEvent('drop', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[3])}));
+    check(slots()[0].classList.contains('has-tile') && tileOf(1).classList.contains('tile-unplaced') && !pages.length,
+          'The page shows before the device has saved it');
+    source.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
+    await settle();
+  }
   check(pages.join() === '1', 'Dropped on a later slot it takes the first free one: ' + pages.join());
   check(slots()[0].dataset.folder === '1' && slots()[0].classList.contains('has-tile') &&
         slots()[0].querySelector('.tile-title')?.textContent.includes('Lights'), 'The slot shows the folder tile');
@@ -128,7 +159,8 @@ ${inlineScriptSafe(readAdminDeliverySource())}
 
   // A locked folder asks once, then its PIN goes with the request.
   await dropOnSlot(tileOf(3), 5);
-  check(confirms === 1 && pages.join() === '1,3' && log.some(line => line.includes('"unlock":"1"')),
+  check(confirms === 1 && pages.join() === '1,3' && log.filter(line => line.startsWith('/api/pages')).length === 2 &&
+        log.some(line => line.includes('"unlock":"1"')),
         'A locked folder asks before its PIN goes: ' + pages.join());
 
   // Reorder: the second slot onto the first.
@@ -155,9 +187,16 @@ ${inlineScriptSafe(readAdminDeliverySource())}
 
   // Six pages: a seventh is refused without a request.
   slotsEl.dataset.pages = '3,11,12,13,14,15';
+  pages = [3, 11, 12, 13, 14, 15];
   const posts = log.length;
   await dropOnSlot(tileOf(1), 2);
-  check(log.length === posts && pages.join() === '3', 'A seventh page sends nothing');
+  check(log.length === posts && pages.length === 6 && !tileOf(1).classList.contains('tile-unplaced'), 'A seventh page sends nothing');
+  // A tap on a page picks its folder tile in the editor, with the teal
+  // selection in the slot.
+  slots()[0].dispatchEvent(new MouseEvent('click', {bubbles:true}));
+  await wait(100);
+  check(currentTileTab === 'folder0' && currentTileIndex === homeFolderTileIndex(3) &&
+        slots()[0].querySelector('.tile')?.classList.contains('active'), 'A tap on a page picks its folder: ' + [currentTileTab, currentTileIndex, homeFolderTileIndex(3), slots()[0].dataset.folder, slots()[0].querySelector('.tile')?.className].join(' '));
   document.body.dataset.result = 'pass';
 } catch (error) {
   document.body.dataset.result = 'fail'; document.getElementById('result').textContent = error.stack;

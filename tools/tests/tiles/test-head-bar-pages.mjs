@@ -46,7 +46,7 @@ assert.match(build, /const int page = tile_layouts::page_number\(folder_id\);\s*
 assert.match(build, /getMdiChar\(home_level \? "cog" : "window-close"\)/);
 assert.match(build, /if \(page >= 0\) \{/);
 assert.match(build, /const int count = static_cast<int>\(tile_layouts::pages\(pages\)\) \+ 1;/);
-assert.match(build, /lv_obj_set_size\(dot, i == page \? d\.active : d\.dot, d\.dot\);/);
+assert.match(slice(bar, 'lv_obj_t* create_dots(', '\n}\n'), /lv_obj_set_size\(dot, i == active \? d\.active : d\.dot, d\.dot\);/);
 // Sized like the mockup: 12 and 34 on an 800 px short side.
 assert.match(bar, /const int dot = \(12 \* side \+ 400\) \/ 800;\s*return \{dot, \(34 \* side \+ 400\) \/ 800, dot\};/);
 // The glide: only between two pages, 150 ms.
@@ -96,4 +96,26 @@ assert.match(read('src/web/server/web_admin.cpp'), /server\.on\("\/api\/pages", 
 assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'),
   /if \(pages && tile_layouts::page_number\(getNavigateTargetId\(tile\)\) > 0\) continue;/);
 
-console.log('Head bar pages: storage, dots, swipe, preload and /api/pages');
+// The preview card: a tap on the head's dots; its dot row lies exactly on
+// the head's (same row, same x, same y), the pictures from the built grids'
+// card colors, no dimming (the catcher is never drawn), the popups' cached
+// shadow, closed by every navigation and a theme change.
+assert.match(bar, /lv_obj_add_event_cb\(dots, on_dots, LV_EVENT_CLICKED, nullptr\);/);
+assert.match(bar, /void on_dots\(lv_event_t\* event\) \{ page_preview::open\(/);
+const preview = read('src/ui/tabs/tiles/page_preview.cpp');
+assert.match(preview, /const int card_y = head\.center_y - geo\.pad_top - geo\.head_h \/ 2;/);
+assert.match(preview, /home_bar::create_dots\(card, count, current, \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x,\s*head\.center_y - dot\.dot \/ 2 - card_y\);/);
+assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x, g\.center_y - d\.dot \/ 2\);/,
+  'The head and the card build the same row');
+assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No dimming');
+assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
+assert.match(preview, /lv_obj_add_event_cb\(picture, picture_draw, LV_EVENT_DRAW_MAIN_END, nullptr\);/, 'Pictures are drawn, not built of objects');
+assert.match(preview, /close\(\);\s*uiManager\.showPage\(index\);/);
+const schematic = slice(tiles, 'size_t tiles_page_schematic(', '\n}\n');
+assert.match(schematic, /color = lv_color_to_u32\(lv_obj_get_style_bg_color\(obj, LV_PART_MAIN\)\) & 0xFFFFFF;/);
+assert.match(schematic, /if \(lv_obj_get_style_bg_opa\(obj, LV_PART_MAIN\) < LV_OPA_50\) continue;/);
+assert.match(slice(manager, 'void UIManager::switchToTab(uint8_t index) {', '\n}\n'), /page_preview::close\(\);/);
+assert.match(slice(manager, 'void UIManager::processThemeChange() {', '\n}\n'), /viewNavigationClosePopups\(\);\s*page_preview::close\(\);/);
+assert.match(slice(tiles, 'void tiles_switch_to_folder(uint16_t folder_id) {', '\n}\n'), /page_preview::close\(\);/);
+
+console.log('Head bar pages: storage, dots, swipe, preload, preview card and /api/pages');

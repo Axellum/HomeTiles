@@ -48,6 +48,10 @@ struct DotSizes {
 };
 DotSizes dot_sizes();
 uint32_t dot_color(bool active);
+// The row of `count` dots with `active` wide, at x, y in `parent`; the head
+// and the pages' preview (page_preview.h) draw the same row.
+int dots_width(int count);
+lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y);
 
 // Builds the bar into a tile grid (one floating child at the screen's top,
 // in the grid's top margin). Does nothing without the head bar layout.
