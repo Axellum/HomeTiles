@@ -111,7 +111,8 @@ const icons = ['cog', 'window-close', 'monitor', 'wifi', 'wifi-off', 'access-poi
   'wifi-strength-4', 'wifi-strength-lock-outline', 'plus', 'refresh', 'lan', 'ethernet', 'ip-network-outline',
   'pencil-outline', 'eye', 'eye-off', 'lock-outline', 'apple-keyboard-shift', 'apple-keyboard-caps',
   'backspace-outline', 'check-bold', 'shield-check', 'loading', 'cellphone-wireless', 'book-open-variant', 'qrcode',
-  'view-grid-plus-outline', 'chevron-left', 'wifi-lock', 'wifi-strength-4-lock', 'wifi-strength-outline'];
+  'view-grid-plus-outline', 'chevron-left', 'wifi-lock', 'wifi-strength-4-lock', 'wifi-strength-outline',
+  'theme-light-dark', 'page-layout-header', 'tune-variant'];
 const iconTable = icons.map(name => {
   const match = mdi.match(new RegExp(`\\{"${name}", (0x[0-9A-Fa-f]+)\\}`));
   if (!match) throw new Error(`MDI icon ${name} missing`);
@@ -254,6 +255,13 @@ void sleep_changed(int, bool) {}
 void saver_changed(int, bool) {}
 void saver_brightness_changed(int, bool) {}
 void rotation_selected(uint8_t) {}
+uint8_t theme_index() { return 0; }
+void theme_selected(uint8_t) {}
+// A new panel's first setup on a panel that is not square (--state=again:
+// opened from Settings, no layout).
+bool layout_choice() { return ${p.W !== p.H && state !== 'again' ? 'true' : 'false'}; }
+uint8_t layout_index() { return ${p.W < p.H ? 1 : 0}; }
+void layout_selected(uint8_t) {}
 bool access_point_on() { return false; }
 bool network_connected() { return true; }
 void network_name(char* buf, size_t len) { snprintf(buf, len, "HomeNet"); }
@@ -353,7 +361,7 @@ const char* firmware_version() { return "v0.8.0"; }
 void close_settings() {}
 int setup_step() { return ${setup ? step : -1}; }
 void setup_step_changed(uint8_t) {}
-void setup_start() {}
+void setup_start(bool) {}
 void setup_end() {}
 bool web_admin_url(char* buf, size_t len) { snprintf(buf, len, "http://192.168.1.50"); return ${online ? 'true' : 'false'}; }
 const char* setup_guide_url() { return "https://galusperes.github.io/HomeTiles/"; }

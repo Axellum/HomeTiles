@@ -33,7 +33,7 @@ const keys = ['setup_step_fmt', 'setup_language_title', 'setup_wifi_title', 'set
   'setup_install_where', 'setup_pair_panel', 'setup_add_in_ha', 'setup_add_where', 'setup_back_to_pairing', 'setup_install_bridge', 'setup_pairing_code',
   'setup_paired', 'setup_wifi_first', 'setup_scan_tiles', 'setup_password_hint', 'setup_password_hint_long',
   'setup_leave_question', 'setup_leave_text_fmt', 'setup_leave'];
-const english = ['Step %d of %d', 'Choose your language', 'Connect to WiFi', 'Add to Home Assistant', 'Add your tiles',
+const english = ['Step %d of %d', 'Basic settings', 'Connect to WiFi', 'Add to Home Assistant', 'Add your tiles',
   'Next', 'Finish', 'Later', 'Other network', 'Set up with your phone', 'Install HomeTiles',
   'In Home Assistant, if not done yet', 'Pair this panel', 'Add it in Home Assistant',
   'Settings › Devices & services › Discovered', 'Back to the pairing', 'Install the Bridge first', 'Pairing code',
@@ -88,6 +88,23 @@ for (const step of ['build_language', 'build_wifi', 'build_home_assistant', 'bui
 }
 const language = between(setup, 'void build_language(const Colors& palette) {', 'void signal_icon(');
 assert.match(language, /settings_screen::rotation_segment\(rotation\.row, palette\.card\)/, 'rotation from the Display page');
+// Step 1 "Basic settings" (user 2026-10-12): the look (dark | light) and, in a
+// new panel's first setup only, the head bar layout landscape | upright with
+// a small picture each; the rows scroll on the short landscape panels.
+assert.match(language, /setup_row\(group, [^,]+, s\.theme_label\);[\s\S]*?settings_model::theme_selected\(index\)/);
+assert.match(language, /if \(settings_model::layout_choice\(\)\) \{[\s\S]*?settings_model::layout_selected\(index\);[\s\S]*?layout_picture\(lv_obj_get_child\(choice, i\), i == 1\);/);
+assert.match(language, /if \(lv_obj_get_height\(group\) > body_height\(\)\) \{\s*lv_obj_set_height\(group, body_height\(\)\);\s*lv_obj_add_flag\(group, LV_OBJ_FLAG_SCROLLABLE\);/);
+assert.match(rawSetup, /kSteps\[kStepCount\] = \{\{"tune-variant", settings_style::kLocalizationColor\}/);
+// The segment names its last child, so a picture can stand before it.
+assert.match(readRepoFile('src/ui/tabs/settings/settings_parts.cpp'), /lv_obj_t\* label = lv_obj_get_child\(option, -1\);/);
+// The layout only in a new panel's first setup (not opened from Settings),
+// where the panel can show both; a pick stores it and restarts, the setup
+// resumes at step 1.
+const settingsModel = readRepoFile('src/ui/tabs/settings/tab_settings.cpp');
+assert.match(settingsModel, /bool layout_choice\(\) \{\s*return setup_first\(\) && grid_layout::available\(grid_layout::Layout::kPortrait\) &&/);
+assert.match(settingsModel, /void layout_selected\(uint8_t index\) \{[\s\S]*?configManager\.saveLayout\(static_cast<uint8_t>\(layout\)\)[\s\S]*?restart\(\);/);
+assert.match(settingsModel, /if \(step < 0\) \{\s*prefs\.remove\(kSetupKey\);\s*prefs\.remove\(kSetupFirstKey\);/, 'the end of the setup forgets the first setup');
+assert.match(settingsModel, /void theme_selected\(uint8_t index\) \{[\s\S]*?configManager\.saveTheme\(index \? 1 : 0\)[\s\S]*?uiManager\.requestThemeChange\(\);/);
 assert.match(setup, /LocaleList locale_list\(uint8_t index\) \{ return index == 0 \? LocaleList::Language : LocaleList::TimeZone; \}/,
   'language and time zone (a new panel starts on Berlin)');
 const wifi = between(setup, 'void build_wifi(const Colors& palette) {', 'lv_obj_t* column_text(');
@@ -177,7 +194,7 @@ assert.match(store, /prefs\.remove\(kSetupKey\);/);
 const begin = between(model, 'bool settings_begin_new_panel() {', 'void settings_resume_setup() {');
 assert.match(rawModel, /const bool stored = prefs\.isKey\("configured"\);/, 'only a panel that never stored a configuration');
 assert.match(begin, /if \(stored\) return false;/);
-assert.match(begin, /settings_model::setup_start\(\);\s*const bool saved = configManager\.save\(configManager\.getConfig\(\)\);/);
+assert.match(begin, /settings_model::setup_start\(true\);\s*const bool saved = configManager\.save\(configManager\.getConfig\(\)\);/);
 assert.match(between(model, 'void settings_resume_setup() {', '\n}\n'), /uiManager\.switchToTab\(3\);/);
 const prompt = between(model, 'void settings_show_pairing() {', 'namespace settings_model {');
 assert.match(prompt, /if \(settings_model::setup_step\(\) >= 0\) \{\s*settings_model::setup_step_changed\(2\);/,

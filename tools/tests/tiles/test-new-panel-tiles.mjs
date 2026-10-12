@@ -70,7 +70,9 @@ assert.match(fn('seed'), /if \(tile\.type != TILE_SETTINGS\) return false;/);
 assert.match(fn('seed'), /tileConfig\.createFolder\(TileConfig::rootFolderId\(\), tr\.new_panel_lights, kLightsIcon, lights\)/);
 assert.match(fn('seed'), /tileConfig\.createFolder\(TileConfig::rootFolderId\(\), tr\.new_panel_climate, kClimateIcon, climate\)/);
 assert.match(fn('seed'), /const Layout layout = grid_layout::native_portrait\(\) \? Layout::kPortrait : Layout::kBar;/);
-assert.match(fn('seed'), /tile_layouts::set\(layout, TileConfig::rootFolderId\(\), view_id,/);
+// Places in both head bar layouts, so the setup's landscape / upright
+// choice finds them.
+assert.match(fn('seed'), /const Layout kBarLayouts\[\] = \{Layout::kBar, Layout::kPortrait\};[\s\S]*?tile_layouts::set\(each, TileConfig::rootFolderId\(\), view_id,/);
 assert.match(fn('seed'), /configManager\.saveHeadGear\(true\)/);
 assert.match(fn('seed'), /configManager\.saveLayout\(static_cast<uint8_t>\(layout\)\)/);
 assert.match(fn('seed'), /grid_layout::apply\(static_cast<uint8_t>\(layout\)\);\s*tileConfig\.load\(\);/);

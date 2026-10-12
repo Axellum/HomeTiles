@@ -146,7 +146,8 @@ void style_option(lv_obj_t* option, bool selected) {
   const bool light = ui_theme::theme_light();
   lv_obj_set_style_bg_color(option, lv_color_hex(light ? ui_theme::kLight.text_secondary : kSelectedBg), 0);
   lv_obj_set_style_bg_opa(option, selected ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-  lv_obj_t* label = lv_obj_get_child(option, 0);
+  // The name is the last child (a picture may stand before it).
+  lv_obj_t* label = lv_obj_get_child(option, -1);
   if (label) {
     const uint32_t ink = light ? 0xFFFFFFu : kSelectedText;
     lv_obj_set_style_text_color(label, lv_color_hex(selected ? ink : ui_theme::text()), 0);

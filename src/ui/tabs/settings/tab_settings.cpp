@@ -15,6 +15,7 @@
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/ui/ui_manager.h"
+#include "src/tiles/config/grid_layout.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/core/firmware/firmware_version.h"
 #include "src/core/firmware/github_update.h"
@@ -984,7 +985,10 @@ const char* firmware_version() { return FW_VERSION; }
 // setup resumes it; Leave and Finish remove it.
 constexpr const char* kSetupNamespace = "tab5_config";
 static constexpr const char* kSetupKey = "setup_step";
+// A new panel's first setup (setup_first): only it offers the layout.
+static constexpr const char* kSetupFirstKey = "setup_first";
 static int g_setup_step = -2;  // not read yet
+static int g_setup_first = -1;  // not read yet
 
 static void store_setup_step(int step) {
   g_setup_step = step;
@@ -996,6 +1000,8 @@ static void store_setup_step(int step) {
   }
   if (step < 0) {
     prefs.remove(kSetupKey);
+    prefs.remove(kSetupFirstKey);
+    g_setup_first = 0;
   } else {
     prefs.putUChar(kSetupKey, static_cast<uint8_t>(step));
   }
@@ -1023,9 +1029,58 @@ void setup_step_changed(uint8_t step) {
   Serial.printf("[Setup] Step %u\n", static_cast<unsigned>(step + 1));
 }
 
-void setup_start() {
+void setup_start(bool first) {
   store_setup_step(0);
-  Serial.println("[Setup] Started");
+  if (first) {
+    Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
+    BatchedNvsWrite::Preferences prefs;
+    if (prefs.begin(kSetupNamespace, false)) {
+      prefs.putBool(kSetupFirstKey, true);
+      BatchedNvsWrite::finish(prefs);
+    }
+    g_setup_first = 1;
+  }
+  Serial.printf("[Setup] Started%s\n", first ? " (new panel)" : "");
+}
+
+bool setup_first() {
+  if (g_setup_first < 0) {
+    g_setup_first = 0;
+    Preferences prefs;
+    if (prefs.begin(kSetupNamespace, true)) {
+      g_setup_first = prefs.getBool(kSetupFirstKey, false) ? 1 : 0;
+      prefs.end();
+    }
+  }
+  return g_setup_first == 1;
+}
+
+uint8_t theme_index() { return ui_theme::theme_light() ? 1 : 0; }
+
+void theme_selected(uint8_t index) {
+  // The stored theme: 0 dark, 1 light (ui_theme.h).
+  if (!configManager.saveTheme(index ? 1 : 0)) return;
+  uiManager.requestThemeChange();
+}
+
+// The head bar layouts of this panel's two orientations.
+static grid_layout::Layout setup_layout(uint8_t index) {
+  return index ? grid_layout::Layout::kPortrait : grid_layout::Layout::kBar;
+}
+
+bool layout_choice() {
+  return setup_first() && grid_layout::available(grid_layout::Layout::kPortrait) &&
+         grid_layout::switchable(grid_layout::Layout::kBar) && grid_layout::switchable(grid_layout::Layout::kPortrait);
+}
+
+uint8_t layout_index() { return grid_layout::active() == grid_layout::Layout::kPortrait ? 1 : 0; }
+
+void layout_selected(uint8_t index) {
+  if (!layout_choice() || index == layout_index()) return;
+  const grid_layout::Layout layout = setup_layout(index);
+  if (!configManager.saveLayout(static_cast<uint8_t>(layout))) return;
+  Serial.printf("[Setup] Layout %s, restarting\n", grid_layout::key(layout));
+  restart();
 }
 
 void setup_end() {
@@ -1057,7 +1112,7 @@ bool settings_begin_new_panel() {
     prefs.end();
     if (stored) return false;
   }
-  settings_model::setup_start();
+  settings_model::setup_start(true);
   const bool saved = configManager.save(configManager.getConfig());
   Serial.println(saved ? "[Setup] New panel: defaults stored" : "[Setup] New panel: storing the defaults failed");
   return saved;

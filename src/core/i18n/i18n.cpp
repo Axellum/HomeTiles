@@ -584,7 +584,7 @@ static const Strings kStringsDe = {
     "Feste Adresse",
     "Im Web Admin festgelegt",
     "Schritt %d von %d",
-    "Sprache wählen",
+    "Grundeinstellungen",
     "Mit dem WLAN verbinden",
     "Zu Home Assistant hinzufügen",
     "Kacheln hinzufügen",
@@ -661,7 +661,9 @@ static const Strings kStringsDe = {
     "Transparent",
     "Licht",
     "Klima",
-    "Willkommen"};
+    "Willkommen",
+    "Quer",
+    "Hochkant"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1240,7 +1242,7 @@ static const Strings kStringsEn = {
     "Static address",
     "Set in Web Admin",
     "Step %d of %d",
-    "Choose your language",
+    "Basic settings",
     "Connect to WiFi",
     "Add to Home Assistant",
     "Add your tiles",
@@ -1317,7 +1319,9 @@ static const Strings kStringsEn = {
     "Transparent",
     "Lights",
     "Climate",
-    "Welcome"};
+    "Welcome",
+    "Landscape",
+    "Portrait"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1896,7 +1900,7 @@ static const Strings kStringsFr = {
     "Adresse statique",
     "Défini dans Web Admin",
     "Étape %d sur %d",
-    "Choisissez votre langue",
+    "Réglages de base",
     "Connexion au WiFi",
     "Ajouter à Home Assistant",
     "Ajoutez vos tuiles",
@@ -1973,7 +1977,9 @@ static const Strings kStringsFr = {
     "Transparent",
     "Lumières",
     "Climat",
-    "Bienvenue"};
+    "Bienvenue",
+    "Paysage",
+    "Portrait"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2915,7 +2921,7 @@ static const Strings kStringsPl = {
     "Adres statyczny",
     "Ustawiony w Web Admin",
     "Krok %d z %d",
-    "Wybierz język",
+    "Ustawienia podstawowe",
     "Połącz z WiFi",
     "Dodaj do Home Assistant",
     "Dodaj kafelki",
@@ -2992,7 +2998,9 @@ static const Strings kStringsPl = {
     "Przezroczysty",
     "Światła",
     "Klimat",
-    "Witaj"};
+    "Witaj",
+    "Poziomo",
+    "Pionowo"};
 
 static const LocaleProfile kLocalePl = {
     "pl",

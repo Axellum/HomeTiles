@@ -31,7 +31,8 @@ struct StepLook {
   const char* icon;
   uint32_t color;
 };
-constexpr StepLook kSteps[kStepCount] = {{"translate", settings_style::kLocalizationColor},
+// Step 1 covers language, time zone, look, layout and rotation: settings.
+constexpr StepLook kSteps[kStepCount] = {{"tune-variant", settings_style::kLocalizationColor},
                                          {"wifi", settings_style::kWifiColor},
                                          {"link-variant", 0x18BCF2},
                                          {"view-grid-plus-outline", 0x26A69A}};
@@ -412,8 +413,33 @@ void open_leave_dialog() {
 
 // ---------- Steps ----------
 
-// 1: language, time zone (a new panel starts on Berlin) and rotation, with
-// the rows of the Settings pages; simpler, but no option left out.
+// A small picture of a head bar layout before its name (user 2026-10-12):
+// the screen's outline in its orientation with the head bar on top, in the
+// option's text color.
+void layout_picture(lv_obj_t* option, bool upright) {
+  if (!option) return;
+  lv_obj_t* label = lv_obj_get_child(option, -1);
+  const lv_color_t ink = label ? lv_obj_get_style_text_color(label, LV_PART_MAIN) : lv_color_hex(ui_theme::text());
+  const int unit = settings_style::kSegmentHeight - 2 * settings_style::kSegmentInset - 4;
+  const int w = upright ? unit * 5 / 8 : unit;
+  const int h = upright ? unit : unit * 5 / 8;
+  lv_obj_t* screen = settings_parts::plain(option);
+  lv_obj_set_size(screen, w, h);
+  lv_obj_set_style_border_color(screen, ink, 0);
+  lv_obj_set_style_border_width(screen, 2, 0);
+  lv_obj_set_style_radius(screen, 3, 0);
+  lv_obj_t* head = settings_parts::plain(screen);
+  lv_obj_set_size(head, w - 8, 2);
+  lv_obj_set_pos(head, 2, 2);
+  lv_obj_set_style_bg_color(head, ink, 0);
+  lv_obj_set_style_bg_opa(head, LV_OPA_COVER, 0);
+  lv_obj_move_to_index(screen, 0);
+  lv_obj_set_style_pad_column(option, 2 * settings_style::kSegmentInset, 0);
+}
+
+// 1: language, time zone (a new panel starts on Berlin), the look, the
+// layout (first setup only) and rotation, with the rows of the Settings
+// pages; simpler, but no option left out.
 void build_language(const Colors& palette) {
   const bool stacked = card_width() < settings_style::kStackedCardWidth;
   const int value_width = (body_width() - settings_style::kRowPadLeft - settings_style::kRowPadRight) / 2;
@@ -429,9 +455,31 @@ void build_language(const Colors& palette) {
     view.chevron = settings_parts::trailing_icon(row.row, "chevron-down");
     settings_parts::make_tap(row.row, palette.button, on_action, data(i == 0 ? Action::Language : Action::TimeZone));
   }
-  settings_parts::Row rotation =
-      setup_row(group, "screen-rotation", settings_model::text().settings_rotation);
+  const i18n::Strings& s = settings_model::text();
+  // The look and, in a new panel's first setup, the layout (user
+  // 2026-10-12); a layout pick restarts the panel into it.
+  settings_parts::Row design = setup_row(group, "theme-light-dark", s.theme_label);
+  const char* const themes[] = {s.theme_dark, s.theme_light};
+  settings_parts::segment(design.row, themes, 2, settings_model::theme_index(), palette.card,
+                          [](lv_obj_t*, uint8_t index) { settings_model::theme_selected(index); });
+  if (settings_model::layout_choice()) {
+    settings_parts::Row layout = setup_row(group, "page-layout-header", s.layout_label);
+    const char* const layouts[] = {s.setup_layout_landscape, s.setup_layout_upright};
+    lv_obj_t* choice = settings_parts::segment(layout.row, layouts, 2, settings_model::layout_index(), palette.card,
+                                               [](lv_obj_t*, uint8_t index) { settings_model::layout_selected(index); });
+    for (uint8_t i = 0; choice && i < 2; ++i) layout_picture(lv_obj_get_child(choice, i), i == 1);
+  }
+  settings_parts::Row rotation = setup_row(group, "screen-rotation", s.settings_rotation);
   g_rotation = settings_screen::rotation_segment(rotation.row, palette.card);
+  // Short landscape panels (800 x 480, 1024 x 600) have no room for every
+  // row: the group scrolls in itself, its cut last row shows there is more.
+  lv_obj_update_layout(g_body);
+  if (lv_obj_get_height(group) > body_height()) {
+    lv_obj_set_height(group, body_height());
+    lv_obj_add_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(group, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(group, LV_SCROLLBAR_MODE_OFF);
+  }
 }
 
 void signal_icon(char* buf, size_t len, uint8_t bars, bool locked) {

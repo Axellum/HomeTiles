@@ -122,11 +122,18 @@ bool seed() {
   // The save gives the tiles their stable IDs, which key their head bar
   // places.
   if (slot != kSlotCount || !tileConfig.saveFolderGridClassic(TileConfig::rootFolderId(), *grid)) return false;
-  for (int i = 0; i < kSlotCount; ++i) {
-    const uint16_t view_id = grid->tiles[index[i]].view_id;
-    if (!view_id) return false;
-    tile_layouts::set(layout, TileConfig::rootFolderId(), view_id,
-                      {in_bar[i].col, in_bar[i].row, in_bar[i].span_w, in_bar[i].span_h});
+  // Places in both head bar layouts where the panel can show both, so the
+  // setup's layout choice (landscape / upright) finds them.
+  const Layout kBarLayouts[] = {Layout::kBar, Layout::kPortrait};
+  for (const Layout each : kBarLayouts) {
+    const grid_layout::Shown shown = grid_layout::layout_grid(each);
+    Place at[kSlotCount];
+    if (!grid_layout::switchable(each) || !places(shown.cols, shown.rows, at)) continue;
+    for (int i = 0; i < kSlotCount; ++i) {
+      const uint16_t view_id = grid->tiles[index[i]].view_id;
+      if (!view_id) return false;
+      tile_layouts::set(each, TileConfig::rootFolderId(), view_id, {at[i].col, at[i].row, at[i].span_w, at[i].span_h});
+    }
   }
   // The Settings tile has no place in the head bar layout: the gear in the
   // head opens Settings.

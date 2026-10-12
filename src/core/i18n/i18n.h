@@ -802,6 +802,10 @@ struct Strings {
   const char* new_panel_lights;
   const char* new_panel_climate;
   const char* new_panel_welcome;
+  // The setup's first step: the head bar layout landscape or upright (a new
+  // panel's first setup only).
+  const char* setup_layout_landscape;
+  const char* setup_layout_upright;
 };
 
 // Locale-specific display rules and short runtime strings shared by

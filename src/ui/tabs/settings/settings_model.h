@@ -48,6 +48,16 @@ void sleep_changed(int index, bool final);
 void saver_changed(int index, bool final);
 void saver_brightness_changed(int percent, bool final);
 void rotation_selected(uint8_t index);
+// The setup's first step (user 2026-10-12): the look, dark or light (the
+// automatic theme, a Web Admin choice, shows as the one it gives now), and
+// in a new panel's first setup only (not when opened from Settings) the head
+// bar layout landscape or upright where the panel can show both; a layout
+// pick restarts the panel and the setup resumes at its first step.
+uint8_t theme_index();
+void theme_selected(uint8_t index);
+bool layout_choice();
+uint8_t layout_index();
+void layout_selected(uint8_t index);
 
 // ---------- Localization page ----------
 // The option lists, in the page's order: language, time zone, time format,
@@ -184,7 +194,9 @@ void wifi_connect_done();
 int setup_step();
 void setup_step_changed(uint8_t step);
 // System > Setup: from the first step.
-void setup_start();
+// `first`: a new panel's first setup (setup_first), kept until it ends.
+void setup_start(bool first = false);
+bool setup_first();
 // Leave or Finish: the setup ends and Home shows.
 void setup_end();
 // The panel's Web Admin address ("http://192.168.1.50"); false without one.
