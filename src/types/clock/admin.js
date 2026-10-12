@@ -446,7 +446,11 @@ function getClockPreviewLanguage() {
   // (tile_icon_disc::tile_fill for the untinted theme icon): the light theme
   // blends the icon grey over the card, the dark one lifts the card.
   function clockDialColor(tileElem) {
-    const card = cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [0, 0, 0];
+    // A Transparent clock (no card): the theme's card in the dark theme, the
+    // screen in the light one (renderer.cpp render_clock_face).
+    const card = tileElem.classList.contains('tile-transparent')
+      ? (panelLight() ? panelRole('screen') : panelRole('card')) || [26, 26, 26]
+      : cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [0, 0, 0];
     const glowRaw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
     const glowValue = glowRaw === '' ? 25 : Number(glowRaw);
     const glowPct = Math.min(100, Math.max(0, Number.isFinite(glowValue) ? glowValue : 25));

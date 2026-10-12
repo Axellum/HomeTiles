@@ -29,13 +29,14 @@ const between = (source, from, to) => {
 
 // --- Translations ------------------------------------------------------------------------------
 const keys = ['setup_step_fmt', 'setup_language_title', 'setup_wifi_title', 'setup_ha_title', 'setup_tiles_title',
-  'setup_next', 'setup_finish', 'setup_later', 'setup_other_network', 'setup_with_phone', 'setup_open_ha',
-  'setup_open_ha_where', 'setup_add_hometiles', 'setup_discovered_fmt', 'setup_no_bridge', 'setup_guide', 'setup_back_to_pairing', 'setup_install_bridge', 'setup_pairing_code',
+  'setup_next', 'setup_finish', 'setup_later', 'setup_other_network', 'setup_with_phone', 'setup_install_hometiles',
+  'setup_install_where', 'setup_pair_panel', 'setup_add_in_ha', 'setup_add_where', 'setup_back_to_pairing', 'setup_install_bridge', 'setup_pairing_code',
   'setup_paired', 'setup_wifi_first', 'setup_scan_tiles', 'setup_password_hint', 'setup_password_hint_long',
   'setup_leave_question', 'setup_leave_text_fmt', 'setup_leave'];
 const english = ['Step %d of %d', 'Choose your language', 'Connect to WiFi', 'Add to Home Assistant', 'Add your tiles',
-  'Next', 'Finish', 'Later', 'Other network', 'Set up with your phone', 'Open Home Assistant',
-  'Settings › Devices & services', 'Add HomeTiles', 'Under Discovered · %s', 'No HomeTiles Bridge yet?', 'Setup guide', 'Back to the pairing', 'Install the Bridge first', 'Pairing code',
+  'Next', 'Finish', 'Later', 'Other network', 'Set up with your phone', 'Install HomeTiles',
+  'In Home Assistant, if not done yet', 'Pair this panel', 'Add it in Home Assistant',
+  'Settings › Devices & services › Discovered', 'Back to the pairing', 'Install the Bridge first', 'Pairing code',
   'Paired with Home Assistant', 'Connect WiFi first', 'Scan it to add your tiles.', 'Set a Web Admin password there.',
   'Set a Web Admin password there, so only you can change the panel.', 'Leave the setup?',
   'You can finish it later in %s › System › %s.', 'Leave'];
@@ -108,11 +109,17 @@ assert.match(rawSetup, /setup_row\(group, "shield-check", s\.setup_paired\)/, 'p
 // Pairing starts only with Pair, then the window's time left shows (user
 // 2026-10-06: nothing activates by itself).
 assert.match(ha, /data\(Action::Pair\)\);\s*lv_obj_set_width\(pair, settings_screen::switch_on_width\(\)\);/);
-assert.match(ha, /case PairState::Discoverable: \{[\s\S]*?g_countdown = settings_parts::trailing_text\(row\.row/);
+assert.match(ha, /case PairState::Discoverable:[\s\S]*?g_countdown = settings_parts::trailing_text\(pairing\.row/);
 assert.match(setup, /case Action::Pair:\s*settings_model::pair\(\);/);
 assert.match(ha, /color_text\(row\.icon, settings_style::good_color\(\)\);/);
-assert.match(ha, /number_row\(steps, 1, s\.setup_open_ha, s\.setup_open_ha_where\);/);
-assert.match(ha, /settings_model::device_name\(\)/, 'the name Home Assistant lists');
+// The order of the work (user 2026-10-12): 1 install HomeTiles in Home
+// Assistant (its guide as a QR code), 2 pair this panel (the Pair button in
+// that row), 3 add it in Home Assistant under Discovered.
+assert.match(ha, /number_row\(steps, 1, s\.setup_install_hometiles, s\.setup_install_where\);\s*settings_parts::trailing_icon\(install\.row, [^)]*\);\s*settings_parts::make_tap\(install\.row, palette\.button, on_action, data\(Action::Guide\)\);/);
+assert.match(ha, /number_row\(steps, 2, s\.setup_pair_panel, s\.settings_not_paired\);/);
+assert.match(ha, /number_row\(steps, 3, s\.setup_add_in_ha, s\.setup_add_where\);/);
+assert.ok(ha.indexOf('setup_pair_panel') < ha.indexOf('data(Action::Pair)') &&
+  ha.indexOf('data(Action::Pair)') < ha.indexOf('setup_add_in_ha'), 'the Pair button sits in step 2');
 assert.match(between(setup, 'void build_code(', 'void build_home_assistant('), /settings_model::pairing_number\(/);
 const tiles = between(setup, 'void build_tiles(const Colors& palette) {', 'void build_foot(');
 assert.match(tiles, /settings_model::web_admin_url\(url, sizeof\(url\)\)/);

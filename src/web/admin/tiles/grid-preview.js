@@ -584,10 +584,14 @@
   }
   // The color of a tile without an icon (Clock, Text, Pixel animation):
   // Global is the theme's card (stored as the default marker), Custom keeps
-  // the picked color; on Clock and Text black is Transparent.
+  // the picked color; on Clock and Text black is Transparent. A clicked
+  // choice holds while editing (data-color-mode): dragging the Custom picker
+  // over black must not jump to Transparent (user 2026-10-12); a loaded
+  // tile's choice follows its stored color.
   function tileColorMode(tab) {
     const input = document.getElementById(tab + '_tile_color');
     if (input?.dataset.bgColorDefault !== '0') return 'global';
+    if (input.dataset.colorMode === 'custom' || input.dataset.colorMode === 'transparent') return input.dataset.colorMode;
     const type = document.getElementById(tab + '_tile_type')?.value || '0';
     return tileTypeBlackIsTransparent(type) && /^#0{6}$/.test(String(input.value)) ? 'transparent' : 'custom';
   }
@@ -625,6 +629,7 @@
     // Leaving Custom remembers its color for a later return.
     if (before === 'custom' && mode !== 'custom') input.dataset.customColor = input.value;
     const remembered = input.dataset.customColor || '';
+    if (mode === 'custom' || mode === 'transparent') input.dataset.colorMode = mode;
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
       // From Transparent a color to start from (black would stay Transparent).
@@ -634,6 +639,7 @@
       input.value = '#000000';
       input.dataset.bgColorDefault = '0';
     } else {
+      delete input.dataset.colorMode;
       const type = document.getElementById(tab + '_tile_type')?.value || '0';
       input.value = getTileTypeMeta(type).defaultBg || '#1A1A1A';
       input.dataset.bgColorDefault = '1';
@@ -742,6 +748,7 @@
     input.value = follows ? (fallback || '#2A2A2A') : tileBgToHex(value, fallback || '#2A2A2A');
     input.dataset.bgColorDefault = follows ? '1' : '0';
     delete input.dataset.customColor;
+    delete input.dataset.colorMode;
     syncTileColorMode(tab);
   }
   function setTileColorInputFromSnapshot(tab, snapshot) {
@@ -752,6 +759,7 @@
     input.value = isDefault ? (meta.defaultBg || '#2A2A2A') : (snapshot?.color || meta.defaultBg || '#2A2A2A');
     input.dataset.bgColorDefault = isDefault ? '1' : '0';
     delete input.dataset.customColor;
+    delete input.dataset.colorMode;
     syncTileColorMode(tab);
   }
   // Picking a color selects Tile color Custom. Rules are never switched off:
@@ -768,6 +776,7 @@
   function resetTileColor(tab) {
     const input = document.getElementById(tab + '_tile_color');
     if (!input) return;
+    delete input.dataset.colorMode;
     const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
     const meta = getTileTypeMeta(typeValue);
     input.value = meta.defaultBg || '#2A2A2A';

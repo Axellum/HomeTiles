@@ -197,7 +197,8 @@ struct Config { bool tile_borders = true; bool icon_discs = true; uint8_t icon_g
 struct Manager { Config cfg; const Config& getConfig() { return cfg; } } configManager;
 ${surfaceStyleHost(root)}
 enum : int { TILE_SENSOR = 1, TILE_BINARY_SENSOR, TILE_ENERGY, TILE_SCENE, TILE_FOLDER, TILE_BACK, TILE_CAMERA, TILE_SETTINGS,
-  TILE_NUMBER, TILE_SELECT, TILE_DATETIME, TILE_LOCK, TILE_ALARM, TILE_FAN, TILE_CLOCK, TILE_SWITCH, TILE_COVER, TILE_CLIMATE };
+  TILE_NUMBER, TILE_SELECT, TILE_DATETIME, TILE_LOCK, TILE_ALARM, TILE_FAN, TILE_CLOCK, TILE_SWITCH, TILE_COVER, TILE_CLIMATE,
+  TILE_TEXT };
 ${strip(read('src/tiles/config/tile_geometry.h'))}
 ${strip(read('src/tiles/config/grid_layout.h'))}
 ${strip(read('src/ui/popups/popup_layout.h'))}

@@ -553,7 +553,7 @@ lv_obj_t* column_text(lv_obj_t* parent, const char* text, const lv_font_t* font,
 
 // A step of the Home Assistant instructions: its number in a filled circle
 // (easier to read than an outline digit), what to do and where.
-void number_row(lv_obj_t* group, int number, const char* title, const char* sub) {
+settings_parts::Row number_row(lv_obj_t* group, int number, const char* title, const char* sub) {
   settings_parts::Row row = setup_row(group, nullptr, title, sub);
   lv_obj_t* circle = settings_parts::plain(row.row);
   lv_obj_set_size(circle, settings_style::kIconPx, settings_style::kIconPx);
@@ -568,14 +568,13 @@ void number_row(lv_obj_t* group, int number, const char* title, const char* sub)
   lv_obj_set_style_text_font(digit, settings_style::row_font(), 0);
   lv_obj_set_style_text_color(digit, lv_color_hex(settings_style::kAccentText), 0);
   lv_obj_center(digit);
+  return row;
 }
 
-// "No HomeTiles Bridge yet?": opens the guide's QR code (or closes it).
-void guide_row(lv_obj_t* group, const Colors& palette) {
+// Below the guide's QR code: back to the three steps.
+void guide_back_row(lv_obj_t* group, const Colors& palette) {
   const i18n::Strings& s = settings_model::text();
-  settings_parts::Row row =
-      setup_row(group, "book-open-variant", s.setup_no_bridge, g_guide ? s.setup_back_to_pairing : s.setup_guide);
-  settings_parts::trailing_icon(row.row, g_guide ? "chevron-up" : "qrcode");
+  settings_parts::Row row = setup_row(group, "chevron-left", s.setup_back_to_pairing);
   settings_parts::make_tap(row.row, palette.button, on_action, data(Action::Guide));
 }
 
@@ -657,31 +656,30 @@ void build_home_assistant(const Colors& palette) {
     char shown[64];
     shown_url(settings_model::setup_guide_url(), shown, sizeof(shown));
     qr_row(group, settings_model::setup_guide_url(), s.setup_install_bridge, shown);
-    guide_row(group, palette);
+    guide_back_row(group, palette);
     return;
   }
+  // One list in the order of the work (user 2026-10-12): 1 install HomeTiles
+  // in Home Assistant once (its guide as a QR code), 2 pair this panel, 3 add
+  // it in Home Assistant under Discovered. The pairing starts only with Pair
+  // (as on System), never by itself, so nobody is rushed (user 2026-10-06):
+  // findable for two minutes with the time left, then Pair again.
   lv_obj_t* steps = settings_parts::group(g_body, palette);
-  char discovered[96];
-  snprintf(discovered, sizeof(discovered), s.setup_discovered_fmt, settings_model::device_name());
-  number_row(steps, 1, s.setup_open_ha, s.setup_open_ha_where);
-  number_row(steps, 2, s.setup_add_hometiles, discovered);
+  settings_parts::Row install = number_row(steps, 1, s.setup_install_hometiles, s.setup_install_where);
+  settings_parts::trailing_icon(install.row, "qrcode");
+  settings_parts::make_tap(install.row, palette.button, on_action, data(Action::Guide));
 
-  // Pairing starts only with Pair (as on System), never by itself, so nobody
-  // is rushed (user 2026-10-06): findable for two minutes with the time left,
-  // then Pair again.
-  lv_obj_t* wait = settings_parts::group(g_body, palette);
-  lv_obj_set_style_margin_top(wait, settings_style::kSetupGroupGap, 0);
+  settings_parts::Row pairing = number_row(steps, 2, s.setup_pair_panel, s.settings_not_paired);
   switch (v.pairing) {
-    case PairState::Discoverable: {
-      settings_parts::Row row = spinner_row(wait, s.pairing_waiting, s.pairing_discoverable);
-      color_text(row.sub, settings_style::good_color());
-      g_countdown = settings_parts::trailing_text(row.row, "", 0);
+    case PairState::Discoverable:
+      lv_label_set_text(pairing.sub, s.pairing_discoverable);
+      color_text(pairing.sub, settings_style::good_color());
+      g_countdown = settings_parts::trailing_text(pairing.row, "", 0);
       lv_obj_set_width(g_countdown, LV_SIZE_CONTENT);
       set_countdown(v.pair_seconds);
       break;
-    }
     case PairState::Asking:
-      spinner_row(wait, s.pairing_asking, nullptr);
+      lv_label_set_text(pairing.sub, s.pairing_asking);
       break;
     default: {
       // Not paired, or a failed attempt's result.
@@ -711,16 +709,17 @@ void build_home_assistant(const Colors& palette) {
         default:
           break;
       }
-      settings_parts::Row row = setup_row(wait, "link-variant-off", s.settings_pairing, line);
-      if (color) color_text(row.sub, color);
-      lv_obj_t* pair = settings_parts::button(row.row, s.settings_pair, nullptr, settings_parts::ButtonKind::Accent,
+      lv_label_set_text(pairing.sub, line);
+      if (color) color_text(pairing.sub, color);
+      lv_obj_t* pair = settings_parts::button(pairing.row, s.settings_pair, nullptr, settings_parts::ButtonKind::Accent,
                                               kAccent, palette, settings_style::kSwitchOnHeight, false, on_action,
                                               data(Action::Pair));
       lv_obj_set_width(pair, settings_screen::switch_on_width());
       break;
     }
   }
-  guide_row(wait, palette);
+
+  number_row(steps, 3, s.setup_add_in_ha, s.setup_add_where);
 }
 
 // 4: the Web Admin QR code, large, and the password hint; beside the text

@@ -240,7 +240,9 @@ ConfigManager::ConfigManager() {
   config.display_rotation_mode = kDisplayRotationNormal;
   config.wake_mode_mains = kWakeModeTouch;
   config.wake_mode_battery = kWakeModeTouch;
-  config.auto_sleep_enabled = true;
+  // A new panel stays on (user 2026-10-12: the display went dark during the
+  // first-start setup); the 60 s stay ready for when sleep is switched on.
+  config.auto_sleep_enabled = false;
   config.auto_sleep_seconds = 60;
   config.auto_screensaver_enabled = false;
   config.auto_screensaver_seconds = 60;

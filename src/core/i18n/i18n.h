@@ -686,14 +686,14 @@ struct Strings {
   const char* setup_later;
   const char* setup_other_network;
   const char* setup_with_phone;
-  const char* setup_open_ha;
+  // The Home Assistant step in the order of the work (user 2026-10-12):
+  // 1 install HomeTiles in Home Assistant, 2 pair this panel, 3 add it there.
+  const char* setup_install_hometiles;
+  const char* setup_install_where;
+  const char* setup_pair_panel;
+  const char* setup_add_in_ha;
   // Home Assistant's own menu names.
-  const char* setup_open_ha_where;
-  const char* setup_add_hometiles;
-  // %s = the panel's name in Home Assistant.
-  const char* setup_discovered_fmt;
-  const char* setup_no_bridge;
-  const char* setup_guide;
+  const char* setup_add_where;
   const char* setup_back_to_pairing;
   const char* setup_install_bridge;
   const char* setup_pairing_code;

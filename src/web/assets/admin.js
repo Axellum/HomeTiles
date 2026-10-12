@@ -7146,6 +7146,7 @@ async function saveGestureEdge(select) {
         if (color) {
           color.value = '#000000';
           color.dataset.bgColorDefault = '0';
+          color.dataset.colorMode = 'transparent';
         }
         const border = document.getElementById(tab + (Number(nextType) === 9 ? '_clock_tile_border' : '_text_tile_border'));
         if (border) border.checked = false;
@@ -9885,10 +9886,14 @@ async function saveGestureEdge(select) {
   }
   // The color of a tile without an icon (Clock, Text, Pixel animation):
   // Global is the theme's card (stored as the default marker), Custom keeps
-  // the picked color; on Clock and Text black is Transparent.
+  // the picked color; on Clock and Text black is Transparent. A clicked
+  // choice holds while editing (data-color-mode): dragging the Custom picker
+  // over black must not jump to Transparent (user 2026-10-12); a loaded
+  // tile's choice follows its stored color.
   function tileColorMode(tab) {
     const input = document.getElementById(tab + '_tile_color');
     if (input?.dataset.bgColorDefault !== '0') return 'global';
+    if (input.dataset.colorMode === 'custom' || input.dataset.colorMode === 'transparent') return input.dataset.colorMode;
     const type = document.getElementById(tab + '_tile_type')?.value || '0';
     return tileTypeBlackIsTransparent(type) && /^#0{6}$/.test(String(input.value)) ? 'transparent' : 'custom';
   }
@@ -9926,6 +9931,7 @@ async function saveGestureEdge(select) {
     // Leaving Custom remembers its color for a later return.
     if (before === 'custom' && mode !== 'custom') input.dataset.customColor = input.value;
     const remembered = input.dataset.customColor || '';
+    if (mode === 'custom' || mode === 'transparent') input.dataset.colorMode = mode;
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
       // From Transparent a color to start from (black would stay Transparent).
@@ -9935,6 +9941,7 @@ async function saveGestureEdge(select) {
       input.value = '#000000';
       input.dataset.bgColorDefault = '0';
     } else {
+      delete input.dataset.colorMode;
       const type = document.getElementById(tab + '_tile_type')?.value || '0';
       input.value = getTileTypeMeta(type).defaultBg || '#1A1A1A';
       input.dataset.bgColorDefault = '1';
@@ -10043,6 +10050,7 @@ async function saveGestureEdge(select) {
     input.value = follows ? (fallback || '#2A2A2A') : tileBgToHex(value, fallback || '#2A2A2A');
     input.dataset.bgColorDefault = follows ? '1' : '0';
     delete input.dataset.customColor;
+    delete input.dataset.colorMode;
     syncTileColorMode(tab);
   }
   function setTileColorInputFromSnapshot(tab, snapshot) {
@@ -10053,6 +10061,7 @@ async function saveGestureEdge(select) {
     input.value = isDefault ? (meta.defaultBg || '#2A2A2A') : (snapshot?.color || meta.defaultBg || '#2A2A2A');
     input.dataset.bgColorDefault = isDefault ? '1' : '0';
     delete input.dataset.customColor;
+    delete input.dataset.colorMode;
     syncTileColorMode(tab);
   }
   // Picking a color selects Tile color Custom. Rules are never switched off:
@@ -10069,6 +10078,7 @@ async function saveGestureEdge(select) {
   function resetTileColor(tab) {
     const input = document.getElementById(tab + '_tile_color');
     if (!input) return;
+    delete input.dataset.colorMode;
     const typeValue = document.getElementById(tab + '_tile_type')?.value || '0';
     const meta = getTileTypeMeta(typeValue);
     input.value = meta.defaultBg || '#2A2A2A';
@@ -19723,7 +19733,11 @@ function getClockPreviewLanguage() {
   // (tile_icon_disc::tile_fill for the untinted theme icon): the light theme
   // blends the icon grey over the card, the dark one lifts the card.
   function clockDialColor(tileElem) {
-    const card = cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [0, 0, 0];
+    // A Transparent clock (no card): the theme's card in the dark theme, the
+    // screen in the light one (renderer.cpp render_clock_face).
+    const card = tileElem.classList.contains('tile-transparent')
+      ? (panelLight() ? panelRole('screen') : panelRole('card')) || [26, 26, 26]
+      : cssColorChannels(getComputedStyle(tileElem).backgroundColor) || [0, 0, 0];
     const glowRaw = String(getComputedStyle(document.documentElement).getPropertyValue('--icon-glow-pct')).trim();
     const glowValue = glowRaw === '' ? 25 : Number(glowRaw);
     const glowPct = Math.min(100, Math.max(0, Number.isFinite(glowValue) ? glowValue : 25));

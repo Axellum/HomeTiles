@@ -29,7 +29,10 @@ assert.match(fn('render_clock_tile'),
   /if \(date_options\.style == clock_tile::STYLE_ANALOG \|\| date_options\.style == clock_tile::STYLE_WALL\) \{\s*render_clock_face\(/);
 const face = fn('render_clock_face');
 assert.match(face, /colors\.dial = clock_face::kDialColors\[/);
-assert.match(face, /tile_icon_disc::tile_fill\(card, card_color, ui_theme::icon\(\), false, false, false,/);
+assert.match(face, /tile_icon_disc::tile_fill\(card, dial_card, ui_theme::icon\(\), false, false, false,/);
+// A Transparent clock keeps a visible dial (user 2026-10-12: black on black).
+assert.match(face, /tileTransparent\(tile\) \? \(ui_theme::theme_light\(\) \? ui_theme::screen\(\) : ui_theme::card\(\)\) : card_color;/);
+assert.match(read('src/types/clock/admin.js'), /tileElem\.classList\.contains\('tile-transparent'\)\s*\? \(panelLight\(\) \? panelRole\('screen'\) : panelRole\('card'\)\)/);
 assert.match(face, /config\.text_shadow = false;/);
 // b397: the lines stay centered in their box when their size changes (the
 // time arrives after the start, "9:59" -> "10:00"): aligned, not placed.

@@ -897,8 +897,14 @@ static void render_clock_face(lv_obj_t* card, const Tile& tile, bool compact, bo
     colors.major = colors.minor = colors.hour = colors.minute = colors.center = ink;
     marks = clock_face::Marks::kBatons;
   } else {
-    // The theme's icon circle on this card (an untinted tile icon's).
-    colors.dial = tile_icon_disc::tile_fill(card, card_color, ui_theme::icon(), false, false, false,
+    // The theme's icon circle on this card (an untinted tile icon's). A
+    // Transparent clock has no card: its dial is the circle on the theme's
+    // card in the dark theme (on the black screen it vanished, user
+    // 2026-10-12) and on the screen in the light one (on the white card it
+    // would match the light screen).
+    const uint32_t dial_card =
+        tileTransparent(tile) ? (ui_theme::theme_light() ? ui_theme::screen() : ui_theme::card()) : card_color;
+    colors.dial = tile_icon_disc::tile_fill(card, dial_card, ui_theme::icon(), false, false, false,
                                             ui_surface_style::icon_glow_percent())
                       .disc;
     colors.major = colors.hour = colors.minute = colors.center = ui_theme::text();

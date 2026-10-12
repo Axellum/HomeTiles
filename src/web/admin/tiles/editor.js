@@ -239,6 +239,7 @@
         if (color) {
           color.value = '#000000';
           color.dataset.bgColorDefault = '0';
+          color.dataset.colorMode = 'transparent';
         }
         const border = document.getElementById(tab + (Number(nextType) === 9 ? '_clock_tile_border' : '_text_tile_border'));
         if (border) border.checked = false;

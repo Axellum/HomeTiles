@@ -71,6 +71,13 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  document.getElementById('test_tile_color_mode_custom').click();
  check(tileColorMode('test')==='custom'&&input.value!=='#000000','Custom from Transparent starts from a color');
  check(!tileEl.classList.contains('tile-transparent'),'a colored card again');
+ // Dragging the picker over black keeps Custom and its picker (user
+ // 2026-10-12: it jumped to Transparent and the picker vanished).
+ input.value='#000000';input.dispatchEvent(new Event('input',{bubbles:true}));
+ check(tileColorMode('test')==='custom','black in the picker stays Custom');
+ check(!document.getElementById('test_tile_color_row').classList.contains('color-hidden'),'the picker stays open');
+ input.value='#202020';input.dispatchEvent(new Event('input',{bubbles:true}));
+ check(tileColorMode('test')==='custom','and on past it');
  document.getElementById('test_tile_color_mode_transparent').click();
  check(tileColorMode('test')==='transparent','back to Transparent');
  check(errors.length===0,'no script errors: '+errors.join('; '));
