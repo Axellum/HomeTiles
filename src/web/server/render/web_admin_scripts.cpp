@@ -81,7 +81,6 @@ void appendAdminScripts(String& html) {
   appendJsEntry("importStopped", tr.js_import_stopped);
   appendJsEntry("importScreensaver", tr.js_import_screensaver);
   appendJsEntry("tileDoesNotFit", tr.js_tile_does_not_fit);
-  appendJsEntry("pagesFull", tr.js_pages_full);
   appendJsEntry("pageUnlockConfirm", tr.js_page_unlock_confirm);
   appendJsEntry("pagesSaved", tr.js_pages_saved);
   appendJsEntry("noLayoutFound", tr.js_no_layout_found);

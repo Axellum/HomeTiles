@@ -808,8 +808,6 @@ struct Strings {
   // panel's first setup only).
   const char* setup_layout_landscape;
   const char* setup_layout_upright;
-  // Web Admin: all five page slots are taken.
-  const char* js_pages_full;
   // Web Admin: a locked folder dropped on a page slot (pages have no PIN).
   const char* js_page_unlock_confirm;
   const char* js_pages_saved;
@@ -818,6 +816,8 @@ struct Strings {
   const char* layout_switch_refused;
   // Web Admin: a PIN for a page's folder is refused (pages have no PIN).
   const char* folder_pin_page;
+  // Web Admin: the one word over the page slots under Home.
+  const char* pages_title;
 };
 
 // Locale-specific display rules and short runtime strings shared by

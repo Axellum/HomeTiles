@@ -665,11 +665,11 @@ static const Strings kStringsDe = {
     "Willkommen bei HomeTiles!",
     "Quer",
     "Hochkant",
-    "Höchstens 5 Seiten",
     "Dieser Ordner ist mit einer PIN gesperrt. Seiten haben keine PIN. Sperre entfernen und als Seite zeigen?",
     "Seiten gespeichert",
     "%u Ordner haben in diesem Layout keinen Platz. Bitte zuerst unter „%s“ einrichten.",
-    "Seiten haben keine PIN."};
+    "Seiten haben keine PIN.",
+    "Seiten"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1329,11 +1329,11 @@ static const Strings kStringsEn = {
     "Welcome to HomeTiles!",
     "Landscape",
     "Portrait",
-    "At most 5 pages",
     "This folder is locked with a PIN. Pages have no PIN. Remove the lock and show it as a page?",
     "Pages saved",
     "%u folders have no place in this layout. Please set them up under “%s” first.",
-    "Pages have no PIN."};
+    "Pages have no PIN.",
+    "Pages"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1993,11 +1993,11 @@ static const Strings kStringsFr = {
     "Bienvenue sur HomeTiles\u00A0!",
     "Paysage",
     "Portrait",
-    "5 pages au maximum",
     "Ce dossier est verrouillé par un code PIN. Les pages n'ont pas de code PIN. Supprimer le verrouillage et l'afficher comme page\u00A0?",
     "Pages enregistrées",
     "%u dossiers n'ont pas de place dans cette disposition. Placez-les d'abord sous «\u00A0%s\u00A0».",
-    "Les pages n'ont pas de code PIN."};
+    "Les pages n'ont pas de code PIN.",
+    "Pages"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -3023,11 +3023,11 @@ static const Strings kStringsPl = {
     "Witaj w HomeTiles!",
     "Poziomo",
     "Pionowo",
-    "Maksymalnie 5 stron",
     "Ten folder jest zablokowany kodem PIN. Strony nie mają kodu PIN. Usunąć blokadę i pokazać go jako stronę?",
     "Zapisano strony",
     "Foldery bez miejsca w tym układzie: %u. Najpierw ustaw je w „%s”.",
-    "Strony nie mają kodu PIN."};
+    "Strony nie mają kodu PIN.",
+    "Strony"};
 
 static const LocaleProfile kLocalePl = {
     "pl",

@@ -566,13 +566,5 @@ static void appendHeadBarVars(String& html) {
                                                       settings_style::kGearColor).disc),
            static_cast<unsigned>(home_bar::dot_color(true)), static_cast<unsigned>(home_bar::dot_color(false)));
   html += color;
-  // The six page slots above Home are as wide as the preview at most: one
-  // cell each, smaller on a grid with fewer columns.
-  const float cols = grid_layout::shown().cols;
-  float slot_scale = (cols * GRID_CELL_W + (cols - 6) * GRID_GAP) / (6.0f * GRID_CELL_W);
-  if (slot_scale > 1) slot_scale = 1;
-  char slots[48];
-  snprintf(slots, sizeof(slots), "--page-slot-scale:%.4f;", static_cast<double>(slot_scale));
-  html += slots;
   html += "}</style>\n";
 }

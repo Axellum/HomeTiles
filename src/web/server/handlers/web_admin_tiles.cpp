@@ -1825,7 +1825,12 @@ void WebAdminServer::handleSavePages() {
     if (end < 0) end = list.length();
     const long id = list.substring(start, end).toInt();
     start = end + 1;
-    if (id <= 0 || id >= 0xFFFF || !tileConfig.folderExists(static_cast<uint16_t>(id)) ||
+    // 0: a free slot, kept in its place (user 2026-10-12).
+    if (id == 0) {
+      wanted.push_back(0);
+      continue;
+    }
+    if (id < 0 || id >= 0xFFFF || !tileConfig.folderExists(static_cast<uint16_t>(id)) ||
         tileConfig.getFolderParent(static_cast<uint16_t>(id)) != TileConfig::rootFolderId() ||
         std::find(wanted.begin(), wanted.end(), static_cast<uint16_t>(id)) != wanted.end()) {
       sendJsonError(server, 400, "Not a Home folder");
@@ -1842,7 +1847,7 @@ void WebAdminServer::handleSavePages() {
   auto was_page = [&](uint16_t id) { return std::find(before, before + before_count, id) != before + before_count; };
   const bool unlock = server.arg("unlock") == "1";
   for (const uint16_t id : wanted) {
-    if (was_page(id) || !tileConfig.isFolderPinEnabled(id) || unlock) continue;
+    if (!id || was_page(id) || !tileConfig.isFolderPinEnabled(id) || unlock) continue;
     server.send(409, "application/json", "{\"success\":false,\"error\":\"locked\",\"folder\":" + String(id) + "}");
     return;
   }
@@ -1904,7 +1909,7 @@ void WebAdminServer::handleSavePages() {
   }
 
   for (const uint16_t id : wanted) {
-    if (was_page(id)) continue;
+    if (!id || was_page(id)) continue;
     if (tileConfig.isFolderPinEnabled(id) && !tileConfig.clearFolderPin(id)) {
       sendJsonError(server, 500, "Save failed");
       return;
@@ -1927,7 +1932,7 @@ void WebAdminServer::handleSavePages() {
   tileConfig.setActiveFolder(tileConfig.getActiveFolderId());
   tiles_invalidate_folder(tileConfig.getActiveFolderId());
   tiles_request_reload(GridType::TAB0);
-  Serial.printf("[WebAdmin] Pages saved: %u\n", static_cast<unsigned>(wanted.size()));
+  Serial.printf("[WebAdmin] Pages saved: %u slots\n", static_cast<unsigned>(wanted.size()));
   String json = "{\"success\":true,\"places\":";
   tile_layouts::append_json(json);
   json += "}";

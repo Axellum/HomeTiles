@@ -59,12 +59,15 @@ void drop_folder(uint16_t folder_id);
 // the bar layouts their folder tiles stay off Home; the classic layout shows
 // them as folders.
 inline constexpr size_t kMaxPages = 5;
-// The page folders in order; returns how many.
+// The page folders in dot order (free slots skipped); returns how many.
 size_t pages(uint16_t out[kMaxPages]);
+// The slots as placed in the Web Admin, 0 for a free one (user 2026-10-12:
+// nothing moves up); returns how many up to the last page.
+size_t page_slots(uint16_t out[kMaxPages]);
 // The folder's dot: 0 Home, 1.. a page, -1 neither (or no pages at all).
 int page_number(uint16_t folder_id);
-// Takes the first kMaxPages folders, each once (the caller checks that they
-// are Home folders).
+// Takes the first kMaxPages slots, each folder once, 0 a free slot (the
+// caller checks that they are Home folders).
 void set_pages(const uint16_t* folders, size_t count);
 
 // Writes the file when something changed. Safe to call often.

@@ -5659,6 +5659,8 @@ async function saveGestureEdge(select) {
         }
       });
     }
+    // A page's slot under Home shows the selection too (page-slots.js).
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
   }
   function ensureNavigateTargetOption(folderId, label) {
     const folderValue = String(folderId);
@@ -5771,7 +5773,7 @@ async function saveGestureEdge(select) {
     networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
     syncFolderFragmentWithRoot(tabEl);
     // Markup kept from before a page change shows the pages as they are now.
-    syncPageHeads();
+    if (typeof syncPageHeads === 'function') syncPageHeads();
     associateFieldLabels(tabEl);
 
     initTileTabs();
@@ -6950,6 +6952,8 @@ async function saveGestureEdge(select) {
       selectedTile.dataset.selected = '1';
       selectedTile.classList.add('active');
     }
+    // A page's slot under Home carries the selection too (page-slots.js).
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const settingsId = tab + 'Settings';
     const settingsPanel = document.getElementById(settingsId);
     if (settingsPanel) {
@@ -6986,6 +6990,7 @@ async function saveGestureEdge(select) {
       delete tile.dataset.selected;
     });
     hiddenTile.classList.add('active');
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const panel = document.getElementById('folder0Settings');
     const specific = panel?.querySelector('.tile-specific-settings');
     if (specific) {
@@ -10419,7 +10424,10 @@ async function saveGestureEdge(select) {
     // Its tint changed the surface: drawn again on it from the start.
     if (!forcedSurface && el.dataset.surface === 'jewel' && surface !== 'jewel') {
       renderTileFromData(tab, index, tile, sensorMeta, 'jewel');
+      return;
     }
+    // A page's folder tile: its slot under Home follows (page-slots.js).
+    if (typeof pageTileRendered === 'function') pageTileRendered(tab, index);
   }
 
   function fetchTileGridData(tab, force = false) {
@@ -11894,23 +11902,34 @@ async function saveGestureEdge(select) {
     });
     return selectedIndex >= 0 ? selectedIndex : 0;
   }
-  // The page slots above Home's preview (head bar layouts, user 2026-10-12,
-  // tile_layouts::pages): six slots like the Settings parking slot. A Home
-  // folder dropped on one becomes a page beside Home (its tile leaves Home),
-  // a page dragged onto the grid becomes a folder tile again, and the slot
-  // order is the order of the panel's dots.
-  // Five pages beside Home (tile_layouts::kMaxPages).
+  // The page slots under Home's preview (head bar layouts, user 2026-10-12,
+  // tile_layouts::pages): five places beside the Settings slot. A Home
+  // folder dropped on a free one becomes a page beside Home (its tile leaves
+  // Home), a page dragged onto the grid becomes a folder tile again. Every
+  // page stays where it was put, free places too; the panel's dots take the
+  // pages in this order and skip the free places.
   const PAGE_SLOT_COUNT = 5;
 
   function pageSlotsElement() {
     return document.getElementById('pageSlots');
   }
 
-  // The pages in slot order; a folder deleted meanwhile has left.
+  // The places as put: a folder or 0 for a free one; a folder deleted
+  // meanwhile has left its place free.
+  function pageSlotList() {
+    const stored = String(pageSlotsElement()?.dataset.pages || '').split(',').map(Number);
+    return Array.from({length: PAGE_SLOT_COUNT}, (_, i) => stored[i] > 0 && homeFolderTile(stored[i]) ? stored[i] : 0);
+  }
+
+  // The pages in dot order.
   function pageFolders() {
-    const slots = pageSlotsElement();
-    if (!slots) return [];
-    return String(slots.dataset.pages || '').split(',').map(Number).filter(id => id > 0 && homeFolderTile(id));
+    return pageSlotList().filter(id => id > 0);
+  }
+
+  // The stored form: up to the last page, free places as 0.
+  function encodePageSlots(slots) {
+    const last = slots.reduce((end, id, i) => id ? i + 1 : end, 0);
+    return slots.slice(0, last).join(',');
   }
 
   // Home's folder tile of a folder, from the page itself: the server and
@@ -11933,9 +11952,9 @@ async function saveGestureEdge(select) {
   function renderPageSlots() {
     const slots = pageSlotsElement();
     if (!slots) return;
-    const pages = pageFolders();
+    const places = pageSlotList();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
-      const folder = pages[i] || 0;
+      const folder = places[i] || 0;
       const source = folder ? homeFolderTile(folder) : null;
       const selected = !!source && currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index);
       // The folder tile's look without its place in the grid and without
@@ -11964,7 +11983,7 @@ async function saveGestureEdge(select) {
       slot.draggable = !!tile;
       slot.className = 'page-slot ' + (tile ? 'has-tile' : 'empty');
       if (!tile) {
-        slot.innerHTML = '<i class="mdi mdi-tray-arrow-down"></i>';
+        slot.replaceChildren();
         return;
       }
       // Picked in the editor: the teal selection like in the grid.
@@ -11974,7 +11993,9 @@ async function saveGestureEdge(select) {
   }
 
   // Home and the pages show the dots in their head and the gear; a page
-  // left the slots shows its X again (home_bar.cpp).
+  // left the slots shows its X again (home_bar.cpp). Only what differs is
+  // touched: rebuilding the dots for every folder tab the page loaded made
+  // them blink (user 2026-10-12).
   function syncPageHeads() {
     const pages = pageFolders();
     document.querySelectorAll('.tile-tab[data-folder-id]').forEach(tab => {
@@ -11982,39 +12003,47 @@ async function saveGestureEdge(select) {
       if (!head) return;
       const folder = Number(tab.dataset.folderId);
       const page = !pages.length ? -1 : folder === 0 ? 0 : pages.indexOf(folder) + (pages.includes(folder) ? 1 : -1);
-      head.querySelector('.head-dots')?.remove();
-      head.classList.toggle('has-dots', page >= 0);
-      if (page >= 0) {
-        head.style.setProperty('--head-dots-n', String(pages.length + 1));
-        const dots = document.createElement('span');
-        dots.className = 'head-dots';
-        for (let i = 0; i <= pages.length; ++i) {
-          const dot = document.createElement('i');
-          if (i === page) dot.className = 'on';
-          dots.appendChild(dot);
+      const want = page < 0 ? '' : Array.from({length: pages.length + 1}, (_, i) => i === page ? 'O' : 'o').join('');
+      const shown = head.querySelector('.head-dots');
+      const have = shown ? Array.from(shown.children, dot => dot.classList.contains('on') ? 'O' : 'o').join('') : '';
+      if (have !== want) {
+        shown?.remove();
+        head.classList.toggle('has-dots', page >= 0);
+        if (page >= 0) {
+          head.style.setProperty('--head-dots-n', String(pages.length + 1));
+          const dots = document.createElement('span');
+          dots.className = 'head-dots';
+          for (let i = 0; i <= pages.length; ++i) {
+            const dot = document.createElement('i');
+            if (i === page) dot.className = 'on';
+            dots.appendChild(dot);
+          }
+          head.insertBefore(dots, head.querySelector('.head-time'));
         }
-        head.insertBefore(dots, head.querySelector('.head-time'));
       }
       if (folder === 0) return;
       const button = head.querySelector('.head-button');
       const icon = button?.querySelector('i');
       if (!button || !icon) return;
       const homeGear = document.querySelector('#tab-tiles-folder0 .head-bar-preview .head-gear');
-      button.classList.toggle('head-gear', page > 0);
-      button.classList.toggle('is-off', page > 0 && !!homeGear?.classList.contains('is-off'));
-      icon.className = 'mdi ' + (page > 0 ? 'mdi-cog' : 'mdi-window-close');
+      const iconClass = 'mdi ' + (page > 0 ? 'mdi-cog' : 'mdi-window-close');
+      if (button.classList.contains('head-gear') !== page > 0) button.classList.toggle('head-gear', page > 0);
+      const off = page > 0 && !!homeGear?.classList.contains('is-off');
+      if (button.classList.contains('is-off') !== off) button.classList.toggle('is-off', off);
+      if (icon.className !== iconClass) icon.className = iconClass;
     });
   }
 
   // Shows a change of the pages at once, like the Settings parking slot:
-  // the slots, Home's folder tiles and the heads. `previous` are the pages
-  // before; a folder leaving them comes back on the grid (`out`: at its
-  // dropped spot).
-  function showPagesLocally(pages, previous, out = null) {
-    pageSlotsElement().dataset.pages = pages.join(',');
+  // the slots, Home's folder tiles and the heads. `slots` and `previous` are
+  // the places after and before; a folder leaving them comes back on the
+  // grid (`out`: at its dropped spot).
+  function showPagesLocally(slots, previous, out = null) {
+    pageSlotsElement().dataset.pages = encodePageSlots(slots);
     const loaded = tileDataLoadedTabs.has('folder0');
     const tiles = getTilesData('folder0') || [];
-    const folders = new Set([...pages, ...previous]);
+    const pages = slots.filter(id => id > 0);
+    const folders = new Set([...pages, ...previous.filter(id => id > 0)]);
     folders.forEach(folder => {
       const el = homeFolderTile(folder);
       if (!el) return;
@@ -12038,23 +12067,23 @@ async function saveGestureEdge(select) {
   // The saves go out one after the other; each shows before it is sent.
   let pageSlotsQueue = Promise.resolve();
 
-  function savePages(pages, extra = {}, unlock = false) {
-    const previous = pageFolders();
+  function savePages(slots, extra = {}, unlock = false) {
+    const previous = pageSlotList();
     const out = extra.out ? {folder: Number(extra.out), col: Number(extra.col), row: Number(extra.row),
       span_w: Number(extra.span_w || 1), span_h: Number(extra.span_h || 1)} : null;
-    showPagesLocally(pages, previous, out);
-    pageSlotsQueue = pageSlotsQueue.then(() => sendPages(pages, previous, extra, unlock));
+    showPagesLocally(slots, previous, out);
+    pageSlotsQueue = pageSlotsQueue.then(() => sendPages(slots, previous, extra, unlock));
     return pageSlotsQueue;
   }
 
-  async function sendPages(pages, previous, extra, unlock) {
+  async function sendPages(slots, previous, extra, unlock) {
     const undo = message => {
-      showPagesLocally(previous, pages);
+      showPagesLocally(previous, slots);
       showNotification(message, false);
       return false;
     };
     try {
-      const body = new URLSearchParams({pages: pages.join(',')});
+      const body = new URLSearchParams({pages: encodePageSlots(slots)});
       if (unlock) body.set('unlock', '1');
       ['out', 'col', 'row'].forEach(key => {
         if (extra[key] !== undefined) body.set(key, String(extra[key]));
@@ -12071,7 +12100,7 @@ async function saveGestureEdge(select) {
       }
       // A page has no PIN: its lock went with the save.
       if (unlock) {
-        pages.forEach(folder => {
+        slots.filter(id => id > 0).forEach(folder => {
           const el = homeFolderTile(folder);
           if (!el) return;
           el.dataset.folderPinEnabled = '0';
@@ -12123,24 +12152,27 @@ async function saveGestureEdge(select) {
     const size = tile && tile.span_w >= 1 && tile.span_h >= 1 &&
       canPlacePageTile({col: candidate.col, row: candidate.row, span_w: tile.span_w, span_h: tile.span_h})
       ? {span_w: tile.span_w, span_h: tile.span_h} : {span_w: 1, span_h: 1};
-    savePages(pageFolders().filter(id => id !== folder), {out: folder, col: candidate.col, row: candidate.row, ...size});
+    // Its place stays free.
+    savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, col: candidate.col, row: candidate.row, ...size});
   }
 
-  // The slots follow their folder tiles: an edited title, icon or color, the
-  // editor's selection. The head's dots (syncPageHeads) are no reason.
-  function watchPageFolderTiles() {
-    const grid = getTileGrid('folder0');
-    if (!grid || typeof MutationObserver !== 'function') return;
-    let frame = 0;
-    new MutationObserver(records => {
-      if (frame || records.every(record => record.target.closest?.('.head-bar-preview') ||
-          record.target.parentElement?.closest('.head-bar-preview'))) return;
-      // A timer, not a frame: a hidden tab gets no frames.
-      frame = setTimeout(() => {
-        frame = 0;
-        renderPageSlots();
-      }, 30);
-    }).observe(grid, {subtree: true, childList: true, attributes: true, characterData: true});
+  // The editor picked a tile: the teal selection on its page's slot only,
+  // nothing is built again.
+  function markSelectedPageSlot() {
+    pageSlotsElement()?.querySelectorAll('.page-slot').forEach(slot => {
+      const source = slot.dataset.folder ? homeFolderTile(Number(slot.dataset.folder)) : null;
+      const selected = !!source && currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index);
+      const tile = slot.querySelector(':scope > .tile');
+      if (tile && tile.classList.contains('active') !== selected) tile.classList.toggle('active', selected);
+    });
+  }
+
+  // A folder tile was drawn again (renderTileFromData): its slot follows
+  // when it is a page's (an edited title, icon or color).
+  function pageTileRendered(tab, index) {
+    if (tab !== 'folder0' || !pageSlotsElement()) return;
+    const el = document.getElementById('folder0-tile-' + index);
+    if (el?.dataset.type === '4' && pageFolders().includes(Number(el.dataset.navigateTarget))) renderPageSlots();
   }
 
   function enablePageSlots() {
@@ -12149,14 +12181,15 @@ async function saveGestureEdge(select) {
     slots.dataset.bound = '1';
     renderPageSlots();
     syncPageHeads();
-    watchPageFolderTiles();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
       // A page is edited like its folder tile: a tap picks it.
       slot.addEventListener('click', () => {
         const index = homeFolderTileIndex(Number(slot.dataset.folder || 0));
         if (index >= 0) selectTile(index, 'folder0');
       });
-      const accepts = () => draggedHomeFolder() > 0 ||
+      // A folder from the grid onto a free place; a page onto any place
+      // (onto another page they swap).
+      const accepts = () => (draggedHomeFolder() > 0 && !pageSlotList()[i]) ||
         (dragSource?.kind === 'page-slot' && dragSource.tab === 'folder0');
       slot.addEventListener('dragover', event => {
         if (!accepts()) return;
@@ -12178,20 +12211,18 @@ async function saveGestureEdge(select) {
         slot.classList.remove('drop-target');
         restoreDragPreview('folder0');
         clearDragPlaceholder();
-        const pages = pageFolders();
+        const places = pageSlotList();
         const folder = dragSource.kind === 'page-slot' ? dragSource.folder : draggedHomeFolder();
-        const from = pages.indexOf(folder);
-        if (from < 0 && pages.length >= PAGE_SLOT_COUNT) {
-          showNotification(t('pagesFull'), false);
-          return;
-        }
+        const from = places.indexOf(folder);
+        if (from === i) return;
         // Pages have no PIN: a locked folder asks before it becomes one.
         const unlock = from < 0 && homeFolderTile(folder)?.dataset.folderPinEnabled === '1';
         if (unlock && !window.confirm(t('pageUnlockConfirm'))) return;
-        if (from >= 0) pages.splice(from, 1);
-        pages.splice(Math.min(i, pages.length), 0, folder);
+        // Exactly where it is dropped; the page there takes its old place.
+        if (from >= 0) places[from] = places[i];
+        places[i] = folder;
         dragSource.dropCommitted = true;
-        savePages(pages, {}, unlock);
+        savePages(places, {}, unlock);
       });
       slot.addEventListener('dragstart', event => {
         const folder = Number(slot.dataset.folder || 0);

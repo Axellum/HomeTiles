@@ -137,42 +137,54 @@ ${inlineScriptSafe(readAdminDeliverySource())}
     await settle();
   };
 
-  // A folder becomes a page: in the first slot with its tile's look, gone
-  // from Home's preview, the dots on Home and on the page, the page's gear.
-  // Shown at once, before the device answers (user 2026-10-12: dragging in
-  // took long).
+  // A folder becomes a page exactly where it is dropped (user 2026-10-12:
+  // nothing moves up), gone from Home's preview, shown at once before the
+  // device answers (dragging in took long); the dots skip the free places.
   {
     const transfer = new DataTransfer();
     const source = tileOf(1);
     source.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(source)}));
     slots()[3].dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[3])}));
     slots()[3].dispatchEvent(new DragEvent('drop', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[3])}));
-    check(slots()[0].classList.contains('has-tile') && tileOf(1).classList.contains('tile-unplaced') && !pages.length,
-          'The page shows before the device has saved it');
+    check(slots()[3].classList.contains('has-tile') && slots()[0].classList.contains('empty') &&
+          tileOf(1).classList.contains('tile-unplaced') && !pages.length,
+          'The page shows where it was dropped, before the device has saved it');
     source.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
     await settle();
   }
-  check(pages.join() === '1', 'Dropped on a later slot it takes the first free one: ' + pages.join());
-  check(slots()[0].dataset.folder === '1' && slots()[0].classList.contains('has-tile') &&
-        slots()[0].querySelector('.tile-title')?.textContent.includes('Lights'), 'The slot shows the folder tile');
-  check(tileOf(1).classList.contains('tile-unplaced'), 'Its tile leaves the Home preview');
-  check(dots('folder0') === 'Oo' && dots('folder1') === 'oO', 'Dots on Home and the page: ' + dots('folder0') + ' ' + dots('folder1'));
+  check(pages.join() === '0,0,0,1', 'Its place is kept, free places too: ' + pages.join());
+  check(slots()[3].dataset.folder === '1' && slots()[3].querySelector('.tile-title')?.textContent.includes('Lights'),
+        'The slot shows the folder tile');
+  check(dots('folder0') === 'Oo' && dots('folder1') === 'oO', 'The dots skip the free places: ' + dots('folder0') + ' ' + dots('folder1'));
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-cog'), 'A page has the gear');
 
   // A locked folder asks once, then its PIN goes with the request.
-  await dropOnSlot(tileOf(3), 4);
-  check(confirms === 1 && pages.join() === '1,3' && log.filter(line => line.startsWith('/api/pages')).length === 2 &&
-        log.some(line => line.includes('"unlock":"1"')),
-        'A locked folder asks before its PIN goes: ' + pages.join());
+  await dropOnSlot(tileOf(3), 0);
+  check(confirms === 1 && pages.join() === '3,0,0,1' && log.filter(line => line.startsWith('/api/pages')).length === 2 &&
+        log.some(line => line.includes('"unlock":"1"')), 'A locked folder asks before its PIN goes: ' + pages.join());
+  check(dots('folder1') === 'ooO', 'The dots follow the places: ' + dots('folder1'));
 
-  // Reorder: the second slot onto the first.
-  await dropOnSlot(slots()[1], 0);
-  check(pages.join() === '3,1' && slots()[0].dataset.folder === '3', 'Slots reorder: ' + pages.join());
-  check(dots('folder1') === 'ooO', 'The dots follow the order: ' + dots('folder1'));
+  // A page onto a free place moves there; onto another page they swap.
+  await dropOnSlot(slots()[3], 1);
+  check(pages.join() === '3,1', 'A page moves to a free place: ' + pages.join());
+  await dropOnSlot(slots()[0], 1);
+  check(pages.join() === '1,3' && slots()[0].dataset.folder === '1' && dots('folder1') === 'oOo',
+        'Onto another page they swap: ' + pages.join());
 
-  // A page dragged onto the grid is a tile again where it was dropped.
+  // A folder from the grid takes free places only.
   {
-    const slot = slots()[1];
+    const transfer = new DataTransfer();
+    const source = tileOf(11);
+    source.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(source)}));
+    slots()[0].dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[0])}));
+    check(!slots()[0].classList.contains('drop-target'), 'A page is no drop target for a folder from the grid');
+    source.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
+  }
+
+  // A page dragged onto the grid is a tile again where it was dropped; its
+  // place stays free.
+  {
+    const slot = slots()[0];
     const transfer = new DataTransfer();
     slot.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slot)}));
     grid.dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...cellPoint(4, 2)}));
@@ -181,18 +193,28 @@ ${inlineScriptSafe(readAdminDeliverySource())}
     slot.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
     await settle();
   }
-  check(pages.join() === '3' && log.at(-1).includes('"out":"1"') && log.at(-1).includes('"col":"4"') &&
+  check(pages.join() === '0,3' && log.at(-1).includes('"out":"1"') && log.at(-1).includes('"col":"4"') &&
         log.at(-1).includes('"row":"2"'), 'The page leaves at the dropped spot: ' + log.at(-1));
-  check(!tileOf(1).classList.contains('tile-unplaced') && slots()[1].classList.contains('empty'), 'Its tile is back');
+  check(!tileOf(1).classList.contains('tile-unplaced') && slots()[0].classList.contains('empty') &&
+        slots()[1].dataset.folder === '3', 'Its tile is back, its place free, the other page stays');
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-window-close') &&
         !dots('folder1'), 'A folder again: its X, no dots');
 
-  // Five pages: a sixth is refused without a request.
+  // Five pages: no free place, nothing is sent.
   slotsEl.dataset.pages = '3,11,12,13,14';
   pages = [3, 11, 12, 13, 14];
+  renderPageSlots();
   const posts = log.length;
-  await dropOnSlot(tileOf(1), 2);
-  check(log.length === posts && pages.length === 5 && !tileOf(1).classList.contains('tile-unplaced'), 'A sixth page sends nothing');
+  {
+    const transfer = new DataTransfer();
+    const source = tileOf(1);
+    source.dispatchEvent(new DragEvent('dragstart', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(source)}));
+    slots()[2].dispatchEvent(new DragEvent('dragover', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[2])}));
+    slots()[2].dispatchEvent(new DragEvent('drop', {bubbles:true,cancelable:true,dataTransfer:transfer,...at(slots()[2])}));
+    source.dispatchEvent(new DragEvent('dragend', {bubbles:true,dataTransfer:transfer}));
+    await settle();
+  }
+  check(log.length === posts && !tileOf(1).classList.contains('tile-unplaced'), 'A sixth page sends nothing');
   // A tap on a page picks its folder tile in the editor, with the teal
   // selection in the slot.
   // Nothing is built again for it (user 2026-10-12: the slots and the head
@@ -216,4 +238,4 @@ try {
 } catch (error) {
   throw Error(error.message.match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1] || error.message.slice(0, 1500));
 }
-console.log('Page slots: drop in, PIN question, reorder, drop out, five at most');
+console.log('Page slots: places kept, PIN question, move and swap, drop out, five at most');

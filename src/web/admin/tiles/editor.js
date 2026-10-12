@@ -26,6 +26,8 @@
       selectedTile.dataset.selected = '1';
       selectedTile.classList.add('active');
     }
+    // A page's slot under Home carries the selection too (page-slots.js).
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const settingsId = tab + 'Settings';
     const settingsPanel = document.getElementById(settingsId);
     if (settingsPanel) {
@@ -62,6 +64,7 @@
       delete tile.dataset.selected;
     });
     hiddenTile.classList.add('active');
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const panel = document.getElementById('folder0Settings');
     const specific = panel?.querySelector('.tile-specific-settings');
     if (specific) {

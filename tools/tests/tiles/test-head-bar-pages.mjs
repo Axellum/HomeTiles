@@ -15,19 +15,23 @@ const slice = (text, start, end) => {
   return text.slice(from, to);
 };
 
-// Storage: in the layout file, six at most, each once, never Home; a deleted
-// folder leaves the pages.
+// Storage: in the layout file, five places at most, each folder once, never
+// Home. Every page stays in its place and free places stay free (user
+// 2026-10-12: nothing moves up); the dots skip the free places, and a
+// deleted folder leaves its place free.
 const layoutsH = read('src/tiles/config/tile_layouts.h');
 const layouts = read('src/tiles/config/tile_layouts.cpp');
 // Five pages beside Home, six dots with it (user 2026-10-12).
 assert.match(layoutsH, /inline constexpr size_t kMaxPages = 5;/);
 const store = slice(layouts, 'bool store_pages_locked(', '\n}\n');
-assert.match(store, /for \(size_t i = 0; i < count && wanted_count < kMaxPages; \+\+i\)/);
-assert.match(store, /if \(!folder \|\| std::find\(wanted, wanted \+ wanted_count, folder\) != wanted \+ wanted_count\) continue;/);
+assert.match(store, /for \(size_t i = 0; i < count && i < kMaxPages; \+\+i\)/);
+assert.match(store, /wanted\[i\] = folder;\s*used = i \+ 1;/, 'In its own place');
 const pageNumber = slice(layouts, 'int page_number(uint16_t folder_id) {', '\n}\n');
 assert.match(pageNumber, /if \(!g_page_count\) return -1;\s*if \(folder_id == 0\) return 0;/, 'Home is page 0 only with pages');
-assert.match(pageNumber, /return static_cast<int>\(i\) \+ 1;/);
-assert.match(slice(layouts, 'void drop_folder(', '\n}\n'), /if \(g_pages\[i\] != folder_id\) kept\[kept_count\+\+\] = g_pages\[i\];/);
+assert.match(pageNumber, /if \(!g_pages\[i\]\) continue;\s*\+\+number;/, 'The dots skip free places');
+assert.match(slice(layouts, 'size_t pages(uint16_t out[kMaxPages]) {', '\n}\n'), /if \(g_pages\[i\]\) out\[count\+\+\] = g_pages\[i\];/);
+assert.match(slice(layouts, 'void drop_folder(', '\n}\n'), /std::replace\(kept, kept \+ kMaxPages, folder_id, static_cast<uint16_t>\(0\)\);/);
+assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'), /if \(id == 0\) \{\s*wanted\.push_back\(0\);\s*continue;/, 'The device keeps free places');
 assert.match(layouts, /for \(JsonVariantConst folder : doc\["pages"\]\.as<JsonArrayConst>\(\)\)/);
 assert.match(layouts, /out \+= ",\\"pages\\":\[";/);
 
@@ -94,7 +98,7 @@ const handler = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void
 assert.match(handler, /if \(grid_layout::active\(\) == grid_layout::Layout::kClassic\) \{\s*sendJsonError\(server, 409, "Pages need the head bar"\);/);
 assert.match(handler, /tileConfig\.getFolderParent\(static_cast<uint16_t>\(id\)\) != TileConfig::rootFolderId\(\)/);
 assert.match(handler, /if \(wanted\.size\(\) > tile_layouts::kMaxPages\)/);
-assert.match(handler, /if \(was_page\(id\) \|\| !tileConfig\.isFolderPinEnabled\(id\) \|\| unlock\) continue;\s*server\.send\(409/);
+assert.match(handler, /if \(!id \|\| was_page\(id\) \|\| !tileConfig\.isFolderPinEnabled\(id\) \|\| unlock\) continue;\s*server\.send\(409/);
 assert.match(handler, /tile_layouts::remove\(grid_layout::Layout::kBar, TileConfig::rootFolderId\(\), tile->view_id\);\s*tile_layouts::remove\(grid_layout::Layout::kPortrait, TileConfig::rootFolderId\(\), tile->view_id\);/);
 const noRoom = handler.indexOf('sendJsonError(server, 409, "No free cell");');
 const firstWrite = handler.indexOf('tileConfig.clearFolderPin(id)');
@@ -145,10 +149,10 @@ assert.match(read('src/web/admin/tiles/layout-window.js'), /showNotification\(er
 // Every language has the page texts and the refusal (positional tables).
 const i18n = read('src/core/i18n/i18n.cpp');
 for (const [table, words] of Object.entries({
-  kStringsDe: ['"Höchstens 5 Seiten"', '"Seiten gespeichert"', '"%u Ordner haben in diesem Layout keinen Platz.', '"Seiten haben keine PIN."'],
-  kStringsEn: ['"At most 5 pages"', '"Pages saved"', '"%u folders have no place in this layout.', '"Pages have no PIN."'],
-  kStringsFr: ['"5 pages au maximum"', '"Pages enregistrées"', '"%u dossiers n\'ont pas de place', '"Les pages n\'ont pas de code PIN."'],
-  kStringsPl: ['"Maksymalnie 5 stron"', '"Zapisano strony"', '"Foldery bez miejsca w tym układzie: %u.', '"Strony nie mają kodu PIN."']})) {
+  kStringsDe: ['"Seiten"', '"Seiten gespeichert"', '"%u Ordner haben in diesem Layout keinen Platz.', '"Seiten haben keine PIN."'],
+  kStringsEn: ['"Pages"', '"Pages saved"', '"%u folders have no place in this layout.', '"Pages have no PIN."'],
+  kStringsFr: ['"Pages"', '"Pages enregistrées"', '"%u dossiers n\'ont pas de place', '"Les pages n\'ont pas de code PIN."'],
+  kStringsPl: ['"Strony"', '"Zapisano strony"', '"Foldery bez miejsca w tym układzie: %u.', '"Strony nie mają kodu PIN."']})) {
   const start = i18n.indexOf(`static const Strings ${table} = {`);
   const body = i18n.slice(start, i18n.indexOf('};', start));
   for (const word of words) assert.ok(body.includes(word), `${table} ${word}`);
@@ -158,7 +162,7 @@ for (const [table, words] of Object.entries({
   assert.ok((refusalLine.match(/%u/g) || []).length === 1 && (refusalLine.match(/%s/g) || []).length === 1, `${table}: %u and %s`);
 }
 const scripts = read('src/web/server/render/web_admin_scripts.cpp');
-for (const key of ['pagesFull', 'pageUnlockConfirm', 'pagesSaved']) assert.ok(scripts.includes(`appendJsEntry("${key}"`), key);
+for (const key of ['pageUnlockConfirm', 'pagesSaved']) assert.ok(scripts.includes(`appendJsEntry("${key}"`), key);
 
 // A page has no PIN: refused by the device, no PIN option in the editor.
 const access = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void WebAdminServer::handleSaveFolderAccess() {', '\n}\n');
@@ -172,5 +176,7 @@ const markup = read('src/web/server/render/web_admin_html.cpp');
 assert.ok(markup.indexOf('id=\\"pageSlots\\"') > markup.indexOf('<!-- Grid Preview -->'), 'The slots under the preview');
 assert.ok(markup.indexOf('id=\\"pageSlots\\"') < markup.indexOf('id=\\"settingsHiddenSlot\\"'), 'Left of the Settings slot');
 assert.match(markup, /if \(!page_slots\) \{\s*html \+= "<div class=\\"settings-parking-texts/);
+// One word over each part (user 2026-10-12: one cannot tell what the row is).
+assert.match(markup, /appendHtmlEscaped\(html, tr\.pages_title\);\s*html \+= "<\/div><div class=\\"page-parking-label settings-label\\">";\s*appendHtmlEscaped\(html, tr\.tile_type_settings\);/);
 
 console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');

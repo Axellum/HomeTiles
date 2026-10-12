@@ -1090,7 +1090,10 @@
     // Its tint changed the surface: drawn again on it from the start.
     if (!forcedSurface && el.dataset.surface === 'jewel' && surface !== 'jewel') {
       renderTileFromData(tab, index, tile, sensorMeta, 'jewel');
+      return;
     }
+    // A page's folder tile: its slot under Home follows (page-slots.js).
+    if (typeof pageTileRendered === 'function') pageTileRendered(tab, index);
   }
 
   function fetchTileGridData(tab, force = false) {

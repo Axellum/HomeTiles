@@ -30,6 +30,7 @@ struct Entry {
 };
 
 std::vector<Entry, PsramAllocator<Entry>> g_entries;
+// The page slots as placed (0 a free one) and how many up to the last page.
 uint16_t g_pages[kMaxPages] = {};
 size_t g_page_count = 0;
 // Changes not written yet; the generation tells a change made while the file
@@ -89,18 +90,20 @@ Layout layout_from_key(const char* key) {
                                       : Layout::kClassic;
 }
 
-// Under the lock: the first kMaxPages folders, each once, never Home.
+// Under the lock: the first kMaxPages slots in their places, each folder
+// once, never Home; free slots stay free.
 bool store_pages_locked(const uint16_t* folders, size_t count) {
   uint16_t wanted[kMaxPages] = {};
-  size_t wanted_count = 0;
-  for (size_t i = 0; i < count && wanted_count < kMaxPages; ++i) {
+  size_t used = 0;
+  for (size_t i = 0; i < count && i < kMaxPages; ++i) {
     const uint16_t folder = folders[i];
-    if (!folder || std::find(wanted, wanted + wanted_count, folder) != wanted + wanted_count) continue;
-    wanted[wanted_count++] = folder;
+    if (!folder || std::find(wanted, wanted + kMaxPages, folder) != wanted + kMaxPages) continue;
+    wanted[i] = folder;
+    used = i + 1;
   }
-  if (wanted_count == g_page_count && std::equal(wanted, wanted + wanted_count, g_pages)) return false;
+  if (used == g_page_count && std::equal(wanted, wanted + kMaxPages, g_pages)) return false;
   std::copy(wanted, wanted + kMaxPages, g_pages);
-  g_page_count = wanted_count;
+  g_page_count = used;
   return true;
 }
 
@@ -252,16 +255,24 @@ void retain(uint16_t folder_id, const std::vector<uint16_t>& views) {
 void drop_folder(uint16_t folder_id) {
   Guard guard;
   erase_if_locked([](const Entry& entry, uint16_t folder, uint16_t) { return entry.folder == folder; }, folder_id, 0);
-  // A deleted page leaves the dots.
+  // A deleted page leaves the dots; its slot stays free.
   uint16_t kept[kMaxPages] = {};
-  size_t kept_count = 0;
-  for (size_t i = 0; i < g_page_count; ++i) {
-    if (g_pages[i] != folder_id) kept[kept_count++] = g_pages[i];
-  }
-  if (store_pages_locked(kept, kept_count)) touch();
+  std::copy(g_pages, g_pages + kMaxPages, kept);
+  std::replace(kept, kept + kMaxPages, folder_id, static_cast<uint16_t>(0));
+  if (store_pages_locked(kept, kMaxPages)) touch();
 }
 
 size_t pages(uint16_t out[kMaxPages]) {
+  Guard guard;
+  std::fill(out, out + kMaxPages, 0);
+  size_t count = 0;
+  for (size_t i = 0; i < g_page_count; ++i) {
+    if (g_pages[i]) out[count++] = g_pages[i];
+  }
+  return count;
+}
+
+size_t page_slots(uint16_t out[kMaxPages]) {
   Guard guard;
   std::copy(g_pages, g_pages + kMaxPages, out);
   return g_page_count;
@@ -271,8 +282,11 @@ int page_number(uint16_t folder_id) {
   Guard guard;
   if (!g_page_count) return -1;
   if (folder_id == 0) return 0;
+  int number = 0;
   for (size_t i = 0; i < g_page_count; ++i) {
-    if (g_pages[i] == folder_id) return static_cast<int>(i) + 1;
+    if (!g_pages[i]) continue;
+    ++number;
+    if (g_pages[i] == folder_id) return number;
   }
   return -1;
 }

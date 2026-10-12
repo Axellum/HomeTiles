@@ -79,6 +79,8 @@
         }
       });
     }
+    // A page's slot under Home shows the selection too (page-slots.js).
+    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
   }
   function ensureNavigateTargetOption(folderId, label) {
     const folderValue = String(folderId);
@@ -191,7 +193,7 @@
     networkTab.parentNode.insertBefore(tabEl, screensaverTab || networkTab);
     syncFolderFragmentWithRoot(tabEl);
     // Markup kept from before a page change shows the pages as they are now.
-    syncPageHeads();
+    if (typeof syncPageHeads === 'function') syncPageHeads();
     associateFieldLabels(tabEl);
 
     initTileTabs();

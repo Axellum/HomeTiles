@@ -893,10 +893,29 @@ static void appendTileTabHTML(
     // saves them through /api/pages. Not a .tile-grid with .tile children:
     // the editor finds Home's grid and its tiles by those classes.
     const bool page_slots = grid_layout::head_bar();
-    html += page_slots ? "<div class=\"settings-hidden-parking page-parking\">" : "<div class=\"settings-hidden-parking\">";
+    // Under a wide preview one row (six columns: the pages, then Settings;
+    // five: Settings below the last); beside a narrow one (admin.css
+    // .compact-grid) two columns with Settings at the bottom (user
+    // 2026-10-12).
+    const bool beside = GRID_COLS <= 4 || grid_layout::shown().cols <= 4;
+    const int slot_cols = beside ? 2 : (grid_layout::shown().cols < 6 ? grid_layout::shown().cols : 6);
+    const int slot_rows = (static_cast<int>(tile_layouts::kMaxPages) + 1 + slot_cols - 1) / slot_cols;
     if (page_slots) {
+      html += "<div class=\"settings-hidden-parking page-parking";
+      if (slot_cols == static_cast<int>(tile_layouts::kMaxPages) + 1) html += " single-row";
+      html += "\" style=\"--slot-cols:" + String(slot_cols) + ";--slot-last-row:" + String(slot_rows + 1) + "\">";
+    } else {
+      html += "<div class=\"settings-hidden-parking\">";
+    }
+    if (page_slots) {
+      // One word over each part, no sentences (user 2026-10-12).
+      html += "<div class=\"page-parking-label\">";
+      appendHtmlEscaped(html, tr.pages_title);
+      html += "</div><div class=\"page-parking-label settings-label\">";
+      appendHtmlEscaped(html, tr.tile_type_settings);
+      html += "</div>";
       uint16_t pages[tile_layouts::kMaxPages];
-      const size_t count = tile_layouts::pages(pages);
+      const size_t count = tile_layouts::page_slots(pages);
       html += "<div id=\"pageSlots\" class=\"page-slots\" data-pages=\"";
       for (size_t i = 0; i < count; ++i) {
         if (i) html += ",";
@@ -904,7 +923,7 @@ static void appendTileTabHTML(
       }
       html += "\">";
       for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
-        html += "<div class=\"page-slot empty\" draggable=\"false\"><i class=\"mdi mdi-tray-arrow-down\"></i></div>";
+        html += "<div class=\"page-slot empty\" draggable=\"false\"></div>";
       }
       html += "</div>";
     }

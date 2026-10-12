@@ -3002,25 +3002,50 @@
     var(--head-dots-title-w));
 }
 
-/* The head bar layouts: five page slots and the Settings slot in one row
-   under Home (user 2026-10-12), as wide as the preview at most
-   (--page-slot-scale, web_admin_styles.cpp). */
+/* The head bar layouts (user 2026-10-12): the five page slots and the
+   Settings slot in one row under Home, every cell exactly under a column of
+   the preview (same cells, gaps and side margins); a line in the gap sets
+   the Settings slot apart. */
 .settings-hidden-parking.page-parking {
   display:grid;
-  grid-template-columns:repeat(6, calc(var(--preview-cell-w) * var(--page-slot-scale, 1)));
-  grid-template-rows:calc(var(--preview-cell-h) * var(--page-slot-scale, 1));
-  gap:var(--preview-gap);
-  padding:var(--preview-pad);
+  grid-template-columns:repeat(var(--slot-cols, 6), var(--preview-cell-w));
+  grid-template-rows:auto;
+  grid-auto-rows:var(--preview-cell-h);
+  gap:6px var(--preview-gap);
+  padding:var(--preview-pad) var(--preview-pad-right, var(--preview-pad)) var(--preview-pad)
+    var(--preview-pad-left, var(--preview-pad));
   background:var(--pv-screen, #000000);
   border:1px solid var(--line);
   border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + 1px);
   width:fit-content;
   min-width:0;
-  box-sizing:border-box;
+  align-items:stretch;
+}
+/* Beside a narrow preview (.compact-grid) the box keeps its cells' size. */
+.compact-grid .tile-editor-main > .settings-hidden-parking.page-parking {
+  width:fit-content;
+  align-items:stretch;
+  align-self:start;
 }
 .page-parking > .page-slots { display:contents; }
-/* The Settings slot is the row's last cell, without a frame of its own. */
+/* "Seiten" over the page cells; in one row "Settings" over the last cell,
+   else the Settings cell sits at the bottom right and needs no word. */
+.page-parking-label {
+  grid-row:1;
+  grid-column:1 / -1;
+  font-size:12px;
+  line-height:1.2;
+  font-weight:600;
+  color:var(--muted);
+  padding-left:2px;
+}
+.page-parking-label.settings-label { display:none; }
+.page-parking.single-row .page-parking-label { grid-column:1 / span 5; }
+.page-parking.single-row .page-parking-label.settings-label { display:block; grid-column:6; }
 .page-parking > .tile-grid.settings-hidden-slot {
+  grid-column:var(--slot-cols, 6);
+  grid-row:var(--slot-last-row, 2);
+  position:relative;
   padding:0;
   border:0;
   background:none;
@@ -3029,6 +3054,16 @@
   grid-template-rows:1fr;
   width:auto;
   height:auto;
+  overflow:visible;
+}
+.page-parking > .tile-grid.settings-hidden-slot::before {
+  content:"";
+  position:absolute;
+  left:calc(var(--preview-gap) / -2 - 0.5px);
+  top:10%;
+  bottom:10%;
+  width:1px;
+  background:var(--line);
 }
 .page-slot {
   position:relative;
@@ -3038,16 +3073,16 @@
 }
 /* A page: its folder tile as the grid draws it, filling the slot. */
 .page-slot > .tile { width:100%; height:100%; margin:0; cursor:grab; }
-.page-slot.empty {
-  border:2px dashed var(--line);
-  background:rgba(255,255,255,0.025);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--muted);
-  font-size:var(--icon-size, 24px);
+/* One plain strip (user 2026-10-12): free page cells stay empty, only the
+   Settings cell shows what goes there, a faint gear while it is empty. */
+.page-slot.empty:not(.drop-target) { border:1px solid var(--line); background:none; }
+.page-parking .settings-hidden-slot:not(.has-tile):not(.drop-target) .settings-hidden-tile,
+.page-parking .settings-hidden-slot.lifting:not(.drop-target) .settings-hidden-tile {
+  border:1px solid var(--line) !important;
+  background:none !important;
 }
-.page-slot.empty > i { opacity:0.85; }
+.page-parking .settings-hidden-slot:not(.has-tile) .tile-icon::before,
+.page-parking .settings-hidden-slot.lifting:not(.drop-target) .settings-hidden-tile::after { content:"\F08BB"; }
 /* The drop target is the grid's teal placeholder (.tile-drop-placeholder). */
 .page-slot.drop-target {
   border:3px dashed #26a69a;
