@@ -26,6 +26,10 @@ void appendTileTitleHtml(String& out, const String& value);
 // control and lists the entities of `list` from /api/entity_options.
 void appendEntityPickerField(String& out, const String& tab_id, const char* field,
                              const char* label, const char* list);
+// An optional entity: `empty_label` says what an empty field means, shown in
+// place of the generic "choose" text.
+void appendEntityPickerField(String& out, const String& tab_id, const char* field,
+                             const char* label, const char* list, const char* empty_label);
 
 // Convert identifier to human-readable format (e.g., "sensor.temp" -> "Sensor Temp")
 String humanizeIdentifier(const String& raw, bool strip_domain);

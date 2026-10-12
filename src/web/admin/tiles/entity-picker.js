@@ -158,7 +158,9 @@
     return next && next.classList.contains('entity-picker') ? next : null;
   }
 
-  // Draws the closed field of one input from its current value.
+  // Draws the closed field of one input from its current value. An optional
+  // entity names what an empty field means (data-entity-empty, e.g. the
+  // Weather tile's own value without a sensor).
   function renderEntityPicker(input) {
     const control = entityPickerControl(input);
     if (!control) return;
@@ -167,7 +169,8 @@
     const entry = entityPickerEntryFor(input, input.value);
     if (field) {
       field.innerHTML = (entry ? entityPickerRowHtml(entry, '')
-        : '<span class="entity-picker-placeholder">' + escapeHtml(t('entityPickerChoose')) + '</span>') +
+        : '<span class="entity-picker-placeholder">' +
+          escapeHtml(input.dataset.entityEmpty || t('entityPickerChoose')) + '</span>') +
         '<i class="mdi mdi-chevron-down entity-picker-chevron"></i>';
     }
     if (clear) clear.hidden = !entry;

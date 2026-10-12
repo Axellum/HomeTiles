@@ -25,6 +25,8 @@ struct WeatherEventData {
   lv_obj_t* location_label = nullptr;
   uint32_t bg_color = 0;
   bool colored_icons = true;
+  String temperature_sensor;
+  String humidity_sensor;
 };
 
 // The widest text of a forecast day: its label in the language (the short
@@ -313,7 +315,9 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
       location,
       location_label,
       card_color,
-      weatherColoredIcons(tile)
+      weatherColoredIcons(tile),
+      tile.weather_temperature_sensor,
+      tile.weather_humidity_sensor
     };
 
     const lv_event_code_t popup_event =
@@ -345,6 +349,8 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
         init.icon_forced = tile_icon_disc::forced_color(icon, forced);
       }
       init.colored_icons = data->colored_icons;
+      init.temperature_sensor = data->temperature_sensor;
+      init.humidity_sensor = data->humidity_sensor;
       finish_press_before_popup(e);
       show_weather_popup(init);
     };

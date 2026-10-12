@@ -76,7 +76,8 @@ struct ConfigManager { const Config& getConfig()const{return config;} } configMa
 struct SceneOption { String alias,entity; };
 String humanizeIdentifier(const String& value,bool){return value;}
 void appendHtmlEscaped(String& output,const String& value) {output+=value;}
-${definition(read('src/web/server/web_admin_utils.cpp'), 'void appendEntityPickerField(')}
+${[...read('src/web/server/web_admin_utils.cpp').matchAll(/void appendEntityPickerField\(/g)]
+  .map(match => definition(read('src/web/server/web_admin_utils.cpp').slice(match.index), 'void appendEntityPickerField(')).join('\n')}
 ${switchChoiceStruct}
 ${definition(switchHtml, 'void append_switch_choice(')}
 ${definition(switchHtml, 'void append_switch_fields_html(')}

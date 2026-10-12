@@ -100,6 +100,21 @@ const char* listOfSource(const char* entity) {
   return "switches";
 }
 
+// A tile's further state entities, one per line (the Weather tile's
+// temperature and humidity sensors): each in the list of its domain.
+void addEntityLines(entity_declaration::Declaration& declaration, const char* lines) {
+  String entity;
+  for (const char* c = lines ? lines : "";; ++c) {
+    if (*c && *c != '\n') {
+      entity += *c;
+      continue;
+    }
+    if (entity.length()) declaration.add(listOfSource(entity.c_str()), entity.c_str());
+    entity = "";
+    if (!*c) return;
+  }
+}
+
 // The declaration: every entity the panel uses, from its tiles and settings
 // alone. It never reads what the Bridge serves, so the Bridge's answer to one
 // declaration cannot change the next one (entity_declaration_core.h). It is
@@ -116,6 +131,7 @@ entity_declaration::Declaration collectDeclaration() {
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       declaration.add(listOfTile(slots[i].type, slots[i].entity), slots[i].entity);
       declaration.add(listOfSource(slots[i].rule_entity), slots[i].rule_entity);
+      addEntityLines(declaration, slots[i].extra_entities);
     }
   }
   const TileGridConfig& screensaver = screensaverConfig.tileGrid();
@@ -124,6 +140,7 @@ entity_declaration::Declaration collectDeclaration() {
     declaration.add(listOfTile(tile.type, tile.sensor_entity.c_str()), tile.sensor_entity.c_str());
     const String source = tileIconSourceEntity(tile.type, tile.icon_colors);
     declaration.add(listOfSource(source.c_str()), source.c_str());
+    addEntityLines(declaration, weatherSensorsRecord(tile).c_str());
   }
   // The screensaver picture the Bridge sends (docs-dev/images.md).
   const ScreensaverConfigData& screensaver_config = screensaverConfig.get();

@@ -5,6 +5,7 @@
 
 void append_weather_fields_html(String& html, const String& tab_id) {
   const auto& tr = i18n::strings(configManager.getConfig().language);
+  const char* language = configManager.getConfig().language;
   html += R"html(
             <!-- Weather Fields -->
             <div id=")html";
@@ -14,6 +15,17 @@ void append_weather_fields_html(String& html, const String& tab_id) {
   appendEntityPickerField(html, tab_id, "weather_entity", tr.weather_entity, "weathers");
   html += R"html(
 )html";
+  // Optional sensors shown instead of the weather entity's current
+  // temperature, plus a humidity value, chosen like every entity (the
+  // picker). Empty keeps the weather entity's own value, as the field says;
+  // the forecast always comes from the weather entity.
+  const char* const sensor_fields[] = {"weather_temperature_sensor",
+                                       "weather_humidity_sensor"};
+  for (uint8_t field = 0; field < 2; ++field) {
+    appendEntityPickerField(html, tab_id, sensor_fields[field], i18n::weather_sensor_label(language, field), "sensors",
+                            i18n::weather_sensor_label(language, 2));
+    html += "\n";
+  }
   if (tab_id != "screensaver") {
     html += R"html(              <label>)html";
     html += tr.popup_open;
