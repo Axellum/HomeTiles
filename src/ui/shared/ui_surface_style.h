@@ -27,6 +27,9 @@ void refresh_tile_border(lv_obj_t* obj);
 // The card's frame line over its children (a Camera tile's picture): a
 // 1 px border drawn after them; the tile border options keep working.
 void draw_frame_over_children(lv_obj_t* obj);
+// A tile's frame line for its card color (frame_line: the plain card's fixed
+// neutral, any other card a little darker or lighter).
+lv_color_t frame_line_for(uint32_t card);
 // The popup card hairline: follows the global Tile borders option, drawn like
 // the tile border.
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa);

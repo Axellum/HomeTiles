@@ -14,7 +14,9 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\
 
 const style = read('src/ui/shared/ui_surface_style.cpp');
 const header = read('src/ui/shared/ui_surface_style.h');
-const frame = style.slice(style.indexOf('lv_color_t frame_line(lv_obj_t* obj) {'), style.indexOf('void apply_style('));
+// The rule by card color (frame_line_for), which every tile's line uses.
+assert.ok(style.includes('lv_color_t frame_line(lv_obj_t* obj) { return ui_surface_style::frame_line_for(card_color(obj)); }'));
+const frame = style.slice(style.indexOf('lv_color_t frame_line_for(uint32_t card) {'), style.indexOf('void apply_popup_border('));
 for (const marker of [
   'if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);',
   'if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);',

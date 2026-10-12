@@ -709,46 +709,6 @@ void UIManager::detachSettingsGesturePressedObject() {
   access_gesture_pressed_object = nullptr;
 }
 
-// A page drag (user 2026-10-12): the head's line follows the finger, read
-// straight from the input while it waits for the release (no tile under it
-// gets a click), and the page turns when it is let go.
-static constexpr int kPageDragStart = popup_layout::scale(12);
-struct PageDrag {
-  lv_timer_t* timer = nullptr;
-  lv_indev_t* input = nullptr;
-  int32_t start_x = 0;
-  struct Sample {
-    int32_t x;
-    uint32_t ms;
-  } samples[4] = {};
-  uint8_t next = 0;
-  uint8_t filled = 0;
-};
-static PageDrag g_page_drag;
-
-void UIManager::page_drag_tick(lv_timer_t*) {
-  lv_indev_t* input = g_page_drag.input;
-  lv_point_t point{};
-  if (input) lv_indev_get_point(input, &point);
-  const int32_t dx = point.x - g_page_drag.start_x;
-  const uint32_t now = millis();
-  g_page_drag.samples[g_page_drag.next] = {point.x, now};
-  g_page_drag.next = static_cast<uint8_t>((g_page_drag.next + 1) % 4);
-  if (g_page_drag.filled < 4) ++g_page_drag.filled;
-  if (input && lv_indev_get_state(input) == LV_INDEV_STATE_PRESSED) {
-    home_bar::drag(tiles_visible_grid(), dx);
-    return;
-  }
-  // Let go: the speed over the last few readings.
-  const PageDrag::Sample oldest = g_page_drag.samples[g_page_drag.filled < 4 ? 0 : g_page_drag.next];
-  const float speed =
-      now > oldest.ms ? static_cast<float>(point.x - oldest.x) / static_cast<float>(now - oldest.ms) : 0.0f;
-  lv_timer_delete(g_page_drag.timer);
-  g_page_drag = {};
-  const int step = home_bar::release(tiles_visible_grid(), dx, speed);
-  if (step) uiManager.turnPage(step);
-}
-
 // Left and right inside the screen turn the page (user 2026-10-12); a drag
 // that goes rather up or down never does. Armed like an edge swipe.
 void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
@@ -759,7 +719,7 @@ void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
   const int32_t abs_dx = dx < 0 ? -dx : dx;
   const int32_t abs_dy = dy < 0 ? -dy : dy;
   const bool same_tab = active_tab_index == access_gesture_tab;
-  if (!same_tab || abs_dx < kPageDragStart || abs_dx <= abs_dy) {
+  if (!same_tab || abs_dx < kSettingsGestureThreshold || abs_dx <= abs_dy) {
     if (released || !same_tab) {
       access_gesture_eligible = false;
       detachSettingsGesturePressedObject();
@@ -772,17 +732,7 @@ void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
   // No tap on the tile the swipe started on.
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
-  if (released) {
-    const int step = home_bar::release(tiles_visible_grid(), dx, 0.0f);
-    if (step) turnPage(step);
-    return;
-  }
-  home_bar::drag(tiles_visible_grid(), dx);
-  if (g_page_drag.timer) lv_timer_delete(g_page_drag.timer);
-  g_page_drag = {};
-  g_page_drag.input = input;
-  g_page_drag.start_x = access_gesture_start.x;
-  g_page_drag.timer = lv_timer_create(page_drag_tick, 15, nullptr);
+  turnPage(dx < 0 ? 1 : -1);
 }
 
 void UIManager::processSettingsGestureMotion(lv_indev_t* input,

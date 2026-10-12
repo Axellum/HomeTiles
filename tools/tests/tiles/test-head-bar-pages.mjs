@@ -61,15 +61,15 @@ assert.match(line, /left = l0 \+ \(l1 - l0\) \* ease_in\(p\);\s*right = l0 \+ d\
 assert.match(line, /const float x = k == i \? to_x : k == j \? from_x : from_x \+ \(to_x - from_x\) \* p;/, 'The grey dots stand still');
 // Sized like the mockup: 12 and 34 on an 800 px short side.
 assert.match(bar, /const int dot = \(12 \* side \+ 400\) \/ 800;\s*return \{dot, \(34 \* side \+ 400\) \/ 800, dot\};/);
-// Between two pages the line goes over in 180 ms, on from where the finger
-// left it.
+// Between two pages the line goes over in 180 ms from the old page's dot.
 const shown = slice(bar, 'void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {', '\n}\n');
-assert.match(shown, /const float p0 = handoff\.from == from && handoff\.to == page \? handoff\.p : 0\.0f;\s*move_line\(dots, from, page, p0, 1\.0f, 0\);/);
+assert.match(shown, /if \(!dots \|\| page < 0 \|\| from < 0 \|\| from == page\) return;[\s\S]*move_line_after_frame\(dots, from, page, 0\.0f\);/);
+// It starts once the new page is on the screen (its first frame takes
+// about 100 ms on the V2 and ate the 180 ms).
+assert.match(bar, /lv_display_add_event_cb\(display, start_waiting, LV_EVENT_REFR_READY, nullptr\);/);
 assert.match(slice(bar, 'void move_line(', '\n}\n'), /lv_anim_set_duration\(&anim, 180\);/);
-// Let go from a quarter of the way or with a flick it turns, else it goes
-// back by itself.
-const release = slice(bar, 'int release(lv_obj_t* grid, int32_t dx, float speed) {', '\n}\n');
-assert.match(release, /if \(p >= 0\.25f \|\| flick\) \{\s*g_handoff = \{page, target, p\};\s*return step;\s*\}\s*move_line\(dots, page, target, p, 0\.0f, 0\);/);
+// No line following the finger (user 2026-10-12: it snaps at once).
+assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
 // The press pill shows only once the finger rests (user 2026-10-12).
 assert.match(bar, /g_press_timer = lv_timer_create\(press_show, 90, nullptr\);/);
 const tiles = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
@@ -99,14 +99,11 @@ assert.match(motion, /if \(!matches\) \{\s*if \(access_page_swipe && abs_dx >= t
 assert.match(read('src/tiles/runtime/level_bar.h'), /lv_obj_remove_flag\(bar, LV_OBJ_FLAG_GESTURE_BUBBLE\);/,
   'The level bar keeps its drags');
 const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n');
-assert.match(swipe, /abs_dx < kPageDragStart \|\| abs_dx <= abs_dy/);
-// The line follows from the first pixels, read from the input while it
-// waits for the release (no click on a tile under the finger).
-assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);/);
-assert.match(swipe, /g_page_drag\.timer = lv_timer_create\(page_drag_tick, 15, nullptr\);/);
-const tick = slice(manager, 'void UIManager::page_drag_tick(lv_timer_t*) {', '\n}\n');
-assert.match(tick, /if \(input && lv_indev_get_state\(input\) == LV_INDEV_STATE_PRESSED\) \{\s*home_bar::drag\(tiles_visible_grid\(\), dx\);/);
-assert.match(tick, /const int step = home_bar::release\(tiles_visible_grid\(\), dx, speed\);\s*if \(step\) uiManager\.turnPage\(step\);/);
+// One swipe, one step: past the threshold the page turns while the finger
+// is still down (user 2026-10-12: it snaps at once, step by step).
+assert.match(swipe, /abs_dx < kSettingsGestureThreshold \|\| abs_dx <= abs_dy/);
+assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
+assert.doesNotMatch(manager, /page_drag_tick/);
 const showPage = slice(manager, 'void UIManager::showPage(int number) {', '\n}\n');
 assert.match(showPage, /if \(number < 0 \|\| number > count\) return;/);
 assert.match(showPage, /requestFolderAccess\(folder_id, folder->name, folder->icon_name\);/, 'A lock set anyway still asks');
@@ -135,12 +132,28 @@ assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'),
 assert.match(bar, /lv_obj_add_event_cb\(dots, on_dots, LV_EVENT_CLICKED, nullptr\);/);
 assert.match(bar, /void on_dots\(lv_event_t\* event\) \{ page_preview::open\(/);
 const preview = read('src/ui/tabs/tiles/page_preview.cpp');
-assert.match(preview, /const int card_y = head\.center_y - geo\.pad_top - geo\.head_h \/ 2;/);
+assert.match(preview, /const int card_y = head\.center_y - geo\.pad - dot\.dot \/ 2;/);
+// The overview's fixed rules for every panel (user 2026-10-12, mockup
+// build/design-mockups/pages/dots-swipe.html).
+const rules = slice(preview, 'Geometry geometry() {', '\n}\n');
+assert.match(rules, /g\.pic_w = static_cast<int>\(std::lround\(side \* 0\.22f\)\);/, 'A picture: 22 % of the short side');
+assert.match(rules, /g\.gap = std::max\(3, static_cast<int>\(std::lround\(2\.0f \* GRID_GAP \* g\.pic_w \/ w\)\)\);/);
+assert.match(rules, /g\.tile_radius = std::max\(2, static_cast<int>\(std::lround\(\(g\.cell_h - g\.gap\) \/ 4\.0f\)\)\);/, 'The panel\'s tile corner rule');
+assert.match(rules, /g\.pic_radius = g\.tile_radius \+ g\.gap;/);
+assert.match(rules, /g\.card_radius = popup_layout::kCardRadius \+ Device::kGridGap;\s*g\.pad = std::max\(g\.gap, g\.card_radius - g\.pic_radius\);/, 'Concentric with the popup corner');
+assert.match(rules, /g\.font = tile_layout::header_title_font\(\);/);
+assert.match(preview, /ui_surface_style::apply_popup_border\(card, lv_color_hex\(ui_theme::text\(\)\),/, 'The popup hairline');
+// Only a tap counts there; a swipe over the overview does nothing.
+assert.match(preview, /void on_picture\(lv_event_t\* event\) \{\s*if \(!was_tap\(\)\) return;/);
+assert.match(preview, /void on_close\(lv_event_t\*\) \{\s*if \(was_tap\(\)\) close\(\);\s*\}/);
+assert.match(preview, /tappable\(card, on_close, nullptr\);/, 'Its free parts close it too');
+assert.doesNotMatch(preview, /bar_w|bar_h/, 'No bar under the shown page\'s name');
 assert.match(preview, /home_bar::create_dots\(card, count, current, \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x,\s*head\.center_y - dot\.dot \/ 2 - card_y\);/);
-// The head's row sits where the card's does; its box a small pill around
-// it, half a dot wide (user 2026-10-12: smaller).
-assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,200}?const int press_pad = d\.dot \/ 2;\s*const int box_h = d\.dot \+ 2 \* press_pad;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - press_pad, g\.center_y - box_h \/ 2\);\s*lv_obj_set_size\(dots, dots_width\(count\) \+ 2 \* press_pad, box_h\);\s*lv_obj_set_style_pad_all\(dots, press_pad, 0\);\s*lv_obj_set_style_radius\(dots, LV_RADIUS_CIRCLE, 0\);\s*lv_obj_set_style_bg_color\(dots, lv_color_hex\(ui_theme::icon\(\)\), LV_STATE_USER_1\);\s*lv_obj_set_style_bg_opa\(dots, LV_OPA_20, LV_STATE_USER_1\);/,
+// The head's row sits where the card's does; its box the agreed pill
+// around it (14 px above and below, 18 beside on an 800 px side).
+assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,400}?const int pad_y = \(14 \* side \+ 400\) \/ 800;\s*const int pad_x = \(18 \* side \+ 400\) \/ 800;\s*const int box_h = d\.dot \+ 2 \* pad_y;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - pad_x, g\.center_y - box_h \/ 2\);/,
   'The head and the card build the same row');
+assert.match(build, /lv_obj_set_style_bg_opa\(dots, 31, LV_STATE_USER_1\);/);
 assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No dimming');
 assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
 assert.match(preview, /lv_obj_add_event_cb\(picture, picture_draw, LV_EVENT_DRAW_MAIN_END, nullptr\);/, 'Pictures are drawn, not built of objects');
@@ -191,7 +204,7 @@ const access = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void 
 assert.match(access, /if \(enable && tile_layouts::page_number\(folder_id\) > 0\) \{\s*sendError\(409, tr\.folder_pin_page\);/);
 assert.match(read('src/types/navigate/admin.js'), /if \(fields\) fields\.classList\.toggle\('is-hidden', !isFolderTile \|\| isPage\);/);
 // The card's dots close it like the head's.
-assert.match(preview, /lv_obj_add_event_cb\(card_dots, on_catcher, LV_EVENT_CLICKED, nullptr\);/);
+assert.match(preview, /tappable\(card_dots, on_close, nullptr\);/);
 // A page change shows before the flash write and keeps the prepared grids
 // (user 2026-10-12: dragging in or out took long, every page was built
 // again): their heads are built again, Home's tiles move without a rebuild.

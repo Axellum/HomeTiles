@@ -2175,8 +2175,6 @@ bool tiles_show_active_layout_now() {
   return true;
 }
 
-lv_obj_t* tiles_visible_grid() { return g_tiles_grids[static_cast<uint8_t>(GridType::TAB0)]; }
-
 void tiles_rebuild_heads(bool draw_now) {
   page_preview::close();
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);

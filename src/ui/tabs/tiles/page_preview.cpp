@@ -7,14 +7,14 @@
 #include <cmath>
 
 #include "src/core/config/config_manager.h"
-#include "src/core/config/tile_radius.h"
 #include "src/core/i18n/i18n.h"
 #include "src/fonts/ui_fonts.h"
 #include "src/tiles/config/grid_layout.h"
 #include "src/tiles/config/tile_config.h"
-#include "src/tiles/config/tile_geometry.h"
+#include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/tiles/config/tile_layouts.h"
 #include "src/ui/popups/popup_layout.h"
+#include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/tabs/tiles/home_bar.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
@@ -24,24 +24,36 @@ namespace page_preview {
 namespace {
 
 constexpr int kMaxPictures = static_cast<int>(tile_layouts::kMaxPages) + 1;
+constexpr int kColumns = 3;
 
-// The mockup's sizes on a 1280x800 panel, by the screen's short side; the
-// pictures by its width (176 px there, 86 on a 480 px panel), in its shape.
+// The overview's fixed rules (user 2026-10-12: one set of rules for every
+// panel, from the firmware's own values; mockup
+// build/design-mockups/pages/dots-swipe.html):
+//  1. Its frame is every popup's: corner kCardRadius + grid gap, the popup
+//     hairline and shadow, the popup card color.
+//  2. A picture is 22 % of the short screen side wide, three in a row.
+//  3. In a picture the page's head (circle, title, time) and its tiles on a
+//     small grid of their own (scaled down, gaps and corners shrank to a
+//     pixel and it looked like a mosaic): gap and margin twice the scaled
+//     grid gap, at least 3 px; the tiles' corner by the panel's rule (cell
+//     height minus gap, a quarter: half tiles round, tile_radius.h).
+//  4. Concentric outwards: picture corner = tile corner + margin; the card's
+//     inner margin = card corner - picture corner, the same between the
+//     pictures and around the dots.
+//  5. The name in the tile title font, the shown page's in the text color.
 struct Geometry {
-  int pad_top;
-  int pad_x;
-  int pad_bottom;
-  int gap_x;
-  int gap_y;
-  int radius;
   int pic_w;
   int pic_h;
+  int gap;        // between and around the small tiles
+  float cell_w;   // a small cell
+  float cell_h;
+  int tile_radius;
   int pic_radius;
-  int head_h;
-  int head_gap;
+  int disc;       // the small head's circle
+  int bar;        // its title and time lines' height
+  int card_radius;
+  int pad;        // the card's margin, between pictures, around the dots
   int text_gap;
-  int bar_w;
-  int bar_h;
   const lv_font_t* font;
 };
 
@@ -49,28 +61,21 @@ Geometry geometry() {
   const int w = grid_layout::screen_w();
   const int h = grid_layout::screen_h();
   const int side = w < h ? w : h;
-  auto k = [side](int value) { return (value * side + 400) / 800; };
+  const grid_layout::Shown& shown = grid_layout::shown();
   Geometry g{};
-  g.pad_top = k(26);
-  g.pad_x = k(26);
-  g.pad_bottom = k(22);
-  g.gap_x = k(18);
-  g.gap_y = k(22);
-  g.radius = k(34);
-  g.pic_w = (9 * w + 40) / 80 + 32;
-  g.pic_h = (g.pic_w * h + w / 2) / w;
-  g.pic_radius = k(16);
-  // The head's dot row with a dot's height around it.
-  g.head_h = 2 * home_bar::dot_sizes().dot + 2;
-  g.head_gap = k(22);
-  g.text_gap = k(10);
-  g.bar_w = k(32);
-  g.bar_h = k(7) < 2 ? 2 : k(7);
-#if defined(DEVICE_LAYOUT_480X480)
-  g.font = &ui_font_12;
-#else
-  g.font = side >= 720 ? &ui_font_20 : &ui_font_16;
-#endif
+  g.pic_w = static_cast<int>(std::lround(side * 0.22f));
+  g.gap = std::max(3, static_cast<int>(std::lround(2.0f * GRID_GAP * g.pic_w / w)));
+  g.cell_w = static_cast<float>(g.pic_w - 2 * g.gap - (shown.cols - 1) * g.gap) / shown.cols;
+  g.cell_h = g.cell_w * GRID_CELL_H / GRID_CELL_W;
+  g.tile_radius = std::max(2, static_cast<int>(std::lround((g.cell_h - g.gap) / 4.0f)));
+  g.pic_radius = g.tile_radius + g.gap;
+  g.disc = 2 * g.gap;
+  g.bar = std::max(2, g.disc / 2);
+  g.pic_h = static_cast<int>(std::lround(g.gap + g.disc + g.gap + grid_layout::shown_rows() * (g.cell_h + g.gap) - g.gap + g.gap));
+  g.card_radius = popup_layout::kCardRadius + Device::kGridGap;
+  g.pad = std::max(g.gap, g.card_radius - g.pic_radius);
+  g.text_gap = 2 * g.gap;
+  g.font = tile_layout::header_title_font();
   return g;
 }
 
@@ -82,6 +87,10 @@ struct State {
   // Every picture's tiles, picture i from first[i] to first[i + 1].
   PageTileRect* rects = nullptr;
   uint16_t first[kMaxPictures + 1] = {};
+  Geometry geo{};
+  // Where the finger came down: only a tap counts (user 2026-10-12: a swipe
+  // over the overview must never do anything).
+  lv_point_t pressed_at{};
 };
 State g_state;
 
@@ -89,47 +98,88 @@ void forget_dots(lv_event_t* event) {
   if (lv_event_get_target(event) == g_state.dots) g_state.dots = nullptr;
 }
 
-// A picture: the screen in its color, the tiles in theirs, scaled.
+void remember_press(lv_event_t*) {
+  if (lv_indev_t* input = lv_indev_active()) lv_indev_get_point(input, &g_state.pressed_at);
+}
+
+bool was_tap() {
+  lv_indev_t* input = lv_indev_active();
+  if (!input) return true;
+  lv_point_t now{};
+  lv_indev_get_point(input, &now);
+  const int32_t dx = now.x - g_state.pressed_at.x;
+  const int32_t dy = now.y - g_state.pressed_at.y;
+  const int32_t limit = popup_layout::scale(12);
+  return dx * dx + dy * dy <= limit * limit;
+}
+
+// A picture: the screen in its color, the page's head as a circle and two
+// lines, its tiles in their card colors on the small grid.
 void picture_draw(lv_event_t* event) {
   lv_obj_t* picture = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
   const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(picture)));
   if (!g_state.rects || index < 0 || index >= kMaxPictures) return;
+  const Geometry& g = g_state.geo;
+  lv_layer_t* layer = lv_event_get_layer(event);
   lv_area_t area;
   lv_obj_get_coords(picture, &area);
-  const float scale = static_cast<float>(lv_area_get_width(&area)) / grid_layout::screen_w();
-  lv_draw_rect_dsc_t dsc;
-  lv_draw_rect_dsc_init(&dsc);
-  dsc.radius = std::max(1L, std::lround(tile_radius::kDefault * scale));
-  dsc.bg_opa = LV_OPA_COVER;
+  auto box = [&](int x, int y, int w, int h, uint32_t color, int radius, bool line) {
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.radius = radius;
+    dsc.bg_opa = LV_OPA_COVER;
+    dsc.bg_color = lv_color_hex(color);
+    if (line) {
+      dsc.border_width = 1;
+      dsc.border_color = ui_surface_style::frame_line_for(color);
+      dsc.border_opa = LV_OPA_COVER;
+    }
+    lv_area_t a{area.x1 + x, area.y1 + y, area.x1 + x + w - 1, area.y1 + y + h - 1};
+    lv_draw_rect(layer, &dsc, &a);
+  };
+  // The head: circle, title and time in the inactive dots' grey.
+  const uint32_t head = home_bar::dot_color(false);
+  const int mid = g.gap + g.disc / 2;
+  box(g.gap, g.gap, g.disc, g.disc, head, LV_RADIUS_CIRCLE, false);
+  box(g.gap + g.disc + g.gap, mid - g.bar / 2, 3 * g.disc, g.bar, head, LV_RADIUS_CIRCLE, false);
+  const int time_w = (7 * g.disc + 2) / 4;
+  box(g.pic_w - g.gap - time_w, mid - g.bar / 2, time_w, g.bar, head, LV_RADIUS_CIRCLE, false);
+  // The tiles, a white card of the light theme with its frame line.
+  const float top = static_cast<float>(g.gap + g.disc + g.gap);
   for (int i = g_state.first[index]; i < g_state.first[index + 1]; ++i) {
     const PageTileRect& rect = g_state.rects[i];
-    const int x = GRID_PAD_LEFT + tile_geometry::edge(rect.col, GRID_CELL_W, GRID_GAP);
-    const int y = GRID_PAD_TOP + tile_geometry::edge(rect.row, GRID_CELL_H, GRID_GAP);
-    const int w = tile_geometry::extent(rect.col, rect.span_w, GRID_CELL_W, GRID_GAP);
-    const int h = tile_geometry::extent(rect.row, rect.span_h, GRID_CELL_H, GRID_GAP);
-    lv_area_t tile;
-    tile.x1 = area.x1 + std::lround(x * scale);
-    tile.y1 = area.y1 + std::lround(y * scale);
-    tile.x2 = area.x1 + std::lround((x + w) * scale) - 1;
-    tile.y2 = area.y1 + std::lround((y + h) * scale) - 1;
-    dsc.bg_color = lv_color_hex(rect.color);
-    lv_draw_rect(lv_event_get_layer(event), &dsc, &tile);
+    const int x = static_cast<int>(std::lround(g.gap + rect.col * (g.cell_w + g.gap)));
+    const int y = static_cast<int>(std::lround(top + rect.row * (g.cell_h + g.gap)));
+    const int w = static_cast<int>(std::lround(rect.span_w * (g.cell_w + g.gap) - g.gap));
+    const int h = static_cast<int>(std::lround(rect.span_h * (g.cell_h + g.gap) - g.gap));
+    const bool line = ui_theme::theme_light() && rect.color == ui_theme::kLight.card;
+    box(x, y, w, h, rect.color, g.tile_radius, line);
   }
 }
 
 void on_picture(lv_event_t* event) {
+  if (!was_tap()) return;
   const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
   close();
   uiManager.showPage(index);
 }
 
-void on_catcher(lv_event_t*) { close(); }
+void on_close(lv_event_t*) {
+  if (was_tap()) close();
+}
 
 lv_obj_t* plain(lv_obj_t* parent) {
   lv_obj_t* obj = lv_obj_create(parent);
   lv_obj_remove_style_all(obj);
   lv_obj_remove_flag(obj, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE));
   return obj;
+}
+
+// A part a tap reaches: it remembers where the finger came down.
+void tappable(lv_obj_t* obj, lv_event_cb_t on_tap, void* data) {
+  lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(obj, remember_press, LV_EVENT_PRESSED, nullptr);
+  lv_obj_add_event_cb(obj, on_tap, LV_EVENT_CLICKED, data);
 }
 
 }  // namespace
@@ -175,48 +225,48 @@ void open(lv_obj_t* dots) {
   }
   g_state.first[count] = static_cast<uint16_t>(used);
 
-  const Geometry geo = geometry();
+  g_state.geo = geometry();
+  const Geometry& geo = g_state.geo;
   const home_bar::Geometry head = home_bar::geometry();
   const home_bar::DotSizes dot = home_bar::dot_sizes();
-  const int cols = count < 3 ? count : 3;
+  const int cols = count < kColumns ? count : kColumns;
   const int rows = (count + cols - 1) / cols;
   const int line = lv_font_get_line_height(geo.font);
-  const int item_h = geo.pic_h + geo.text_gap + line + geo.text_gap + geo.bar_h;
-  const int card_w = cols * geo.pic_w + (cols - 1) * geo.gap_x + 2 * geo.pad_x;
-  const int card_h =
-      geo.pad_top + geo.head_h + geo.head_gap + rows * item_h + (rows - 1) * geo.gap_y + geo.pad_bottom;
+  const int item_h = geo.pic_h + geo.text_gap + line;
+  const int card_w = cols * geo.pic_w + (cols - 1) * geo.pad + 2 * geo.pad;
+  const int card_h = geo.pad + dot.dot + geo.pad + rows * item_h + (rows - 1) * geo.pad + geo.pad;
   // Grown out of the dots: its dot row lies exactly on the head's.
   const int card_x = (grid_layout::screen_w() - card_w) / 2;
-  const int card_y = head.center_y - geo.pad_top - geo.head_h / 2;
+  const int card_y = head.center_y - geo.pad - dot.dot / 2;
 
   g_state.catcher = plain(lv_layer_top());
   lv_obj_set_size(g_state.catcher, grid_layout::screen_w(), grid_layout::screen_h());
-  lv_obj_add_flag(g_state.catcher, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(g_state.catcher, on_catcher, LV_EVENT_CLICKED, nullptr);
+  tappable(g_state.catcher, on_close, nullptr);
 
-  // The popups' card: their color, the tile corner's shape, the shadow the
-  // LVGL cache keeps. A tap on it beside the pictures does nothing.
+  // The popups' frame: their card color, corner, hairline and shadow. A tap
+  // on it beside the pictures closes it too (user 2026-10-12).
   lv_obj_t* card = plain(g_state.catcher);
-  lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  tappable(card, on_close, nullptr);
   lv_obj_set_pos(card, card_x, card_y);
   lv_obj_set_size(card, card_w, card_h);
   lv_obj_set_style_bg_color(card, lv_color_hex(ui_theme::popup_card()), 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, geo.radius, 0);
+  lv_obj_set_style_radius(card, geo.card_radius, 0);
+  ui_surface_style::apply_popup_border(card, lv_color_hex(ui_theme::text()),
+                                       static_cast<lv_opa_t>(popup_layout::kPopupBorderOpa));
   popup_layout::apply_card_shadow(card);
 
   const int dots_w = home_bar::dots_width(count);
   lv_obj_t* card_dots = home_bar::create_dots(card, count, current, (grid_layout::screen_w() - dots_w) / 2 - card_x,
                                               head.center_y - dot.dot / 2 - card_y);
   // A tap on them closes it again, like on the head's (user 2026-10-12).
-  lv_obj_add_flag(card_dots, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_ext_click_area(card_dots, geo.pad_top);
-  lv_obj_add_event_cb(card_dots, on_catcher, LV_EVENT_CLICKED, nullptr);
+  tappable(card_dots, on_close, nullptr);
+  lv_obj_set_ext_click_area(card_dots, geo.pad);
 
   const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
   for (int i = 0; i < count; ++i) {
-    const int x = geo.pad_x + (i % cols) * (geo.pic_w + geo.gap_x);
-    const int y = geo.pad_top + geo.head_h + geo.head_gap + (i / cols) * (item_h + geo.gap_y);
+    const int x = geo.pad + (i % cols) * (geo.pic_w + geo.pad);
+    const int y = geo.pad + dot.dot + geo.pad + (i / cols) * (item_h + geo.pad);
     lv_obj_t* picture = plain(card);
     lv_obj_set_user_data(picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
     lv_obj_set_pos(picture, x, y);
@@ -224,10 +274,11 @@ void open(lv_obj_t* dots) {
     lv_obj_set_style_radius(picture, geo.pic_radius, 0);
     lv_obj_set_style_bg_color(picture, lv_color_hex(ui_theme::screen()), 0);
     lv_obj_set_style_bg_opa(picture, LV_OPA_COVER, 0);
-    lv_obj_add_flag(picture, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(picture, picture_draw, LV_EVENT_DRAW_MAIN_END, nullptr);
-    lv_obj_add_event_cb(picture, on_picture, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+    tappable(picture, on_picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
 
+    // The name; the shown page's in the text color, no other mark (a bar,
+    // a ring and a pill all looked foreign, user 2026-10-12).
     const FolderEntry* folder = i == 0 ? nullptr : tileConfig.getFolder(pages[i - 1]);
     lv_obj_t* name = lv_label_create(card);
     lv_obj_set_style_text_font(name, geo.font, 0);
@@ -238,15 +289,6 @@ void open(lv_obj_t* dots) {
     lv_obj_set_size(name, geo.pic_w, line);
     lv_obj_set_pos(name, x, y + geo.pic_h + geo.text_gap);
     lv_label_set_text(name, i == 0 || !folder || !folder->name[0] ? tr.home : folder->name);
-
-    // The current page: the active dot's bar under its name.
-    if (i != current) continue;
-    lv_obj_t* bar = plain(card);
-    lv_obj_set_size(bar, geo.bar_w, geo.bar_h);
-    lv_obj_set_pos(bar, x + (geo.pic_w - geo.bar_w) / 2, y + geo.pic_h + geo.text_gap + line + geo.text_gap);
-    lv_obj_set_style_radius(bar, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(ui_theme::text()), 0);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
   }
 
   // The head's own dots hide under the card's.
@@ -255,8 +297,8 @@ void open(lv_obj_t* dots) {
     lv_obj_add_flag(dots, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(dots, forget_dots, LV_EVENT_DELETE, nullptr);
   }
-  Serial.printf("[Pages] Preview of %d pages (%u tiles) in %lu ms\n", count, static_cast<unsigned>(used),
-                static_cast<unsigned long>(millis() - started));
+  Serial.printf("[Pages] Preview of %d pages (%u tiles) %dx%d in %lu ms\n", count, static_cast<unsigned>(used),
+                card_w, card_h, static_cast<unsigned long>(millis() - started));
 }
 
 }  // namespace page_preview

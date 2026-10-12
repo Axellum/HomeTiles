@@ -59,15 +59,7 @@ uint32_t card_color(lv_obj_t* obj) {
 // on the dark one. It moves away from the screen behind it: a lighter line
 // on a filled card in the light theme looked like a frayed edge (user
 // 2026-10-11, "unsauber").
-lv_color_t frame_line(lv_obj_t* obj) {
-  const uint32_t card = card_color(obj);
-  // The plain card of either theme (a screensaver tile in the other design
-  // too) keeps that theme's fixed line.
-  if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);
-  if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);
-  return ui_theme::theme_light() ? lv_color_mix(lv_color_black(), lv_color_hex(card), 36)
-                                 : lv_color_mix(lv_color_white(), lv_color_hex(card), 23);
-}
+lv_color_t frame_line(lv_obj_t* obj) { return ui_surface_style::frame_line_for(card_color(obj)); }
 
 // A filled card of the light theme (white words) draws no line (user
 // 2026-10-11, b391): its darker line stepped along the rounded corners
@@ -193,6 +185,15 @@ void apply_global_tile_border(lv_obj_t* obj) {
 uint8_t icon_glow_percent() { return icon_glow::kDefault; }
 
 bool icon_discs_shown() { return true; }
+
+lv_color_t frame_line_for(uint32_t card) {
+  // The plain card of either theme (a screensaver tile in the other design
+  // too) keeps that theme's fixed line.
+  if (card == ui_theme::kLight.card) return lv_color_hex(0xDDDDDD);
+  if (card == ui_theme::kDark.card) return lv_color_hex(0x292929);
+  return ui_theme::theme_light() ? lv_color_mix(lv_color_black(), lv_color_hex(card), 36)
+                                 : lv_color_mix(lv_color_white(), lv_color_hex(card), 23);
+}
 
 void apply_popup_border(lv_obj_t* obj, lv_color_t color, lv_opa_t opa) {
   if (!obj) return;
