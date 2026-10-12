@@ -729,6 +729,7 @@ void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
   access_gesture_triggered = true;
   access_gesture_eligible = false;
   detachSettingsGesturePressedObject();
+  home_bar::cancel_press();
   // No tap on the tile the swipe started on.
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
@@ -799,6 +800,7 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
   access_gesture_triggered = true;
   access_gesture_eligible = false;
   detachSettingsGesturePressedObject();
+  home_bar::cancel_press();
 
   // Arm suppression before resetting an active contact so the confirmed
   // swipe cannot turn into a click on the newly opened popup.

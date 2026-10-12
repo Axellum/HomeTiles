@@ -15,6 +15,7 @@
 #include "src/tiles/config/tile_layouts.h"
 #include "src/ui/popups/popup_layout.h"
 #include "src/ui/shared/ui_surface_style.h"
+#include "src/ui/shared/tone_color.h"
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/tabs/tiles/home_bar.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
@@ -39,8 +40,15 @@ constexpr int kColumns = 3;
 //     height minus gap, a quarter: half tiles round, tile_radius.h).
 //  4. Concentric outwards: picture corner = tile corner + margin; the card's
 //     inner margin = card corner - picture corner, the same between the
-//     pictures and around the dots.
-//  5. The name in the tile title font, the shown page's in the text color.
+//     pictures. Each page sits in a cell around picture and name (twice the
+//     picture gap, at most a third of that margin; corner = picture corner
+//     + its margin).
+//  5. The card's top on the head circle's top line, its dots in a band as
+//     high as the circle (user 2026-10-12: circle, pill and window on one
+//     line).
+//  6. The shown page's cell filled like a pressed one, a pressed page's the
+//     same (user 2026-10-12: a line around it was too much); every name in
+//     the text color, in the tile title font.
 struct Geometry {
   int pic_w;
   int pic_h;
@@ -52,7 +60,9 @@ struct Geometry {
   int disc;       // the small head's circle
   int bar;        // its title and time lines' height
   int card_radius;
-  int pad;        // the card's margin, between pictures, around the dots
+  int pad;        // between the pictures (card corner - picture corner)
+  int cell_pad;   // a cell's margin around picture and name
+  int cell_radius;
   int text_gap;
   const lv_font_t* font;
 };
@@ -74,6 +84,8 @@ Geometry geometry() {
   g.pic_h = static_cast<int>(std::lround(g.gap + g.disc + g.gap + grid_layout::shown_rows() * (g.cell_h + g.gap) - g.gap + g.gap));
   g.card_radius = popup_layout::kCardRadius + Device::kGridGap;
   g.pad = std::max(g.gap, g.card_radius - g.pic_radius);
+  g.cell_pad = std::min(2 * g.gap, g.pad / 3);
+  g.cell_radius = g.pic_radius + g.cell_pad;
   g.text_gap = 2 * g.gap;
   g.font = tile_layout::header_title_font();
   return g;
@@ -232,12 +244,16 @@ void open(lv_obj_t* dots) {
   const int cols = count < kColumns ? count : kColumns;
   const int rows = (count + cols - 1) / cols;
   const int line = lv_font_get_line_height(geo.font);
-  const int item_h = geo.pic_h + geo.text_gap + line;
-  const int card_w = cols * geo.pic_w + (cols - 1) * geo.pad + 2 * geo.pad;
-  const int card_h = geo.pad + dot.dot + geo.pad + rows * item_h + (rows - 1) * geo.pad + geo.pad;
-  // Grown out of the dots: its dot row lies exactly on the head's.
+  const int cell_w = geo.pic_w + 2 * geo.cell_pad;
+  const int cell_h = geo.cell_pad + geo.pic_h + geo.text_gap + line + geo.cell_pad;
+  const int between = geo.pad - 2 * geo.cell_pad;
+  const int margin = geo.pad - geo.cell_pad;
+  const int card_w = cols * cell_w + (cols - 1) * between + 2 * margin;
+  const int card_h = head.disc + rows * cell_h + (rows - 1) * between + margin;
+  // Grown out of the dots: its top on the head circle's top line, its dot
+  // row exactly on the head's.
   const int card_x = (grid_layout::screen_w() - card_w) / 2;
-  const int card_y = head.center_y - geo.pad - dot.dot / 2;
+  const int card_y = head.center_y - head.disc / 2;
 
   g_state.catcher = plain(lv_layer_top());
   lv_obj_set_size(g_state.catcher, grid_layout::screen_w(), grid_layout::screen_h());
@@ -264,30 +280,35 @@ void open(lv_obj_t* dots) {
   lv_obj_set_ext_click_area(card_dots, geo.pad);
 
   const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
+  const lv_color_t pressed = lv_color_hex(tone_color::pressed_card(ui_theme::popup_card()));
   for (int i = 0; i < count; ++i) {
-    const int x = geo.pad + (i % cols) * (geo.pic_w + geo.pad);
-    const int y = geo.pad + dot.dot + geo.pad + (i / cols) * (item_h + geo.pad);
-    lv_obj_t* picture = plain(card);
+    // The page's cell: picture and name; a tap anywhere on it goes there.
+    lv_obj_t* cell = plain(card);
+    lv_obj_set_pos(cell, margin + (i % cols) * (cell_w + between), head.disc + (i / cols) * (cell_h + between));
+    lv_obj_set_size(cell, cell_w, cell_h);
+    lv_obj_set_style_radius(cell, geo.cell_radius, 0);
+    lv_obj_set_style_bg_color(cell, pressed, 0);
+    lv_obj_set_style_bg_opa(cell, i == current ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, LV_STATE_PRESSED);
+    tappable(cell, on_picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+
+    lv_obj_t* picture = plain(cell);
     lv_obj_set_user_data(picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
-    lv_obj_set_pos(picture, x, y);
+    lv_obj_set_pos(picture, geo.cell_pad, geo.cell_pad);
     lv_obj_set_size(picture, geo.pic_w, geo.pic_h);
     lv_obj_set_style_radius(picture, geo.pic_radius, 0);
     lv_obj_set_style_bg_color(picture, lv_color_hex(ui_theme::screen()), 0);
     lv_obj_set_style_bg_opa(picture, LV_OPA_COVER, 0);
     lv_obj_add_event_cb(picture, picture_draw, LV_EVENT_DRAW_MAIN_END, nullptr);
-    tappable(picture, on_picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
 
-    // The name; the shown page's in the text color, no other mark (a bar,
-    // a ring and a pill all looked foreign, user 2026-10-12).
     const FolderEntry* folder = i == 0 ? nullptr : tileConfig.getFolder(pages[i - 1]);
-    lv_obj_t* name = lv_label_create(card);
+    lv_obj_t* name = lv_label_create(cell);
     lv_obj_set_style_text_font(name, geo.font, 0);
-    lv_obj_set_style_text_color(
-        name, lv_color_hex(i == current ? ui_theme::text() : ui_theme::light() ? ui_theme::icon_off() : ui_theme::icon_inactive()), 0);
+    lv_obj_set_style_text_color(name, lv_color_hex(ui_theme::text()), 0);
     lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_obj_set_size(name, geo.pic_w, line);
-    lv_obj_set_pos(name, x, y + geo.pic_h + geo.text_gap);
+    lv_obj_set_pos(name, geo.cell_pad, geo.cell_pad + geo.pic_h + geo.text_gap);
     lv_label_set_text(name, i == 0 || !folder || !folder->name[0] ? tr.home : folder->name);
   }
 

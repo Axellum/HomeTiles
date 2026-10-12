@@ -3018,6 +3018,13 @@
    the row would be wider than the preview (--slot-zoom, user 2026-10-12). */
 .wrapper:not(.compact-grid) .settings-hidden-parking.page-stack { flex-direction:row; zoom:var(--slot-zoom, 1); }
 .compact-grid .tile-editor-main > .settings-hidden-parking.page-stack { width:fit-content; align-self:start; }
+/* A square preview (S3, 4B): the row under it as on landscape panels, as
+   wide as the editor column allows (page-slots.js fitPageStack). */
+.compact-grid.page-slots-under .tile-editor-main > .settings-hidden-parking.page-stack {
+  grid-column:1 / -1;
+  grid-row:auto;
+  flex-direction:row;
+}
 .page-parking {
   display:grid;
   grid-template-columns:repeat(var(--slot-cols, 5), var(--preview-cell-w));

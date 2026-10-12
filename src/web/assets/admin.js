@@ -12185,12 +12185,27 @@ async function saveGestureEdge(select) {
     if (el?.dataset.type === '4' && pageFolders().includes(Number(el.dataset.navigateTarget))) renderPageSlots();
   }
 
+  // Under a square preview the row shrinks alike to the editor column (user
+  // 2026-10-12: on the S3 the boxes slid under the settings panel).
+  function fitPageStack() {
+    const stack = document.querySelector('.compact-grid.page-slots-under .settings-hidden-parking.page-stack');
+    const main = stack?.closest('.tile-editor-main');
+    if (!stack || !main) return;
+    stack.style.zoom = '';
+    const room = main.getBoundingClientRect().right - stack.getBoundingClientRect().left;
+    const need = stack.scrollWidth;
+    if (room > 0 && need > room) stack.style.zoom = String(room / need);
+  }
+
   function enablePageSlots() {
     const slots = pageSlotsElement();
     if (!slots || slots.dataset.bound === '1') return;
     slots.dataset.bound = '1';
     renderPageSlots();
     syncPageHeads();
+    const main = slots.closest('.tile-editor-main');
+    if (main && typeof ResizeObserver === 'function') new ResizeObserver(fitPageStack).observe(main);
+    fitPageStack();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
       // A page is edited like its folder tile: a tap picks it.
       slot.addEventListener('click', () => {

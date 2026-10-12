@@ -412,11 +412,17 @@ static void appendLocalCameraSettingsHtml(String& html, const i18n::Strings& tr)
 }
 
 // A square or upright screen (the shown layout's): its preview keeps its
-// size and Home's slots stand beside it (admin.css .compact-grid); a
-// landscape one has them below (user 2026-10-12: "bei den quadratischen
-// oder hochkant da wo Settings ist").
+// size and the Settings slot stands beside it (admin.css .compact-grid).
 static bool previewSlotsBeside() {
   return grid_layout::screen_w() <= grid_layout::screen_h();
+}
+
+// Home's page slots stand beside an upright preview only; under a landscape
+// or square one they lie in a row with Settings right of them (user
+// 2026-10-12: on the S3 the boxes beside the preview slid under the
+// settings panel, "unten platzieren, Settings wieder an die Seite").
+static bool pageSlotsUnder() {
+  return grid_layout::screen_w() >= grid_layout::screen_h();
 }
 
 // Helper function to generate tile tab HTML (unified for all folders)
@@ -909,7 +915,7 @@ static void appendTileTabHTML(
       html += "<div class=\"settings-hidden-parking page-stack\"><div class=\"page-group\"><div class=\"page-parking-label\">";
       appendHtmlEscaped(html, tr.pages_title);
       html += "</div><div class=\"page-parking\" style=\"--slot-cols:";
-      html += String(previewSlotsBeside() ? 2 : max_pages);
+      html += String(pageSlotsUnder() ? max_pages : 2);
       html += "\">";
       uint16_t pages[tile_layouts::kMaxPages];
       const size_t count = tile_layouts::page_slots(pages);
@@ -2344,6 +2350,7 @@ String WebAdminServer::getAdminPage() {
   // Settings slot moves beside them (admin.css .compact-grid; user
   // 2026-10-11: an upright layout "like the square ones").
   if (previewSlotsBeside()) html += " compact-grid";
+  if (grid_layout::head_bar() && pageSlotsUnder()) html += " page-slots-under";
   html += R"html(">
 <div class="card">
 <div class="brand">

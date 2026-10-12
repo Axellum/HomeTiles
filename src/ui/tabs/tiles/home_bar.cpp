@@ -248,14 +248,12 @@ void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch
 // A tap on the head's dots opens the pages' preview right there.
 void on_dots(lv_event_t* event) { page_preview::open(static_cast<lv_obj_t*>(lv_event_get_current_target(event))); }
 
-// The press shows once the finger rests on the dots (a tap, not a swipe;
-// user 2026-10-12: it showed at once and was too large).
-lv_timer_t* g_press_timer = nullptr;
+// The press: the pill at once (user 2026-10-12: after 90 ms it showed on
+// some taps only), gone as soon as the finger moves (a swipe) and whenever a
+// swipe takes over (cancel_press: the input then waits for the release and
+// the row never hears it; the pill stayed).
 lv_obj_t* g_press_dots = nullptr;
-void press_show(lv_timer_t*) {
-  g_press_timer = nullptr;
-  if (g_press_dots && lv_obj_has_state(g_press_dots, LV_STATE_PRESSED)) lv_obj_add_state(g_press_dots, LV_STATE_USER_1);
-}
+lv_point_t g_press_at{};
 void release_press(lv_obj_t* dots) {
   if (dots) lv_obj_remove_state(dots, LV_STATE_USER_1);
   if (g_press_dots == dots) g_press_dots = nullptr;
@@ -263,15 +261,20 @@ void release_press(lv_obj_t* dots) {
 void dots_event(lv_event_t* event) {
   lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
   const lv_event_code_t code = lv_event_get_code(event);
+  lv_indev_t* input = lv_indev_active();
   if (code == LV_EVENT_PRESSED) {
     g_press_dots = dots;
-    if (g_press_timer) {
-      lv_timer_reset(g_press_timer);
-    } else {
-      g_press_timer = lv_timer_create(press_show, 90, nullptr);
-      lv_timer_set_repeat_count(g_press_timer, 1);
-    }
-  } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+    if (input) lv_indev_get_point(input, &g_press_at);
+    lv_obj_add_state(dots, LV_STATE_USER_1);
+  } else if (code == LV_EVENT_PRESSING) {
+    if (!input || g_press_dots != dots) return;
+    lv_point_t now{};
+    lv_indev_get_point(input, &now);
+    const int32_t dx = now.x - g_press_at.x;
+    const int32_t dy = now.y - g_press_at.y;
+    const int32_t limit = popup_layout::scale(8);
+    if (dx * dx + dy * dy > limit * limit) release_press(dots);
+  } else {
     release_press(dots);
   }
 }
@@ -492,25 +495,25 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     const int count = static_cast<int>(tile_layouts::pages(pages)) + 1;
     const DotSizes d = dot_sizes();
     const int row_x = (grid_layout::screen_w() - dots_width(count)) / 2;
-    // A resting press shows the agreed pill around the row (mockup
-    // build/design-mockups/pages: 14 px above and below, 18 beside on an
-    // 800 px side) in a light fill (user 2026-10-12: not at once).
+    // A press shows a pill around the row as high as the head's circle and
+    // as much beside (user 2026-10-12, mockup
+    // build/design-mockups/pages/dots-swipe.html) in a light fill.
     const int side = grid_layout::screen_w() < grid_layout::screen_h() ? grid_layout::screen_w() : grid_layout::screen_h();
-    const int pad_y = (14 * side + 400) / 800;
-    const int pad_x = (18 * side + 400) / 800;
-    const int box_h = d.dot + 2 * pad_y;
-    lv_obj_t* dots = create_dots(bar, count, page, row_x - pad_x, g.center_y - box_h / 2);
-    lv_obj_set_size(dots, dots_width(count) + 2 * pad_x, box_h);
-    lv_obj_set_style_pad_hor(dots, pad_x, 0);
-    lv_obj_set_style_pad_ver(dots, pad_y, 0);
+    const int pad = (g.disc - d.dot) / 2;
+    const int box_h = d.dot + 2 * pad;
+    lv_obj_t* dots = create_dots(bar, count, page, row_x - pad, g.center_y - box_h / 2);
+    lv_obj_set_size(dots, dots_width(count) + 2 * pad, box_h);
+    lv_obj_set_style_pad_all(dots, pad, 0);
     lv_obj_set_style_radius(dots, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(dots, lv_color_hex(ui_theme::icon()), LV_STATE_USER_1);
     lv_obj_set_style_bg_opa(dots, 31, LV_STATE_USER_1);
     lv_obj_set_user_data(dots, &g_dots_marker);
-    // The tap reaches them over the circle's height.
+    // A tap reaches them 20 px around the pill on an 800 px side (user
+    // 2026-10-12: one had to hit them exactly).
     lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(dots, g.disc > box_h ? (g.disc - box_h) / 2 : 0);
+    lv_obj_set_ext_click_area(dots, (20 * side + 400) / 800);
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSING, nullptr);
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESS_LOST, nullptr);
     lv_obj_add_event_cb(dots, on_dots, LV_EVENT_CLICKED, nullptr);
@@ -530,6 +533,10 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_size(title, title_w, lv_font_get_line_height(font));
   lv_label_set_text(title, title_text);
   lv_obj_set_pos(title, g.title_x, g.center_y - lv_font_get_line_height(font) / 2);
+}
+
+void cancel_press() {
+  if (g_press_dots) release_press(g_press_dots);
 }
 
 void rebuild(lv_obj_t* grid, uint16_t folder_id) {

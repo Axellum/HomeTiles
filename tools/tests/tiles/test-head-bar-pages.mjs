@@ -70,8 +70,12 @@ assert.match(bar, /lv_display_add_event_cb\(display, start_waiting, LV_EVENT_REF
 assert.match(slice(bar, 'void move_line(', '\n}\n'), /lv_anim_set_duration\(&anim, 180\);/);
 // No line following the finger (user 2026-10-12: it snaps at once).
 assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
-// The press pill shows only once the finger rests (user 2026-10-12).
-assert.match(bar, /g_press_timer = lv_timer_create\(press_show, 90, nullptr\);/);
+// The press pill shows at once and goes as soon as the finger moves, and
+// whenever a swipe takes over (user 2026-10-12: it stayed after swipes).
+assert.match(bar, /if \(code == LV_EVENT_PRESSED\) \{[\s\S]{0,160}lv_obj_add_state\(dots, LV_STATE_USER_1\);/);
+assert.match(bar, /const int32_t limit = popup_layout::scale\(8\);\s*if \(dx \* dx \+ dy \* dy > limit \* limit\) release_press\(dots\);/);
+assert.equal((read('src/ui/ui_manager.cpp').match(/home_bar::cancel_press\(\);/g) || []).length, 2, 'A page turn and an edge action take the pill away');
+assert.doesNotMatch(bar, /g_press_timer|press_show/);
 const tiles = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
 assert.equal((tiles.match(/home_bar::shown\(target->grid, folder_id, previous \? previous->folder_id : kInvalidFolderId\);/g) || []).length, 2,
   'Both folder switch paths report the shown grid');
@@ -132,7 +136,15 @@ assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'),
 assert.match(bar, /lv_obj_add_event_cb\(dots, on_dots, LV_EVENT_CLICKED, nullptr\);/);
 assert.match(bar, /void on_dots\(lv_event_t\* event\) \{ page_preview::open\(/);
 const preview = read('src/ui/tabs/tiles/page_preview.cpp');
-assert.match(preview, /const int card_y = head\.center_y - geo\.pad - dot\.dot \/ 2;/);
+// Its top on the head circle's top line, its dots in a band as high as
+// the circle (user 2026-10-12).
+assert.match(preview, /const int card_y = head\.center_y - head\.disc \/ 2;/);
+assert.match(preview, /const int card_h = head\.disc \+ rows \* cell_h/);
+// The shown page's cell filled like a pressed one, a pressed one the same;
+// every name in the text color.
+assert.match(preview, /lv_obj_set_style_bg_opa\(cell, i == current \? LV_OPA_COVER : LV_OPA_TRANSP, 0\);\s*lv_obj_set_style_bg_opa\(cell, LV_OPA_COVER, LV_STATE_PRESSED\);/);
+assert.match(preview, /tone_color::pressed_card\(ui_theme::popup_card\(\)\)/);
+assert.match(preview, /lv_obj_set_style_text_color\(name, lv_color_hex\(ui_theme::text\(\)\), 0\);/);
 // The overview's fixed rules for every panel (user 2026-10-12, mockup
 // build/design-mockups/pages/dots-swipe.html).
 const rules = slice(preview, 'Geometry geometry() {', '\n}\n');
@@ -149,10 +161,11 @@ assert.match(preview, /void on_close\(lv_event_t\*\) \{\s*if \(was_tap\(\)\) clo
 assert.match(preview, /tappable\(card, on_close, nullptr\);/, 'Its free parts close it too');
 assert.doesNotMatch(preview, /bar_w|bar_h/, 'No bar under the shown page\'s name');
 assert.match(preview, /home_bar::create_dots\(card, count, current, \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x,\s*head\.center_y - dot\.dot \/ 2 - card_y\);/);
-// The head's row sits where the card's does; its box the agreed pill
-// around it (14 px above and below, 18 beside on an 800 px side).
-assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,400}?const int pad_y = \(14 \* side \+ 400\) \/ 800;\s*const int pad_x = \(18 \* side \+ 400\) \/ 800;\s*const int box_h = d\.dot \+ 2 \* pad_y;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - pad_x, g\.center_y - box_h \/ 2\);/,
+// The head's row sits where the card's does; its pill as high as the
+// head's circle, as much beside; a tap reaches it 20 px around.
+assert.match(build, /const int row_x = \(grid_layout::screen_w\(\) - dots_width\(count\)\) \/ 2;[\s\S]{0,400}?const int pad = \(g\.disc - d\.dot\) \/ 2;\s*const int box_h = d\.dot \+ 2 \* pad;\s*lv_obj_t\* dots = create_dots\(bar, count, page, row_x - pad, g\.center_y - box_h \/ 2\);/,
   'The head and the card build the same row');
+assert.match(build, /lv_obj_set_ext_click_area\(dots, \(20 \* side \+ 400\) \/ 800\);/);
 assert.match(build, /lv_obj_set_style_bg_opa\(dots, 31, LV_STATE_USER_1\);/);
 assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No dimming');
 assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
@@ -230,7 +243,11 @@ assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-lab
 // Beside a square or upright preview two columns, under a landscape one a
 // row under its columns (a 4-column one: four, the fifth below).
 assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout::screen_w\(\) <= grid_layout::screen_h\(\);\s*\}/);
-assert.match(markup, /html \+= String\(previewSlotsBeside\(\) \? 2 : max_pages\);/);
+// Beside an upright preview only; under a square one in a row too (user
+// 2026-10-12: on the S3 the boxes slid under the settings panel).
+assert.match(markup, /html \+= String\(pageSlotsUnder\(\) \? max_pages : 2\);/);
+assert.match(markup, /static bool pageSlotsUnder\(\) \{\s*return grid_layout::screen_w\(\) >= grid_layout::screen_h\(\);/);
+assert.match(read('src/web/admin/tiles/page-slots.js'), /function fitPageStack\(\) \{/);
 // Under a landscape preview Settings right of the pages, both smaller alike
 // to the preview's width (user 2026-10-12).
 assert.match(read('src/web/assets/admin.css'), /\.wrapper:not\(\.compact-grid\) \.settings-hidden-parking\.page-stack \{ flex-direction:row; zoom:var\(--slot-zoom, 1\); \}/);
