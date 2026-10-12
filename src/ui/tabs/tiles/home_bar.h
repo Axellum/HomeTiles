@@ -78,5 +78,8 @@ void color_camera_circle(lv_obj_t* circle, uint32_t color);
 // True for the bar's object among a grid's children: it is neither a tile
 // nor an empty cell placeholder.
 bool is_bar(const lv_obj_t* obj);
+// True for the head's gear or X (or something in it): no page swipe starts
+// there.
+bool is_button(const lv_obj_t* obj);
 
 }  // namespace home_bar

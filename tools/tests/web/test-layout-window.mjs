@@ -289,6 +289,30 @@ const tileConfig = readRepoFile('src/tiles/config/tile_config.cpp');
 assert.match(tileConfig, /if \(layout_places && folder_id != kScreensaverGridStorageId\) applyLayoutPlaces\(folder_id, grid\);/);
 assert.match(tileConfig, /resolveLayoutPlaces\(folder_id, working, !layout_places, classic\.get\(\)\);/,
   'the tile data keeps the classic places');
+// A full classic screen and more folders without a classic place than its
+// storage holds (user 2026-10-12: six new page folders made under a bar
+// layout): the storage grows by rows until every folder has a visible spot.
+{
+  const full = Array.from({length: 28}, (_, i) => tile(1, i % 7, Math.floor(i / 7), 1, 1, 100 + i));
+  const folders = Array.from({length: 16}, (_, i) => tile(4, 0, 0, 1, 1, 200 + i, 'F' + i));
+  const page = [...full, ...folders];
+  const data = {classic: {0: full.map((t, i) => [i, t.view_id, t.col, t.row, 1, 1])},
+    places: {classic_parked: {0: Object.fromEntries(folders.map(t => [t.view_id, [0, 0, 0, 0]]))}}};
+  let box = null;
+  box = windowContext({folder0: page}, data, {useLayoutGrid: () => {
+    const canvas = box.layoutCanvas();
+    box.GRID_COLS = canvas.cols;
+    box.GRID_ROWS = canvas.rows;
+  }});
+  const settled = box.setupTiles('folder0', 'classic');
+  const spots = settled.slice(28).map(t => [t.col, t.row]);
+  const keys = new Set(settled.map(t => t.col + ':' + t.row));
+  assert.equal(keys.size, 44, 'every tile on its own spot: ' + JSON.stringify(spots));
+  assert.ok(settled.slice(28).every(t => t.row >= 4), 'the folders in the storage below the screen');
+  assert.ok(box.layoutWindow.extraRows >= 1 && Math.max(...settled.map(t => t.row)) >= 6,
+    'the storage grew below: ' + box.layoutWindow.extraRows);
+}
+
 const html = readRepoFile('src/web/server/render/web_admin_html.cpp');
 assert.match(html, /onclick=\\"openLayoutWindow\(\)\\"/);
 assert.match(html, /cssClass \+= " tile-unplaced";/);

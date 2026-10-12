@@ -1753,6 +1753,15 @@ void WebAdminServer::handleSwitchLayout() {
     sendJsonError(server, 409, "Layout not available");
     return;
   }
+  // Every folder must be reached there (user 2026-10-12).
+  if (const unsigned missing = tileConfig.foldersWithoutPlace(layout)) {
+    const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
+    char message[256];
+    snprintf(message, sizeof(message), tr.layout_switch_refused, missing, tr.layout_change);
+    Serial.printf("[WebAdmin] Layout %s refused: %u folders without a place\n", grid_layout::key(layout), missing);
+    sendJsonError(server, 409, message);
+    return;
+  }
   if (!configManager.saveLayout(static_cast<uint8_t>(layout))) {
     sendJsonError(server, 500, "Could not save the layout");
     return;

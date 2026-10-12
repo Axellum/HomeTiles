@@ -1078,6 +1078,12 @@ uint8_t layout_index() { return grid_layout::active() == grid_layout::Layout::kP
 void layout_selected(uint8_t index) {
   if (!layout_choice() || index == layout_index()) return;
   const grid_layout::Layout layout = setup_layout(index);
+  // A new panel's tiles have their places in both bar layouts; a folder
+  // without one could not be reached there (user 2026-10-12).
+  if (const unsigned missing = tileConfig.foldersWithoutPlace(layout)) {
+    Serial.printf("[Setup] Layout %s refused: %u folders without a place\n", grid_layout::key(layout), missing);
+    return;
+  }
   if (!configManager.saveLayout(static_cast<uint8_t>(layout))) return;
   Serial.printf("[Setup] Layout %s, restarting\n", grid_layout::key(layout));
   restart();

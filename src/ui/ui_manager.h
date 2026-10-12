@@ -73,6 +73,9 @@ private:
   uint8_t access_gesture_action = 0;
   // The tab the swipe started on: the tiles (0) or Settings (kSettingsTab).
   uint8_t access_gesture_tab = UINT8_MAX;
+  // The swipe started where a sideways move turns the page (the head
+  // beside its buttons, or a side edge).
+  bool access_page_swipe = false;
 
   enum class PendingAccessKind : uint8_t {
     None,

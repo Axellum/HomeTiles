@@ -817,6 +817,9 @@ struct Strings {
   // Web Admin: a locked folder dropped on a page slot (pages have no PIN).
   const char* js_page_unlock_confirm;
   const char* js_pages_saved;
+  // A layout switch refused: %u folders without a place there, %s the
+  // layout window's button ("Layout ändern").
+  const char* layout_switch_refused;
 };
 
 // Locale-specific display rules and short runtime strings shared by

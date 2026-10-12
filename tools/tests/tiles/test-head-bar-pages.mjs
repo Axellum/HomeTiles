@@ -63,13 +63,20 @@ const neighbours = plan.indexOf('for (const int neighbour : {page + 1, page - 1}
 const back = plan.indexOf('if (config.tiles[i].type != TILE_BACK) continue;');
 assert.ok(neighbours >= 0 && back > neighbours, 'Pages before Back and folder tiles');
 
-// The swipe: inside the screen, Home or a page, never on a control that
-// drags itself (no gesture bubble), and no tap on the tile it started on.
+// The swipe: on Home or a page, only in the head beside its gear or X or
+// right at a side edge (user 2026-10-12: never across the tiles), never on a
+// control that drags itself (no gesture bubble), and no tap on the tile it
+// started on. An edge's own action comes first; a sideways move from the
+// top edge's strip still turns the page.
 const manager = read('src/ui/ui_manager.cpp');
 const press = slice(manager, 'void UIManager::settings_gesture_indev_event_cb', '\nvoid UIManager::nav_button_event_cb');
-assert.match(press, /if \(tab != 0 \|\| !grid_layout::head_bar\(\) \|\|\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) < 0\) \{/);
-assert.match(press, /if \(!lv_obj_has_flag\(object, LV_OBJ_FLAG_GESTURE_BUBBLE\)\) return;/);
-assert.match(press, /self->access_gesture_action = kPageSwipe;/);
+assert.match(press, /bool page_swipe = tab == 0 && grid_layout::head_bar\(\) &&\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) >= 0 &&\s*\(\(point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*distance\[0\] < kSettingsGestureCaptureWidth \|\| distance\[1\] < kSettingsGestureCaptureWidth\);/);
+assert.match(press, /if \(!lv_obj_has_flag\(object, LV_OBJ_FLAG_GESTURE_BUBBLE\)\) page_swipe = false;/);
+assert.match(press, /if \(edge == swipe_gestures::kEdgeOff && !page_swipe\) return;/);
+assert.match(press, /self->access_gesture_action = edge != swipe_gestures::kEdgeOff \? actions\[edge\] : kPageSwipe;/);
+assert.match(bar, /lv_obj_set_user_data\(button, &g_button_marker\);/, 'The gear and the X are marked');
+const motion = slice(manager, 'void UIManager::processSettingsGestureMotion(', '\n}\n');
+assert.match(motion, /if \(!matches\) \{\s*if \(access_page_swipe && abs_dx >= threshold && abs_dx > abs_dy\) \{\s*processPageSwipeMotion\(input, released\);/);
 assert.match(read('src/tiles/runtime/level_bar.h'), /lv_obj_remove_flag\(bar, LV_OBJ_FLAG_GESTURE_BUBBLE\);/,
   'The level bar keeps its drags');
 const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n');
@@ -118,4 +125,37 @@ assert.match(slice(manager, 'void UIManager::switchToTab(uint8_t index) {', '\n}
 assert.match(slice(manager, 'void UIManager::processThemeChange() {', '\n}\n'), /viewNavigationClosePopups\(\);\s*page_preview::close\(\);/);
 assert.match(slice(tiles, 'void tiles_switch_to_folder(uint16_t folder_id) {', '\n}\n'), /page_preview::close\(\);/);
 
-console.log('Head bar pages: storage, dots, swipe, preload, preview card and /api/pages');
+// No folder is ever out of reach (user 2026-10-12): a layout where folder
+// tiles have no place is not switched to, on the Web Admin (with the hint)
+// nor in the setup; a page's tile needs none in the bar layouts.
+const without = slice(tileConfig, 'unsigned TileConfig::foldersWithoutPlace(', '\n}\n');
+assert.match(without, /if \(tile_layouts::classic_hidden\(folder\.id, tile\.view_id\)\) \+\+missing;/);
+assert.match(without, /if \(folder\.id == kRootFolderId && tile_layouts::page_number\(getNavigateTargetId\(tile\)\) > 0\) continue;/);
+assert.match(without, /!grid_layout::inside\(screen, place\.col, place\.row, place\.span_w, place\.span_h\)/);
+const switchLayout = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void WebAdminServer::handleSwitchLayout() {', '\n}\n');
+assert.ok(switchLayout.indexOf('tileConfig.foldersWithoutPlace(layout)') < switchLayout.indexOf('configManager.saveLayout('),
+  'Checked before the layout is stored');
+assert.match(switchLayout, /snprintf\(message, sizeof\(message\), tr\.layout_switch_refused, missing, tr\.layout_change\);/);
+const setup = slice(read('src/ui/tabs/settings/tab_settings.cpp'), 'void layout_selected(uint8_t index) {', '\n}\n');
+assert.ok(setup.indexOf('tileConfig.foldersWithoutPlace(layout)') < setup.indexOf('configManager.saveLayout('));
+assert.match(read('src/web/admin/tiles/layout-window.js'), /showNotification\(error\?\.message \|\| t\('saveFailed'\), false\);/,
+  'The window shows the device\'s reason');
+
+// Every language has the page texts and the refusal (positional tables).
+const i18n = read('src/core/i18n/i18n.cpp');
+for (const [table, words] of Object.entries({
+  kStringsDe: ['"Seiten"', '"Höchstens 6 Seiten"', '"Seiten gespeichert"', '"%u Ordner haben in diesem Layout keinen Platz.'],
+  kStringsEn: ['"Pages"', '"At most 6 pages"', '"Pages saved"', '"%u folders have no place in this layout.'],
+  kStringsFr: ['"Pages"', '"6 pages au maximum"', '"Pages enregistrées"', '"%u dossiers n\'ont pas de place'],
+  kStringsPl: ['"Strony"', '"Maksymalnie 6 stron"', '"Zapisano strony"', '"Foldery bez miejsca w tym układzie: %u.']})) {
+  const start = i18n.indexOf(`static const Strings ${table} = {`);
+  const body = i18n.slice(start, i18n.indexOf('};', start));
+  for (const word of words) assert.ok(body.includes(word), `${table} ${word}`);
+  // The refusal is the last text: one count and one button name.
+  const refusal = body.slice(body.lastIndexOf('\n'));
+  assert.ok((refusal.match(/%u/g) || []).length === 1 && (refusal.match(/%s/g) || []).length === 1, `${table}: %u and %s`);
+}
+const scripts = read('src/web/server/render/web_admin_scripts.cpp');
+for (const key of ['pagesFull', 'pageUnlockConfirm', 'pagesSaved']) assert.ok(scripts.includes(`appendJsEntry("${key}"`), key);
+
+console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages and no folder out of reach');

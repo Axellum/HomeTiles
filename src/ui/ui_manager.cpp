@@ -2,6 +2,7 @@
 #include "src/ui/ui_manager.h"
 
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
+#include "src/ui/tabs/tiles/home_bar.h"
 #include "src/ui/tabs/tiles/page_preview.h"
 #include "src/ui/tabs/settings/tab_settings.h"
 #include "src/ui/popups/light/light_popup.h"
@@ -784,6 +785,10 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
       break;
   }
   if (!matches) {
+    if (access_page_swipe && abs_dx >= threshold && abs_dx > abs_dy) {
+      processPageSwipeMotion(input, released);
+      return;
+    }
     if (released) {
       access_gesture_eligible = false;
       detachSettingsGesturePressedObject();
@@ -929,24 +934,24 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
         edge = candidate;
       }
     }
-    if (edge != swipe_gestures::kEdgeOff) {
-      self->access_gesture_edge = edge;
-      self->access_gesture_action = actions[edge];
-    } else {
-      // Inside the screen on Home or one of its pages: a swipe turns the
-      // page, except on a control that drags itself (it keeps its gestures,
-      // like the level bar of a dimmer or a cover).
-      if (tab != 0 || !grid_layout::head_bar() ||
-          tile_layouts::page_number(tileConfig.getActiveFolderId()) < 0) {
-        return;
-      }
-      for (lv_obj_t* object = pressed_object; object && object != self->tab_panels[tab];
-           object = lv_obj_get_parent(object)) {
-        if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) return;
-      }
-      self->access_gesture_edge = swipe_gestures::kEdgeOff;
-      self->access_gesture_action = kPageSwipe;
+    // Home and its pages turn by a swipe that starts in the head beside its
+    // gear or X, or right at the left or right edge (user 2026-10-12: never
+    // across the tiles); never on a control that drags itself (it keeps its
+    // gestures, like the level bar of a dimmer or a cover).
+    bool page_swipe = tab == 0 && grid_layout::head_bar() &&
+                      tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
+                      ((point.y < GRID_PAD_TOP && !home_bar::is_button(pressed_object)) ||
+                       distance[0] < kSettingsGestureCaptureWidth || distance[1] < kSettingsGestureCaptureWidth);
+    for (lv_obj_t* object = pressed_object; page_swipe && object && object != self->tab_panels[tab];
+         object = lv_obj_get_parent(object)) {
+      if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) page_swipe = false;
     }
+    if (edge == swipe_gestures::kEdgeOff && !page_swipe) return;
+    // An edge's own action first; a sideways swipe from the top edge's
+    // strip in the head still turns the page.
+    self->access_page_swipe = page_swipe;
+    self->access_gesture_edge = edge;
+    self->access_gesture_action = edge != swipe_gestures::kEdgeOff ? actions[edge] : kPageSwipe;
     self->access_gesture_tab = tab;
     self->access_gesture_start = point;
     self->access_gesture_eligible = true;

@@ -53,7 +53,8 @@
     const keys = LAYOUT_KEYS.filter(key => LAYOUTS[key].available);
     const cols = keys.map(key => LAYOUTS[key].cols);
     const rows = keys.map(key => Math.ceil(LAYOUTS[key].rows));
-    return {cols: Math.max(...cols, Math.min(...cols) + 2), rows: Math.max(...rows, Math.min(...rows) + 2)};
+    return {cols: Math.max(...cols, Math.min(...cols) + 2),
+      rows: Math.max(...rows, Math.min(...rows) + 2) + (layoutWindow?.extraRows || 0)};
   }
   function layoutInside(tile, key) {
     const L = LAYOUTS[key];
@@ -160,6 +161,8 @@
   function layoutSettle(key, tiles) {
     const canvas = layoutCanvas();
     const cols2 = canvas.cols * 2, rows2 = canvas.rows * 2;
+    // The window's grid while it settles (the storage may grow below).
+    if (layoutWindow) useLayoutGrid();
     const taken = Array.from({length: rows2}, () => Array(cols2).fill(false));
     const fits = (col, row, w, h) => {
       if (col < 0 || row < 0 || col + w > canvas.cols || row + h > canvas.rows) return false;
@@ -214,6 +217,19 @@
           }
         }
         if (spot) break;
+      }
+      // No spot left: the storage grows by rows below (user 2026-10-12:
+      // every tile, every folder above all, keeps a visible spot there).
+      while (!spot && layoutWindow && canvas.rows < 64) {
+        const row = canvas.rows;
+        const grow = Math.ceil(h);
+        canvas.rows += grow;
+        for (let i = 0; i < grow * 2; ++i) taken.push(Array(cols2).fill(false));
+        layoutWindow.extraRows = (layoutWindow.extraRows || 0) + grow;
+        useLayoutGrid();
+        for (let col = 0; !spot && col + w <= canvas.cols; col += 0.5) {
+          if (free(tile, col, row, w, h)) spot = {col, row, span_w: w, span_h: h};
+        }
       }
       if (spot) { Object.assign(tile, spot); take(tile); }
     }
@@ -790,9 +806,14 @@
       const response = await layoutWindowFetch('/api/layouts/active', {
         method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'layout=' + encodeURIComponent(layoutWindow.key)});
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (!response.ok) {
+        // The device's reason (folders without a place there).
+        let reason = '';
+        try { reason = (await response.json())?.error || ''; } catch (_) {}
+        throw new Error(reason);
+      }
     } catch (error) {
-      showNotification(t('saveFailed'), false);
+      showNotification(error?.message || t('saveFailed'), false);
       return;
     }
     closeLayoutWindow();
@@ -838,6 +859,12 @@
       blocked: false,
       home: null
     };
+    // Every layout's storage once, so the window has its size from the
+    // start (it grows by rows where tiles find no spot).
+    useLayoutGrid();
+    for (const key of LAYOUT_KEYS.filter(key => LAYOUTS[key].available)) {
+      for (const tab of layoutTabs()) setupTiles(tab, key);
+    }
     const backdrop = document.createElement('div');
     backdrop.className = 'setup-backdrop';
     const layoutButton = key => {

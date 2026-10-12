@@ -891,6 +891,11 @@ public:
                                   float target_row);
   // Slot of the Settings tile in the Home grid, -1 while it is hidden.
   int settingsTileIndex();
+  // Folder tiles without a place in that layout: their folders could not be
+  // reached there (user 2026-10-12), so the layout is not switched to. A
+  // page's folder tile needs none in the bar layouts (its dot reaches it).
+  // Reads every folder's grid: for a switch, not for every frame.
+  unsigned foldersWithoutPlace(grid_layout::Layout layout);
 
 private:
   volatile uint32_t view_revision_ = 1;

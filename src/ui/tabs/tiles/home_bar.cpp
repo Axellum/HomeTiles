@@ -30,8 +30,9 @@ namespace {
 
 // Its address marks the bar among a grid's children (lv_obj user data).
 int g_marker = 0;
-// And the page dots' row inside a bar.
+// And the page dots' row inside a bar, and its gear or X.
 int g_dots_marker = 0;
+int g_button_marker = 0;
 
 // The time labels of every built bar (one per cached grid); the timer keeps
 // them current, a deleted bar takes its label out.
@@ -265,6 +266,13 @@ Geometry geometry() {
 
 bool is_bar(const lv_obj_t* obj) { return obj && lv_obj_get_user_data(const_cast<lv_obj_t*>(obj)) == &g_marker; }
 
+bool is_button(const lv_obj_t* obj) {
+  for (lv_obj_t* o = const_cast<lv_obj_t*>(obj); o && !is_bar(o); o = lv_obj_get_parent(o)) {
+    if (lv_obj_get_user_data(o) == &g_button_marker) return true;
+  }
+  return false;
+}
+
 void build(lv_obj_t* grid, uint16_t folder_id) {
   if (!grid || !grid_layout::head_bar()) return;
   const bool home = folder_id == 0;  // the root folder (TileConfig)
@@ -314,6 +322,7 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_size(button, pressed, pressed);
   ui_surface_style::apply_radius(button, settings_style::kClosePressedBaseline);
   lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_user_data(button, &g_button_marker);
   lv_obj_set_style_bg_color(button, lv_color_hex(ui_theme::icon()), LV_STATE_PRESSED);
   lv_obj_set_style_bg_opa(button, LV_OPA_20, LV_STATE_PRESSED);
   lv_obj_set_ext_click_area(button, popup_layout::kCloseButtonClickArea + (g.close - pressed) / 2);

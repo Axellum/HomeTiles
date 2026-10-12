@@ -3070,6 +3070,31 @@ bool TileConfig::loadFolderGridClassic(uint16_t folder_id, TileGridConfig& out) 
   return loadGrid(folder_id, out, true, false);
 }
 
+unsigned TileConfig::foldersWithoutPlace(grid_layout::Layout layout) {
+  std::unique_ptr<TileGridConfig> grid(new (std::nothrow) TileGridConfig{});
+  if (!grid) return 0;
+  const grid_layout::Shown screen = grid_layout::layout_grid(layout);
+  unsigned missing = 0;
+  const std::vector<FolderEntry> list = folders;
+  for (const FolderEntry& folder : list) {
+    if (!loadFolderGridClassic(folder.id, *grid)) continue;
+    for (const Tile& tile : grid->tiles) {
+      if (tile.type != TILE_FOLDER || !tile.view_id) continue;
+      if (layout == grid_layout::Layout::kClassic) {
+        if (tile_layouts::classic_hidden(folder.id, tile.view_id)) ++missing;
+        continue;
+      }
+      if (folder.id == kRootFolderId && tile_layouts::page_number(getNavigateTargetId(tile)) > 0) continue;
+      tile_layouts::Place place{};
+      if (!tile_layouts::find(layout, folder.id, tile.view_id, place) ||
+          !grid_layout::inside(screen, place.col, place.row, place.span_w, place.span_h)) {
+        ++missing;
+      }
+    }
+  }
+  return missing;
+}
+
 bool TileConfig::saveFolderGridClassic(uint16_t folder_id, TileGridConfig& grid) {
   if (!folderExists(folder_id)) return false;
   bool ids_changed = false;
