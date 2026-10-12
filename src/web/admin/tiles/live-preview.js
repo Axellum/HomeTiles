@@ -348,10 +348,6 @@
     // A title or icon moves the clock down (clock/renderer.cpp).
     if (type === '9') tileElem.classList.toggle('clock-has-header', !!(displayTitle || iconName));
     tileElem.innerHTML = html;
-    // The analog and the wall clock place their face once the tile has its size.
-    if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') {
-      layoutClockFacePreview(tileElem);
-    }
     if (previewKind === 'weather') {
       const iconRecord = typeof collectIconColorRecord === 'function' ? collectIconColorRecord(prefix) : '';
       applyWeatherPreview(tileElem, parseWeatherPreviewPayload(
@@ -399,6 +395,12 @@
     applyCompactSensorPreview(tileElem, type, {span_w:Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
       span_h:Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)},
       document.getElementById(prefix + '_sensor_display_mode')?.value || 0, sensorValueFont);
+    // The analog and the wall clock place their face once the tile has its
+    // size and classes again (updateLayoutFromInputs, applyCompactSensorPreview):
+    // before them the tile measured 1 x 1 in the middle of its rebuild, and the
+    // resize observer saw no change at the end of the task (user 2026-10-12:
+    // a click on the clock shrank its face into the corner).
+    if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') layoutClockFacePreview(tileElem);
     if (previewKind === 'climate' &&
         Number(document.getElementById(prefix + '_tile_span_h')?.value || 1) !== 0.5 &&
         typeof mountClimateMiniEditor === 'function') {

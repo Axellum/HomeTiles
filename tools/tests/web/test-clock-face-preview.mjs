@@ -138,4 +138,17 @@ ${inlineScriptSafe(observer)}
 </script></body></html>`;
 try { runDomHarness({label: 'Clock face preview', html, tmpPrefix: 'hometiles-clock-face-', extraArgs: ['--virtual-time-budget=2000']}); }
 catch (error) { throw Error(error.message.match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1] || error.message.slice(0, 300)); }
+// The editor places the face after it gave the tile its size again: in the
+// middle of its rebuild the tile measured 1 x 1, and a size that returns
+// within the same task never reaches the resize observer (user 2026-10-12: a
+// click on a 2 x 1.5 clock shrank its face into the corner).
+{
+  const live = readRepoFile('src/web/admin/tiles/live-preview.js');
+  const update = live.slice(live.indexOf('function updateTilePreview('));
+  const layoutAt = update.indexOf('layoutClockFacePreview(tileElem)');
+  const sized = update.lastIndexOf('updateLayoutFromInputs(tab);');
+  if (!(sized > 0 && layoutAt > sized && layoutAt > update.lastIndexOf('applyCompactSensorPreview(tileElem, type,'))) {
+    throw Error('the live preview places the clock face before the tile has its size');
+  }
+}
 console.log('Clock face preview: face and lines where the panel puts them');
