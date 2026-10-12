@@ -797,6 +797,8 @@ struct Strings {
   const char* alignment_middle;
   // Vertical alignment: at the bottom.
   const char* alignment_bottom;
+  // Tile color: no card at all (Clock and Text, black stored).
+  const char* tile_color_mode_transparent;
 };
 
 // Locale-specific display rules and short runtime strings shared by

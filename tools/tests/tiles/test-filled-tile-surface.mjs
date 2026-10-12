@@ -383,7 +383,9 @@ int main() {
   // A Camera tile's picture covers its card (user 2026-10-11: "no frame on
   // the camera tiles"): the frame line becomes a border drawn after the
   // children, in the same color, at rest and pressed; the tile border option
-  // only changes its opacity, so the picture never moves.
+  // only changes its opacity, so the picture never moves. In the light theme
+  // the picture draws no line (user 2026-10-12: the light line stepped along
+  // the picture's rounded corners, worst on the S3), its width stays.
   lv_obj_t* cam = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(cam);
   lv_obj_set_style_bg_opa(cam, LV_OPA_COVER, 0);
@@ -391,10 +393,14 @@ int main() {
   ui_surface_style::apply_tile_border(cam, true);
   ui_surface_style::draw_frame_over_children(cam);
   expect(lv_obj_get_style_border_post(cam, LV_PART_MAIN) && lv_obj_get_style_border_width(cam, LV_PART_MAIN) == 1 &&
-         lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER && lv_obj_get_style_outline_width(cam, LV_PART_MAIN) == 0,
-         "camera: the line over the picture");
-  expect((lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF) == 0xDDDDDDu, "camera: the plain line",
-         lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF, 0xDDDDDDu);
+         lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_TRANSP && lv_obj_get_style_outline_width(cam, LV_PART_MAIN) == 0,
+         "camera, light theme: no line over the picture, its width stays");
+  ui_theme::set(0);
+  tile_icon_source::apply_card_background(cam, ui_theme::kDark.card);
+  ui_surface_style::apply_tile_border(cam, true);
+  expect(lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER, "camera, dark theme: the line over the picture");
+  expect((lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF) == 0x292929u, "camera: the plain line",
+         lv_color_to_u32(lv_obj_get_style_border_color(cam, LV_PART_MAIN)) & 0xFFFFFF, 0x292929u);
   lv_obj_add_state(cam, LV_STATE_PRESSED);
   expect(lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER, "camera: the line stays while pressed");
   lv_obj_remove_state(cam, LV_STATE_PRESSED);
@@ -404,6 +410,7 @@ int main() {
   ui_surface_style::draw_frame_over_children(cam);
   ui_surface_style::apply_tile_border(cam, true);
   expect(lv_obj_get_style_border_opa(cam, LV_PART_MAIN) == LV_OPA_COVER, "camera: borders on again");
+  ui_theme::set(1);
 
   if (failures) return 1;
   std::printf("OK\n");

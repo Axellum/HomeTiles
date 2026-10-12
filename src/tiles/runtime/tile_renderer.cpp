@@ -5097,6 +5097,15 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
     tile_icon_disc::apply_tile_options(tile_obj, 0, true);
     disable_pressed_recolor(tile_obj);
     if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
+    // "Transparent" (tileTransparent): no card and no line; a press still
+    // shows, as the theme's pressed card.
+    if (tile_obj && tileTransparent(tile)) {
+      lv_obj_set_style_bg_opa(tile_obj, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+      lv_obj_set_style_bg_color(tile_obj, lv_color_hex(tone_color::pressed_card(ui_theme::card())),
+                                LV_PART_MAIN | LV_STATE_PRESSED);
+      lv_obj_set_style_bg_opa(tile_obj, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+      ui_surface_style::disable_tile_border(tile_obj);
+    }
     // Normal grids use the global display option. The screensaver has its own setting and
     // applies it after rendering in image_screensaver.cpp.
     if (tile_obj && grid_type != GridType::SCREENSAVER && tile.type != TILE_EMPTY) {

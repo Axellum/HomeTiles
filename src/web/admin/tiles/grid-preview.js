@@ -26,9 +26,10 @@
   // The card is --tile-card: the global tile color in the dark theme, the
   // light card in the light one (tileDefaultBgColor); a black tile shows the
   // light theme's screen color (tileBgColorOrDefault).
-  function tileBackgroundCss(meta, isDefault, hex, opacity = null) {
+  function tileBackgroundCss(meta, isDefault, hex, opacity = null, typeValue = null) {
     const shared = !!isDefault && !!meta?.sharedBg;
     const black = !shared && /^#0{6}$/.test(String(hex));
+    if (black && !isDefault && opacity === null && tileTypeBlackIsTransparent(typeValue)) return 'transparent';
     const cardCss = shared ? 'var(--tile-card, #2A2A2A)' : black ? 'var(--pv-black-tile, #000000)' : hex;
     if (opacity === null || opacity === undefined) return cardCss;
     if (shared || black) {
@@ -276,6 +277,9 @@
   // icon.
   const KEEPS_OWN_COLOR_TYPES = ['9', '10', '16'];
   function tileTypeKeepsOwnColor(typeValue) { return KEEPS_OWN_COLOR_TYPES.includes(String(typeValue ?? '0')); }
+  // tileTransparent() (tile_config.h): a Clock or Text tile in black has no
+  // card and no line ("Transparent", user 2026-10-12).
+  function tileTypeBlackIsTransparent(typeValue) { return ['9', '10'].includes(String(typeValue ?? '0')); }
   // tileFills() (tile_config.h): "Fill" of a tile, never on the tiles that
   // keep an own color.
   function tileFills(typeValue, iconColors) { return tileTypeKeepsOwnColor(typeValue) ? 0 : tileFillOf(iconColors); }
@@ -580,9 +584,12 @@
   }
   // The color of a tile without an icon (Clock, Text, Pixel animation):
   // Global is the theme's card (stored as the default marker), Custom keeps
-  // the picked color.
+  // the picked color; on Clock and Text black is Transparent.
   function tileColorMode(tab) {
-    return document.getElementById(tab + '_tile_color')?.dataset.bgColorDefault === '0' ? 'custom' : 'global';
+    const input = document.getElementById(tab + '_tile_color');
+    if (input?.dataset.bgColorDefault !== '0') return 'global';
+    const type = document.getElementById(tab + '_tile_type')?.value || '0';
+    return tileTypeBlackIsTransparent(type) && /^#0{6}$/.test(String(input.value)) ? 'transparent' : 'custom';
   }
   // user 2026-10-11: a tile with an icon offers only "Fill" (its icon's
   // color); Clock, Text and Pixel animation keep Global or a Custom color.
@@ -603,6 +610,7 @@
     });
     modes?.classList.toggle('hidden', !keepsOwn);
     modes?.previousElementSibling?.classList?.toggle('hidden', !keepsOwn);
+    modes?.querySelector('[data-tile-color-mode="transparent"]')?.classList.toggle('hidden', !tileTypeBlackIsTransparent(typeValue));
     document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', !keepsOwn || mode !== 'custom');
     document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', !iconOffered);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
@@ -619,6 +627,11 @@
     const remembered = input.dataset.customColor || '';
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
+      // From Transparent a color to start from (black would stay Transparent).
+      else if (before === 'transparent') input.value = '#333333';
+      input.dataset.bgColorDefault = '0';
+    } else if (mode === 'transparent') {
+      input.value = '#000000';
       input.dataset.bgColorDefault = '0';
     } else {
       const type = document.getElementById(tab + '_tile_type')?.value || '0';
@@ -836,7 +849,8 @@
       // A tile with an icon takes its color from the icon: no own color.
       const isDefaultBg = tileBgFollowsDefault(tile.bg_color) || !tileTypeKeepsOwnColor(typeValue);
       const bg = tileBackgroundCss(meta, isDefaultBg,
-        tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'));
+        tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'), null, typeValue);
+      el.classList.toggle('tile-transparent', bg === 'transparent');
       if (isScreensaverTileTab(tab)) {
         // One opacity for every screensaver tile (screensaver footer).
         const opacity = screensaverTileOpacity();

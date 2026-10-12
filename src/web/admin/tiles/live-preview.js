@@ -179,7 +179,8 @@
     if (colorInput?.dataset.bgColorDefault === '1') colorInput.value = defaultBg;
     syncTileColorMode(tab);
     const tileBg = tileBackgroundCss(meta, isDefaultBg,
-      isDefaultBg ? defaultBg : (color || defaultBg));
+      isDefaultBg ? defaultBg : (color || defaultBg), null, type);
+    tileElem.classList.toggle('tile-transparent', tileBg === 'transparent');
     if (isScreensaverTileTab(tab)) {
       // One opacity for every screensaver tile (screensaver footer).
       const opacity = screensaverTileOpacity();

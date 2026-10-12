@@ -7139,6 +7139,18 @@ async function saveGestureEdge(select) {
           tab, 0, nextMeta.defaultBg || '#2A2A2A');
       }
       updateTileType(tab);
+      // New Clocks and Texts sit on the screen: Transparent, without a frame
+      // line (user 2026-10-12).
+      if (previousType === 0 && tileTypeBlackIsTransparent(String(nextType)) && !isScreensaverTileTab(tab)) {
+        const color = document.getElementById(tab + '_tile_color');
+        if (color) {
+          color.value = '#000000';
+          color.dataset.bgColorDefault = '0';
+        }
+        const border = document.getElementById(tab + (Number(nextType) === 9 ? '_clock_tile_border' : '_text_tile_border'));
+        if (border) border.checked = false;
+        syncTileColorMode(tab);
+      }
       // New tiles start in the HomeTiles look: a type with icon colors is
       // filled with the color its icon shows ("Fill"). Existing tiles and the
       // screensaver keep their own style.
@@ -7652,7 +7664,8 @@ async function saveGestureEdge(select) {
     if (colorInput?.dataset.bgColorDefault === '1') colorInput.value = defaultBg;
     syncTileColorMode(tab);
     const tileBg = tileBackgroundCss(meta, isDefaultBg,
-      isDefaultBg ? defaultBg : (color || defaultBg));
+      isDefaultBg ? defaultBg : (color || defaultBg), null, type);
+    tileElem.classList.toggle('tile-transparent', tileBg === 'transparent');
     if (isScreensaverTileTab(tab)) {
       // One opacity for every screensaver tile (screensaver footer).
       const opacity = screensaverTileOpacity();
@@ -9314,9 +9327,10 @@ async function saveGestureEdge(select) {
   // The card is --tile-card: the global tile color in the dark theme, the
   // light card in the light one (tileDefaultBgColor); a black tile shows the
   // light theme's screen color (tileBgColorOrDefault).
-  function tileBackgroundCss(meta, isDefault, hex, opacity = null) {
+  function tileBackgroundCss(meta, isDefault, hex, opacity = null, typeValue = null) {
     const shared = !!isDefault && !!meta?.sharedBg;
     const black = !shared && /^#0{6}$/.test(String(hex));
+    if (black && !isDefault && opacity === null && tileTypeBlackIsTransparent(typeValue)) return 'transparent';
     const cardCss = shared ? 'var(--tile-card, #2A2A2A)' : black ? 'var(--pv-black-tile, #000000)' : hex;
     if (opacity === null || opacity === undefined) return cardCss;
     if (shared || black) {
@@ -9564,6 +9578,9 @@ async function saveGestureEdge(select) {
   // icon.
   const KEEPS_OWN_COLOR_TYPES = ['9', '10', '16'];
   function tileTypeKeepsOwnColor(typeValue) { return KEEPS_OWN_COLOR_TYPES.includes(String(typeValue ?? '0')); }
+  // tileTransparent() (tile_config.h): a Clock or Text tile in black has no
+  // card and no line ("Transparent", user 2026-10-12).
+  function tileTypeBlackIsTransparent(typeValue) { return ['9', '10'].includes(String(typeValue ?? '0')); }
   // tileFills() (tile_config.h): "Fill" of a tile, never on the tiles that
   // keep an own color.
   function tileFills(typeValue, iconColors) { return tileTypeKeepsOwnColor(typeValue) ? 0 : tileFillOf(iconColors); }
@@ -9868,9 +9885,12 @@ async function saveGestureEdge(select) {
   }
   // The color of a tile without an icon (Clock, Text, Pixel animation):
   // Global is the theme's card (stored as the default marker), Custom keeps
-  // the picked color.
+  // the picked color; on Clock and Text black is Transparent.
   function tileColorMode(tab) {
-    return document.getElementById(tab + '_tile_color')?.dataset.bgColorDefault === '0' ? 'custom' : 'global';
+    const input = document.getElementById(tab + '_tile_color');
+    if (input?.dataset.bgColorDefault !== '0') return 'global';
+    const type = document.getElementById(tab + '_tile_type')?.value || '0';
+    return tileTypeBlackIsTransparent(type) && /^#0{6}$/.test(String(input.value)) ? 'transparent' : 'custom';
   }
   // user 2026-10-11: a tile with an icon offers only "Fill" (its icon's
   // color); Clock, Text and Pixel animation keep Global or a Custom color.
@@ -9891,6 +9911,7 @@ async function saveGestureEdge(select) {
     });
     modes?.classList.toggle('hidden', !keepsOwn);
     modes?.previousElementSibling?.classList?.toggle('hidden', !keepsOwn);
+    modes?.querySelector('[data-tile-color-mode="transparent"]')?.classList.toggle('hidden', !tileTypeBlackIsTransparent(typeValue));
     document.getElementById(tab + '_tile_color_row')?.classList.toggle('color-hidden', !keepsOwn || mode !== 'custom');
     document.getElementById(tab + '_tile_icon_fill_row')?.classList.toggle('hidden', !iconOffered);
     if (typeof fitChoiceRows === 'function') fitChoiceRows(tab);
@@ -9907,6 +9928,11 @@ async function saveGestureEdge(select) {
     const remembered = input.dataset.customColor || '';
     if (mode === 'custom') {
       if (before !== 'custom' && remembered) input.value = remembered;
+      // From Transparent a color to start from (black would stay Transparent).
+      else if (before === 'transparent') input.value = '#333333';
+      input.dataset.bgColorDefault = '0';
+    } else if (mode === 'transparent') {
+      input.value = '#000000';
       input.dataset.bgColorDefault = '0';
     } else {
       const type = document.getElementById(tab + '_tile_type')?.value || '0';
@@ -10124,7 +10150,8 @@ async function saveGestureEdge(select) {
       // A tile with an icon takes its color from the icon: no own color.
       const isDefaultBg = tileBgFollowsDefault(tile.bg_color) || !tileTypeKeepsOwnColor(typeValue);
       const bg = tileBackgroundCss(meta, isDefaultBg,
-        tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'));
+        tileBgToHex(tile.bg_color, meta.defaultBg || '#353535'), null, typeValue);
+      el.classList.toggle('tile-transparent', bg === 'transparent');
       if (isScreensaverTileTab(tab)) {
         // One opacity for every screensaver tile (screensaver footer).
         const opacity = screensaverTileOpacity();

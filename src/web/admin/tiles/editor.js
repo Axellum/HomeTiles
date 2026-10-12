@@ -232,6 +232,18 @@
           tab, 0, nextMeta.defaultBg || '#2A2A2A');
       }
       updateTileType(tab);
+      // New Clocks and Texts sit on the screen: Transparent, without a frame
+      // line (user 2026-10-12).
+      if (previousType === 0 && tileTypeBlackIsTransparent(String(nextType)) && !isScreensaverTileTab(tab)) {
+        const color = document.getElementById(tab + '_tile_color');
+        if (color) {
+          color.value = '#000000';
+          color.dataset.bgColorDefault = '0';
+        }
+        const border = document.getElementById(tab + (Number(nextType) === 9 ? '_clock_tile_border' : '_text_tile_border'));
+        if (border) border.checked = false;
+        syncTileColorMode(tab);
+      }
       // New tiles start in the HomeTiles look: a type with icon colors is
       // filled with the color its icon shows ("Fill"). Existing tiles and the
       // screensaver keep their own style.

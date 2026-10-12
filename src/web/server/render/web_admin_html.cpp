@@ -1328,10 +1328,12 @@ static void appendTileTabHTML(
   // Tiles without an icon (Clock, Text, Pixel animation) choose the theme's
   // card or an own color; a tile with an icon takes its color from the icon
   // and only offers "Fill" (user 2026-10-11, tile_icon_colors_html.cpp).
+  // Clock and Text also offer Transparent (tileTransparent, user 2026-10-12).
   const struct {
     const char* mode;
     const char* label;
   } tile_color_modes[] = {{"global", tr.tile_color_mode_global},
+                          {"transparent", tr.tile_color_mode_transparent},
                           {"custom", tr.tile_color_mode_custom}};
   for (const auto& entry : tile_color_modes) {
     html += R"html(<button type="button" id=")html";

@@ -659,7 +659,8 @@ static const Strings kStringsDe = {
     "Senkrecht",
     "Oben",
     "Mitte",
-    "Unten"};
+    "Unten",
+    "Transparent"};
 
 static const Strings kStringsEn = {
     "en",
@@ -1313,7 +1314,8 @@ static const Strings kStringsEn = {
     "Vertical",
     "Top",
     "Middle",
-    "Bottom"};
+    "Bottom",
+    "Transparent"};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1967,7 +1969,8 @@ static const Strings kStringsFr = {
     "Vertical",
     "En haut",
     "Milieu",
-    "En bas"};
+    "En bas",
+    "Transparent"};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -2985,6 +2988,7 @@ static const Strings kStringsPl = {
     "Góra",
     "Środek",
     "Dół",
+    "Przezroczysty",
 };
 
 static const LocaleProfile kLocalePl = {

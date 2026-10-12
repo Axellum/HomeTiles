@@ -59,7 +59,12 @@ assert.ok(shell.includes('ui_surface_style::apply_popup_border(shell.frame, lv_c
 assert.ok(!shell.includes('ui_surface_style::apply_global_tile_border(parts.card);'), 'One popup hairline, not two');
 // b391 (user 2026-10-11, "ausgefranst"): a filled card of the light theme
 // (white words) draws no line, on the panel and in the preview.
-assert.match(style, /bool frame_line_shown\(lv_obj_t\* obj\) \{\s*return !ui_theme::theme_light\(\) \|\| tone_color::light_surface\(card_color\(obj\)\);/);
+// A picture over its card (a Camera tile, border_post) draws none in the
+// light theme either (user 2026-10-12: the light line stepped along the
+// picture's own rounded corners, worst on the S3).
+assert.match(style, /bool frame_line_shown\(lv_obj_t\* obj\) \{\s*if \(!ui_theme::theme_light\(\)\) return true;\s*if \(lv_obj_get_style_border_post\(obj, LV_PART_MAIN\)\) return false;\s*return tone_color::light_surface\(card_color\(obj\)\);/);
+assert.ok(css.includes('html[data-panel-theme="light"] .tile-grid.tiles-bordered > .tile.camera-picture:not(.empty) { outline-color:transparent; }'),
+  'the preview shows no line over a picture in the light theme');
 assert.match(style, /enabled = enabled && !lv_obj_has_flag\(obj, kHiddenTileBorderFlag\) && frame_line_shown\(obj\);/);
 assert.match(read('src/web/admin/tiles/grid-preview.js'),
   /else if \(!toneLightSurface\(card\)\) \{\s*el\.style\.setProperty\('--tile-border-tint', 'transparent'\);\s*return;/);

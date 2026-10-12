@@ -677,6 +677,13 @@ static inline bool tileHasOwnColor(const Tile& tile) {
   return tileBgColorIsSet(tile) && !tileBgColorFollowsDefault(tile.bg_color) && tileTypeKeepsOwnColor(tile.type);
 }
 
+// A Clock or Text tile in black: "Transparent" (user 2026-10-12): no card
+// and no frame line in either theme, the screen shows through. Black was the
+// old way to sit a clock on the screen, so those tiles keep their look.
+static inline bool tileTransparent(const Tile& tile) {
+  return (tile.type == TILE_CLOCK || tile.type == TILE_TEXT) && tileHasOwnColor(tile) && tileBgColorRgb(tile) == 0;
+}
+
 static inline uint32_t tileBgColorOrDefault(const Tile& tile, uint32_t default_color) {
   if (!tileBgColorIsSet(tile) || !tileTypeKeepsOwnColor(tile.type)) return default_color & TILE_BG_COLOR_RGB_MASK;
   if (tileBgColorFollowsDefault(tile.bg_color)) return tileDefaultBgColor();

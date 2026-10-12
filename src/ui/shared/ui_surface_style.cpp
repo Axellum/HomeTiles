@@ -72,10 +72,14 @@ lv_color_t frame_line(lv_obj_t* obj) {
 // A filled card of the light theme (white words) draws no line (user
 // 2026-10-11, b391): its darker line stepped along the rounded corners
 // ("ausgefranst", the strong colors of b389 showed it); the color stands off
-// the light screen by itself. White and other light cards keep theirs, the
-// dark theme keeps every line.
+// the light screen by itself. A picture over its card (a Camera tile,
+// border_post) neither (user 2026-10-12, worst on the S3): the light line
+// over the dark picture stepped along the picture's own rounded corners. White
+// and other light cards keep theirs, the dark theme keeps every line.
 bool frame_line_shown(lv_obj_t* obj) {
-  return !ui_theme::theme_light() || tone_color::light_surface(card_color(obj));
+  if (!ui_theme::theme_light()) return true;
+  if (lv_obj_get_style_border_post(obj, LV_PART_MAIN)) return false;
+  return tone_color::light_surface(card_color(obj));
 }
 
 void apply_style(lv_obj_t* obj, bool enabled) {

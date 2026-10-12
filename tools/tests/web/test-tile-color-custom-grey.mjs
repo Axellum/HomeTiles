@@ -22,7 +22,7 @@ const html = `<!doctype html><html lang="de"><head><style>${readRepoFile('src/we
 <div id="tab-tiles-test" class="tab-content tile-tab active"><div class="tile-editor"><div class="tile-editor-main"><div class="tile-grid tiles-bordered"><div class="tile text" id="test-tile-0" data-index="0"></div></div></div>
 <div id="testSettings" class="tile-settings"><div class="tile-specific-settings"><select id="test_tile_type"><option value="10">Text</option></select><input id="test_tile_title"><input id="test_tile_icon">
 ${['col', 'row', 'span_w', 'span_h'].map((n) => `<input id="test_tile_${n}" type="number">`).join('')}
-<div class="icon-color-segmented tile-color-modes" role="group" id="test_tile_color_modes"><button type="button" id="test_tile_color_mode_global" data-tile-color-mode="global" onclick="setTileColorMode('test','global')">Global</button><button type="button" id="test_tile_color_mode_custom" data-tile-color-mode="custom" onclick="setTileColorMode('test','custom')">Custom</button><button type="button" id="test_tile_color_mode_icon" data-tile-color-mode="icon" onclick="setTileColorMode('test','icon')">From icon</button></div>
+<div class="icon-color-segmented tile-color-modes" role="group" id="test_tile_color_modes"><button type="button" id="test_tile_color_mode_global" data-tile-color-mode="global" onclick="setTileColorMode('test','global')">Global</button><button type="button" id="test_tile_color_mode_transparent" data-tile-color-mode="transparent" onclick="setTileColorMode('test','transparent')">Transparent</button><button type="button" id="test_tile_color_mode_custom" data-tile-color-mode="custom" onclick="setTileColorMode('test','custom')">Custom</button><button type="button" id="test_tile_color_mode_icon" data-tile-color-mode="icon" onclick="setTileColorMode('test','icon')">From icon</button></div>
 <div class="tile-color-row no-reset color-hidden" id="test_tile_color_row"><input type="color" id="test_tile_color" value="#1A1A1A"></div>
 <div class="tile-icon-color-fields icon-color-fill hidden" id="test_tile_icon_fill_row" data-tab="test"><label class="inline-checkbox"><input type="checkbox" id="test_tile_icon_fill" data-icon-color="fill-target"> Fill</label></div>
 <div class="type-fields" id="test_text_fields"><textarea id="test_text_value"></textarea><select id="test_text_value_font"><option value="0"></option></select></div>
@@ -58,6 +58,21 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  check(tileColorMode('test')==='custom','a picked color keeps Custom');
  document.getElementById('test_tile_color_mode_global').click();
  check(tileColorMode('test')==='global','Global still switches back');
+ // Transparent (user 2026-10-12): Clock and Text in black have no card and
+ // no line (tileTransparent); Custom from there starts from a color, not black.
+ check(!document.getElementById('test_tile_color_mode_transparent').classList.contains('hidden'),'Text offers Transparent');
+ document.getElementById('test_tile_color_mode_transparent').click();
+ check(tileColorMode('test')==='transparent'&&input.value==='#000000'&&input.dataset.bgColorDefault==='0','Transparent stores black as own color');
+ check(document.getElementById('test_tile_color_row').classList.contains('color-hidden'),'Transparent hides the color field');
+ const tileEl=document.getElementById('test-tile-0');
+ check(tileEl.classList.contains('tile-transparent')&&getComputedStyle(tileEl).backgroundColor==='rgba(0, 0, 0, 0)','the preview card is transparent');
+ check(getComputedStyle(tileEl).outlineColor==='rgba(0, 0, 0, 0)','and has no frame line');
+ input.showPicker=()=>{};
+ document.getElementById('test_tile_color_mode_custom').click();
+ check(tileColorMode('test')==='custom'&&input.value!=='#000000','Custom from Transparent starts from a color');
+ check(!tileEl.classList.contains('tile-transparent'),'a colored card again');
+ document.getElementById('test_tile_color_mode_transparent').click();
+ check(tileColorMode('test')==='transparent','back to Transparent');
  check(errors.length===0,'no script errors: '+errors.join('; '));
  document.body.dataset.result='pass';
 }catch(error){document.body.dataset.result='fail';document.getElementById('result').textContent=error.stack;}})();

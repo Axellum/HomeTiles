@@ -1160,6 +1160,10 @@
       outline:1px solid var(--tile-border-tint, rgba(var(--pv-text-rgb, 255,255,255),0.20));
       outline-offset:-1px;
     }
+    /* No line on a Transparent Clock or Text (tileTransparent) and, in the
+       light theme, over a Camera picture (frame_line_shown). */
+    .tile-grid.tiles-bordered > .tile.tile-transparent:not(.empty),
+    html[data-panel-theme="light"] .tile-grid.tiles-bordered > .tile.camera-picture:not(.empty) { outline-color:transparent; }
 
     /* Display-like tiles (50% scaling) */
     /* Display: Title=TOP_LEFT, Value=CENTER(-30,18), Unit=RIGHT_MID */
