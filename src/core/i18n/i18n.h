@@ -817,6 +817,8 @@ struct Strings {
   const char* folder_pin_page;
   // Web Admin: the one word over the page slots under Home.
   const char* pages_title;
+  // Web Admin: the tooltip on a full folder's greyed-out type list.
+  const char* js_folder_type_locked;
 };
 
 // Locale-specific display rules and short runtime strings shared by

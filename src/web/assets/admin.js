@@ -8183,6 +8183,14 @@ async function saveGestureEdge(select) {
     if (!sel) return;
     sel.dataset.folderLocked = locked ? '1' : '';
     sel.disabled = locked || !!getTileTypeMeta(sel.value).locked;
+    // Why it is grey, on hover (user 2026-10-12): on the field and its box,
+    // since a disabled field gets no pointer of its own in every browser.
+    const tip = locked ? t('folderTypeLocked') : '';
+    for (const el of [sel, sel.parentElement]) {
+      if (!el) continue;
+      if (tip) el.title = tip;
+      else el.removeAttribute('title');
+    }
   }
 
   // Folders whose deletion was confirmed (tab:index): their save says so.

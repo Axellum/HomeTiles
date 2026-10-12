@@ -44,4 +44,15 @@ assert.match(tiles, /if \(previous_tile\.type == TILE_FOLDER && type != TILE_FOL
 assert.doesNotMatch(read('src/web/server/render/web_admin_html.cpp'), /_tile_type_hint/);
 assert.doesNotMatch(read('src/core/i18n/i18n.h'), /admin_folder_type_locked/);
 
+
+// Greyed out like a disabled button, and on hover it says why (user
+// 2026-10-12), in every language.
+assert.match(read('src/web/assets/admin.css'), /select:disabled \{ opacity:\.45; cursor:not-allowed; \}/);
+assert.match(lock, /const tip = locked \? t\('folderTypeLocked'\) : '';/);
+assert.match(read('src/web/server/render/web_admin_scripts.cpp'), /appendJsEntry\("folderTypeLocked", tr\.js_folder_type_locked\);/);
+const i18n = read('src/core/i18n/i18n.cpp');
+for (const text of ['Der Ordner enthält noch Kacheln. Löschen geht über „Löschen“.', 'The folder still contains tiles. Remove it with “Delete”.',
+  'Le dossier contient encore des tuiles.', 'Folder nadal zawiera kafelki. Usuń go przyciskiem „Usuń”.']) {
+  assert.ok(i18n.includes(text), text);
+}
 console.log('Folder deletion: only after a question, never by a type change');

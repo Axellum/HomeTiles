@@ -668,7 +668,8 @@ static const Strings kStringsDe = {
     "Seiten gespeichert",
     "%u Ordner haben in diesem Layout keinen Platz. Bitte zuerst unter „%s“ einrichten.",
     "Seiten haben keine PIN.",
-    "Seiten"};
+    "Seiten",
+    "Der Ordner enthält noch Kacheln. Löschen geht über „Löschen“."};
 
 static const Strings kStringsEn = {
     "en",
@@ -1331,7 +1332,8 @@ static const Strings kStringsEn = {
     "Pages saved",
     "%u folders have no place in this layout. Please set them up under “%s” first.",
     "Pages have no PIN.",
-    "Pages"};
+    "Pages",
+    "The folder still contains tiles. Remove it with “Delete”."};
 
 static const Strings kStringsFr = {
     "fr",
@@ -1994,7 +1996,8 @@ static const Strings kStringsFr = {
     "Pages enregistrées",
     "%u dossiers n'ont pas de place dans cette disposition. Placez-les d'abord sous «\u00A0%s\u00A0».",
     "Les pages n'ont pas de code PIN.",
-    "Pages"};
+    "Pages",
+    "Le dossier contient encore des tuiles. Supprimez-le avec «\u00A0Supprimer\u00A0»."};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -3023,7 +3026,8 @@ static const Strings kStringsPl = {
     "Zapisano strony",
     "Foldery bez miejsca w tym układzie: %u. Najpierw ustaw je w „%s”.",
     "Strony nie mają kodu PIN.",
-    "Strony"};
+    "Strony",
+    "Folder nadal zawiera kafelki. Usuń go przyciskiem „Usuń”."};
 
 static const LocaleProfile kLocalePl = {
     "pl",

@@ -83,6 +83,7 @@ void appendAdminScripts(String& html) {
   appendJsEntry("tileDoesNotFit", tr.js_tile_does_not_fit);
   appendJsEntry("pageUnlockConfirm", tr.js_page_unlock_confirm);
   appendJsEntry("pagesSaved", tr.js_pages_saved);
+  appendJsEntry("folderTypeLocked", tr.js_folder_type_locked);
   appendJsEntry("noLayoutFound", tr.js_no_layout_found);
   appendJsEntry("tilesMovedSaved", tr.js_tiles_moved_saved);
   appendJsEntry("screensaverSaved", tr.js_screensaver_saved);
