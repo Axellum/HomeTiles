@@ -656,6 +656,13 @@ assert.match(installerSource, /if \(!detectedFlashSize\)/);
 assert.doesNotMatch(installerSource, /esploader\.after\("hard_reset"/);
 assert.doesNotMatch(installerSource, /github\.com\/GalusPeres\/HomeTiles\/releases\/download/);
 assert.match(installerSource, /resolveSameOriginAsset/);
+// After the last block the device still writes (a minute or two for a 32 MB
+// factory image): the page says so instead of standing at 100 % (user
+// 2026-10-12: "andere Leute könnten meinen, dass es hängt").
+assert.match(installerSource, /if \(fraction >= 1\) showFinishing\("Finishing factory image",/);
+assert.match(installerSource, /if \(fraction >= 1\) showFinishing\("Finishing update",/);
+assert.match(installerSource, /state\.finishing \? "Finishing…"/);
+assert.match(installerSource, /function showFinishing\(phase, message\) \{\s*if \(state\.finishing\) return;\s*state\.finishing = true;/);
 assert.match(installerSource, /verifyExistingLayout/);
 assert.match(installerSource, /eraseFlash\(\)/);
 assert.match(installerSource, /populateDevices\(index\.devices\)/);
