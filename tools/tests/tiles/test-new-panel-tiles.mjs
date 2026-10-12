@@ -84,7 +84,15 @@ assert.match(fn('seed'), /grid_layout::apply\(static_cast<uint8_t>\(layout\)\);\
 // the classic grid. It keeps its look and place like a Web Admin park.
 assert.match(fn('seed'), /configManager\.saveLayout\(static_cast<uint8_t>\(layout\)\)\) \{[\s\S]*?\}\s*[\s\S]*?if \(!park_settings_tile\(\*grid\)\)[\s\S]*?grid_layout::apply/);
 const park = fn('park_settings_tile');
-assert.match(park, /if \(tile\.type == TILE_SETTINGS\) TileConfig::snapshotSettingsTile\(tile, cfg->settings_tile_snapshot\);/);
+assert.match(park, /if \(tile\.type != TILE_SETTINGS\) continue;\s*TileConfig::snapshotSettingsTile\(tile, cfg->settings_tile_snapshot\);/);
+// Its name dates from before the setup's language choice: the snapshot keeps
+// none, so a restore (and the Web Admin's parking slot) names it in the
+// panel's language then.
+assert.match(park, /cfg->settings_tile_snapshot\.title\[0\] = '\\0';/);
+assert.match(read('src/tiles/config/tile_config.cpp'),
+  /tile\.title = snapshot\.valid && snapshot\.title\[0\]\s*\? String\(snapshot\.title\)\s*: String\(i18n::strings\(configManager\.getConfig\(\)\.language\)\s*\.tile_type_settings\);/);
+assert.match(read('src/web/server/render/web_admin_html.cpp'),
+  /snapshot\.valid && snapshot\.title\[0\]\s*\? String\(snapshot\.title\)\s*: String\(tr\.tile_type_settings\);/);
 assert.match(park, /cfg->settings_tile_hidden = true;\s*cfg->settings_swipe_enabled = true;/);
 assert.match(park, /configManager\.save\(\*cfg\) &&\s*tileConfig\.setSettingsTileVisible\(false\) == SettingsTileVisibilityResult::Success/);
 // The Web Admin's park takes the same snapshot.

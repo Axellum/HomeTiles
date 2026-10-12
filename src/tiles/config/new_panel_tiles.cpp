@@ -85,7 +85,11 @@ bool park_settings_tile(const TileGridConfig& grid) {
   std::unique_ptr<DeviceConfig> cfg(new (std::nothrow) DeviceConfig(configManager.getConfig()));
   if (!cfg) return false;
   for (const Tile& tile : grid.tiles) {
-    if (tile.type == TILE_SETTINGS) TileConfig::snapshotSettingsTile(tile, cfg->settings_tile_snapshot);
+    if (tile.type != TILE_SETTINGS) continue;
+    TileConfig::snapshotSettingsTile(tile, cfg->settings_tile_snapshot);
+    // No title of its own: the tile got its name before the setup's language
+    // choice; restored, it takes the panel's language then.
+    cfg->settings_tile_snapshot.title[0] = '\0';
   }
   cfg->settings_tile_hidden = true;
   cfg->settings_swipe_enabled = true;
