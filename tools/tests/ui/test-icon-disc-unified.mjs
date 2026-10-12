@@ -148,12 +148,27 @@ const original = {
   climate: /icon_label, LV_ALIGN_TOP_LEFT,\s*-8, -8\);/,
   text: /lv_obj_align\(icon_lbl, LV_ALIGN_TOP_RIGHT,\s*tile_layout::scale_480\(4\),\s*tile_layout::scale_480\(-8\)\)/,
   clock: /lv_obj_align\(title_lbl, LV_ALIGN_TOP_LEFT, 0,\s*tile_layout::scale_480\(4\)\)/,
-  navigate: /lv_obj_align\(l, LV_ALIGN_CENTER, 0, tile_layout::scale\(35\)\)/,
-  camera: /lv_obj_align\(icon, LV_ALIGN_CENTER, 0, tile_layout::scale_i16\(-20\)\)/,
 };
 for (const [type, pattern] of Object.entries(original)) {
   assert.match(read(`src/types/${type}/renderer.cpp`), pattern, `${type} keeps its original header geometry`);
 }
+// An icon over its title (user 2026-10-12: the title sat high and close
+// under the icon, differently on every panel): one shared group, the disc,
+// 30 % of it as the gap and the title's capitals centered in the card; no
+// renderer keeps the old fixed offsets.
+const disc = read('src/tiles/runtime/tile_icon_disc.h');
+assert.match(disc, /inline IconTitleOffsets icon_title_offsets\(const lv_font_t\* icon_font, const lv_font_t\* title_font\)/);
+assert.match(disc, /const int gap = \(disc \* 3 \+ 5\) \/ 10;/);
+assert.match(disc, /out\.title = top \+ group - line \/ 2 \+ title_font->base_line;/);
+for (const type of ['navigate', 'scene', 'camera', 'switch']) {
+  const source = read(`src/types/${type}/renderer.cpp`);
+  assert.match(source, /tile_icon_disc::icon_title_offsets\(FONT_MDI_ICONS, tile_layout::header_title_font\(\)\)/, `${type} uses the shared group`);
+  assert.doesNotMatch(source, /LV_ALIGN_CENTER, 0,\s*tile_layout::(scale|scale_i16|scale_480)\((-20|35)\)/, `${type} has no fixed icon or title offset`);
+}
+assert.match(styles, /emit_scaled\("icon-title-icon-dy", offsets\.icon\);\s*emit_scaled\("icon-title-title-dy", offsets\.title\);/);
+const css = read('src/web/assets/admin.css');
+assert.ok(css.includes('top:calc(50% + var(--icon-title-icon-dy, -11px) - var(--icon-size, 24px) / 2);'), 'the preview icon');
+assert.ok(css.includes('top:calc(50% + var(--icon-title-title-dy, 21px) - var(--lh20, 13px) / 2 + var(--ldy20, 0px));'), 'the preview title');
 // Number, Select and Date/Time render through the Sensor tile.
 for (const type of ['number', 'select', 'datetime']) {
   assert.match(read(`src/types/${type}/renderer.cpp`), /render_sensor_tile\(/, `${type} uses the Sensor tile`);

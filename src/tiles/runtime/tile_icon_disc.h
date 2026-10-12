@@ -720,6 +720,35 @@ inline int header_diameter(int icon_width) {
   return around_icon > diameter() ? around_icon : diameter();
 }
 
+// An icon over its title (Folder, Settings, Back, Scene, Camera, the Switch
+// icon button): the disc, a gap of 30 % of the disc and the title's capitals
+// are one group in the card's middle; descenders hang below it (user
+// 2026-10-12: the title sat high and close under the icon, the gap 6 to
+// 20 px by the panel: fixed offsets of -20 / +35 while the disc follows the
+// cell height). The offsets from the card's middle (LV_ALIGN_CENTER) of the
+// icon (the disc's middle) and of a one-line title. The preview reads them as
+// --icon-title-icon-dy / --icon-title-title-dy (web_admin_styles.cpp).
+struct IconTitleOffsets {
+  int icon = 0;
+  int title = 0;
+};
+inline IconTitleOffsets icon_title_offsets(const lv_font_t* icon_font, const lv_font_t* title_font) {
+  IconTitleOffsets out;
+  if (!icon_font || !title_font) return out;
+  const int disc = header_diameter(lv_font_get_glyph_width(icon_font, kMdiReferenceGlyph, 0));
+  const int gap = (disc * 3 + 5) / 10;
+  lv_font_glyph_dsc_t capital{};
+  const int caps = lv_font_get_glyph_dsc(title_font, &capital, 'H', 0) ? capital.box_h : 0;
+  const int group = disc + gap + caps;
+  const int top = -(group / 2);
+  out.icon = top + disc / 2;
+  // The title's baseline at the group's bottom: its label middle lies half
+  // a line above the baseline plus the font's base line.
+  const int line = lv_font_get_line_height(title_font);
+  out.title = top + group - line / 2 + title_font->base_line;
+  return out;
+}
+
 // Taller tiles with the icon in the top-left corner place the disc like the
 // half-height tiles: the half-height inset from the tile's left and top
 // edges, so it is concentric with the tile corner on every device. The icon

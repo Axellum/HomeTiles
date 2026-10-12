@@ -2696,6 +2696,20 @@
 .tile.camera { display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .tile.camera .tile-title { text-align:center; align-self:auto; width:100%; margin-top:4px; }
     .tile.camera .tile-icon { margin-bottom:4px; }
+/* An icon over its title (Folder, Settings, Back, Scene, Camera, the Switch
+   icon button; tile_icon_disc::icon_title_offsets): the icon's and the
+   one-line title's middle from the card's middle like the panel, the title
+   on the panel's baseline (--ldy20). The 3 px editor border moves neither. */
+.tile:is(.navigate, .scene, .camera:not(.camera-picture), .switch:not(.switch-bar)):not(.sensor-compact):has(> .tile-icon):has(> .tile-title) > .tile-icon {
+  position:absolute; margin:0;
+  left:calc(50% - var(--icon-size, 24px) / 2); width:var(--icon-size, 24px); text-align:center;
+  top:calc(50% + var(--icon-title-icon-dy, -11px) - var(--icon-size, 24px) / 2);
+}
+.tile:is(.navigate, .scene, .camera:not(.camera-picture), .switch:not(.switch-bar)):not(.sensor-compact):has(> .tile-icon):has(> .tile-title) > .tile-title {
+  position:absolute; margin:0; padding:0 4px; box-sizing:border-box; left:0; right:0; width:auto; min-height:0;
+  line-height:var(--lh20, 13px);
+  top:calc(50% + var(--icon-title-title-dy, 21px) - var(--lh20, 13px) / 2 + var(--ldy20, 0px));
+}
 
 .tile.animation { background:#000; }
     .tile.animation .tile-title { text-align:left; align-self:start; width:100%; }

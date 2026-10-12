@@ -684,10 +684,13 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
   const bool has_title = tile.title.length() > 0;
 
   if (!header) {
-    // Icon button: icon and title centered on two lines, or the icon alone.
+    // Icon button: icon and title centered on two lines like a Folder
+    // (tile_icon_disc::icon_title_offsets), or the icon alone.
+    const tile_icon_disc::IconTitleOffsets offsets =
+        tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font());
     if (icon_lbl) {
       if (has_title) {
-        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, tile_layout::scale_480(-20));
+        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, offsets.icon);
       } else {
         lv_obj_center(icon_lbl);
       }
@@ -698,7 +701,7 @@ lv_obj_t* render_switch_tile(lv_obj_t* parent, int col, int row, const Tile& til
         set_label_style(title_lbl, lv_color_hex(ui_theme::text()), tile_layout::header_title_font());
         hometiles_title::tile(title_lbl, tile.title.c_str(), false);
         if (icon_lbl) {
-          lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, tile_layout::scale_480(35));
+          lv_obj_align(title_lbl, LV_ALIGN_CENTER, 0, offsets.title);
         } else {
           lv_obj_center(title_lbl);
         }

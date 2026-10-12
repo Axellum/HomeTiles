@@ -322,6 +322,14 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   // close to the corner on the S3 and 4B, cut by the card corner (user
   // 2026-10-02).
   emit_scaled("icon-disc-corner", header.disc);
+  // An icon over its title (tile_icon_disc::icon_title_offsets): the icon's
+  // and the title's middle from the card's middle.
+  {
+    const tile_icon_disc::IconTitleOffsets offsets =
+        tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font());
+    emit_scaled("icon-title-icon-dy", offsets.icon);
+    emit_scaled("icon-title-title-dy", offsets.title);
+  }
   emit_exact("tile-header-title-top",
              tile_layout::scale_480(24) + tile_layout::scale_480(4) + header.shift);
   emit_exact("tile-header-title-right", tile_layout::scale_480(20) - tile_layout::scale_480(4));

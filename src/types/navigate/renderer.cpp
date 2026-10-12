@@ -103,6 +103,8 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
   // A half-height navigation tile uses the half-height Sensor header: the
   // icon in the concentric corner disc and the title, if any, beside it.
   const bool compact = tile_geometry::compact_icon_title(tile.type, tile.span_w, tile.span_h);
+  const tile_icon_disc::IconTitleOffsets offsets =
+      tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font());
 
   if (has_icon) {
     icon_lbl = lv_label_create(btn);
@@ -114,8 +116,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
       // Center icon and title on two lines, or the icon alone on one line.
       if (!compact) {
         if (has_title) {
-          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0,
-                       tile_layout::scale_i16(-20));
+          lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, offsets.icon);
         } else {
           lv_obj_center(icon_lbl);  // Center the icon when there is no title.
         }
@@ -137,7 +138,7 @@ lv_obj_t* render_navigate_tile(lv_obj_t* parent, int col, int row, const Tile& t
       if (compact) {
         // compact_sensor_layout places it beside the disc below.
       } else if (icon_lbl) {
-        lv_obj_align(l, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
+        lv_obj_align(l, LV_ALIGN_CENTER, 0, offsets.title);
       } else {
         lv_obj_center(l);  // Center the title when there is no icon.
       }

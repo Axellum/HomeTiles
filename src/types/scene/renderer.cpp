@@ -309,6 +309,8 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
   // A half-height Scene uses the half-height Sensor header: the icon in the
   // concentric corner disc and the title beside it.
   const bool compact = tile_geometry::compact_icon_title(tile.type, tile.span_w, tile.span_h);
+  const tile_icon_disc::IconTitleOffsets offsets =
+      tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font());
 
   // Position icon
   if (icon_img) {
@@ -321,8 +323,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
         if (lv_obj_t* img = lv_obj_get_child(icon_img, 0)) lv_obj_set_size(img, size, size);
         lv_obj_align(icon_img, LV_ALIGN_TOP_LEFT, tile_icon_disc::inset(), tile_icon_disc::inset());
       } else if (has_title) {
-        lv_obj_align(icon_img, LV_ALIGN_CENTER, 0,
-                     tile_layout::scale_i16(-20));
+        lv_obj_align(icon_img, LV_ALIGN_CENTER, 0, offsets.icon);
       } else {
         lv_obj_center(icon_img);
       }
@@ -331,8 +332,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
     tile_icon_source::apply_initial(icon_lbl, tile);
     if (!compact) {
       if (has_title) {
-        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0,
-                     tile_layout::scale_i16(-20));
+        lv_obj_align(icon_lbl, LV_ALIGN_CENTER, 0, offsets.icon);
       } else {
         lv_obj_center(icon_lbl);
       }
@@ -352,7 +352,7 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
       if (compact) {
         // compact_sensor_layout places it beside the disc below.
       } else if (has_icon) {
-        lv_obj_align(l, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
+        lv_obj_align(l, LV_ALIGN_CENTER, 0, offsets.title);
       } else {
         lv_obj_center(l);
       }

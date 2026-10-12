@@ -128,7 +128,8 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
     lv_label_set_text(icon, icon_char.c_str());
     tile_icon_source::apply_initial(icon, tile);
     if (!compact) {
-      lv_obj_align(icon, LV_ALIGN_CENTER, 0, tile_layout::scale_i16(-20));
+      lv_obj_align(icon, LV_ALIGN_CENTER, 0,
+                   tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font()).icon);
       tile_icon_disc::add_round(card, icon);
     }
   }
@@ -140,7 +141,8 @@ lv_obj_t* render_camera_tile(lv_obj_t* parent,
   if (compact) {
     compact_sensor_layout::apply(card, icon, title_label, nullptr, tile);
   } else if (icon) {
-    lv_obj_align(title_label, LV_ALIGN_CENTER, 0, tile_layout::scale(35));
+    lv_obj_align(title_label, LV_ALIGN_CENTER, 0,
+                 tile_icon_disc::icon_title_offsets(FONT_MDI_ICONS, tile_layout::header_title_font()).title);
   } else {
     lv_obj_center(title_label);
   }
