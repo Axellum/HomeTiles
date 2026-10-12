@@ -62,6 +62,9 @@ for (const p of Object.values(PANELS)) {
 }
 const args = process.argv.slice(2);
 const noMockup = args.includes('--no-mockup');
+// --upright: a landscape panel showing an upright layout (grid_layout
+// kPortrait): the screen turned, the Settings and the setup by the shown size.
+const upright = args.includes('--upright');
 const selected = args.filter(a => PANELS[a]);
 const option = name => (args.find(a => a.startsWith(`--${name}=`)) || '').split('=')[1];
 const page = option('page') || 'display';
@@ -85,7 +88,7 @@ const online = setup ? state === 'online' || (step >= 2 && state !== 'new') : st
 const shot = page + (setup ? step : '') + (open === undefined ? '' : `-open${open}`) +
   (press === undefined ? '' : `-press${press}`) + (state === undefined ? '' : `-${state}`) +
   (dialog === undefined ? '' : `-${dialog}`) + (entry === undefined ? '' : `-${entry}`) +
-  (language === 'en' ? '' : `-${language}`) + (keys === undefined ? '' : `-${keys}`);
+  (language === 'en' ? '' : `-${language}`) + (keys === undefined ? '' : `-${keys}`) + (upright ? '-upright' : '');
 // The mockup's hash for the same state.
 const mockupState = (open === undefined ? '' : `&dd=${open}`) + (state === 'off' ? '&enc=0&pw=win' : state === 'new' && !setup ? '&enc=0&pw=0' : '') +
   (state === 'eth' ? '&eth=eth' : state === 'ethwifi' ? '&eth=wifi' : '') +
@@ -366,11 +369,15 @@ void setup_end() {}
 bool web_admin_url(char* buf, size_t len) { snprintf(buf, len, "http://192.168.1.50"); return ${online ? 'true' : 'false'}; }
 const char* setup_guide_url() { return "https://galusperes.github.io/HomeTiles/"; }
 }
+// The screen as shown (turned with --upright).
+static const int kShownW = ${upright ? 'SCREEN_HEIGHT' : 'SCREEN_WIDTH'};
+static const int kShownH = ${upright ? 'SCREEN_WIDTH' : 'SCREEN_HEIGHT'};
 int main(int argc, char** argv) {
   tone_color::g_from_icon_card = &host_from_icon_card;
+  ${upright ? 'grid_layout::g_shown = grid_layout::layout_grid(grid_layout::Layout::kPortrait);' : ''}
   lv_init();
-  lv_display_t* display = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
-  std::vector<uint32_t> pixels(SCREEN_WIDTH * SCREEN_HEIGHT), band(SCREEN_WIDTH * 32);
+  lv_display_t* display = lv_display_create(kShownW, kShownH);
+  std::vector<uint32_t> pixels(kShownW * kShownH), band(kShownW * 32);
   lv_display_set_color_format(display, LV_COLOR_FORMAT_XRGB8888);
   lv_display_set_buffers(display, band.data(), nullptr, band.size() * 4, LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_user_data(display, &pixels);
@@ -378,7 +385,7 @@ int main(int argc, char** argv) {
     auto& target = *static_cast<std::vector<uint32_t>*>(lv_display_get_user_data(d));
     auto* source = reinterpret_cast<uint32_t*>(data);
     for (int y = area->y1; y <= area->y2; ++y)
-      for (int x = area->x1; x <= area->x2; ++x) target[y * SCREEN_WIDTH + x] = *source++;
+      for (int x = area->x1; x <= area->x2; ++x) target[y * kShownW + x] = *source++;
     lv_display_flush_ready(d);
   });
   lv_obj_t* screen = lv_screen_active();
@@ -497,12 +504,13 @@ for (const key of panels) {
     process.exit(1);
   }
   const xrgb = fs.readFileSync(raw);
-  const firmware = Buffer.alloc(p.W * p.H * 3);
-  for (let i = 0; i < p.W * p.H; i++) {
+  const shownW = upright ? p.H : p.W, shownH = upright ? p.W : p.H;
+  const firmware = Buffer.alloc(shownW * shownH * 3);
+  for (let i = 0; i < shownW * shownH; i++) {
     firmware[i * 3] = xrgb[i * 4 + 2]; firmware[i * 3 + 1] = xrgb[i * 4 + 1]; firmware[i * 3 + 2] = xrgb[i * 4];
   }
-  fs.writeFileSync(path.join(out, `${key}-${shot}.png`), encodePng(p.W, p.H, firmware));
-  const reference = noMockup ? null : mockup(key, p);
+  fs.writeFileSync(path.join(out, `${key}-${shot}.png`), encodePng(shownW, shownH, firmware));
+  const reference = noMockup || upright ? null : mockup(key, p);
   if (!reference) {
     console.log(`${key}: ${path.join(out, `${key}-${shot}.png`)}`);
     continue;

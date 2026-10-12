@@ -66,7 +66,6 @@ const card = between(setup, 'void build_card() {', 'void tick() {');
 assert.match(card, /lv_obj_set_size\(g_card, card_width\(\), card_height\(\)\);/);
 assert.match(setup, /int card_width\(\) \{ return popup_layout::kCardWidth; \}/);
 // The setup keeps the full height on portrait panels (popup cards are square there).
-assert.match(setup, /int card_height\(\) \{ return SCREEN_HEIGHT - 2 \* popup_layout::kCardMargin; \}/);
 const layout = readRepoFile('src/ui/popups/popup_layout.h');
 assert.match(layout, /kCardHeight =\s*\(SCREEN_HEIGHT > SCREEN_WIDTH\) \? kCardWidth : \(SCREEN_HEIGHT - \(kCardMargin \* 2\)\);/,
   'popup cards are a square in the middle on portrait panels');
@@ -95,6 +94,12 @@ assert.match(language, /setup_row\(group, [^,]+, s\.theme_label\);[\s\S]*?settin
 assert.match(language, /if \(settings_model::layout_choice\(\)\) \{[\s\S]*?settings_model::layout_selected\(index\);[\s\S]*?layout_picture\(lv_obj_get_child\(choice, i\), i == 1\);/);
 assert.match(language, /if \(lv_obj_get_height\(group\) > body_height\(\)\) \{\s*lv_obj_set_height\(group, body_height\(\)\);\s*lv_obj_add_flag\(group, LV_OBJ_FLAG_SCROLLABLE\);/);
 assert.match(rawSetup, /kSteps\[kStepCount\] = \{\{"tune-variant", settings_style::kLocalizationColor\}/);
+// By the screen as this boot shows it (user 2026-10-12: upright, the setup
+// stood at the top edge, shifted right and cut): never the profile's fixed
+// landscape size.
+assert.match(setup, /int card_height\(\) \{ return grid_layout::screen_h\(\) - 2 \* popup_layout::kCardMargin; \}/);
+assert.match(setup, /lv_obj_set_pos\(g_card, \(grid_layout::screen_w\(\) - card_width\(\)\) \/ 2 - settings_style::kGrid\.pad_left,/);
+assert.doesNotMatch(setup, /SCREEN_WIDTH|SCREEN_HEIGHT/, 'no fixed screen size in the setup');
 // The segment names its last child, so a picture can stand before it.
 assert.match(readRepoFile('src/ui/tabs/settings/settings_parts.cpp'), /lv_obj_t\* label = lv_obj_get_child\(option, -1\);/);
 // The layout only in a new panel's first setup (not opened from Settings),

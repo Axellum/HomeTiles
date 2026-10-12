@@ -106,8 +106,11 @@ void* data(Action action) { return reinterpret_cast<void*>(static_cast<uintptr_t
 
 int card_width() { return popup_layout::kCardWidth; }
 // The setup is the whole screen, not a popup over Home: its card keeps the
-// full height on portrait panels too (popup cards are square there).
-int card_height() { return SCREEN_HEIGHT - 2 * popup_layout::kCardMargin; }
+// full height on portrait panels too (popup cards are square there). By the
+// screen as this boot shows it: an upright layout turns a landscape panel
+// (user 2026-10-12: the setup stood at the top edge, shifted right and cut,
+// while popups sat in the middle).
+int card_height() { return grid_layout::screen_h() - 2 * popup_layout::kCardMargin; }
 int body_top() {
   return popup_layout::kHeaderCenterY + popup_layout::kHeaderIconDiscSize / 2 + settings_style::kSetupBodyGap;
 }
@@ -965,7 +968,7 @@ void build_card() {
   g_built_text = &settings_model::text();
   const Colors palette = colors();
   g_card = settings_parts::plain(g_panel);
-  lv_obj_set_pos(g_card, (SCREEN_WIDTH - card_width()) / 2 - settings_style::kGrid.pad_left,
+  lv_obj_set_pos(g_card, (grid_layout::screen_w() - card_width()) / 2 - settings_style::kGrid.pad_left,
                  popup_layout::kCardMargin - settings_style::kGrid.pad_top);
   lv_obj_set_size(g_card, card_width(), card_height());
   lv_obj_set_style_bg_color(g_card, lv_color_hex(palette.card), 0);
