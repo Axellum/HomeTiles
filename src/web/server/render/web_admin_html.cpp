@@ -444,31 +444,6 @@ static void appendTileTabHTML(
 <div class="tile-editor">
 <div class="tile-editor-main">
 )html";
-  // The page slots above Home (head bar layouts, user 2026-10-12): six
-  // cells like the Settings parking slot; page-slots.js fills them from the
-  // Home grid's folder tiles and saves them through /api/pages.
-  if (!screensaver_mode && folder_id == 0 && grid_layout::head_bar()) {
-    uint16_t pages[tile_layouts::kMaxPages];
-    const size_t count = tile_layouts::pages(pages);
-    html += "<div class=\"page-slots-row\"><div class=\"page-slots-hint\"><strong>";
-    appendHtmlEscaped(html, tr.pages_title);
-    html += "</strong> ";
-    appendHtmlEscaped(html, tr.pages_hint);
-    // Not a .tile-grid with .tile children: the editor finds Home's grid and
-    // its tiles by those classes.
-    html += "</div><div id=\"pageSlots\" class=\"page-slots";
-    if (configManager.getConfig().tile_borders) html += " tiles-bordered";
-    html += "\" data-pages=\"";
-    for (size_t i = 0; i < count; ++i) {
-      if (i) html += ",";
-      html += String(pages[i]);
-    }
-    html += "\">";
-    for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
-      html += "<div class=\"page-slot empty\" draggable=\"false\"><i class=\"mdi mdi-tray-arrow-down\"></i></div>";
-    }
-    html += "</div></div>\n";
-  }
   html += R"html(<div class="tile-grid-scroll">
 <!-- Grid Preview -->
 <div class="tile-grid)html";
@@ -912,7 +887,28 @@ static void appendTileTabHTML(
     char hidden_color_hex[8];
     snprintf(hidden_color_hex, sizeof(hidden_color_hex), "#%06X",
              static_cast<unsigned>(hidden_color));
-    html += "<div class=\"settings-hidden-parking\"><div id=\"settingsHiddenSlot\" class=\"tile-grid settings-hidden-slot";
+    // The head bar layouts (user 2026-10-12): the page slots and, right of
+    // them, the Settings slot in one row under Home, without texts;
+    // page-slots.js fills the slots from the Home grid's folder tiles and
+    // saves them through /api/pages. Not a .tile-grid with .tile children:
+    // the editor finds Home's grid and its tiles by those classes.
+    const bool page_slots = grid_layout::head_bar();
+    html += page_slots ? "<div class=\"settings-hidden-parking page-parking\">" : "<div class=\"settings-hidden-parking\">";
+    if (page_slots) {
+      uint16_t pages[tile_layouts::kMaxPages];
+      const size_t count = tile_layouts::pages(pages);
+      html += "<div id=\"pageSlots\" class=\"page-slots\" data-pages=\"";
+      for (size_t i = 0; i < count; ++i) {
+        if (i) html += ",";
+        html += String(pages[i]);
+      }
+      html += "\">";
+      for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
+        html += "<div class=\"page-slot empty\" draggable=\"false\"><i class=\"mdi mdi-tray-arrow-down\"></i></div>";
+      }
+      html += "</div>";
+    }
+    html += "<div id=\"settingsHiddenSlot\" class=\"tile-grid settings-hidden-slot";
     if (configManager.getConfig().tile_borders) html += " tiles-bordered";
     if (hidden) html += " has-tile";
     html += "\"><div id=\"settingsHiddenTile\" class=\"tile settings-hidden-tile ";
@@ -950,15 +946,19 @@ static void appendTileTabHTML(
     } else {
       html += "><i class=\"mdi mdi-tray-arrow-down tile-icon\"></i>";
     }
-    // Beside the slot: its drop hint while it is empty, and the tile editing
-    // hint the other grids show in their footer.
-    html += "</div></div><div class=\"settings-parking-texts\"><div id=\"settingsHiddenHint\" class=\"settings-hidden-hint";
-    if (hidden) html += " is-hidden";
-    html += "\">";
-    appendHtmlEscaped(html, tr.settings_tile_parking);
-    html += "</div><p class=\"hint\">";
-    html += tr.admin_tile_hint;
-    html += "</p></div></div>";
+    html += "</div></div>";
+    // The classic layout: beside the slot its drop hint while it is empty,
+    // and the tile editing hint the other grids show in their footer.
+    if (!page_slots) {
+      html += "<div class=\"settings-parking-texts\"><div id=\"settingsHiddenHint\" class=\"settings-hidden-hint";
+      if (hidden) html += " is-hidden";
+      html += "\">";
+      appendHtmlEscaped(html, tr.settings_tile_parking);
+      html += "</div><p class=\"hint\">";
+      html += tr.admin_tile_hint;
+      html += "</p></div>";
+    }
+    html += "</div>";
   } else if (!screensaver_mode) {
     // A folder shows the editing hint and Delete Folder where Home keeps its
     // Settings parking slot: beside the grid on four-column devices, below

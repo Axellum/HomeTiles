@@ -1993,6 +1993,11 @@ void WebAdminServer::handleSaveFolderAccess() {
   const bool was_enabled = tileConfig.isFolderPinEnabled(folder_id);
   const bool enable = server.hasArg("enabled") &&
                       server.arg("enabled") != "0";
+  // A page has no PIN (user 2026-10-12): swiped to, it opens at once.
+  if (enable && tile_layouts::page_number(folder_id) > 0) {
+    sendError(409, tr.folder_pin_page);
+    return;
+  }
   bool success = false;
   if (!enable) {
     success = tileConfig.clearFolderPin(folder_id);

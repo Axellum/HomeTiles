@@ -3,7 +3,8 @@
   // folder dropped on one becomes a page beside Home (its tile leaves Home),
   // a page dragged onto the grid becomes a folder tile again, and the slot
   // order is the order of the panel's dots.
-  const PAGE_SLOT_COUNT = 6;
+  // Five pages beside Home (tile_layouts::kMaxPages).
+  const PAGE_SLOT_COUNT = 5;
 
   function pageSlotsElement() {
     return document.getElementById('pageSlots');
@@ -30,38 +31,50 @@
   }
 
   // A filled slot shows the page's folder tile as the grid draws it (its
-  // tile stays in Home's grid, hidden: tile-unplaced).
+  // tile stays in Home's grid, hidden: tile-unplaced). Only what changed is
+  // touched: rebuilding every slot on each change made them blink (user
+  // 2026-10-12).
   function renderPageSlots() {
     const slots = pageSlotsElement();
     if (!slots) return;
     const pages = pageFolders();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
       const folder = pages[i] || 0;
-      slot.dataset.folder = folder ? String(folder) : '';
-      slot.draggable = !!folder;
-      slot.classList.toggle('has-tile', !!folder);
       const source = folder ? homeFolderTile(folder) : null;
-      slot.className = 'page-slot ' + (folder && source ? 'has-tile' : 'empty');
-      if (!folder || !source) {
+      const selected = !!source && currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index);
+      // The folder tile's look without its place in the grid and without
+      // the editor's marks and handles; no id or index, so the editor never
+      // takes it for a grid tile.
+      let tile = null;
+      if (source) {
+        tile = document.createElement('div');
+        tile.className = source.className;
+        tile.classList.remove('tile-unplaced', 'fractional-tile', 'active', 'dragging', 'drop-target',
+          'sensor-compact', 'sensor-half', 'compact-title-only');
+        for (const property of Array.from(source.style)) {
+          if (/^(grid|display|--tile-(col|row|w|h)$)/.test(property)) continue;
+          tile.style.setProperty(property, source.style.getPropertyValue(property));
+        }
+        tile.innerHTML = source.innerHTML;
+        tile.querySelectorAll('.tile-resize-handle').forEach(handle => handle.remove());
+      }
+      const look = tile ? tile.className + '|' + tile.style.cssText + '|' + tile.innerHTML : '';
+      if (slot.dataset.look === look && slot.dataset.folder === (folder ? String(folder) : '')) {
+        slot.querySelector(':scope > .tile')?.classList.toggle('active', selected);
+        return;
+      }
+      slot.dataset.look = look;
+      slot.dataset.folder = folder ? String(folder) : '';
+      slot.draggable = !!tile;
+      slot.className = 'page-slot ' + (tile ? 'has-tile' : 'empty');
+      if (!tile) {
         slot.innerHTML = '<i class="mdi mdi-tray-arrow-down"></i>';
         return;
       }
-      // The folder tile's look without its place in the grid; no id or
-      // index, so the editor never takes it for a grid tile.
-      const tile = document.createElement('div');
-      tile.className = source.className;
-      tile.classList.remove('tile-unplaced', 'fractional-tile', 'active', 'dragging', 'drop-target',
-        'sensor-compact', 'sensor-half', 'compact-title-only');
-      for (const property of Array.from(source.style)) {
-        if (/^(grid|display|--tile-(col|row|w|h)$)/.test(property)) continue;
-        tile.style.setProperty(property, source.style.getPropertyValue(property));
-      }
-      tile.innerHTML = source.innerHTML;
       // Picked in the editor: the teal selection like in the grid.
-      tile.classList.toggle('active', currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index));
+      tile.classList.toggle('active', selected);
       slot.replaceChildren(tile);
     });
-    syncPageHeads();
   }
 
   // Home and the pages show the dots in their head and the gear; a page
@@ -121,6 +134,9 @@
     });
     if (loaded) layoutTiles('folder0', tiles);
     renderPageSlots();
+    syncPageHeads();
+    // A page has no PIN: its folder's PIN option goes.
+    if (currentTileTab === 'folder0' && typeof syncFolderPinControls === 'function') syncFolderPinControls('folder0');
   }
 
   // The saves go out one after the other; each shows before it is sent.
@@ -236,6 +252,7 @@
     if (!slots || slots.dataset.bound === '1') return;
     slots.dataset.bound = '1';
     renderPageSlots();
+    syncPageHeads();
     watchPageFolderTiles();
     slots.querySelectorAll('.page-slot').forEach((slot, i) => {
       // A page is edited like its folder tile: a tap picks it.

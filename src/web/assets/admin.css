@@ -3002,13 +3002,10 @@
     var(--head-dots-title-w));
 }
 
-/* The page slots above Home (head bar layouts): six cells like the Settings
-   parking slot, as wide as the preview at most (--page-slot-scale,
-   web_admin_styles.cpp); the hint above them. */
-.page-slots-row { display:flex; flex-direction:column; gap:8px; width:0; min-width:100%; }
-.page-slots-hint { color:var(--muted); font-size:14px; line-height:1.35; }
-.page-slots-hint strong { color:var(--text); font-weight:600; }
-.page-slots {
+/* The head bar layouts: five page slots and the Settings slot in one row
+   under Home (user 2026-10-12), as wide as the preview at most
+   (--page-slot-scale, web_admin_styles.cpp). */
+.settings-hidden-parking.page-parking {
   display:grid;
   grid-template-columns:repeat(6, calc(var(--preview-cell-w) * var(--page-slot-scale, 1)));
   grid-template-rows:calc(var(--preview-cell-h) * var(--page-slot-scale, 1));
@@ -3018,6 +3015,20 @@
   border:1px solid var(--line);
   border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + 1px);
   width:fit-content;
+  min-width:0;
+  box-sizing:border-box;
+}
+.page-parking > .page-slots { display:contents; }
+/* The Settings slot is the row's last cell, without a frame of its own. */
+.page-parking > .tile-grid.settings-hidden-slot {
+  padding:0;
+  border:0;
+  background:none;
+  border-radius:0;
+  grid-template-columns:1fr;
+  grid-template-rows:1fr;
+  width:auto;
+  height:auto;
 }
 .page-slot {
   position:relative;

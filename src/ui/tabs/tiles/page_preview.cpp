@@ -206,8 +206,12 @@ void open(lv_obj_t* dots) {
   popup_layout::apply_card_shadow(card);
 
   const int dots_w = home_bar::dots_width(count);
-  home_bar::create_dots(card, count, current, (grid_layout::screen_w() - dots_w) / 2 - card_x,
-                        head.center_y - dot.dot / 2 - card_y);
+  lv_obj_t* card_dots = home_bar::create_dots(card, count, current, (grid_layout::screen_w() - dots_w) / 2 - card_x,
+                                              head.center_y - dot.dot / 2 - card_y);
+  // A tap on them closes it again, like on the head's (user 2026-10-12).
+  lv_obj_add_flag(card_dots, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_ext_click_area(card_dots, geo.pad_top);
+  lv_obj_add_event_cb(card_dots, on_catcher, LV_EVENT_CLICKED, nullptr);
 
   const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
   for (int i = 0; i < count; ++i) {

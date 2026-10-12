@@ -808,11 +808,7 @@ struct Strings {
   // panel's first setup only).
   const char* setup_layout_landscape;
   const char* setup_layout_upright;
-  // The page slots above Home in the Web Admin (head bar layouts,
-  // tile_layouts::pages): their name and the hint beside them.
-  const char* pages_title;
-  const char* pages_hint;
-  // Web Admin: all six page slots are taken.
+  // Web Admin: all five page slots are taken.
   const char* js_pages_full;
   // Web Admin: a locked folder dropped on a page slot (pages have no PIN).
   const char* js_page_unlock_confirm;
@@ -820,6 +816,8 @@ struct Strings {
   // A layout switch refused: %u folders without a place there, %s the
   // layout window's button ("Layout ändern").
   const char* layout_switch_refused;
+  // Web Admin: a PIN for a page's folder is refused (pages have no PIN).
+  const char* folder_pin_page;
 };
 
 // Locale-specific display rules and short runtime strings shared by

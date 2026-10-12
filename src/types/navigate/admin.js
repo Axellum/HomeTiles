@@ -106,7 +106,9 @@ function normalizeIconName(value) {
       targetSelect?.value ?? tile?.navigate_target ??
       tileEl?.dataset.navigateTarget ?? 0);
     const isFolderTile = type === 4 && Number.isInteger(folderId) && folderId > 0;
-    if (fields) fields.classList.toggle('is-hidden', !isFolderTile);
+    // A page has no PIN (user 2026-10-12): no PIN option for it.
+    const isPage = tab === 'folder0' && typeof pageFolders === 'function' && pageFolders().includes(folderId);
+    if (fields) fields.classList.toggle('is-hidden', !isFolderTile || isPage);
 
     const showPinEditor = isFolderTile && toggle?.checked === true;
     label?.classList.toggle('is-hidden', !showPinEditor);

@@ -16,12 +16,13 @@ ${readRepoFile('src/web/assets/admin.css')}
 :root { --grid-cols:6; --grid-rows:4; --preview-cell-w:100px; --preview-cell-h:100px; --preview-gap:10px; --preview-pad:0px; }
 </style></head><body>
 <div id="tab-tiles-folder0" class="tile-tab tab-content active" data-folder-id="0"><div class="tile-editor"><div class="tile-editor-main">
-<div class="page-slots-row"><div class="page-slots-hint"><strong>Pages</strong> Drag a folder here</div>
-<div id="pageSlots" class="page-slots" data-pages="">${
-  Array.from({length: 6}, () => '<div class="page-slot empty" draggable="false"><i class="mdi mdi-tray-arrow-down"></i></div>').join('')}</div></div>
 <div class="tile-grid-scroll"><div class="tile-grid head-bar-grid" id="folder0Grid">${head('Home', 'head-gear')}
 ${Array.from({length: TILES}, (_, i) => `<div class="tile empty" id="folder0-tile-${i}" data-index="${i}" data-type="0" draggable="true"></div>`).join('')}
-</div></div></div></div></div>
+</div></div>
+<div class="settings-hidden-parking page-parking"><div id="pageSlots" class="page-slots" data-pages="">${
+  Array.from({length: 5}, () => '<div class="page-slot empty" draggable="false"><i class="mdi mdi-tray-arrow-down"></i></div>').join('')}</div>
+<div id="settingsHiddenSlot" class="tile-grid settings-hidden-slot"><div id="settingsHiddenTile" class="tile settings-hidden-tile empty" data-hidden="0"></div></div></div>
+</div></div></div>
 <div id="tab-tiles-folder1" class="tile-tab tab-content" data-folder-id="1"><div class="tile-grid head-bar-grid" id="folder1Grid">${head('Lights', '')}</div></div>
 <div id="folder0Settings" class="tile-settings"><div class="tile-specific-settings">
 <select id="folder0_tile_type"><option value="0">Empty</option><option value="4">Folder</option><option value="7">Settings</option></select>
@@ -45,7 +46,7 @@ const device = Array.from({length: ${TILES}}, empty);
 device[0] = {type:4,title:'Lights',icon_name:'lightbulb',navigate_target:1,col:0,row:0,span_w:1,span_h:1};
 device[1] = {type:4,title:'Climate',icon_name:'thermostat',navigate_target:2,col:1,row:0,span_w:1,span_h:1};
 device[2] = {type:4,title:'Alarm',icon_name:'shield',navigate_target:3,col:2,row:0,span_w:1,span_h:1,folder_pin_enabled:true};
-// More Home folders for the six-pages limit.
+// More Home folders for the five-pages limit.
 [11, 12, 13, 14, 15].forEach((folder, i) => {
   device[3 + i] = {type:4,title:'F' + folder,icon_name:'folder',navigate_target:folder,col:(3 + i) % 6,row:Math.floor((3 + i) / 6),span_w:1,span_h:1};
 });
@@ -121,7 +122,8 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   layoutTiles('folder0', tilesData.folder0);
   enableTileDrag('folder0');
   enablePageSlots();
-  check(slots().length === 6 && slots().every(slot => slot.classList.contains('empty')), 'Six empty slots');
+  check(slots().length === 5 && slots().every(slot => slot.classList.contains('empty')), 'Five empty slots');
+  check(getTileGrid('folder0').id === 'folder0Grid', 'The editor still finds the Home grid first');
   check(!dots('folder0'), 'No dots without pages');
 
   const dropOnSlot = async (source, slotIndex) => {
@@ -158,7 +160,7 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-cog'), 'A page has the gear');
 
   // A locked folder asks once, then its PIN goes with the request.
-  await dropOnSlot(tileOf(3), 5);
+  await dropOnSlot(tileOf(3), 4);
   check(confirms === 1 && pages.join() === '1,3' && log.filter(line => line.startsWith('/api/pages')).length === 2 &&
         log.some(line => line.includes('"unlock":"1"')),
         'A locked folder asks before its PIN goes: ' + pages.join());
@@ -185,16 +187,22 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-window-close') &&
         !dots('folder1'), 'A folder again: its X, no dots');
 
-  // Six pages: a seventh is refused without a request.
-  slotsEl.dataset.pages = '3,11,12,13,14,15';
-  pages = [3, 11, 12, 13, 14, 15];
+  // Five pages: a sixth is refused without a request.
+  slotsEl.dataset.pages = '3,11,12,13,14';
+  pages = [3, 11, 12, 13, 14];
   const posts = log.length;
   await dropOnSlot(tileOf(1), 2);
-  check(log.length === posts && pages.length === 6 && !tileOf(1).classList.contains('tile-unplaced'), 'A seventh page sends nothing');
+  check(log.length === posts && pages.length === 5 && !tileOf(1).classList.contains('tile-unplaced'), 'A sixth page sends nothing');
   // A tap on a page picks its folder tile in the editor, with the teal
   // selection in the slot.
+  // Nothing is built again for it (user 2026-10-12: the slots and the head
+  // blinked on every pick): the same slot tile and head dots stay.
+  const shownTile = slots()[0].querySelector('.tile');
+  const shownDots = document.querySelector('#tab-tiles-folder0 .head-dots');
   slots()[0].dispatchEvent(new MouseEvent('click', {bubbles:true}));
   await wait(100);
+  check(slots()[0].querySelector('.tile') === shownTile && document.querySelector('#tab-tiles-folder0 .head-dots') === shownDots,
+        'A pick rebuilds neither the slot nor the dots');
   check(currentTileTab === 'folder0' && currentTileIndex === homeFolderTileIndex(3) &&
         slots()[0].querySelector('.tile')?.classList.contains('active'), 'A tap on a page picks its folder: ' + [currentTileTab, currentTileIndex, homeFolderTileIndex(3), slots()[0].dataset.folder, slots()[0].querySelector('.tile')?.className].join(' '));
   document.body.dataset.result = 'pass';
@@ -208,4 +216,4 @@ try {
 } catch (error) {
   throw Error(error.message.match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1] || error.message.slice(0, 1500));
 }
-console.log('Page slots: drop in, PIN question, reorder, drop out, six at most');
+console.log('Page slots: drop in, PIN question, reorder, drop out, five at most');

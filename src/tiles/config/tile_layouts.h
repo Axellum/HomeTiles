@@ -54,10 +54,11 @@ void rekey(uint16_t folder_id, uint16_t from_view, uint16_t to_view);
 void retain(uint16_t folder_id, const std::vector<uint16_t>& views);
 void drop_folder(uint16_t folder_id);
 
-// The pages of the head bar layouts (user 2026-10-12): up to six Home folders
-// beside Home, in the order of the head's dots. In the bar layouts their
-// folder tiles stay off Home; the classic layout shows them as folders.
-inline constexpr size_t kMaxPages = 6;
+// The pages of the head bar layouts (user 2026-10-12): up to five Home
+// folders beside Home (six dots with it), in the order of the head's dots. In
+// the bar layouts their folder tiles stay off Home; the classic layout shows
+// them as folders.
+inline constexpr size_t kMaxPages = 5;
 // The page folders in order; returns how many.
 size_t pages(uint16_t out[kMaxPages]);
 // The folder's dot: 0 Home, 1.. a page, -1 neither (or no pages at all).

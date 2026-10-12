@@ -186,7 +186,7 @@ for (const marker of [
   "input.value = String(data?.folder_pin || '')",
   "const storedPin = enabled ? String(result.folder_pin || '') : '';",
   "const showPinEditor = isFolderTile && toggle?.checked === true;",
-  "fields.classList.toggle('is-hidden', !isFolderTile)",
+  "fields.classList.toggle('is-hidden', !isFolderTile || isPage)",
   "targetSelect?.value ?? tile?.navigate_target",
   'delete exported.folder_pin_enabled;',
   'delete exported.folder_pin;',

@@ -19,7 +19,8 @@ const slice = (text, start, end) => {
 // folder leaves the pages.
 const layoutsH = read('src/tiles/config/tile_layouts.h');
 const layouts = read('src/tiles/config/tile_layouts.cpp');
-assert.match(layoutsH, /inline constexpr size_t kMaxPages = 6;/);
+// Five pages beside Home, six dots with it (user 2026-10-12).
+assert.match(layoutsH, /inline constexpr size_t kMaxPages = 5;/);
 const store = slice(layouts, 'bool store_pages_locked(', '\n}\n');
 assert.match(store, /for \(size_t i = 0; i < count && wanted_count < kMaxPages; \+\+i\)/);
 assert.match(store, /if \(!folder \|\| std::find\(wanted, wanted \+ wanted_count, folder\) != wanted \+ wanted_count\) continue;/);
@@ -144,18 +145,32 @@ assert.match(read('src/web/admin/tiles/layout-window.js'), /showNotification\(er
 // Every language has the page texts and the refusal (positional tables).
 const i18n = read('src/core/i18n/i18n.cpp');
 for (const [table, words] of Object.entries({
-  kStringsDe: ['"Seiten"', '"Höchstens 6 Seiten"', '"Seiten gespeichert"', '"%u Ordner haben in diesem Layout keinen Platz.'],
-  kStringsEn: ['"Pages"', '"At most 6 pages"', '"Pages saved"', '"%u folders have no place in this layout.'],
-  kStringsFr: ['"Pages"', '"6 pages au maximum"', '"Pages enregistrées"', '"%u dossiers n\'ont pas de place'],
-  kStringsPl: ['"Strony"', '"Maksymalnie 6 stron"', '"Zapisano strony"', '"Foldery bez miejsca w tym układzie: %u.']})) {
+  kStringsDe: ['"Höchstens 5 Seiten"', '"Seiten gespeichert"', '"%u Ordner haben in diesem Layout keinen Platz.', '"Seiten haben keine PIN."'],
+  kStringsEn: ['"At most 5 pages"', '"Pages saved"', '"%u folders have no place in this layout.', '"Pages have no PIN."'],
+  kStringsFr: ['"5 pages au maximum"', '"Pages enregistrées"', '"%u dossiers n\'ont pas de place', '"Les pages n\'ont pas de code PIN."'],
+  kStringsPl: ['"Maksymalnie 5 stron"', '"Zapisano strony"', '"Foldery bez miejsca w tym układzie: %u.', '"Strony nie mają kodu PIN."']})) {
   const start = i18n.indexOf(`static const Strings ${table} = {`);
   const body = i18n.slice(start, i18n.indexOf('};', start));
   for (const word of words) assert.ok(body.includes(word), `${table} ${word}`);
-  // The refusal is the last text: one count and one button name.
-  const refusal = body.slice(body.lastIndexOf('\n'));
-  assert.ok((refusal.match(/%u/g) || []).length === 1 && (refusal.match(/%s/g) || []).length === 1, `${table}: %u and %s`);
+  // The refusal: one count and one button name.
+  const refusal = body.slice(body.indexOf('"%u') >= 0 ? body.indexOf('"%u') : body.indexOf('"Foldery bez'));
+  const refusalLine = refusal.slice(0, refusal.indexOf('\n'));
+  assert.ok((refusalLine.match(/%u/g) || []).length === 1 && (refusalLine.match(/%s/g) || []).length === 1, `${table}: %u and %s`);
 }
 const scripts = read('src/web/server/render/web_admin_scripts.cpp');
 for (const key of ['pagesFull', 'pageUnlockConfirm', 'pagesSaved']) assert.ok(scripts.includes(`appendJsEntry("${key}"`), key);
 
-console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages and no folder out of reach');
+// A page has no PIN: refused by the device, no PIN option in the editor.
+const access = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void WebAdminServer::handleSaveFolderAccess() {', '\n}\n');
+assert.match(access, /if \(enable && tile_layouts::page_number\(folder_id\) > 0\) \{\s*sendError\(409, tr\.folder_pin_page\);/);
+assert.match(read('src/types/navigate/admin.js'), /if \(fields\) fields\.classList\.toggle\('is-hidden', !isFolderTile \|\| isPage\);/);
+// The card's dots close it like the head's.
+assert.match(preview, /lv_obj_add_event_cb\(card_dots, on_catcher, LV_EVENT_CLICKED, nullptr\);/);
+// The Web Admin: five slots and the Settings slot in one row under Home,
+// no texts there (user 2026-10-12).
+const markup = read('src/web/server/render/web_admin_html.cpp');
+assert.ok(markup.indexOf('id=\\"pageSlots\\"') > markup.indexOf('<!-- Grid Preview -->'), 'The slots under the preview');
+assert.ok(markup.indexOf('id=\\"pageSlots\\"') < markup.indexOf('id=\\"settingsHiddenSlot\\"'), 'Left of the Settings slot');
+assert.match(markup, /if \(!page_slots\) \{\s*html \+= "<div class=\\"settings-parking-texts/);
+
+console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');
