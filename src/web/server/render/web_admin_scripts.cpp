@@ -124,6 +124,7 @@ void appendAdminScripts(String& html) {
   appendJsEntry("layoutFolderMissing", tr.layout_folder_missing);
   appendJsEntry("layoutTilesMissing", tr.layout_tiles_missing);
   appendJsEntry("layoutTileMissing", tr.layout_tile_missing);
+  appendJsEntry("layoutSettingsMissing", tr.layout_settings_missing);
   appendJsEntry("layoutAllFit", tr.layout_all_fit);
   appendJsEntry("layoutUnsavedConfirm", tr.layout_unsaved_confirm);
   appendJsEntry("layoutStorage", tr.layout_storage);

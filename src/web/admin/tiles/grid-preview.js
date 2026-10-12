@@ -837,6 +837,12 @@
     let cls = ['tile'];
     if (meta.css) cls.push(meta.css);
     if (typeValue === '0' && (!meta.css || meta.css !== 'empty')) cls.push('empty');
+    // The tile keeps its grid place (setTileGridPosition, the server's
+    // fractional-tile): without the class a half-step tile fell back to one
+    // grid cell until layoutTiles ran, and all it measured in between read
+    // that cell (user 2026-10-12: the V2's 2x1.5 analog clock showed its 1x1
+    // face at every page load and after every grid render).
+    if (el.classList.contains('fractional-tile')) cls.push('fractional-tile');
     el.className = cls.join(' ');
     if (typeValue === '5') applySwitchPreviewLayout(el, tile.switch_style, Number(tile.span_h) === 0.5);
     el.dataset.type = typeValue;

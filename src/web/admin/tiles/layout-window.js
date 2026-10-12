@@ -22,6 +22,10 @@
   // The bar layouts' head has the X: no Back tile there. The Settings tile
   // is a tile like any other (user 2026-10-08).
   function layoutBarHidden(type) { return Number(type) === 8; }
+  // Tiles that must be reached in every layout, so never in its storage:
+  // folders, and the Settings tile (user 2026-10-12: always to be tapped;
+  // whoever wants it gone parks it, independent of the gear in the head).
+  function layoutMustReach(type) { return [4, 7].includes(Number(type)); }
   function layoutRootPx(name) {
     return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
   }
@@ -145,7 +149,9 @@
 
   // Every tile on its own spot of the window's area: tiles that need a place
   // (none in this layout, or one taken) go to a free spot in the storage
-  // beside the layout's screen first.
+  // beside the layout's screen first; the Settings tile to the screen's first
+  // free spot from the bottom right (like a new Settings tile, and the panel
+  // for a layout stored without it: tile_config.cpp showUnplacedSettingsTile).
   function layoutSettle(key, tiles) {
     const canvas = layoutCanvas();
     const cols2 = canvas.cols * 2, rows2 = canvas.rows * 2;
@@ -166,11 +172,12 @@
       return shown.col === col && shown.row === row && shown.span_w === w && shown.span_h === h;
     };
     const later = [];
+    const settings = type => Number(type) === 7;
     for (const index of order) {
       const tile = tiles[index];
       const shown = normalizeLayoutForTileType(tile.type, tile.col, tile.row, tile.span_w, tile.span_h);
       if (!tile._unplaced && shown.col === tile.col && shown.row === tile.row &&
-          fits(tile.col, tile.row, shown.span_w, shown.span_h)) {
+          fits(tile.col, tile.row, shown.span_w, shown.span_h) && (!settings(tile.type) || layoutInside(shown, key))) {
         Object.assign(tile, shown);
         take(tile);
       } else {
@@ -179,15 +186,24 @@
     }
     // The others keep their size (user 2026-10-08: they are moved by hand):
     // the first free spot beside the screen, else on it.
+    const free = (tile, col, row, w, h) => fits(col, row, w, h) &&
+      supportedTileLayout(tile.type, {col, row, span_w: w, span_h: h}) && drawn(tile.type, col, row, w, h);
     for (const tile of later) {
       const shown = normalizeLayoutForTileType(tile.type, 0, 0, tile.span_w, tile.span_h);
       const w = shown.span_w, h = shown.span_h;
       let spot = null;
+      if (settings(tile.type)) {
+        const L = LAYOUTS[key];
+        for (let row = Math.floor((L.rows - h) * 2) / 2; !spot && row >= 0; row -= 0.5) {
+          for (let col = Math.floor((L.cols - w) * 2) / 2; !spot && col >= 0; col -= 0.5) {
+            if (free(tile, col, row, w, h)) spot = {col, row, span_w: w, span_h: h};
+          }
+        }
+      }
       for (const outside of [true, false]) {
         for (let row = 0; !spot && row + h <= canvas.rows; row += 0.5) {
           for (let col = 0; !spot && col + w <= canvas.cols; col += 0.5) {
-            if (fits(col, row, w, h) && (!outside || layoutParked({col, row, span_w: w, span_h: h}, key)) &&
-                supportedTileLayout(tile.type, {col, row, span_w: w, span_h: h}) && drawn(tile.type, col, row, w, h)) {
+            if (free(tile, col, row, w, h) && (!outside || layoutParked({col, row, span_w: w, span_h: h}, key))) {
               spot = {col, row, span_w: w, span_h: h};
             }
           }
@@ -338,10 +354,11 @@
     HEAD_BAR = false;
   }
 
-  // Red: half over the screen's edge, or a folder without a place (it could
-  // not be reached); a tile wholly in the storage is only dimmed.
+  // Red: half over the screen's edge, or a folder or the Settings tile
+  // without a place (it could not be reached); a tile wholly in the storage
+  // is only dimmed.
   function layoutRed(tile, key) {
-    return !layoutInside(tile, key) && (Number(tile.type) === 4 || !layoutParked(tile, key));
+    return !layoutInside(tile, key) && (layoutMustReach(tile.type) || !layoutParked(tile, key));
   }
   function redCount(tab) {
     return getTilesData(tab).filter(tile => layoutUsed(tile) && layoutRed(tile, layoutWindow.key)).length;
@@ -361,12 +378,13 @@
       el.classList.toggle('setup-red', red);
       el.classList.toggle('setup-parked', !!place && !red && !layoutInside(place, layoutWindow.key));
     });
-    // Folders carry a badge on their top right corner like the page tabs: a
-    // green tick when they have a place (still reachable), a red "!" when not.
+    // Folders and the Settings tile carry a badge on their top right corner
+    // like the page tabs: a green tick when they have a place (still
+    // reachable), a red "!" when not.
     const grid = document.querySelector(`#tab-tiles-${tab} .setup-grid`);
     if (grid) {
       grid.querySelectorAll('.setup-flag').forEach(flag => flag.remove());
-      grid.querySelectorAll(':scope > .tile[data-type="4"]:not(.empty)').forEach(el => {
+      grid.querySelectorAll(':scope > .tile:is([data-type="4"], [data-type="7"]):not(.empty)').forEach(el => {
         const flag = document.createElement('span');
         const missing = el.classList.contains('setup-red');
         flag.className = 'setup-flag ' + (missing ? 'missing' : 'ok');
@@ -406,12 +424,15 @@
       if (arrow && b.dataset.key === layoutWindow.key) arrow.parentNode.appendChild(arrow);
       b.classList.toggle('is-dirty', layoutDirty(b.dataset.key));
     });
-    // A folder without a place could not be reached in that layout, so every
-    // folder must have one (green) before the layout can be stored or shown.
-    let missing = 0;
+    // A folder or the Settings tile without a place could not be reached in
+    // that layout, so each must have one (green) before the layout can be
+    // stored or shown.
+    let missing = 0, settingsMissing = 0;
     for (const tab of layoutTabs()) {
       getTilesData(tab).forEach(tile => {
-        if (layoutUsed(tile) && Number(tile.type) === 4 && !layoutInside(tile, layoutWindow.key)) missing++;
+        if (!layoutUsed(tile) || layoutInside(tile, layoutWindow.key)) return;
+        if (Number(tile.type) === 4) missing++;
+        if (Number(tile.type) === 7) settingsMissing++;
       });
     }
     layoutWindow.missingFolders = missing;
@@ -424,10 +445,11 @@
     // Every note side by side (user 2026-10-08): folders without a place,
     // tiles half over the edge, tiles in the storage, a layout that cannot
     // be switched to yet; or that everything fits.
-    const tiles = total - missing;
+    const tiles = total - missing - settingsMissing;
     const notes = [];
     if (missing) notes.push(['missing', 'folder-alert-outline',
       missing === 1 ? t('layoutFolderMissing') : tf('layoutFoldersMissing', {n: missing})]);
+    if (settingsMissing) notes.push(['missing', 'cog-outline', t('layoutSettingsMissing')]);
     if (tiles) notes.push(['missing', 'alert-circle-outline',
       tiles === 1 ? t('layoutTileMissing') : tf('layoutTilesMissing', {n: tiles})]);
     if (parked) notes.push(['parked', 'tray-arrow-down',

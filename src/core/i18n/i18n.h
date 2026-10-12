@@ -254,6 +254,8 @@ struct Strings {
   const char* layout_folder_missing;
   const char* layout_tiles_missing;
   const char* layout_tile_missing;
+  // The Settings tile outside the layout's screen (it must be reached).
+  const char* layout_settings_missing;
   const char* layout_all_fit;
   const char* layout_unsaved_confirm;
   const char* layout_storage;

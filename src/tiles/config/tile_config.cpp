@@ -3628,6 +3628,50 @@ bool TileConfig::deleteFolder(uint16_t folder_id) {
   return true;
 }
 
+// The Settings tile is always to be tapped (user 2026-10-12): parked (the
+// swipe stays on), or on the screen. One without a place in the active
+// layout (stored before the layout window marked it red there, an import)
+// shows at the first free spot from the bottom right, like a new Settings
+// tile, in its own size or 1 x 1. Nothing is stored; a save of the grid
+// keeps that place. Parking and the gear in the head stay independent of it.
+static void showUnplacedSettingsTile(TileGridConfig& grid) {
+  Tile* settings = nullptr;
+  for (auto& tile : grid.tiles) {
+    if (tile.type == TILE_SETTINGS && tile.layout_hidden) settings = &tile;
+  }
+  if (!settings) return;
+  auto free = [&](float col, float row, float span_w, float span_h) {
+    if (!grid_layout::inside(col, row, span_w, span_h) ||
+        !tile_geometry::supported_size(TILE_SETTINGS, col, row, span_w, span_h)) {
+      return false;
+    }
+    for (const auto& tile : grid.tiles) {
+      float c = 0, r = 0, w = 1, h = 1;
+      if (&tile == settings || tile.type == TILE_EMPTY || !shownTileLayout(tile, c, r, w, h)) continue;
+      if (col < c + w && c < col + span_w && row < r + h && r < row + span_h) return false;
+    }
+    return true;
+  };
+  const float sizes[][2] = {{settings->span_w < 1 ? 1.0f : settings->span_w,
+                             settings->span_h < 0.5f ? 1.0f : settings->span_h},
+                            {1.0f, 1.0f}};
+  for (const auto& size : sizes) {
+    for (float row = grid_layout::shown_rows() - size[1]; row >= 0; row -= 0.5f) {
+      for (float col = grid_layout::shown().cols - size[0]; col >= 0; col -= 0.5f) {
+        if (!free(col, row, size[0], size[1])) continue;
+        settings->col = col;
+        settings->row = row;
+        settings->span_w = size[0];
+        settings->span_h = size[1];
+        settings->layout_hidden = false;
+        Serial.printf("[TileConfig] Settings tile had no place in the %s layout: shown at %.1f,%.1f\n",
+                      grid_layout::key(grid_layout::active()), col, row);
+        return;
+      }
+    }
+  }
+}
+
 // The active layout's places (tile_layouts.h) over the stored classic ones.
 // A tile without a place there is hidden: not drawn, no room taken.
 static void applyLayoutPlaces(uint16_t folder_id, TileGridConfig& grid) {
@@ -3655,6 +3699,7 @@ static void applyLayoutPlaces(uint16_t folder_id, TileGridConfig& grid) {
     tile.span_w = place.span_w;
     tile.span_h = place.span_h;
   }
+  showUnplacedSettingsTile(grid);
 }
 
 // A free place in the classic layout for a tile made under a bar layout: its

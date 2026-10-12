@@ -40,7 +40,7 @@ const windowNames = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutNavT
   'isCompactSensorType', 'isEditableValueType', 'supportsHalfSize', 'supportedTileLayout', 'saveLayoutWindow', 'refreshLayoutSave', 'layoutTabs',
   'layoutSignature', 'layoutSavedSig', 'layoutDirty', 'layoutSelectedTile', 'deselectLayoutTile', 'normalizeLayoutForTileType', 'clampHalf',
   'headBarLayout', 'placeCols', 'placeRows',
-  'deleteLayoutTile', 'classicParked', 'layoutParked', 'layoutRed', 'loadLayoutWindow', 'mayLeaveLayout',
+  'deleteLayoutTile', 'classicParked', 'layoutParked', 'layoutMustReach', 'layoutRed', 'loadLayoutWindow', 'mayLeaveLayout',
   'layoutClockFrom', 'layoutClock', 'layoutClockDirty'];
 function windowContext(pages, data, extra = {}) {
   // Every case gets its own copy: the window changes the pages it holds.
@@ -92,12 +92,13 @@ const classic = {0: [[0, 11, 0, 0, 1, 1], [1, 12, 1, 0, 1, 1], [2, 13, 0, 1, 2, 
   assert.equal(run("layoutParked({col: 0, row: 3, span_w: 1, span_h: 1}, 'bar')"), true, 'below');
   assert.equal(run("layoutParked({col: -1, row: 0, span_w: 1, span_h: 1}, 'bar')"), false, 'nothing on the left');
   // Into a bar layout: every tile as it is in the classic layout, from the
-  // top left of the new screen (folders too, no pills), the Settings tile
-  // too (here beside the smaller screen: in the storage); the tile without a
-  // classic place gets a free spot beside the screen.
+  // top left of the new screen (folders too, no pills); the Settings tile,
+  // beyond the smaller screen, to its first free spot from the bottom right
+  // (user 2026-10-12: always to be tapped, never in the storage); the tile
+  // without a classic place gets a free spot beside the screen.
   const bar = run("takeoverTiles('folder0', 'bar', 'classic')");
   assert.deepEqual(place(bar).slice(0, 3), [[4, 0, 0, 1, 1], [4, 1, 0, 1, 1], [1, 0, 1, 2, 1]]);
-  assert.equal(run(`layoutParked(${JSON.stringify(bar[3])}, 'bar')`), true, 'Settings beyond the smaller screen: stored');
+  assert.deepEqual(place(bar)[3], [7, 4, 2.5, 1, 0.5], 'Settings beyond the smaller screen: bottom right on it');
   assert.equal(run(`layoutInside(${JSON.stringify(bar[4])}, 'bar')`), false, 'red beside the bar screen');
   // The classic layout in the window: its places; the hidden tile beside
   // the screen, nothing overlaps.
@@ -121,12 +122,13 @@ const classic = {0: [[0, 11, 0, 0, 1, 1], [1, 12, 1, 0, 1, 1], [2, 13, 0, 1, 2, 
   const run = code => vm.runInContext(code, ctx);
   const saved = run("setupTiles('folder0', 'bar')");
   assert.deepEqual(place(saved).slice(0, 3), [[4, 0, 0, 1, 0.5], [4, 1, 0, 1, 0.5], [1, 0, 1, 2, 1]]);
-  assert.equal(run(`layoutParked(${JSON.stringify(saved[3])}, 'bar')`), true, 'Settings without a place: in the storage');
+  assert.deepEqual(place(saved)[3], [7, 4, 2.5, 1, 0.5], 'Settings without a place: bottom right on the screen');
   assert.equal(run(`layoutInside(${JSON.stringify(saved[4])}, 'bar')`), false);
   const back = run("takeoverTiles('folder0', 'classic', 'bar')");
   assert.equal(run(`layoutInside(${JSON.stringify(back[0])}, 'classic')`), true, 'the same place on the classic screen');
   assert.deepEqual(place(back).slice(0, 3), [[4, 0, 0, 1, 0.5], [4, 1, 0, 1, 0.5], [1, 0, 1, 2, 1]]);
-  assert.equal(run(`layoutParked(${JSON.stringify(back[3])}, 'classic')`), true, 'parked there, parked here');
+  assert.deepEqual(place(back)[3], [7, 4, 2.5, 1, 0.5], 'Settings on the screen there, at the same place here');
+  assert.equal(run(`layoutInside(${JSON.stringify(back[4])}, 'classic')`), false, 'a stored tile stays stored');
 }
 
 // The storage beside a screen: a tile wholly there is parked (dimmed), half
@@ -150,6 +152,10 @@ const classic = {0: [[0, 11, 0, 0, 1, 1], [1, 12, 1, 0, 1, 1], [2, 13, 0, 1, 2, 
   assert.equal(run("layoutRed({type: 1, col: 5, row: 0, span_w: 1, span_h: 1}, 'bar')"), false, 'in the storage');
   assert.equal(run("layoutParked({col: 5, row: 0, span_w: 1, span_h: 1}, 'bar')"), true);
   assert.equal(run("layoutRed({type: 4, col: 5, row: 0, span_w: 1, span_h: 1}, 'bar')"), true, 'a folder needs a place');
+  // The Settings tile too (user 2026-10-12: always to be tapped; parked it
+  // is no tile of the window at all).
+  assert.equal(run("layoutRed({type: 7, col: 5, row: 0, span_w: 1, span_h: 1}, 'bar')"), true, 'Settings needs a place');
+  assert.equal(run("layoutRed({type: 7, col: 4, row: 2, span_w: 1, span_h: 1}, 'bar')"), false, 'on the screen');
   // The cross on a tile on the screen asks and deletes it too (user
   // 2026-10-08); into the storage a tile is dragged.
   assert.equal(run("layoutInside(getTilesData('folder0')[2], 'bar')"), true);
