@@ -245,18 +245,7 @@ void WebAdminServer::handleSaveMQTT() {
     Tile settings_tile;
     const bool settings_tile_present = tileConfig.getSettingsTile(settings_tile);
     if (hide_tile && settings_tile_present) {
-      SettingsTileSnapshot& snapshot = cfg.settings_tile_snapshot;
-      memset(&snapshot, 0, sizeof(snapshot));
-      snapshot.valid = true;
-      strncpy(snapshot.title, settings_tile.title.c_str(),
-              sizeof(snapshot.title) - 1);
-      strncpy(snapshot.icon_name, settings_tile.icon_name.c_str(),
-              sizeof(snapshot.icon_name) - 1);
-      snapshot.bg_color = settings_tile.bg_color;
-      snapshot.col = settings_tile.col;
-      snapshot.row = settings_tile.row;
-      snapshot.span_w = settings_tile.span_w < 1 ? 1 : settings_tile.span_w;
-      snapshot.span_h = settings_tile.span_h < 0.5f ? 1 : settings_tile.span_h;
+      TileConfig::snapshotSettingsTile(settings_tile, cfg.settings_tile_snapshot);
     }
     if (!hide_tile && previous_cfg.settings_tile_hidden &&
         settings_tile_target_col >= 0 && cfg.settings_tile_snapshot.valid) {

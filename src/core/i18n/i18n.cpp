@@ -661,7 +661,7 @@ static const Strings kStringsDe = {
     "Transparent",
     "Licht",
     "Klima",
-    "Willkommen",
+    "Willkommen bei HomeTiles!",
     "Quer",
     "Hochkant"};
 
@@ -1319,7 +1319,7 @@ static const Strings kStringsEn = {
     "Transparent",
     "Lights",
     "Climate",
-    "Welcome",
+    "Welcome to HomeTiles!",
     "Landscape",
     "Portrait"};
 
@@ -1977,7 +1977,7 @@ static const Strings kStringsFr = {
     "Transparent",
     "Lumières",
     "Climat",
-    "Bienvenue",
+    "Bienvenue sur HomeTiles\u00A0!",
     "Paysage",
     "Portrait"};
 
@@ -2998,7 +2998,7 @@ static const Strings kStringsPl = {
     "Przezroczysty",
     "Światła",
     "Klimat",
-    "Witaj",
+    "Witaj w HomeTiles!",
     "Poziomo",
     "Pionowo"};
 

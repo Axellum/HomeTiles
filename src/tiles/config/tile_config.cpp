@@ -3465,6 +3465,18 @@ bool TileConfig::getSettingsTile(Tile& out) {
   return false;
 }
 
+void TileConfig::snapshotSettingsTile(const Tile& tile, SettingsTileSnapshot& out) {
+  memset(&out, 0, sizeof(out));
+  out.valid = true;
+  strncpy(out.title, tile.title.c_str(), sizeof(out.title) - 1);
+  strncpy(out.icon_name, tile.icon_name.c_str(), sizeof(out.icon_name) - 1);
+  out.bg_color = tile.bg_color;
+  out.col = tile.col;
+  out.row = tile.row;
+  out.span_w = tile.span_w < 1 ? 1 : tile.span_w;
+  out.span_h = tile.span_h < 0.5f ? 1 : tile.span_h;
+}
+
 int TileConfig::settingsTileIndex() {
   TileGridConfig loaded{};
   const TileGridConfig* grid = &loaded;

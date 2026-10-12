@@ -732,6 +732,7 @@ struct FolderEntitySlotView {
 };
 
 struct FolderEntityCacheEntry;
+struct SettingsTileSnapshot;
 
 class TileConfig {
 public:
@@ -789,6 +790,9 @@ public:
   bool verifyFolderPin(uint16_t folder_id, const char* pin) const;
   bool getFolderPin(uint16_t folder_id, String& out) const;
   bool getSettingsTile(Tile& out);
+  // What a parked Settings tile keeps (title, icon, color, place) to come
+  // back as it was.
+  static void snapshotSettingsTile(const Tile& tile, SettingsTileSnapshot& out);
   SettingsTileVisibilityResult validateSettingsTileVisible(
       bool visible, float target_col = -1, float target_row = -1);
   SettingsTileVisibilityResult setSettingsTileVisible(

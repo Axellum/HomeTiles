@@ -20,8 +20,10 @@ namespace {
 constexpr const char* kLightsIcon = "lightbulb-group";
 // Home Assistant's climate icon.
 constexpr const char* kClimateIcon = "thermostat";
-constexpr uint8_t kClockTimeSize = 72;
-constexpr uint8_t kClockDateSize = 24;
+// The clock's own sizes (the face picks the sizes of its lines itself), for a
+// change to the digital clock.
+constexpr uint8_t kClockTimeSize = 40;
+constexpr uint8_t kClockDateSize = 20;
 
 bool overlaps(const Place& a, const Tile& tile) {
   return a.col < tile.col + tile.span_w && tile.col < a.col + a.span_w && a.row < tile.row + tile.span_h &&
@@ -38,12 +40,14 @@ void make_transparent(Tile& tile) {
 Tile clock_tile_default() {
   Tile tile;
   tile.type = TILE_CLOCK;
-  // Time and date (the clock flags), the weekday in full.
+  // The analog face with the time and date (the clock flags) beside it, the
+  // weekday in full.
   tile.sensor_decimals = 3;
   tile.key_code = kClockTimeSize;
   tile.key_modifier = kClockDateSize;
   tile.sensor_gauge_min = clock_tile::TIME_FORMAT_AUTO;
   clock_tile::TileDateOptions options;
+  options.style = clock_tile::STYLE_ANALOG;
   options.weekday = clock_tile::WEEKDAY_LONG;
   tile.sensor_gauge_max = clock_tile::pack_date_options(options);
   make_transparent(tile);
@@ -73,6 +77,20 @@ void place(Tile& tile, const Place& at) {
   tile.row = at.row;
   tile.span_w = at.span_w;
   tile.span_h = at.span_h;
+}
+
+// Like the Web Admin's parking slot: the tile keeps its look and classic
+// place for a restore, the swipe stays as the way to Settings.
+bool park_settings_tile(const TileGridConfig& grid) {
+  std::unique_ptr<DeviceConfig> cfg(new (std::nothrow) DeviceConfig(configManager.getConfig()));
+  if (!cfg) return false;
+  for (const Tile& tile : grid.tiles) {
+    if (tile.type == TILE_SETTINGS) TileConfig::snapshotSettingsTile(tile, cfg->settings_tile_snapshot);
+  }
+  cfg->settings_tile_hidden = true;
+  cfg->settings_swipe_enabled = true;
+  return configManager.save(*cfg) &&
+         tileConfig.setSettingsTileVisible(false) == SettingsTileVisibilityResult::Success;
 }
 
 }  // namespace
@@ -135,13 +153,15 @@ bool seed() {
       tile_layouts::set(each, TileConfig::rootFolderId(), view_id, {at[i].col, at[i].row, at[i].span_w, at[i].span_h});
     }
   }
-  // The Settings tile has no place in the head bar layout: the gear in the
-  // head opens Settings.
+  // The gear in the head opens Settings.
   if (!tile_layouts::commit() || !configManager.saveHeadGear(true) ||
       !configManager.saveLayout(static_cast<uint8_t>(layout))) {
     Serial.println("[NewPanel] Storing the head bar layout failed");
     return false;
   }
+  // The Settings tile starts parked (user 2026-10-12): without a place it sat
+  // in the storage of the head bar layouts and in the classic grid.
+  if (!park_settings_tile(*grid)) Serial.println("[NewPanel] Parking the Settings tile failed");
   grid_layout::apply(static_cast<uint8_t>(layout));
   tileConfig.load();
   Serial.printf("[NewPanel] First page ready in the %s layout\n", grid_layout::key(grid_layout::active()));

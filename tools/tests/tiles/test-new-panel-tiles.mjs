@@ -1,9 +1,11 @@
 // A brand-new panel's first page (user 2026-10-12: "das Standardlayout ist
 // immer noch das klassische und Settings unten"): it starts in the head bar
-// layout with the gear in the head, a transparent digital clock with weekday
-// and date, the folders "Lights" and "Climate" and a transparent welcome
-// text, in the panel's language; a language change during the setup renames
-// the defaults nobody changed.
+// layout with the gear in the head and the Settings tile parked, a
+// transparent analog clock with the time, weekday and date beside the face,
+// the folders "Lights" and "Climate" and a transparent "Welcome to
+// HomeTiles!", in the panel's language, arranged as the user did it in the
+// Web Admin ("bitte als Standard am Anfang so einrichten"); a language change
+// during the setup renames the defaults nobody changed.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,9 +47,10 @@ if (output !== null) {
     const [cols, rows, ok, ...v] = line.trim().split(' ').map(Number);
     assert.equal(ok, 1, `${cols} x ${rows}`);
     const places = [0, 1, 2, 3].map(i => v.slice(i * 4, i * 4 + 4));
-    assert.deepEqual(places[0], [0, 0, 2, 2], 'the clock 2 x 2 top left');
-    assert.deepEqual(places[3], [0, 2, 2, 1], 'the welcome text 2 x 1 below it');
-    assert.deepEqual(places[2], cols >= 4 ? [3, 0, 1, 1] : [2, 1, 1, 1], 'Climate beside or below Lights');
+    assert.deepEqual(places[0], [0, 0, 2, 1], 'the clock 2 x 1 top left');
+    assert.deepEqual(places[3], [0, 1, 2, 1], 'the welcome text 2 x 1 below it');
+    assert.deepEqual(places[1], [2, 0, 1, 1], 'Lights right of the clock');
+    assert.deepEqual(places[2], [2, 1, 1, 1], 'Climate below Lights');
     for (const [c, r, w, h] of places) assert.ok(c + w <= cols && r + h <= rows, `${cols} x ${rows}: inside`);
     for (let a = 0; a < 4; a++) {
       for (let b = a + 1; b < 4; b++) {
@@ -76,8 +79,19 @@ assert.match(fn('seed'), /const Layout kBarLayouts\[\] = \{Layout::kBar, Layout:
 assert.match(fn('seed'), /configManager\.saveHeadGear\(true\)/);
 assert.match(fn('seed'), /configManager\.saveLayout\(static_cast<uint8_t>\(layout\)\)/);
 assert.match(fn('seed'), /grid_layout::apply\(static_cast<uint8_t>\(layout\)\);\s*tileConfig\.load\(\);/);
+// The Settings tile starts parked (user 2026-10-12: "bitte standardmäßig in
+// Parkzone"): without a place it sat in the head bar layouts' storage and in
+// the classic grid. It keeps its look and place like a Web Admin park.
+assert.match(fn('seed'), /configManager\.saveLayout\(static_cast<uint8_t>\(layout\)\)\) \{[\s\S]*?\}\s*[\s\S]*?if \(!park_settings_tile\(\*grid\)\)[\s\S]*?grid_layout::apply/);
+const park = fn('park_settings_tile');
+assert.match(park, /if \(tile\.type == TILE_SETTINGS\) TileConfig::snapshotSettingsTile\(tile, cfg->settings_tile_snapshot\);/);
+assert.match(park, /cfg->settings_tile_hidden = true;\s*cfg->settings_swipe_enabled = true;/);
+assert.match(park, /configManager\.save\(\*cfg\) &&\s*tileConfig\.setSettingsTileVisible\(false\) == SettingsTileVisibilityResult::Success/);
+// The Web Admin's park takes the same snapshot.
+assert.match(read('src/web/server/handlers/web_admin_handlers.cpp'),
+  /if \(hide_tile && settings_tile_present\) \{\s*TileConfig::snapshotSettingsTile\(settings_tile, cfg\.settings_tile_snapshot\);/);
 assert.match(fn('clock_tile_default'), /tile\.sensor_decimals = 3;/);
-assert.match(fn('clock_tile_default'), /options\.weekday = clock_tile::WEEKDAY_LONG;/);
+assert.match(fn('clock_tile_default'), /options\.style = clock_tile::STYLE_ANALOG;\s*options\.weekday = clock_tile::WEEKDAY_LONG;/);
 assert.match(fn('make_transparent'), /tile\.bg_color = TILE_BG_COLOR_EXPLICIT;\s*tile\.sensor_display_mode = 1;/);
 assert.match(fn('welcome_tile'), /tile\.scene_alias = text;/);
 assert.match(fn('folder_tile'), /setNavigateTargetId\(tile, folder_id\);/);
@@ -98,8 +112,8 @@ assert.match(read('src/ui/tabs/settings/tab_settings.cpp'),
 
 // The names in every language.
 const i18n = read('src/core/i18n/i18n.cpp');
-for (const words of [['Licht', 'Klima', 'Willkommen'], ['Lights', 'Climate', 'Welcome'],
-  ['Lumières', 'Climat', 'Bienvenue'], ['Światła', 'Klimat', 'Witaj']]) {
+for (const words of [['Licht', 'Klima', 'Willkommen bei HomeTiles!'], ['Lights', 'Climate', 'Welcome to HomeTiles!'],
+  ['Lumières', 'Climat', String.raw`Bienvenue sur HomeTiles\u00A0!`], ['Światła', 'Klimat', 'Witaj w HomeTiles!']]) {
   assert.ok(i18n.includes(words.map(w => `    "${w}"`).join(',\n')), words.join(' '));
 }
-console.log('New panel: head bar layout, clock, two folders and a welcome text');
+console.log('New panel: head bar layout, parked Settings, analog clock, two folders and a welcome text');
