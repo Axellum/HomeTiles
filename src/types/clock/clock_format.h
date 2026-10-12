@@ -113,6 +113,17 @@ inline uint8_t resolve_date_format(int preferred_raw, int global_raw, const char
 
 // Weekday name for tm_wday (0 = Sunday). The device locale is always "C",
 // so strftime %A would always be English; use the i18n tables instead.
+// The clock's time, "08:05" or "08:05 AM": two-digit hours in both formats
+// like the head bar (user 2026-10-12), so the line keeps its width.
+inline void format_time(char* out, size_t size, int hour, int minute, uint8_t format) {
+  if (format == TIME_FORMAT_12H) {
+    const int hour12 = hour % 12 ? hour % 12 : 12;
+    snprintf(out, size, "%02d:%02d %s", hour12, minute, hour < 12 ? "AM" : "PM");
+  } else {
+    snprintf(out, size, "%02d:%02d", hour, minute);
+  }
+}
+
 inline const char* weekday_name(int tm_wday, const char* language_code) {
   if (tm_wday < 0 || tm_wday > 6) return "";
   return i18n::locale(language_code).weekday_names[tm_wday];

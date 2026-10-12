@@ -2724,6 +2724,8 @@
     /* tabular_digits: a digit as wide as the widest (Inter's 4, 1323/2048 em),
        centered (types/clock/admin.js clockDigitsHtml). */
     .tnum { display:inline-block; width:0.646em; text-align:center; }
+    /* A and P before M as wide as Inter's A (tabular_digits: AM and PM match). */
+    .tap { display:inline-block; width:0.690em; text-align:center; }
     .tile-clock-time {
       position:relative;
       top:var(--ldy40, 0px);
@@ -2759,6 +2761,7 @@
        and its lines placed in device pixels by layoutClockFacePreview. */
     .tile.clock .tile-clock-face { position:absolute; overflow:visible; }
     .tile.clock .tile-clock-face-text { position:absolute; display:flex; flex-direction:column; justify-content:center; }
+    .tile.clock .tile-clock-face-text > div { white-space:nowrap; }
     .tile.clock .tile-clock-face-text[hidden] { display:none; }
     .clock-wall-colors.hidden { display:none; }
     /* The big date (renderer.cpp render_clock_big_date): lines placed in

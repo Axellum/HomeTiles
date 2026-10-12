@@ -3,6 +3,9 @@
 // admin.css exactly where the panel's clock_face_layout puts them, scaled
 // like the grid (--radius-preview-scale) inside the tile's 3 px editor
 // border, with the wall clock's colors and the panel's measures (--tw / --lh).
+// Face and lines are one block that the tile's alignment moves (the lines
+// stood far right of the face and the alignment did nothing), and a resized
+// tile is laid out again (a 1.5x2 clock kept its 1x1 face without the date).
 import assert from 'node:assert/strict';
 import {extractDeliveredFunction, inlineScriptSafe, readRepoFile} from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
@@ -11,7 +14,14 @@ const admin = readRepoFile('src/types/clock/admin.js');
 const constant = name => new RegExp(`const ${name} = [^;]*;`).exec(admin)[0];
 const functions = ['layoutClockFacePreview', 'clockFaceLayout', 'clockFaceTimeFit', 'clockFaceSvg', 'clockDialColor',
   'clockDateOptions', 'normalizeClockDateFormat', 'applyClockPreviewTextStyle', 'normalizeClockPreviewFont',
-  'getClockPreviewCssPx', 'applyClockPreviewLine'].map(extractDeliveredFunction).join('\n');
+  'getClockPreviewCssPx', 'applyClockPreviewLine', 'observeClockTile', 'clockLinePanelWidth', 'clockDigitsHtml']
+  .map(extractDeliveredFunction).join('\n');
+// The resize observer as delivered (it calls the three layout functions).
+const observerStart = admin.indexOf('const clockTileObserver =');
+const observer = admin.slice(observerStart, admin.indexOf(': null;', observerStart) + ': null;'.length);
+// Its entities hold semicolons: up to the object's end.
+const escapesStart = admin.indexOf('const CLOCK_HTML_ESCAPES');
+const escapes = admin.slice(escapesStart, admin.indexOf('};', escapesStart) + 2);
 const css = readRepoFile('src/web/assets/admin.css');
 // Device measures of a 1280x800 panel at half size in the preview.
 const half = v => `${v / 2}px`;
@@ -33,10 +43,17 @@ body{margin:0}
 ${tile('t0', 406, 150, wall)}
 ${tile('t1', 180, 150, 1 << 13, 'clock-has-header')}
 ${tile('t2', 170, 64, 1 << 13, 'clock-compact')}
+${tile('t3', 406, 150, wall | (1 << 11))}
+${tile('t4', 406, 150, wall | (2 << 11))}
+${tile('t5', 193, 150, 1 << 13)}
 <pre id="result"></pre><script>
 ${constant('CLOCK_FACE_TIME_SIZES')}
 ${constant('CLOCK_DIAL_COLORS')}
 ${constant('CLOCK_HAND_COLORS')}
+${escapes}
+${constant('CLOCK_WIDTH_SAMPLE')}
+const fitCompactClockPreview = () => {};
+const layoutClockBigDatePreview = () => {};
 // Colors are not this test's subject: the panel roles and tones stubbed.
 const panelRoleHex = (name, fallback) => fallback;
 const panelRole = () => [255, 255, 255];
@@ -48,27 +65,50 @@ const toneBlend = (under) => under;
 const toneHex = rgb => '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
 const toneFill = () => ({disc: [44, 44, 44]});
 ${inlineScriptSafe(functions)}
-try {
+// Headless Chrome delivers resize notifications only now and then: the
+// observer's callback is fired by hand after the tile grows.
+let observed = [], notify = null;
+class ResizeObserver {
+  constructor(callback) { notify = callback; }
+  observe(el) { observed.push(el); }
+  unobserve(el) { observed = observed.filter(other => other !== el); }
+}
+${inlineScriptSafe(observer)}
+(async () => { try {
   const check = (ok, message) => { if (!ok) throw Error(message); };
   const near = (a, b, message) => check(Math.abs(a - b) < 0.6, message + ': ' + a + ' vs ' + b);
   const box = (el, tile) => {
     const r = el.getBoundingClientRect(), t = tile.getBoundingClientRect();
     return {x: r.left - t.left, y: r.top - t.top, w: r.width, h: r.height};
   };
-  // A wide wall clock: the face 16 px from the card, 150 - 32 high; the
-  // lines from 118 + 32, the time at 40 (56 does not fit 406 - 166 px).
+  // A wide wall clock: the face 150 - 32 high, the time at 40 (56 does not
+  // fit 406 - 166 px), the lines one margin (16) right of the face; face and
+  // lines centered together (the default alignment).
   const t0 = document.getElementById('t0');
   check(getComputedStyle(t0).borderLeftWidth === '3px', 'the editor border');
   layoutClockFacePreview(t0);
   const face0 = box(t0.querySelector('.tile-clock-face'), t0);
-  near(face0.x, 8, 'face x'); near(face0.y, 8, 'face y'); near(face0.w, 59, 'face size');
+  near(face0.y, 8, 'face y'); near(face0.w, 59, 'face size');
   const svg = t0.querySelector('.tile-clock-face').innerHTML;
   check(svg.includes('fill="#26364F"'), 'the navy dial');
   check(svg.includes('stroke="#C3C7CC"'), 'silver hands');
   const text0 = box(t0.querySelector('.tile-clock-face-text'), t0);
-  near(text0.x, 75, 'lines x'); near(text0.w, 120, 'lines width');
+  near(text0.x, face0.x + face0.w + 8, 'the lines one gap beside the face');
+  check(text0.w > 40 && text0.w < 120, 'the lines box as wide as its lines: ' + text0.w);
+  near((face0.x + text0.x + text0.w) / 2, 406 / 4, 'face and lines centered together');
+  const time0 = box(t0.querySelector('.tile-clock-time'), t0), date0 = box(t0.querySelector('.tile-clock-date'), t0);
+  near(time0.x, text0.x, 'the time starts at the lines'); near(date0.x, text0.x, 'the date too');
   check(t0.querySelector('.tile-clock-time').dataset.clockFont === '40', 'time at 40: ' + t0.querySelector('.tile-clock-time').dataset.clockFont);
   check(!t0.querySelector('.tile-clock-date').hidden, 'the date beside');
+  // Left and right move the block to the margin (16 device px).
+  const t3 = document.getElementById('t3');
+  layoutClockFacePreview(t3);
+  near(box(t3.querySelector('.tile-clock-face'), t3).x, 8, 'left: the face at the margin');
+  const t4 = document.getElementById('t4');
+  layoutClockFacePreview(t4);
+  const text4 = box(t4.querySelector('.tile-clock-face-text'), t4);
+  near(text4.x + text4.w, (406 - 16) / 2, 'right: the lines end at the margin');
+  near(text4.w, text0.w, 'the same lines');
   // A 1x1 tile with a header: the face alone below the header.
   const t1 = document.getElementById('t1');
   layoutClockFacePreview(t1);
@@ -81,9 +121,22 @@ try {
   layoutClockFacePreview(t2);
   check(!t2.querySelector('.tile-clock-time').hidden && t2.querySelector('.tile-clock-date').hidden, 'the time alone');
   near(box(t2.querySelector('.tile-clock-face'), t2).w, (64 - 12) / 2, 'the half tile face');
+  // A tile laid out at 1x1 and then grown to 1.5x2 (193x150 -> 298x319):
+  // the observer places the face again, now with the date below it.
+  const t5 = document.getElementById('t5');
+  layoutClockFacePreview(t5);
+  near(box(t5.querySelector('.tile-clock-face'), t5).w, (150 - 32) / 2, 'the 1x1 face');
+  check(t5.querySelector('.tile-clock-face-text').hidden, '1x1: the face alone');
+  t5.style.width = (298 / 2) + 'px';
+  t5.style.height = (319 / 2) + 'px';
+  check(observed.includes(t5), 'the laid out tile is observed');
+  notify(observed.map(target => ({target})));
+  check(!t5.querySelector('.tile-clock-face-text').hidden && !t5.querySelector('.tile-clock-date').hidden,
+    'grown: the date below the face');
+  near(box(t5.querySelector('.tile-clock-face'), t5).w, 242 / 2, 'grown: the larger face');
   document.body.dataset.result = 'pass';
-} catch (error) { document.body.dataset.result = 'fail'; document.getElementById('result').textContent = error.message; }
+} catch (error) { document.body.dataset.result = 'fail'; document.getElementById('result').textContent = error.message; } })();
 </script></body></html>`;
-try { runDomHarness({label: 'Clock face preview', html, tmpPrefix: 'hometiles-clock-face-'}); }
+try { runDomHarness({label: 'Clock face preview', html, tmpPrefix: 'hometiles-clock-face-', extraArgs: ['--virtual-time-budget=2000']}); }
 catch (error) { throw Error(error.message.match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1] || error.message.slice(0, 300)); }
 console.log('Clock face preview: face and lines where the panel puts them');

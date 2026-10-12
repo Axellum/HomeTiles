@@ -61,11 +61,14 @@ function getClockPreviewLanguage() {
   // tabular_digits (src/ui/shared/tabular_digits.cpp): every digit as wide as
   // the widest one and centered in it, so the time never shifts. The Admin's
   // Inter has no tabular figures (a subset without features): a box per digit
-  // (.tnum, the width of Inter's widest digit, the 4) does it like the panel.
+  // (.tnum, the width of Inter's widest digit, the 4) does it like the panel;
+  // A and P before M in a box as wide as the A (.tap), so AM and PM match.
   const CLOCK_HTML_ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
   function clockDigitsHtml(text) {
-    return Array.from(String(text), ch => (ch >= '0' && ch <= '9'
-      ? '<span class="tnum">' + ch + '</span>' : (CLOCK_HTML_ESCAPES[ch] || ch))).join('');
+    const chars = Array.from(String(text));
+    return chars.map((ch, i) => (ch >= '0' && ch <= '9' ? '<span class="tnum">' + ch + '</span>'
+      : (ch === 'A' || ch === 'P') && chars[i + 1] === 'M' ? '<span class="tap">' + ch + '</span>'
+        : (CLOCK_HTML_ESCAPES[ch] || ch))).join('');
   }
   function setClockDigits(el, text) {
     if (!el) return;
@@ -77,10 +80,10 @@ function getClockPreviewLanguage() {
     const now = new Date();
     const format = resolveClockTimeFormat(rawFormat);
     if (format === 2) {
-      let hh = now.getHours() % 12;
-      if (hh === 0) hh = 12;
+      // Two-digit hours like the panel (clock_tile::format_time).
+      const hh = String(now.getHours() % 12 || 12).padStart(2, '0');
       const mm = String(now.getMinutes()).padStart(2, '0');
-      return String(hh) + ':' + mm + (now.getHours() < 12 ? ' AM' : ' PM');
+      return hh + ':' + mm + (now.getHours() < 12 ? ' AM' : ' PM');
     }
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
@@ -432,10 +435,19 @@ function getClockPreviewLanguage() {
     syncClockStyleFields(tab);
   }
 
-  // The wall clock's colors only with the wall clock.
+  // The wall clock's colors only with the wall clock; the time and date
+  // sizes only with the digital one (the faces and the big date size their
+  // lines by the tile; user 2026-10-12: confusing).
   function syncClockStyleFields(tab) {
+    const style = document.getElementById(tab + '_clock_style')?.value || '0';
     const wall = document.getElementById(tab + '_clock_wall_colors');
-    if (wall) wall.classList.toggle('hidden', document.getElementById(tab + '_clock_style')?.value !== '2');
+    if (wall) wall.classList.toggle('hidden', style !== '2');
+    for (const id of ['_clock_time_font', '_clock_date_font']) {
+      const select = document.getElementById(tab + id);
+      if (!select) continue;
+      select.classList.toggle('hidden', style !== '0');
+      select.previousElementSibling?.classList.toggle('hidden', style !== '0');
+    }
   }
 
   // clock_face.h: the wall clock's colors; the analog clock takes the theme.
@@ -706,13 +718,60 @@ function getClockPreviewLanguage() {
     if (timeEl && s.timeRight) place('time', columnX + Math.max(w('weekday'), w('month')) + m.gap, y0 + (blockH - h('time')) / 2);
   }
 
+  // The grid gives a tile its size only after the render (layoutTiles), a
+  // hidden tab measures 0 and a resized tile kept its old places (user
+  // 2026-10-12: a 1.5x2 analog clock showed its 1x1 face without the date):
+  // a clock's lines, face and big date are placed again whenever the tile's
+  // size changes (like the switch bar's fill, switchBarObserver).
+  const clockTileObserver = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const tile = entry.target;
+        if (!tile.isConnected || !tile.classList.contains('clock')) {
+          clockTileObserver.unobserve(tile);
+          tile.__clockObserved = false;
+          continue;
+        }
+        fitCompactClockPreview(tile);
+        layoutClockFacePreview(tile);
+        layoutClockBigDatePreview(tile);
+      }
+    })
+    : null;
+  function observeClockTile(tileElem) {
+    if (!clockTileObserver || !tileElem || tileElem.__clockObserved) return;
+    tileElem.__clockObserved = true;
+    clockTileObserver.observe(tileElem);
+  }
+
+  // The panel's width of a clock line in preview pixels: the line's browser
+  // width as drawn (.tnum, .tap) scaled by the LVGL width of the clock sample
+  // in its font (--tw<size>) over the browser's.
+  function clockLinePanelWidth(el, size, scope) {
+    const text = el.textContent;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap';
+    el.appendChild(probe);
+    probe.innerHTML = clockDigitsHtml(CLOCK_WIDTH_SAMPLE);
+    const sample = probe.getBoundingClientRect().width;
+    probe.innerHTML = clockDigitsHtml(text);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    const lvgl = parseFloat(getComputedStyle(scope).getPropertyValue('--tw' + size));
+    return lvgl > 0 && sample > 0 ? width * lvgl / sample : width;
+  }
+
   // The analog and the wall clock in the preview, placed after the tile has
   // its size: the device layout in device pixels, scaled like the grid
   // (--radius-preview-scale), inside the 3 px editor border.
   function layoutClockFacePreview(tileElem) {
+    if (tileElem?.classList?.contains('clock')) observeClockTile(tileElem);
     const face = tileElem?.querySelector(':scope > .tile-clock-face');
     if (!face) return;
     const options = clockDateOptions(face.dataset.options);
+    // The tile's alignment (0 centered, 1 left, 2 right): the live editor
+    // keeps it on the tile (its face options leave it out).
+    const align = clockDateOptions(tileElem.dataset.clockOptions ?? face.dataset.options).align;
     const style = getComputedStyle(tileElem);
     const devicePx = (name, fallback) => {
       const v = parseFloat(style.getPropertyValue(name));
@@ -729,29 +788,40 @@ function getClockPreviewLanguage() {
     const fonts = {timeW: CLOCK_FACE_TIME_SIZES.map(n => measure('--tw' + n, n * 4)),
       timeH: CLOCK_FACE_TIME_SIZES.map(n => measure('--lh' + n, n * 1.21)),
       date20H: measure('--lh20', 24), date24H: measure('--lh24', 29)};
-    const l = clockFaceLayout(w, h, top, compact, !!time, !!date, fonts,
-      devicePx(compact ? '--clock-face-m-compact' : '--clock-face-m', compact ? 6 : 16),
-      devicePx('--clock-face-gap', 6));
+    const m = devicePx(compact ? '--clock-face-m-compact' : '--clock-face-m', compact ? 6 : 16);
+    const l = clockFaceLayout(w, h, top, compact, !!time, !!date, fonts, m, devicePx('--clock-face-gap', 6));
     const border = tileElem.clientLeft || 0;
-    face.style.left = (l.x * scale - border) + 'px';
+    const lines = !!text && (l.showTime || l.showDate);
+    let linesW = 0;
+    if (text) {
+      text.hidden = !lines;
+      if (time) {
+        time.hidden = !l.showTime;
+        applyClockPreviewTextStyle(time, l.timeSize || 40, 40, panelRoleHex('text', '#fff'));
+      }
+      if (date) {
+        date.hidden = !l.showDate;
+        applyClockPreviewTextStyle(date, l.dateSize || 20, 20, panelRoleHex('text', '#fff'));
+      }
+      for (const [el, size] of [[time, l.timeSize], [date, l.dateSize]]) {
+        if (lines && el && !el.hidden) linesW = Math.max(linesW, clockLinePanelWidth(el, size, tileElem) / scale);
+      }
+    }
+    // The face and its lines as one block, moved by the alignment
+    // (renderer.cpp render_clock_face): the lines one gap beside the face,
+    // left-aligned, or centered on it below.
+    const gap = l.textX - l.x - l.size;
+    const blockW = l.beside ? l.size + (lines ? gap + linesW : 0) : Math.max(l.size, lines ? linesW : 0);
+    const blockX = align === 1 ? m : align === 2 ? w - m - blockW : (w - blockW) / 2;
+    face.style.left = ((l.beside ? blockX : blockX + (blockW - l.size) / 2) * scale - border) + 'px';
     face.style.top = (l.y * scale - border) + 'px';
     face.style.width = face.style.height = (l.size * scale) + 'px';
     face.setAttribute('viewBox', `0 0 ${l.size} ${l.size}`);
     face.innerHTML = clockFaceSvg(l.size, options, compact, clockDialColor(tileElem));
-    if (!text) return;
-    text.hidden = !l.showTime && !l.showDate;
-    if (text.hidden) return;
-    if (time) {
-      time.hidden = !l.showTime;
-      applyClockPreviewTextStyle(time, l.timeSize || 40, 40, panelRoleHex('text', '#fff'));
-    }
-    if (date) {
-      date.hidden = !l.showDate;
-      applyClockPreviewTextStyle(date, l.dateSize || 20, 20, panelRoleHex('text', '#fff'));
-    }
+    if (!lines) return;
     text.style.alignItems = l.beside ? 'flex-start' : 'center';
-    text.style.left = (l.textX * scale - border) + 'px';
+    text.style.left = ((l.beside ? blockX + l.size + gap : blockX) * scale - border) + 'px';
     text.style.top = (l.textY * scale - border) + 'px';
-    text.style.width = (l.textW * scale) + 'px';
+    text.style.width = ((l.beside ? linesW : blockW) * scale) + 'px';
     text.style.height = (l.textH * scale) + 'px';
   }

@@ -421,13 +421,7 @@ static void update_clock_labels(ClockTileData* data) {
     bool changed = false;
     if (data->time_label) {
       char buf[16];
-      if (data->time_format == clock_tile::TIME_FORMAT_12H) {
-        int hour12 = timeinfo.tm_hour % 12;
-        if (hour12 == 0) hour12 = 12;
-        snprintf(buf, sizeof(buf), "%d:%02d %s", hour12, timeinfo.tm_min, timeinfo.tm_hour < 12 ? "AM" : "PM");
-      } else {
-        snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-      }
+      clock_tile::format_time(buf, sizeof(buf), timeinfo.tm_hour, timeinfo.tm_min, data->time_format);
       changed |= data->roll ? clock_roll_set_text(data->time_roll, buf, data->roll_started)
                             : data->time_shadows.set_text(buf);
     }
@@ -596,7 +590,16 @@ lv_obj_t* create_clock_widget(lv_obj_t* parent,
     lv_obj_set_size(stack, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   }
   lv_obj_set_flex_flow(stack, config.horizontal ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(stack, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+  // Stacked lines of one alignment line up by it (the analog clock's lines
+  // beside its face start together; user 2026-10-12: the rolling time stood
+  // centered over the date); mixed alignments center them on each other.
+  const uint8_t line_align = !config.horizontal && config.time_alignment == config.date_alignment
+                                 ? normalize_clock_alignment(config.time_alignment)
+                                 : 1;
+  lv_obj_set_flex_align(stack, LV_FLEX_ALIGN_CENTER,
+                        line_align == 0   ? LV_FLEX_ALIGN_START
+                        : line_align == 2 ? LV_FLEX_ALIGN_END
+                                          : LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_all(stack, 0, 0);
   lv_obj_set_style_pad_gap(stack, tile_layout::scale(6), 0);
@@ -749,8 +752,10 @@ static void fit_compact_clock(const Tile& tile, lv_coord_t pad, ClockWidgetConfi
 // a tall tile the face on top, the lines below; else the face alone, the
 // date below it when the face keeps 70 % of its size (the face shows the
 // time). The time takes the largest size whose clock sample fits beside or
-// below the face; without one the face stays alone. Places in card pixels;
-// the preview mirrors it (clock/admin.js clockFaceLayout).
+// below the face; without one the face stays alone (the time and date size
+// options are hidden for the faces, user 2026-10-12). Places in card pixels;
+// the preview mirrors it (clock/admin.js clockFaceLayout). render_clock_face
+// moves the face and its lines together by the tile's alignment.
 struct ClockFaceLayout {
   lv_coord_t x = 0, y = 0, size = 0;
   bool show_time = false;
@@ -910,8 +915,55 @@ static void render_clock_face(lv_obj_t* card, const Tile& tile, bool compact, bo
     colors.major = colors.hour = colors.minute = colors.center = ui_theme::text();
     colors.minor = ui_theme::icon_off();
   }
-  clock_face::create(card, l.x - pad_x, l.y - pad_y, l.size, colors, marks, compact);
-  if (!l.show_time && !l.show_date) return;
+  // The face and its lines are one block (user 2026-10-12: the lines stood
+  // far right of the face and the alignment did nothing): beside the face
+  // the lines start one gap after it, left-aligned; below it they center on
+  // it, as far below as the text box centers them. The tile's alignment moves
+  // the block between the margins; LVGL keeps it there when a line's width
+  // changes (the time arrives after the start, the date at midnight). The
+  // preview mirrors it (clock/admin.js layoutClockFacePreview).
+  lv_obj_t* block = lv_obj_create(card);
+  if (!block) return;
+  lv_obj_remove_style_all(block);
+  lv_obj_set_size(block, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_remove_flag(block, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_remove_flag(block, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(block, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+  lv_obj_set_flex_flow(block, l.beside ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(block, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  clock_face::create(block, 0, 0, l.size, colors, marks, compact);
+  const lv_coord_t m = tile_layout::scale(compact ? clock_face::kCompactMargin : clock_face::kTileMargin);
+  const lv_coord_t pad_r = lv_obj_get_style_pad_right(card, LV_PART_MAIN);
+  const uint8_t align = options.align;
+  // Card pixels to offsets from the content box (lv_obj_align).
+  const lv_coord_t x_ofs = align == 1   ? m - pad_x
+                           : align == 2 ? pad_r - m
+                                        : w / 2 - (pad_x + (w - pad_x - pad_r) / 2);
+  const bool lines = l.show_time || l.show_date;
+  if (l.beside) {
+    const lv_coord_t content_cy = pad_y + (h - pad_y - lv_obj_get_style_pad_bottom(card, LV_PART_MAIN)) / 2;
+    lv_obj_set_style_pad_column(block, l.text_x - l.x - l.size, 0);
+    lv_obj_align(block,
+                 align == 1   ? LV_ALIGN_LEFT_MID
+                 : align == 2 ? LV_ALIGN_RIGHT_MID
+                              : LV_ALIGN_CENTER,
+                 x_ofs, l.text_y + l.text_h / 2 - content_cy);
+  } else {
+    if (lines) {
+      auto line_h = [](uint8_t size) {
+        return static_cast<lv_coord_t>(lv_font_get_line_height(ui_font_for_size(layout_clock_font_size(size))));
+      };
+      const lv_coord_t lines_h = (l.show_time ? line_h(l.time_size) : 0) + (l.show_date ? line_h(l.date_size) : 0) +
+                                 (l.show_time && l.show_date ? tile_layout::scale(6) : 0);
+      lv_obj_set_style_pad_row(block, LV_MAX(0, (l.text_h - lines_h) / 2), 0);
+    }
+    lv_obj_align(block,
+                 align == 1   ? LV_ALIGN_TOP_LEFT
+                 : align == 2 ? LV_ALIGN_TOP_RIGHT
+                              : LV_ALIGN_TOP_MID,
+                 x_ofs, l.y - pad_y);
+  }
+  if (!lines) return;
   config.fill_parent = false;
   config.horizontal = false;
   config.text_shadow = false;
@@ -921,19 +973,7 @@ static void render_clock_face(lv_obj_t* card, const Tile& tile, bool compact, bo
   config.time_font_size = l.time_size ? l.time_size : config.time_font_size;
   config.date_font_size = l.date_size ? l.date_size : config.date_font_size;
   config.time_alignment = config.date_alignment = l.beside ? 0 : 1;
-  lv_obj_t* stack = create_clock_widget(card, config);
-  if (!stack) return;
-  // Aligned to the card's content box: LVGL keeps the lines centered in
-  // their box when their size changes (the time arrives after the start,
-  // "9:59" -> "10:00"); a set position would keep the first size's place.
-  const lv_coord_t content_cx = pad_x + (w - pad_x - lv_obj_get_style_pad_right(card, LV_PART_MAIN)) / 2;
-  const lv_coord_t content_cy = pad_y + (h - pad_y - lv_obj_get_style_pad_bottom(card, LV_PART_MAIN)) / 2;
-  const lv_coord_t cy = l.text_y + l.text_h / 2 - content_cy;
-  if (l.beside) {
-    lv_obj_align(stack, LV_ALIGN_LEFT_MID, l.text_x - pad_x, cy);
-  } else {
-    lv_obj_align(stack, LV_ALIGN_CENTER, l.text_x + l.text_w / 2 - content_cx, cy);
-  }
+  create_clock_widget(block, config);
 }
 
 // The big date (user 2026-10-12, mockup build/design-mockups/clock 3 "Datum
@@ -1131,12 +1171,7 @@ static void clock_big_date_update(ClockBigDate* d) {
   }
   lv_label_set_text(d->month, text);
   if (d->time) {
-    if (d->time_format == clock_tile::TIME_FORMAT_12H) {
-      const int hour12 = now.tm_hour % 12 ? now.tm_hour % 12 : 12;
-      snprintf(text, sizeof(text), "%d:%02d %s", hour12, now.tm_min, now.tm_hour < 12 ? "AM" : "PM");
-    } else {
-      snprintf(text, sizeof(text), "%02d:%02d", now.tm_hour, now.tm_min);
-    }
+    clock_tile::format_time(text, sizeof(text), now.tm_hour, now.tm_min, d->time_format);
     lv_label_set_text(d->time, text);
   }
   // Places from the texts shown now: the block centers (or aligns) in the area.

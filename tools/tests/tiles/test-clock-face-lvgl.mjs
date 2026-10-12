@@ -34,11 +34,20 @@ assert.match(face, /tile_icon_disc::tile_fill\(card, dial_card, ui_theme::icon\(
 assert.match(face, /tileTransparent\(tile\) \? \(ui_theme::theme_light\(\) \? ui_theme::screen\(\) : ui_theme::card\(\)\) : card_color;/);
 assert.match(read('src/types/clock/admin.js'), /tileElem\.classList\.contains\('tile-transparent'\)\s*\? \(panelLight\(\) \? panelRole\('screen'\) : panelRole\('card'\)\)/);
 assert.match(face, /config\.text_shadow = false;/);
-// b397: the lines stay centered in their box when their size changes (the
-// time arrives after the start, "9:59" -> "10:00"): aligned, not placed.
-assert.match(face, /lv_obj_align\(stack, LV_ALIGN_LEFT_MID, l\.text_x - pad_x, cy\);/);
-assert.match(face, /lv_obj_align\(stack, LV_ALIGN_CENTER, l\.text_x \+ l\.text_w \/ 2 - content_cx, cy\);/);
-assert.doesNotMatch(face, /lv_obj_set_pos\(stack/);
+// The face and its lines are one block in a flex row (beside) or column
+// (below), aligned by the tile's alignment (user 2026-10-12: the lines stood
+// far right and the alignment did nothing); LVGL keeps the block aligned
+// when a line's width changes (b397: the time arrives after the start).
+assert.match(face, /lv_obj_set_flex_flow\(block, l\.beside \? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN\);/);
+assert.match(face, /clock_face::create\(block, 0, 0, l\.size, colors, marks, compact\);/);
+assert.match(face, /create_clock_widget\(block, config\);/);
+assert.match(face, /lv_obj_set_style_pad_column\(block, l\.text_x - l\.x - l\.size, 0\);/);
+assert.match(face, /align == 1   \? LV_ALIGN_LEFT_MID\s*: align == 2 \? LV_ALIGN_RIGHT_MID\s*: LV_ALIGN_CENTER,/);
+assert.match(face, /align == 1   \? LV_ALIGN_TOP_LEFT\s*: align == 2 \? LV_ALIGN_TOP_RIGHT\s*: LV_ALIGN_TOP_MID,/);
+assert.doesNotMatch(face, /lv_obj_set_pos\(block/);
+// Stacked lines of one alignment line up by it (the rolling time stood
+// centered over the date beside the face).
+assert.match(fn('create_clock_widget'), /const uint8_t line_align = !config\.horizontal && config\.time_alignment == config\.date_alignment/);
 const header = read('src/types/clock/clock_face.h');
 const css = read('src/web/assets/admin.css');
 const admin = read('src/types/clock/admin.js');
@@ -57,6 +66,9 @@ assert.ok(html.includes('{tr.clock_color_gold, tr.clock_color_silver, tr.clock_c
 for (const key of ['clock_style_label', 'clock_style_digital', 'clock_style_analog', 'clock_style_wall', 'clock_dial_label', 'clock_hands_label']) {
   assert.ok(html.includes('tr.' + key), key);
 }
+// The time and date sizes only with the digital clock: the faces and the big
+// date size their lines by the tile (user 2026-10-12: confusing).
+assert.match(admin, /for \(const id of \['_clock_time_font', '_clock_date_font'\]\) \{[\s\S]*?select\.classList\.toggle\('hidden', style !== '0'\);\s*select\.previousElementSibling\?\.classList\.toggle\('hidden', style !== '0'\);/);
 const editor = read('src/web/admin/tiles/editor.js');
 for (const id of ['_clock_style', '_clock_dial', '_clock_hands']) assert.ok(editor.includes(`target.id === (prefix + '${id}')`), id);
 

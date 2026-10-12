@@ -960,14 +960,9 @@ bool time_text(char* buf, size_t len) {
   struct tm now;
   if (!getLocalTime(&now, 0) || now.tm_year + 1900 < 2023) return false;
   const DeviceConfig& cfg = configManager.getConfig();
-  const bool h12 = clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format,
-                                                   cfg.language) == clock_tile::TIME_FORMAT_12H;
-  if (h12) {
-    const int hour = now.tm_hour % 12 ? now.tm_hour % 12 : 12;
-    snprintf(buf, len, "%d:%02d %s", hour, now.tm_min, now.tm_hour < 12 ? "AM" : "PM");
-  } else {
-    snprintf(buf, len, "%02d:%02d", now.tm_hour, now.tm_min);
-  }
+  clock_tile::format_time(buf, len, now.tm_hour, now.tm_min,
+                          clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format,
+                                                          cfg.language));
   return true;
 }
 

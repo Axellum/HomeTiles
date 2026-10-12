@@ -34,10 +34,14 @@ for (const [file, pattern] of [
   ['src/web/admin/settings/display-borders.js', /setClockDigits\(el, text\)/],
 ]) assert.match(read(file), pattern, file);
 assert.match(read('src/web/assets/admin.css'), /\.tnum \{ display:inline-block; width:0\.646em; text-align:center; \}/);
+assert.match(read('src/web/assets/admin.css'), /\.tap \{ display:inline-block; width:0\.690em; text-align:center; \}/);
 {
   const html = new Function(`const CLOCK_HTML_ESCAPES = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
     ${extractDeliveredFunction('clockDigitsHtml')}; return clockDigitsHtml;`)();
-  assert.equal(html('10:52 PM'), '<span class="tnum">1</span><span class="tnum">0</span>:<span class="tnum">5</span><span class="tnum">2</span> PM');
+  // A and P before M in a box as wide as the A: AM and PM match (the panel's
+  // tabular_digits); other letters stay plain.
+  assert.equal(html('10:52 PM'), '<span class="tnum">1</span><span class="tnum">0</span>:<span class="tnum">5</span><span class="tnum">2</span> <span class="tap">P</span>M');
+  assert.equal(html('Pon, April'), 'Pon, April', 'no box without an M');
   assert.equal(html('<1>'), '&lt;<span class="tnum">1</span>&gt;', 'escaped, the entities untouched');
   assert.match(read('src/types/clock/admin.js'), /const CLOCK_HTML_ESCAPES = \{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'\};/);
 }
@@ -82,8 +86,10 @@ int main() {
     }
     std::printf("width %d %d %d %d %d\n", width(fixed, "11:11"), width(fixed, "00:00"), width(fixed, "18:47"),
                 width(base, "11:11"), width(base, "00:00"));
-    // Letters keep their own spacing.
-    std::printf("letters %d %d\n", width(fixed, " PM"), width(base, " PM"));
+    // AM and PM as wide as each other (the A's advance, the wider one), so
+    // the time keeps its width at noon; other letters keep their spacing.
+    std::printf("meridiem %d %d %d\n", width(fixed, "08:00 AM"), width(fixed, "08:00 PM"), width(base, " AM") > width(base, " PM") ? 1 : 0);
+    std::printf("letters %d %d %d %d\n", width(fixed, "Pon"), width(base, "Pon"), width(fixed, "April"), width(base, "April"));
   }
   return 0;
 }
@@ -109,7 +115,14 @@ for (const line of run.stdout.trim().split('\n')) {
     assert.equal(mixed, zeros, '18:47 as wide as 00:00');
     assert.ok(baseOnes < baseZeros, 'the plain font is proportional (the reason)');
   }
-  if (kind === 'letters') assert.equal(v[0], v[1], 'letters unchanged');
+  if (kind === 'meridiem') {
+    assert.equal(v[0], v[1], '08:00 AM as wide as 08:00 PM');
+    assert.equal(v[2], '1', 'the plain font differs (the reason)');
+  }
+  if (kind === 'letters') {
+    assert.equal(v[0], v[1], 'a P without an M unchanged');
+    assert.equal(v[2], v[3], 'an A without an M unchanged');
+  }
 }
 assert.equal(fonts, 3);
 console.log('Clock digits: fixed width on the panel fonts and in the preview');
