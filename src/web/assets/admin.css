@@ -3020,6 +3020,10 @@
 .compact-grid .tile-editor-main > .settings-hidden-parking.page-stack { width:fit-content; align-self:start; }
 /* A square preview (S3, 4B): the row under it as on landscape panels, as
    wide as the editor column allows (page-slots.js fitPageStack). */
+/* The words over the boxes keep their size when the boxes shrink (user
+   2026-10-12: "Seiten" and "Settings" got too small). */
+.wrapper:not(.compact-grid) .page-stack .page-parking-label { font-size:calc(12px / var(--slot-zoom, 1)); }
+.compact-grid .page-stack .page-parking-label { font-size:calc(12px / var(--stack-zoom, 1)); }
 .compact-grid.page-slots-under .tile-editor-main > .settings-hidden-parking.page-stack {
   grid-column:1 / -1;
   grid-row:auto;

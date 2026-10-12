@@ -754,6 +754,8 @@
     fd.append('folder', folderId);
     fd.append('index', index);
     fd.append('type', safeType);
+    // An import replaces the grid on purpose (it asked before).
+    if (safeType === 0) fd.append('delete_folder', '1');
     // The export's places are the classic layout's (tile_layouts.h); a tile
     // from its storage has none there, only its spot beside the screen.
     fd.append('layout', 'classic');

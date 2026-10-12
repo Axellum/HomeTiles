@@ -289,9 +289,13 @@
     const main = stack?.closest('.tile-editor-main');
     if (!stack || !main) return;
     stack.style.zoom = '';
+    stack.style.removeProperty('--stack-zoom');
     const room = main.getBoundingClientRect().right - stack.getBoundingClientRect().left;
     const need = stack.scrollWidth;
-    if (room > 0 && need > room) stack.style.zoom = String(room / need);
+    if (room > 0 && need > room) {
+      stack.style.zoom = String(room / need);
+      stack.style.setProperty('--stack-zoom', String(room / need));
+    }
   }
 
   function enablePageSlots() {

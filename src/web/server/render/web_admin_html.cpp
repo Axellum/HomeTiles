@@ -1323,17 +1323,13 @@ static void appendTileTabHTML(
     append_tile_type_select_options(html);
   }
   html += R"html(
-</select></div>
-<p class="hint hidden" id=")html";
-  html += tab_id;
-  html += R"html(_tile_type_hint">)html";
-  html += tr.admin_folder_type_locked;
+</select></div>)html";
   // The entity of the shown type right under Type (placeTileEntityField in
   // tiles/entity-picker.js), then title and icon side by side. The head
   // stays while the body scrolls. The icon picker (tiles/tile-head.js) keeps
   // the icon name in the hidden input: empty = the entity's icon, "none" =
   // no icon.
-  html += R"html(</p>
+  html += R"html(
 <div class="tile-entity-slot" id=")html";
   html += tab_id;
   html += R"html(_tile_entity_slot"></div>

@@ -61,13 +61,19 @@ assert.match(line, /left = l0 \+ \(l1 - l0\) \* ease_in\(p\);\s*right = l0 \+ d\
 assert.match(line, /const float x = k == i \? to_x : k == j \? from_x : from_x \+ \(to_x - from_x\) \* p;/, 'The grey dots stand still');
 // Sized like the mockup: 12 and 34 on an 800 px short side.
 assert.match(bar, /const int dot = \(12 \* side \+ 400\) \/ 800;\s*return \{dot, \(34 \* side \+ 400\) \/ 800, dot\};/);
-// Between two pages the line goes over in 180 ms from the old page's dot.
+// A page turn: the line goes over on the old page first (120 ms) and the
+// new page shows as it arrives, its line at rest (user 2026-10-12: started
+// after the new page, the dots trailed behind it).
 const shown = slice(bar, 'void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {', '\n}\n');
-assert.match(shown, /if \(!dots \|\| page < 0 \|\| from < 0 \|\| from == page\) return;[\s\S]*move_line_after_frame\(dots, from, page, 0\.0f\);/);
-// It starts once the new page is on the screen (its first frame takes
-// about 100 ms on the V2 and ate the 180 ms).
-assert.match(bar, /lv_display_add_event_cb\(display, start_waiting, LV_EVENT_REFR_READY, nullptr\);/);
-assert.match(slice(bar, 'void move_line(', '\n}\n'), /lv_anim_set_duration\(&anim, 180\);/);
+assert.match(shown, /if \(!dots \|\| page < 0 \|\| from < 0 \|\| from == page\) return;[\s\S]*lay_out_line\(dots, page, page, 0, 0\);/);
+assert.match(slice(bar, 'bool lead(', '\n}\n'), /move_line\(dots, from, to, 0\.0f, 1\.0f, 0, duration\);/);
+const leadManager = read('src/ui/ui_manager.cpp');
+const lead = slice(leadManager, 'void UIManager::showPage(int number) {', '\n}\n');
+assert.match(lead, /if \(current >= 0 && home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\) \{\s*g_page_lead_target = number;\s*g_page_lead = lv_timer_create\(page_lead_done, kPageLeadMs, nullptr\);/);
+assert.match(leadManager, /static constexpr uint32_t kPageLeadMs = 120;/);
+assert.doesNotMatch(bar, /start_waiting|move_line_after_frame/);
+// The words over the Web Admin boxes keep their size when the boxes shrink.
+assert.match(read('src/web/assets/admin.css'), /\.compact-grid \.page-stack \.page-parking-label \{ font-size:calc\(12px \/ var\(--stack-zoom, 1\)\); \}/);
 // No line following the finger (user 2026-10-12: it snaps at once).
 assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
 // The press pill shows at once and goes as soon as the finger moves, and
@@ -108,7 +114,7 @@ const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n')
 assert.match(swipe, /abs_dx < kSettingsGestureThreshold \|\| abs_dx <= abs_dy/);
 assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
 assert.doesNotMatch(manager, /page_drag_tick/);
-const showPage = slice(manager, 'void UIManager::showPage(int number) {', '\n}\n');
+const showPage = slice(manager, 'void UIManager::openPage(int number) {', '\n}\n');
 assert.match(showPage, /if \(number < 0 \|\| number > count\) return;/);
 assert.match(showPage, /requestFolderAccess\(folder_id, folder->name, folder->icon_name\);/, 'A lock set anyway still asks');
 

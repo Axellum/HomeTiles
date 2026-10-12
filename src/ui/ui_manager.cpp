@@ -849,7 +849,36 @@ void UIManager::turnPage(int step) {
   if (page >= 0) showPage(page + step);
 }
 
+// A page turn: the head's line goes over first (120 ms, a small area) and
+// the new page shows as it arrives (user 2026-10-12: started after the new
+// page, the dots trailed behind it). One turn at a time.
+static constexpr uint32_t kPageLeadMs = 120;
+static lv_timer_t* g_page_lead = nullptr;
+static int g_page_lead_target = -1;
+
+void UIManager::page_lead_done(lv_timer_t*) {
+  g_page_lead = nullptr;
+  const int target = g_page_lead_target;
+  g_page_lead_target = -1;
+  uiManager.openPage(target);
+}
+
 void UIManager::showPage(int number) {
+  if (g_page_lead) return;
+  uint16_t pages[tile_layouts::kMaxPages];
+  const int count = static_cast<int>(tile_layouts::pages(pages));
+  const int current = tile_layouts::page_number(tileConfig.getActiveFolderId());
+  if (number < 0 || number > count || number == current) return;
+  if (current >= 0 && home_bar::lead(tiles_visible_grid(), current, number, kPageLeadMs)) {
+    g_page_lead_target = number;
+    g_page_lead = lv_timer_create(page_lead_done, kPageLeadMs, nullptr);
+    lv_timer_set_repeat_count(g_page_lead, 1);
+    return;
+  }
+  openPage(number);
+}
+
+void UIManager::openPage(int number) {
   uint16_t pages[tile_layouts::kMaxPages];
   const int count = static_cast<int>(tile_layouts::pages(pages));
   if (number < 0 || number > count) return;

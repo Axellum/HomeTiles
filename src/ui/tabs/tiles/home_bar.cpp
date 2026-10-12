@@ -230,7 +230,7 @@ void stop_motion() {
   lv_anim_delete(&g_motion, motion_step);
   g_motion = {};
 }
-void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch) {
+void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch, uint32_t duration) {
   stop_motion();
   g_motion = {dots, from, to, p0, p1, stretch};
   motion_step(nullptr, 0);
@@ -239,7 +239,7 @@ void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch
   lv_anim_set_var(&anim, &g_motion);
   lv_anim_set_exec_cb(&anim, motion_step);
   lv_anim_set_values(&anim, 0, 1024);
-  lv_anim_set_duration(&anim, 180);
+  lv_anim_set_duration(&anim, duration);
   lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
   lv_anim_set_completed_cb(&anim, motion_done);
   lv_anim_start(&anim);
@@ -278,34 +278,10 @@ void dots_event(lv_event_t* event) {
     release_press(dots);
   }
 }
-// A new page's line waits for that page's first frame (a whole screen,
-// about 100 ms on the V2): started before, its 180 ms ran out unseen and
-// it jumped (user 2026-10-12: it must be fluid).
-Motion g_waiting{};
-void start_waiting(lv_event_t* event) {
-  lv_display_t* display = static_cast<lv_display_t*>(lv_event_get_current_target(event));
-  lv_display_remove_event_cb_with_user_data(display, start_waiting, nullptr);
-  const Motion waiting = g_waiting;
-  g_waiting = {};
-  if (waiting.dots) move_line(waiting.dots, waiting.from, waiting.to, waiting.p0, waiting.p1, waiting.stretch);
-}
-void move_line_after_frame(lv_obj_t* dots, int from, int to, float p0) {
-  stop_motion();
-  lay_out_line(dots, from, to, p0, 0);
-  lv_display_t* display = lv_obj_get_display(dots);
-  if (!display) {
-    move_line(dots, from, to, p0, 1.0f, 0);
-    return;
-  }
-  if (!g_waiting.dots) lv_display_add_event_cb(display, start_waiting, LV_EVENT_REFR_READY, nullptr);
-  g_waiting = {dots, from, to, p0, 1.0f, 0};
-}
-
 // The row is gone: nothing may reach it any more.
 void forget_dots(lv_event_t* event) {
   lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_target(event));
   if (g_motion.dots == dots) stop_motion();
-  if (g_waiting.dots == dots) g_waiting.dots = nullptr;
   if (g_press_dots == dots) g_press_dots = nullptr;
 }
 
@@ -576,8 +552,16 @@ void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {
   const int from = tile_layouts::page_number(previous_folder_id);
   lv_obj_t* dots = find_dots(grid);
   if (!dots || page < 0 || from < 0 || from == page) return;
-  // From the old page's place, once the page is on the screen.
-  move_line_after_frame(dots, from, page, 0.0f);
+  // The line went over on the old page already (lead): here it is at rest.
+  if (g_motion.dots == dots) stop_motion();
+  lay_out_line(dots, page, page, 0, 0);
+}
+
+bool lead(lv_obj_t* grid, int from, int to, uint32_t duration) {
+  lv_obj_t* dots = find_dots(grid);
+  if (!dots || from == to) return false;
+  move_line(dots, from, to, 0.0f, 1.0f, 0, duration);
+  return true;
 }
 
 // With pages the dots hold the middle: the camera circle sits before the

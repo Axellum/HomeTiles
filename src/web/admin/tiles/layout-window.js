@@ -700,11 +700,15 @@
     if (!tile) return;
     const tab = layoutWindow.tab, index = currentTileIndex;
     const name = tile.title || getTileTypeMeta(tile.type)?.label || '';
-    if (!window.confirm(tf('layoutDeleteConfirm', {tile: name}))) return;
+    // A folder's question names it and says its tiles go too.
+    const folder = Number(tile.type) === 4;
+    const question = folder ? tf('deleteFolderConfirm', {name}) : tf('layoutDeleteConfirm', {tile: name});
+    if (!window.confirm(question)) return;
     const form = new FormData();
     form.append('folder', layoutFolderId(tab));
     form.append('index', String(index));
     form.append('type', '0');
+    if (folder) form.append('delete_folder', '1');
     try {
       const response = await layoutWindowFetch('/api/tiles', {method: 'POST', body: form});
       if (!response.ok) throw new Error('HTTP ' + response.status);

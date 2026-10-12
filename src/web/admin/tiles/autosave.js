@@ -35,18 +35,19 @@
     metas.forEach(meta => callTypeHandler(meta, 'reset', tab));
   }
 
+  // A folder that still contains tiles keeps its type: the whole type list
+  // is greyed out (user 2026-10-12: choosing Empty deleted a whole folder
+  // with its tiles at once); it goes only by the Delete button after a
+  // question. applySpecialTileUiState keeps the lock.
   function applyFolderTypeLock(tab, locked) {
     const sel = document.getElementById(tab + '_tile_type');
-    if (sel) {
-      for (const opt of sel.options) {
-        // Keeping the folder and emptying or deleting it stay allowed; every
-        // other type is locked while the folder still contains tiles.
-        opt.disabled = locked && opt.value !== '4' && opt.value !== '0';
-      }
-    }
-    const hint = document.getElementById(tab + '_tile_type_hint');
-    if (hint) hint.classList.toggle('hidden', !locked);
+    if (!sel) return;
+    sel.dataset.folderLocked = locked ? '1' : '';
+    sel.disabled = locked || !!getTileTypeMeta(sel.value).locked;
   }
+
+  // Folders whose deletion was confirmed (tab:index): their save says so.
+  const confirmedFolderDeletes = new Set();
 
   function resetTile(tab) {
     if (currentTileIndex === -1) return;
@@ -54,6 +55,13 @@
     if (isLockedTileType(tileType)) {
       showNotification(t('tileCannotDelete'), false);
       return;
+    }
+    // A folder with tiles in it: the question names it, its tiles go too.
+    const stored = getTilesData(tab)?.[currentTileIndex];
+    if (Number(stored?.type) === 4 && stored.folder_empty === false) {
+      const name = stored.title || t('folderPrefix').trim();
+      if (!confirm(tf('deleteFolderConfirm', { name }))) return;
+      confirmedFolderDeletes.add(tab + ':' + currentTileIndex);
     }
     const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = '0';
@@ -157,6 +165,9 @@
     formData.append('span_w', layout.span_w);
     formData.append('span_h', layout.span_h);
     formData.append('type', snapshot.type || '0');
+    if ((snapshot.type || '0') === '0' && confirmedFolderDeletes.delete(tab + ':' + tileIndex)) {
+      formData.append('delete_folder', '1');
+    }
     formData.append('title', snapshot.title || '');
     formData.append('icon_name', snapshot.icon || '');
     if (snapshotBgColorIsDefault(snapshot)) {

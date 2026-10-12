@@ -105,7 +105,8 @@
     const typeValue = typeEl ? String(typeEl.value) : '0';
     const meta = getTileTypeMeta(typeValue);
     const locked = !!meta.locked;
-    if (typeEl) typeEl.disabled = locked;
+    // Fixed types (Settings, Back) and a folder with tiles (applyFolderTypeLock).
+    if (typeEl) typeEl.disabled = locked || typeEl.dataset.folderLocked === '1';
     if (navSelect) navSelect.disabled = (!meta.fields || meta.fields !== 'navigate' || locked);
     if (noteEl) {
       if (typeValue === '7') noteEl.textContent = t('settingsTileFixed');

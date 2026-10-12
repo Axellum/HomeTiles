@@ -107,6 +107,8 @@ private:
   void processPageSwipeMotion(lv_indev_t *input, bool released);
   void runSwipeAction(uint8_t action);
   void turnPage(int step);
+  void openPage(int number);
+  static void page_lead_done(lv_timer_t *timer);
   static void settings_gesture_indev_event_cb(lv_event_t *e);
   static void settings_gesture_pressed_object_event_cb(lv_event_t *e);
   static bool verify_pending_access(const char* pin, void* context);

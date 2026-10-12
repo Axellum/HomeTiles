@@ -697,10 +697,15 @@ void WebAdminServer::handleSaveTiles() {
   }
 
   // A folder tile can change type only when its folder is empty.
-  // Deletion (type -> EMPTY) remains allowed and removes the folder too.
-  if (previous_tile.type == TILE_FOLDER && type != TILE_FOLDER && type != TILE_EMPTY) {
+  // A folder with tiles in it goes only by its explicit deletion: the
+  // Delete button or the layout window's cross after a question naming the
+  // folder (delete_folder=1), or an import replacing the grid. A type change,
+  // "Empty" in the type list included, never removes it (user 2026-10-12:
+  // choosing Empty deleted a whole folder with its tiles without a question).
+  if (previous_tile.type == TILE_FOLDER && type != TILE_FOLDER) {
     const uint16_t target_id = getNavigateTargetId(previous_tile);
-    if (target_id != 0 && folderHasContent(target_id)) {
+    const bool confirmed = type == TILE_EMPTY && server.arg("delete_folder") == "1";
+    if (target_id != 0 && !confirmed && folderHasContent(target_id)) {
       server.send(409, "application/json",
                   "{\"success\":false,\"error\":\"Folder not empty\"}");
       return;

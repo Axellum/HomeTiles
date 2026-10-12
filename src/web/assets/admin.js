@@ -8044,7 +8044,8 @@ async function saveGestureEdge(select) {
     const typeValue = typeEl ? String(typeEl.value) : '0';
     const meta = getTileTypeMeta(typeValue);
     const locked = !!meta.locked;
-    if (typeEl) typeEl.disabled = locked;
+    // Fixed types (Settings, Back) and a folder with tiles (applyFolderTypeLock).
+    if (typeEl) typeEl.disabled = locked || typeEl.dataset.folderLocked === '1';
     if (navSelect) navSelect.disabled = (!meta.fields || meta.fields !== 'navigate' || locked);
     if (noteEl) {
       if (typeValue === '7') noteEl.textContent = t('settingsTileFixed');
@@ -8173,18 +8174,19 @@ async function saveGestureEdge(select) {
     metas.forEach(meta => callTypeHandler(meta, 'reset', tab));
   }
 
+  // A folder that still contains tiles keeps its type: the whole type list
+  // is greyed out (user 2026-10-12: choosing Empty deleted a whole folder
+  // with its tiles at once); it goes only by the Delete button after a
+  // question. applySpecialTileUiState keeps the lock.
   function applyFolderTypeLock(tab, locked) {
     const sel = document.getElementById(tab + '_tile_type');
-    if (sel) {
-      for (const opt of sel.options) {
-        // Keeping the folder and emptying or deleting it stay allowed; every
-        // other type is locked while the folder still contains tiles.
-        opt.disabled = locked && opt.value !== '4' && opt.value !== '0';
-      }
-    }
-    const hint = document.getElementById(tab + '_tile_type_hint');
-    if (hint) hint.classList.toggle('hidden', !locked);
+    if (!sel) return;
+    sel.dataset.folderLocked = locked ? '1' : '';
+    sel.disabled = locked || !!getTileTypeMeta(sel.value).locked;
   }
+
+  // Folders whose deletion was confirmed (tab:index): their save says so.
+  const confirmedFolderDeletes = new Set();
 
   function resetTile(tab) {
     if (currentTileIndex === -1) return;
@@ -8192,6 +8194,13 @@ async function saveGestureEdge(select) {
     if (isLockedTileType(tileType)) {
       showNotification(t('tileCannotDelete'), false);
       return;
+    }
+    // A folder with tiles in it: the question names it, its tiles go too.
+    const stored = getTilesData(tab)?.[currentTileIndex];
+    if (Number(stored?.type) === 4 && stored.folder_empty === false) {
+      const name = stored.title || t('folderPrefix').trim();
+      if (!confirm(tf('deleteFolderConfirm', { name }))) return;
+      confirmedFolderDeletes.add(tab + ':' + currentTileIndex);
     }
     const prefix = tab;
     document.getElementById(prefix + '_tile_type').value = '0';
@@ -8295,6 +8304,9 @@ async function saveGestureEdge(select) {
     formData.append('span_w', layout.span_w);
     formData.append('span_h', layout.span_h);
     formData.append('type', snapshot.type || '0');
+    if ((snapshot.type || '0') === '0' && confirmedFolderDeletes.delete(tab + ':' + tileIndex)) {
+      formData.append('delete_folder', '1');
+    }
     formData.append('title', snapshot.title || '');
     formData.append('icon_name', snapshot.icon || '');
     if (snapshotBgColorIsDefault(snapshot)) {
@@ -9127,6 +9139,8 @@ async function saveGestureEdge(select) {
     fd.append('folder', folderId);
     fd.append('index', index);
     fd.append('type', safeType);
+    // An import replaces the grid on purpose (it asked before).
+    if (safeType === 0) fd.append('delete_folder', '1');
     // The export's places are the classic layout's (tile_layouts.h); a tile
     // from its storage has none there, only its spot beside the screen.
     fd.append('layout', 'classic');
@@ -12193,9 +12207,13 @@ async function saveGestureEdge(select) {
     const main = stack?.closest('.tile-editor-main');
     if (!stack || !main) return;
     stack.style.zoom = '';
+    stack.style.removeProperty('--stack-zoom');
     const room = main.getBoundingClientRect().right - stack.getBoundingClientRect().left;
     const need = stack.scrollWidth;
-    if (room > 0 && need > room) stack.style.zoom = String(room / need);
+    if (room > 0 && need > room) {
+      stack.style.zoom = String(room / need);
+      stack.style.setProperty('--stack-zoom', String(room / need));
+    }
   }
 
   function enablePageSlots() {
@@ -12992,11 +13010,15 @@ async function saveGestureEdge(select) {
     if (!tile) return;
     const tab = layoutWindow.tab, index = currentTileIndex;
     const name = tile.title || getTileTypeMeta(tile.type)?.label || '';
-    if (!window.confirm(tf('layoutDeleteConfirm', {tile: name}))) return;
+    // A folder's question names it and says its tiles go too.
+    const folder = Number(tile.type) === 4;
+    const question = folder ? tf('deleteFolderConfirm', {name}) : tf('layoutDeleteConfirm', {tile: name});
+    if (!window.confirm(question)) return;
     const form = new FormData();
     form.append('folder', layoutFolderId(tab));
     form.append('index', String(index));
     form.append('type', '0');
+    if (folder) form.append('delete_folder', '1');
     try {
       const response = await layoutWindowFetch('/api/tiles', {method: 'POST', body: form});
       if (!response.ok) throw new Error('HTTP ' + response.status);
