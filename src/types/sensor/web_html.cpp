@@ -68,13 +68,13 @@ void append_sensor_fields_html(String& html, const String& tab_id) {
   html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_sensor_gauge_min" step="1" placeholder="0">
+  html += R"html(_sensor_gauge_min" step="any" placeholder="0">
                   <label>)html";
   html += tr.sensor_gauge_max;
   html += R"html(</label>
                   <input type="number" id=")html";
   html += tab_id;
-  html += R"html(_sensor_gauge_max" step="1" placeholder="100">
+  html += R"html(_sensor_gauge_max" step="any" placeholder="100">
                   <label>)html";
   html += tr.sensor_arc_degree;
   html += R"html(</label>

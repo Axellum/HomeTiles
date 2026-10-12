@@ -143,6 +143,9 @@ struct Tile {
   uint8_t sensor_display_mode;
   int32_t sensor_gauge_min;
   int32_t sensor_gauge_max;
+  // A Sensor gauge's bounds are scaled by 10^this (0-3, issue #83:
+  // types/sensor/gauge_range.h).
+  uint8_t sensor_gauge_decimals;
   uint16_t sensor_gauge_arc;
   uint16_t sensor_gauge_size;
   int16_t sensor_gauge_y_offset;
@@ -180,6 +183,7 @@ struct Tile {
         sensor_display_mode(0),
         sensor_gauge_min(0),
         sensor_gauge_max(100),
+        sensor_gauge_decimals(0),
         sensor_gauge_arc(100),
         sensor_gauge_size(350),
         sensor_gauge_y_offset(12),
@@ -204,6 +208,7 @@ static inline bool tileContentEquals(const Tile& a, const Tile& b) {
          a.sensor_display_mode == b.sensor_display_mode &&
          a.sensor_gauge_min == b.sensor_gauge_min &&
          a.sensor_gauge_max == b.sensor_gauge_max &&
+         a.sensor_gauge_decimals == b.sensor_gauge_decimals &&
          a.sensor_gauge_arc == b.sensor_gauge_arc &&
          a.sensor_gauge_size == b.sensor_gauge_size &&
          a.sensor_gauge_y_offset == b.sensor_gauge_y_offset &&

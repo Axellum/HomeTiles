@@ -650,13 +650,13 @@ bool is_light_entity_id(const String& entity_id) {
   return entity_id.length() >= 6 && entity_id.startsWith("light.");
 }
 
-static int32_t map_gauge_arc_value(float numeric, int32_t min_value, int32_t max_value) {
+static int32_t map_gauge_arc_value(float numeric, float min_value, float max_value) {
   if (max_value <= min_value) {
     min_value = 0;
     max_value = 100;
   }
-  const float span = static_cast<float>(max_value - min_value);
-  float ratio = (numeric - static_cast<float>(min_value)) / span;
+  const float span = max_value - min_value;
+  float ratio = (numeric - min_value) / span;
   if (ratio < 0.0f) ratio = 0.0f;
   if (ratio > 1.0f) ratio = 1.0f;
   return static_cast<int32_t>(roundf(ratio * static_cast<float>(GAUGE_ARC_STEPS)));

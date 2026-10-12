@@ -3,6 +3,7 @@
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/types/sensor/renderer.h"
+#include "src/types/sensor/gauge_range.h"
 #include "src/tiles/runtime/tile_renderer_shared.h"
 #include "src/ui/shared/tone_color.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
@@ -49,8 +50,9 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
   const uint8_t display_mode = tile.span_h == 0.5f ? 0 : tile.sensor_display_mode;  // 0=none, 1=gauge, 2=graph
   const bool gauge_enabled = (display_mode == 1);
   const bool graph_enabled = (display_mode == 2);
-  int32_t gauge_min = tile.sensor_gauge_min;
-  int32_t gauge_max = tile.sensor_gauge_max;
+  // The bounds with their decimals (gauge_range.h, issue #83).
+  float gauge_min = sensor_gauge::value(tile.sensor_gauge_min, tile.sensor_gauge_decimals);
+  float gauge_max = sensor_gauge::value(tile.sensor_gauge_max, tile.sensor_gauge_decimals);
   if (gauge_max <= gauge_min) {
     gauge_min = 0;
     gauge_max = 100;

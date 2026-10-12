@@ -21,6 +21,7 @@
 #include "src/web/server/handlers/preview_payload.h"
 #include "src/types/types_registry.h"
 #include "src/types/energy/energy_data.h"
+#include "src/types/sensor/gauge_range.h"
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/network/bridge/entity_search.h"
 #include <ArduinoJson.h>
@@ -487,10 +488,21 @@ void WebAdminServer::handleGetTiles() {
     out += String(tile.sensor_value_font);
     out += ",\"sensor_display_mode\":";
     out += String(tile.sensor_display_mode);
-    out += ",\"sensor_gauge_min\":";
-    out += String(tile.sensor_gauge_min);
-    out += ",\"sensor_gauge_max\":";
-    out += String(tile.sensor_gauge_max);
+    if (tile.type == TILE_SENSOR) {
+      // The bounds with their decimals (issue #83: "3.7", "4.2").
+      char bound[24];
+      sensor_gauge::format(tile.sensor_gauge_min, tile.sensor_gauge_decimals, bound, sizeof(bound));
+      out += ",\"sensor_gauge_min\":";
+      out += bound;
+      sensor_gauge::format(tile.sensor_gauge_max, tile.sensor_gauge_decimals, bound, sizeof(bound));
+      out += ",\"sensor_gauge_max\":";
+      out += bound;
+    } else {
+      out += ",\"sensor_gauge_min\":";
+      out += String(tile.sensor_gauge_min);
+      out += ",\"sensor_gauge_max\":";
+      out += String(tile.sensor_gauge_max);
+    }
     out += ",\"sensor_gauge_arc\":";
     out += String(tile.sensor_gauge_arc);
     out += ",\"sensor_gauge_size\":";
