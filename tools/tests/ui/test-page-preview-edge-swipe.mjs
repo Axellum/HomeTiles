@@ -25,7 +25,7 @@ const manager = read('src/ui/ui_manager.cpp');
 // turn only from the left or right edge there, never from the head over it.
 const pressed = slice(manager, 'void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {', '\n}\n');
 assert.match(pressed, /const bool over_preview = tab == 0 && page_preview::contains\(pressed_object\);\s*if \(!started_on_home && !over_preview\) return;/);
-assert.match(pressed, /\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*distance\[0\] < kSettingsGestureCaptureWidth \|\| distance\[1\] < kSettingsGestureCaptureWidth\)/);
+assert.match(pressed, /\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*on_empty_place \|\| distance\[0\] < kSettingsGestureCaptureWidth \|\|\s*distance\[1\] < kSettingsGestureCaptureWidth\)/);
 // A swipe that counts closes it before its action or page turn, after the
 // touch was let go of (no tap on the card).
 const edge = slice(manager, 'void UIManager::processSettingsGestureMotion(', '\n}\n');

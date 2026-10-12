@@ -868,10 +868,6 @@
        only uses the remaining desktop space. */
     .tile-editor-main { flex:0 0 auto; min-width:0; display:flex; flex-direction:column; gap:14px; }
     .tile-grid-scroll { max-width:100%; overflow-x:auto; }
-    /* width:0 + min-width:100% - the footer follows the grid width without
-       its long hint text inflating the column. */
-    .folder-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; width:0; min-width:100%; }
-    .folder-footer-options { flex:0 0 100%; display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap; }
     /* Global settings under the grid: the Tile Settings card and fields,
        laid out in columns that wrap on narrow widths. */
     .global-settings-panel {
@@ -898,8 +894,6 @@
     .global-settings-panel .global-settings-field > label { flex:0 0 auto; margin:0; }
 
     @media (max-width:520px) { .global-settings-grid { grid-template-columns:minmax(0, 1fr); } }
-    .folder-footer-options .inline-checkbox { margin:0; }
-    .folder-footer .hint { margin:0; }
     .btn-delete-folder { padding:8px 16px; font-size:13px; flex:0 0 auto; }
     .tile-actions { display:flex; gap:8px; margin-top:8px; }
     .tile-actions .btn {
@@ -1726,13 +1720,6 @@
       /* The panel reaches the end of the column for every type, so a short
          one (Empty) leaves its Type list the same room as a long one. */
       .tab-content.tile-tab.active .tile-settings { align-self:stretch; max-height:100%; }
-      .tab-content.tile-tab.active .folder-footer {
-        flex:1 1 auto;
-        min-height:90px;
-        overflow-y:auto;
-        overscroll-behavior:contain;
-        align-content:flex-start;
-      }
     }
     /* Narrow window: the settings panel moves below the grid preview and the
        grid itself scrolls horizontally when needed (.tile-grid-scroll). */
@@ -3021,17 +3008,10 @@
    the row would be wider than the preview (--slot-zoom, user 2026-10-12). */
 .wrapper:not(.compact-grid) .settings-hidden-parking.page-stack { flex-direction:row; zoom:var(--slot-zoom, 1); }
 .compact-grid .tile-editor-main > .settings-hidden-parking.page-stack { width:fit-content; align-self:start; }
-/* A square preview (S3, 4B): the row under it as on landscape panels, as
-   wide as the editor column allows (page-slots.js fitPageStack). */
 /* The words over the boxes keep their size when the boxes shrink (user
    2026-10-12: "Seiten" and "Settings" got too small). */
 .wrapper:not(.compact-grid) .page-stack .page-parking-label { font-size:calc(12px / var(--slot-zoom, 1)); }
 .compact-grid .page-stack .page-parking-label { font-size:calc(12px / var(--stack-zoom, 1)); }
-.compact-grid.page-slots-under .tile-editor-main > .settings-hidden-parking.page-stack {
-  grid-column:1 / -1;
-  grid-row:auto;
-  flex-direction:row;
-}
 .page-parking {
   display:grid;
   grid-template-columns:repeat(var(--slot-cols, 5), var(--preview-cell-w));

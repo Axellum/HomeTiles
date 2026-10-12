@@ -80,10 +80,14 @@ assert.doesNotMatch(bar, /start_waiting|move_line_after_frame/);
 assert.match(read('src/web/assets/admin.css'), /\.compact-grid \.page-stack \.page-parking-label \{ font-size:calc\(12px \/ var\(--stack-zoom, 1\)\); \}/);
 // No line following the finger (user 2026-10-12: it snaps at once).
 assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
-// The press pill shows at once and goes as soon as the finger moves, and
-// whenever a swipe takes over (user 2026-10-12: it stayed after swipes).
-assert.match(bar, /if \(code == LV_EVENT_PRESSED\) \{[\s\S]{0,160}lv_obj_add_state\(dots, LV_STATE_USER_1\);/);
-assert.match(bar, /const int32_t limit = popup_layout::scale\(8\);\s*if \(dx \* dx \+ dy \* dy > limit \* limit\) release_press\(dots\);/);
+// The press pill shows once the finger has rested 50 ms (user 2026-10-12:
+// at once it flashed up at the start of a sideways swipe over the head),
+// goes as soon as the finger moves, and whenever a swipe takes over (it
+// stayed after swipes).
+assert.match(bar, /constexpr uint32_t kPressShowMs = 50;/);
+assert.match(bar, /if \(code == LV_EVENT_PRESSED\) \{\s*g_press_dots = dots;\s*g_press_ms = lv_tick_get\(\);\s*if \(input\) lv_indev_get_point\(input, &g_press_at\);\s*\} else if/,
+  'Not on the press itself');
+assert.match(bar, /const int32_t limit = popup_layout::scale\(8\);\s*if \(dx \* dx \+ dy \* dy > limit \* limit\) \{\s*release_press\(dots\);\s*\} else if \(lv_tick_elaps\(g_press_ms\) >= kPressShowMs && !lv_obj_has_state\(dots, LV_STATE_USER_1\)\) \{\s*lv_obj_add_state\(dots, LV_STATE_USER_1\);/);
 assert.equal((read('src/ui/ui_manager.cpp').match(/home_bar::cancel_press\(\);/g) || []).length, 2, 'A page turn and an edge action take the pill away');
 assert.doesNotMatch(bar, /g_press_timer|press_show/);
 const tiles = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
@@ -103,7 +107,10 @@ assert.ok(neighbours >= 0 && back > neighbours, 'Pages before Back and folder ti
 // top edge's strip still turns the page.
 const manager = read('src/ui/ui_manager.cpp');
 const press = slice(manager, 'void UIManager::settings_gesture_indev_event_cb', '\nvoid UIManager::nav_button_event_cb');
-assert.match(press, /bool page_swipe = tab == 0 && grid_layout::head_bar\(\) &&\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) >= 0 &&\s*\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*distance\[0\] < kSettingsGestureCaptureWidth \|\| distance\[1\] < kSettingsGestureCaptureWidth\);/);
+assert.match(press, /bool page_swipe = tab == 0 && grid_layout::head_bar\(\) &&\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) >= 0 &&\s*\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*on_empty_place \|\| distance\[0\] < kSettingsGestureCaptureWidth \|\|\s*distance\[1\] < kSettingsGestureCaptureWidth\);/);
+// The empty places of the grid turn the page too (user 2026-10-12): a press
+// on the shown grid itself or behind it, never on a tile.
+assert.match(press, /for \(lv_obj_t\* object = tiles_visible_grid\(\); !over_preview && object; object = lv_obj_get_parent\(object\)\) \{\s*if \(object == pressed_object\) on_empty_place = true;\s*if \(object == pressed_object \|\| object == self->tab_panels\[tab\]\) break;/);
 assert.match(press, /if \(!lv_obj_has_flag\(object, LV_OBJ_FLAG_GESTURE_BUBBLE\)\) page_swipe = false;/);
 assert.match(press, /if \(edge == swipe_gestures::kEdgeOff && !page_swipe\) return;/);
 assert.match(press, /self->access_gesture_action = edge != swipe_gestures::kEdgeOff \? actions\[edge\] : kPageSwipe;/);
@@ -260,10 +267,12 @@ assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-lab
 // Beside a square or upright preview two columns, under a landscape one a
 // row under its columns (a 4-column one: four, the fifth below).
 assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout::screen_w\(\) <= grid_layout::screen_h\(\);\s*\}/);
-// Beside an upright preview only; under a square one in a row too (user
-// 2026-10-12: on the S3 the boxes slid under the settings panel).
+// Under a landscape preview only; beside a square one like an upright one
+// (user 2026-10-12: the S3 like the upright V2).
 assert.match(markup, /html \+= String\(pageSlotsUnder\(\) \? max_pages : 2\);/);
-assert.match(markup, /static bool pageSlotsUnder\(\) \{\s*return grid_layout::screen_w\(\) >= grid_layout::screen_h\(\);/);
+assert.match(markup, /static bool pageSlotsUnder\(\) \{\s*return grid_layout::screen_w\(\) > grid_layout::screen_h\(\);/);
+assert.doesNotMatch(markup, /page-slots-under/);
+assert.doesNotMatch(read('src/web/assets/admin.css'), /page-slots-under/);
 assert.match(read('src/web/admin/tiles/page-slots.js'),
   /function fitPageStack\(\) \{\s*const stack = document\.querySelector\('\.compact-grid \.settings-hidden-parking\.page-stack'\);/,
   'Beside an upright preview and under a square one the boxes fit the column');

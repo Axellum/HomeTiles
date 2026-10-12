@@ -975,14 +975,21 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
       }
     }
     // Home and its pages turn by a swipe that starts in the head beside its
-    // gear or X, or right at the left or right edge (user 2026-10-12: never
-    // across the tiles); never on a control that drags itself (it keeps its
-    // gestures, like the level bar of a dimmer or a cover). Over the
-    // overview only from the left or right edge.
+    // gear or X, on the grid where no tile lies, or right at the left or
+    // right edge (user 2026-10-12: never across the tiles, but on the empty
+    // places); never on a control that drags itself (it keeps its gestures,
+    // like the level bar of a dimmer or a cover). Over the overview only
+    // from the left or right edge.
+    bool on_empty_place = false;
+    for (lv_obj_t* object = tiles_visible_grid(); !over_preview && object; object = lv_obj_get_parent(object)) {
+      if (object == pressed_object) on_empty_place = true;
+      if (object == pressed_object || object == self->tab_panels[tab]) break;
+    }
     bool page_swipe = tab == 0 && grid_layout::head_bar() &&
                       tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
                       ((!over_preview && point.y < GRID_PAD_TOP && !home_bar::is_button(pressed_object)) ||
-                       distance[0] < kSettingsGestureCaptureWidth || distance[1] < kSettingsGestureCaptureWidth);
+                       on_empty_place || distance[0] < kSettingsGestureCaptureWidth ||
+                       distance[1] < kSettingsGestureCaptureWidth);
     for (lv_obj_t* object = pressed_object; page_swipe && !over_preview && object && object != self->tab_panels[tab];
          object = lv_obj_get_parent(object)) {
       if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) page_swipe = false;

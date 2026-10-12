@@ -285,9 +285,9 @@
     if (el?.dataset.type === '4' && pageFolders().includes(Number(el.dataset.navigateTarget))) renderPageSlots();
   }
 
-  // Beside an upright preview or under a square one the boxes shrink alike to
-  // the editor column (user 2026-10-12: on the S3 they slid under the
-  // settings panel; on 600 and 480 px wide upright panels they would too).
+  // Beside a square or upright preview the boxes shrink alike to the editor
+  // column (user 2026-10-12: on the S3 they slid under the settings panel;
+  // on 600 and 480 px wide upright panels they would too).
   function fitPageStack() {
     const stack = document.querySelector('.compact-grid .settings-hidden-parking.page-stack');
     const main = stack?.closest('.tile-editor-main');

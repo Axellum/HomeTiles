@@ -248,12 +248,16 @@ void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch
 // A tap on the head's dots opens the pages' preview right there.
 void on_dots(lv_event_t* event) { page_preview::open(static_cast<lv_obj_t*>(lv_event_get_current_target(event))); }
 
-// The press: the pill at once (user 2026-10-12: after 90 ms it showed on
-// some taps only), gone as soon as the finger moves (a swipe) and whenever a
-// swipe takes over (cancel_press: the input then waits for the release and
-// the row never hears it; the pill stayed).
+// The press: the pill once the finger has rested 50 ms (user 2026-10-12: at
+// once it flashed up at the start of a sideways swipe over the head; after
+// 90 ms it showed on some taps only; the touch is read every 8 ms), gone as
+// soon as the finger moves (a swipe) and whenever a swipe takes over
+// (cancel_press: the input then waits for the release and the row never
+// hears it; the pill stayed).
+constexpr uint32_t kPressShowMs = 50;
 lv_obj_t* g_press_dots = nullptr;
 lv_point_t g_press_at{};
+uint32_t g_press_ms = 0;
 void release_press(lv_obj_t* dots) {
   if (dots) lv_obj_remove_state(dots, LV_STATE_USER_1);
   if (g_press_dots == dots) g_press_dots = nullptr;
@@ -264,8 +268,8 @@ void dots_event(lv_event_t* event) {
   lv_indev_t* input = lv_indev_active();
   if (code == LV_EVENT_PRESSED) {
     g_press_dots = dots;
+    g_press_ms = lv_tick_get();
     if (input) lv_indev_get_point(input, &g_press_at);
-    lv_obj_add_state(dots, LV_STATE_USER_1);
   } else if (code == LV_EVENT_PRESSING) {
     if (!input || g_press_dots != dots) return;
     lv_point_t now{};
@@ -273,7 +277,11 @@ void dots_event(lv_event_t* event) {
     const int32_t dx = now.x - g_press_at.x;
     const int32_t dy = now.y - g_press_at.y;
     const int32_t limit = popup_layout::scale(8);
-    if (dx * dx + dy * dy > limit * limit) release_press(dots);
+    if (dx * dx + dy * dy > limit * limit) {
+      release_press(dots);
+    } else if (lv_tick_elaps(g_press_ms) >= kPressShowMs && !lv_obj_has_state(dots, LV_STATE_USER_1)) {
+      lv_obj_add_state(dots, LV_STATE_USER_1);
+    }
   } else {
     release_press(dots);
   }

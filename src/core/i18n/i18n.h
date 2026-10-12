@@ -311,7 +311,6 @@ struct Strings {
   const char* tile_group_icon;
   const char* tile_group_advanced;
   const char* screensaver_background_opacity;
-  const char* screensaver_hint;
   const char* screensaver_storage_hint;
   // The slideshow list without a card.
   const char* screensaver_no_sd;

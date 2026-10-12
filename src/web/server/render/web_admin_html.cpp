@@ -417,12 +417,12 @@ static bool previewSlotsBeside() {
   return grid_layout::screen_w() <= grid_layout::screen_h();
 }
 
-// Home's page slots stand beside an upright preview only; under a landscape
-// or square one they lie in a row with Settings right of them (user
-// 2026-10-12: on the S3 the boxes beside the preview slid under the
-// settings panel, "unten platzieren, Settings wieder an die Seite").
+// Home's page slots lie in a row with Settings right of them under a
+// landscape preview; beside a square or upright one they stand in two
+// columns with Settings below (user 2026-10-12: the S3 like the upright V2;
+// page-slots.js fitPageStack keeps them inside the editor column).
 static bool pageSlotsUnder() {
-  return grid_layout::screen_w() >= grid_layout::screen_h();
+  return grid_layout::screen_w() > grid_layout::screen_h();
 }
 
 // Helper function to generate tile tab HTML (unified for all folders)
@@ -987,22 +987,20 @@ static void appendTileTabHTML(
     }
     html += "</div>";
   } else if (!screensaver_mode) {
-    // A folder shows the editing hint and Delete Folder where Home keeps its
-    // Settings parking slot: beside the grid on four-column devices, below
-    // it on the others.
-    html += "<div class=\"settings-hidden-parking folder-side\"><div class=\"settings-parking-texts\"><p class=\"hint\">";
-    html += tr.admin_tile_hint;
-    html += "</p><button type=\"button\" class=\"btn btn-danger btn-delete-folder\" onclick=\"deleteFolder('";
+    // A folder shows Delete Folder where Home keeps its Settings parking
+    // slot: beside the grid on four-column devices, below it on the others.
+    // No editing hint there (user 2026-10-12: the long text annoyed).
+    html += "<div class=\"settings-hidden-parking folder-side\"><div class=\"settings-parking-texts\">";
+    html += "<button type=\"button\" class=\"btn btn-danger btn-delete-folder\" onclick=\"deleteFolder('";
     html += tab_id;
     html += "')\">";
     html += tr.admin_delete_folder_tab;
     html += "</button></div></div>";
   }
   // The global tile settings moved into the settings panel (its "Global"
-  // tab); only the screensaver page keeps its footer under the grid.
+  // tab); no page has a footer under the grid (user 2026-10-12: the
+  // screensaver's hint stood under an upright preview).
   String global_panel;
-  if (screensaver_mode) html += R"html(          <div class="folder-footer">
-)html";
   if (!screensaver_mode) {
     // Global display settings in the Tile Settings style: two compact
     // columns, checkboxes like Glow, fields with a small label above them
@@ -1087,15 +1085,7 @@ static void appendTileTabHTML(
       global_panel += "</div>";
     }
     global_panel += "</div></section>\n";
-  } else {
-    html += R"html(<p class="hint">)html";
   }
-  if (screensaver_mode) {
-    html += tr.screensaver_hint;
-    html += R"html(</p>
-)html";
-  }
-  if (screensaver_mode) html += "          </div>\n";
   html += R"html(</div>
 
 <!-- Settings Panel -->
@@ -2346,7 +2336,6 @@ String WebAdminServer::getAdminPage() {
   // Settings slot moves beside them (admin.css .compact-grid; user
   // 2026-10-11: an upright layout "like the square ones").
   if (previewSlotsBeside()) html += " compact-grid";
-  if (grid_layout::head_bar() && pageSlotsUnder()) html += " page-slots-under";
   html += R"html(">
 <div class="card">
 <div class="brand">

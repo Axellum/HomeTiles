@@ -22,8 +22,8 @@ assert.ok(html.includes('appendHtmlEscaped(html, tr.panel_tab_screensaver);') &&
   'the top bar names the screensaver in the panel language');
 assert.ok(html.includes('html += "<div class=\\"panel-global\\">";') && html.includes('html += global_panel;'),
   'the global settings sit in the panel');
-assert.ok(html.includes('if (screensaver_mode) html += R"html(          <div class="folder-footer">'),
-  'only the screensaver page keeps the footer under the grid');
+assert.ok(!html.includes('folder-footer') && !html.includes('tr.screensaver_hint'),
+  'no footer under the grid, the screensaver page neither (user 2026-10-12: its hint stood under an upright preview)');
 
 // Selecting switches the pane; the screensaver's global pane is its background.
 const pane = read('src/web/admin/tiles/settings-pane.js');
