@@ -7861,7 +7861,7 @@ async function saveGestureEdge(select) {
         weatherEntity ? (sensorMetaCache.weatherValues?.[weatherEntity] ?? '') : ''),
         document.getElementById(prefix + '_weather_temperature_sensor')?.value || '',
         document.getElementById(prefix + '_weather_humidity_sensor')?.value || '',
-        sensorMetaCache.values), {
+        sensorMetaCache.values, sensorMetaCache.units), {
         col: Number(tileElem.dataset.col || 0),
         span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
         span_h: Number(document.getElementById(prefix + '_tile_span_h')?.value || 1),
@@ -10370,7 +10370,7 @@ async function saveGestureEdge(select) {
       if (previewKind === 'weather') {
         applyWeatherPreview(el, applyWeatherSensorOverrides(parseWeatherPreviewPayload(
           tile.sensor_entity ? (sensorMeta?.weatherValues?.[tile.sensor_entity] ?? '') : ''),
-          tile.weather_temperature_sensor || '', tile.weather_humidity_sensor || '', metaValues),
+          tile.weather_temperature_sensor || '', tile.weather_humidity_sensor || '', metaValues, metaUnits),
           tile, iconName, previewIconColor(typeValue, tile.icon_colors, tile.sensor_entity || '', sensorMeta, null, ''));
       }
       if (previewKind === 'media') {
@@ -14743,13 +14743,36 @@ function maybeFillTitleFromWeather(tab) {
     };
   }
 
+  // temperature_units.h: 'C', 'F', 'K', or '' for an empty or unknown unit.
+  function temperatureUnitOf(text) {
+    const unit = String(text || '').trim();
+    if (unit === '℃') return 'C';
+    if (unit === '℉') return 'F';
+    const letter = unit.replace(/^°/, '').trim();
+    if (letter === 'C' || letter === 'c') return 'C';
+    if (letter === 'F' || letter === 'f') return 'F';
+    return letter === 'K' ? 'K' : '';
+  }
+
+  // A value from one temperature unit in another; unchanged when either is
+  // unknown (temperature_units.h convert).
+  function convertTemperature(value, from, to) {
+    if (value === null || !from || !to || from === to) return value;
+    const celsius = from === 'F' ? (value - 32) * 5 / 9 : from === 'K' ? value - 273.15 : value;
+    return to === 'F' ? celsius * 9 / 5 + 32 : to === 'K' ? celsius + 273.15 : celsius;
+  }
+
   // Mirrors weather_sensors.h: a configured temperature sensor replaces the
-  // weather entity's current temperature, a humidity sensor adds a humidity
+  // weather entity's current temperature, in the weather entity's unit (a
+  // sensor in another unit is converted), a humidity sensor adds a humidity
   // value; without a numeric sensor state the value shows "--". The forecast
   // stays the weather entity's.
-  function applyWeatherSensorOverrides(state, temperatureEntity, humidityEntity, values) {
+  function applyWeatherSensorOverrides(state, temperatureEntity, humidityEntity, values, units) {
     if (!state) return state;
-    if (temperatureEntity) state.temperature = weatherPreviewNumber(values?.[temperatureEntity] ?? '');
+    if (temperatureEntity) {
+      state.temperature = convertTemperature(weatherPreviewNumber(values?.[temperatureEntity] ?? ''),
+        temperatureUnitOf(units?.[temperatureEntity]), temperatureUnitOf(state.unit));
+    }
     if (humidityEntity) {
       const humidity = weatherPreviewNumber(values?.[humidityEntity] ?? '');
       state.humidity = humidity === null ? '--' : formatLocalizedNumber(humidity, 0, true) + ' %';

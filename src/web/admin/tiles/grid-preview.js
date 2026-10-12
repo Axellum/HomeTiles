@@ -1043,7 +1043,7 @@
       if (previewKind === 'weather') {
         applyWeatherPreview(el, applyWeatherSensorOverrides(parseWeatherPreviewPayload(
           tile.sensor_entity ? (sensorMeta?.weatherValues?.[tile.sensor_entity] ?? '') : ''),
-          tile.weather_temperature_sensor || '', tile.weather_humidity_sensor || '', metaValues),
+          tile.weather_temperature_sensor || '', tile.weather_humidity_sensor || '', metaValues, metaUnits),
           tile, iconName, previewIconColor(typeValue, tile.icon_colors, tile.sensor_entity || '', sensorMeta, null, ''));
       }
       if (previewKind === 'media') {

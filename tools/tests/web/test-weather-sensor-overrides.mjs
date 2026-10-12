@@ -43,6 +43,9 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  const dead=applyWeatherSensorOverrides(parseWeatherPreviewPayload(payload),'sensor.dead','sensor.missing',values);
  check(dead.temperature===null&&dead.humidity==='--','Missing or unavailable sensors show --');
  check(applyWeatherSensorOverrides(null,'sensor.outdoor_temperature','',values)===null,'A missing weather state stays missing');
+ // A sensor in another unit shows in the weather entity's unit (°F here).
+ const celsius=applyWeatherSensorOverrides(parseWeatherPreviewPayload(payload),'sensor.outdoor_temperature','',{'sensor.outdoor_temperature':'20'},{'sensor.outdoor_temperature':'°C'});
+ check(Math.abs(celsius.temperature-68)<0.01,'A °C sensor beside a °F weather entity shows in °F: '+celsius.temperature);
 
  folderByTab.test=1;tileDataLoadedTabs.add('test');
  sensorMetaCache.weatherValues={'weather.home':payload};
@@ -133,10 +136,10 @@ assert.ok(readRepoFile('src/tiles/config/tile_config.h').includes(
 assert.ok(readRepoFile('src/network/mqtt/mqtt_handlers.cpp').includes(
   'for (const char* extra = slot.extra_entities; *extra;)'));
 const renderer = readRepoFile('src/tiles/runtime/tile_renderer.cpp');
-assert.ok(renderer.includes('weather_sensors::apply_temperature(tile.weather_temperature_sensor, temperature, has_temp);'));
+assert.ok(renderer.includes('weather_sensors::apply_temperature(tile.weather_temperature_sensor, unit, temperature, has_temp);'));
 assert.ok(renderer.includes('weather_sensors::append_humidity(tile.weather_humidity_sensor, temp_text);'));
 const popup = readRepoFile('src/ui/popups/weather/weather_popup.cpp');
-assert.ok(popup.includes('weather_sensors::apply_temperature(ctx->temperature_sensor, temperature, has_temp);'));
+assert.ok(popup.includes('weather_sensors::apply_temperature(ctx->temperature_sensor, unit, temperature, has_temp);'));
 assert.ok(popup.includes('void queue_weather_popup_sensor_refresh(const char* entity_id)'));
 assert.ok(readRepoFile('src/types/weather/renderer.cpp').includes('init.humidity_sensor = data->humidity_sensor;'));
 const dispatch = readRepoFile('src/ui/tabs/tiles/tab_tiles_unified.cpp');

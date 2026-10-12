@@ -2609,7 +2609,6 @@ static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
 
   float temperature = 0.0f;
   bool has_temp = extract_json_number_or_string_field(json, "temperature", temperature);
-  weather_sensors::apply_temperature(ctx->temperature_sensor, temperature, has_temp);
 
   String unit;
   String precipitation_unit;
@@ -2625,6 +2624,8 @@ static void apply_weather_header(WeatherPopupContext* ctx, const String& json) {
   decode_basic_json_escapes(precipitation_unit);
   if (unit.length()) ctx->unit = unit;
   else unit = ctx->unit;
+  // The sensor in the weather entity's unit (weather_sensors.h).
+  weather_sensors::apply_temperature(ctx->temperature_sensor, unit, temperature, has_temp);
   if (precipitation_unit.length()) ctx->precipitation_unit = precipitation_unit;
   else precipitation_unit = ctx->precipitation_unit;
   if (!precipitation_unit.length()) {

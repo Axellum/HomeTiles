@@ -2595,7 +2595,6 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
 
   float temperature = 0.0f;
   bool has_temp = extract_json_number_or_string_field(json, "temperature", temperature);
-  weather_sensors::apply_temperature(tile.weather_temperature_sensor, temperature, has_temp);
 
   String unit;
   String units_obj;
@@ -2605,6 +2604,7 @@ static void update_weather_tile_state(GridType grid_type, uint8_t grid_index, co
     extract_json_string_field(json, "temperature_unit", unit);
   }
   decode_basic_json_escapes(unit);
+  weather_sensors::apply_temperature(tile.weather_temperature_sensor, unit, temperature, has_temp);
 
   if (widgets.icon_label) {
     // The icon disc follows the icon; an empty disc never shows.
