@@ -1801,9 +1801,10 @@ void build_frame() {
     card_x = body_x + column + GRID_GAP;
     card_w = body_w - column - GRID_GAP;
   } else if (layout() == Layout::Portrait) {
-    // One row of four, three quarters of a grid row high (user 2026-10-07:
-    // 1x1 tiles in one row, not so tall); the width shared evenly.
-    const int tile_h = static_cast<int>(lroundf(0.75f * (settings_style::kGrid.cell_h + GRID_GAP) - GRID_GAP));
+    // One row of four, nine tenths of a grid row high (user 2026-10-07: 1x1
+    // tiles in one row, not so tall; 2026-10-12: a little taller than three
+    // quarters, it looks nicer); the width shared evenly.
+    const int tile_h = static_cast<int>(lroundf(0.9f * (settings_style::kGrid.cell_h + GRID_GAP) - GRID_GAP));
     const float tile_w = (body_w - (kCategoryCount - 1) * GRID_GAP) / static_cast<float>(kCategoryCount);
     // One font for all four names: the largest that fits every one.
     const int room = static_cast<int>(tile_w) - 4 * settings_style::tile_inset();

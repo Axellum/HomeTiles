@@ -306,6 +306,10 @@ assert.equal(strip(false, 1, false), true, 'the same on a landscape sensor');
 // --- Settings and the screensaver take the screen of this boot.
 assert.match(read('src/ui/tabs/settings/settings_screen.cpp'),
   /return w > h \? Layout::Split : h > w \? Layout::Portrait : Layout::Tabs;/);
+// The portrait Settings categories: one row, nine tenths of a grid row high
+// (user 2026-10-12: a little taller than three quarters looks nicer).
+assert.match(read('src/ui/tabs/settings/settings_screen.cpp'),
+  /const int tile_h = static_cast<int>\(lroundf\(0\.9f \* \(settings_style::kGrid\.cell_h \+ GRID_GAP\) - GRID_GAP\)\);/);
 const saver = read('src/ui/screensaver/image_screensaver.cpp');
 assert.ok(!saver.includes('Device::kScreenWidth'), 'the wallpaper is fitted to the upright screen');
 assert.match(read('src/ui/screensaver/screensaver_places.cpp'), /const float count = layout == Layout::kPortrait \? 3 : 2;/);
