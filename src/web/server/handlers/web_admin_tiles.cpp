@@ -1566,9 +1566,9 @@ bool layoutFromKey(const String& key, grid_layout::Layout& out) {
 // The window's places of one folder, checked against its stored tiles: half
 // steps, sizes the type allows, no overlap on the screen, every folder tile
 // on the screen (else it could not be reached), but a page's on Home of a
-// bar layout (pages: its dots reach it).
+// bar layout (`pages`, the page slots after this save: its dots reach it).
 const char* readFolderPlaces(JsonObjectConst places, const TileGridConfig& grid, const grid_layout::Shown& screen,
-                             bool pages, std::vector<LayoutPlace>& out) {
+                             const std::vector<uint16_t>* pages, std::vector<LayoutPlace>& out) {
   out.clear();
   for (JsonPairConst entry : places) {
     JsonArrayConst value = entry.value().as<JsonArrayConst>();
@@ -1606,12 +1606,61 @@ const char* readFolderPlaces(JsonObjectConst places, const TileGridConfig& grid,
   }
   for (const Tile& tile : grid.tiles) {
     if (tile.type != TILE_FOLDER) continue;
-    if (pages && tile_layouts::page_number(getNavigateTargetId(tile)) > 0) continue;
+    if (pages && std::find(pages->begin(), pages->end(), getNavigateTargetId(tile)) != pages->end()) continue;
     const bool placed = std::any_of(out.begin(), out.end(),
                                     [&](const LayoutPlace& entry) { return entry.view == tile.view_id && entry.inside; });
     if (!placed) return "Folder without place";
   }
   return nullptr;
+}
+
+// The page slots as sent (a folder, 0 a free slot): Home folders only, each
+// once, at most tile_layouts::kMaxPages.
+const char* checkPageSlots(const std::vector<uint16_t>& slots) {
+  if (slots.size() > tile_layouts::kMaxPages) return "Too many pages";
+  for (size_t i = 0; i < slots.size(); ++i) {
+    const uint16_t id = slots[i];
+    if (!id) continue;
+    if (id == 0xFFFF || !tileConfig.folderExists(id) || tileConfig.getFolderParent(id) != TileConfig::rootFolderId() ||
+        std::find(slots.begin(), slots.begin() + i, id) != slots.begin() + i) {
+      return "Not a Home folder";
+    }
+  }
+  return nullptr;
+}
+
+// A folder becoming a page with a PIN lock while the browser did not ask to
+// remove it (pages have none, user 2026-10-12); 0 when there is none.
+uint16_t lockedNewPage(const std::vector<uint16_t>& slots, const uint16_t* before, size_t before_count, bool unlock) {
+  if (unlock) return 0;
+  for (const uint16_t id : slots) {
+    if (id && std::find(before, before + before_count, id) == before + before_count &&
+        tileConfig.isFolderPinEnabled(id)) {
+      return id;
+    }
+  }
+  return 0;
+}
+
+// The first free spot of this size on a layout's screen, top left first,
+// whole cells before half steps; `taken` are the places of the tiles there.
+bool findFreeLayoutPlace(const grid_layout::Shown& screen, const std::vector<tile_layouts::Place>& taken, float span_w,
+                         float span_h, tile_layouts::Place& out) {
+  const float rows = screen.rows + (screen.half_row ? 0.5f : 0.0f);
+  for (const float step : {1.0f, 0.5f}) {
+    for (float row = 0; row + span_h <= rows + 0.001f; row += step) {
+      for (float col = 0; col + span_w <= screen.cols + 0.001f; col += step) {
+        const bool free = std::none_of(taken.begin(), taken.end(), [&](const tile_layouts::Place& other) {
+          return col < other.col + other.span_w && other.col < col + span_w && row < other.row + other.span_h &&
+                 other.row < row + span_h;
+        });
+        if (!free) continue;
+        out = {col, row, span_w, span_h};
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace
@@ -1621,7 +1670,11 @@ const char* readFolderPlaces(JsonObjectConst places, const TileGridConfig& grid,
 // beside the screen (the window's storage): the classic layout takes the
 // places on its screen into the tile data, a tile beside it has no classic
 // place and keeps its storage spot in the layout file. Folders not sent stay
-// as they are.
+// as they are. A bar layout may bring the page slots of the window's page
+// row ("pages":[folder or 0, ...], "unlock":true after the PIN question):
+// stored with its places in one go; a folder leaving them gets the other bar
+// layout's first free spot when it has none there (the panel's own layout
+// must have one, else nothing is stored).
 void WebAdminServer::handleSaveLayouts() {
   webAdminMarkActivity();
   JsonDocument doc;
@@ -1647,6 +1700,37 @@ void WebAdminServer::handleSaveLayouts() {
     sendJsonError(server, 400, "Invalid clock");
     return;
   }
+  // The page slots after this save: as sent, else as stored.
+  uint16_t before[tile_layouts::kMaxPages] = {};
+  const size_t before_count = tile_layouts::page_slots(before);
+  std::vector<uint16_t> pages(before, before + before_count);
+  JsonArrayConst sent_pages = doc["pages"].as<JsonArrayConst>();
+  const bool pages_sent = !sent_pages.isNull();
+  if (pages_sent) {
+    if (layout == grid_layout::Layout::kClassic) {
+      sendJsonError(server, 400, "Pages need the head bar");
+      return;
+    }
+    pages.clear();
+    for (JsonVariantConst value : sent_pages) {
+      const long id = value.as<long>();
+      if (id < 0 || id >= 0xFFFF) {
+        sendJsonError(server, 400, "Not a Home folder");
+        return;
+      }
+      pages.push_back(static_cast<uint16_t>(id));
+    }
+    while (!pages.empty() && !pages.back()) pages.pop_back();
+    if (const char* error = checkPageSlots(pages)) {
+      sendJsonError(server, 400, error);
+      return;
+    }
+    if (const uint16_t locked = lockedNewPage(pages, before, before_count, doc["unlock"] | false)) {
+      server.send(409, "application/json", "{\"success\":false,\"error\":\"locked\",\"folder\":" + String(locked) + "}");
+      return;
+    }
+  }
+  const bool pages_changed = pages_sent && !std::equal(pages.begin(), pages.end(), before, before + before_count);
   JsonObjectConst folders = doc["folders"].as<JsonObjectConst>();
   std::vector<LayoutPlace> places;
   // A folder's classic grid, or the screensaver's with its slot keys as IDs
@@ -1663,8 +1747,9 @@ void WebAdminServer::handleSaveLayouts() {
   for (JsonPairConst folder : folders) {
     const uint16_t folder_id = static_cast<uint16_t>(atoi(folder.key().c_str()));
     if (!load(folder_id)) continue;
-    const bool pages = layout != grid_layout::Layout::kClassic && folder_id == TileConfig::rootFolderId();
-    if (const char* error = readFolderPlaces(folder.value().as<JsonObjectConst>(), *grid, screen, pages, places)) {
+    const bool home_pages = layout != grid_layout::Layout::kClassic && folder_id == TileConfig::rootFolderId();
+    if (const char* error = readFolderPlaces(folder.value().as<JsonObjectConst>(), *grid, screen,
+                                             home_pages ? &pages : nullptr, places)) {
       sendJsonError(server, 409, error);
       return;
     }
@@ -1677,6 +1762,73 @@ void WebAdminServer::handleSaveLayouts() {
       return;
     }
   }
+  // A folder leaving the pages: in the other bar layout at its place there,
+  // else at the first free spot of its own size (one cell when that size is
+  // none), like the editor's page slots give it one (handleSavePages).
+  struct OtherSpot {
+    uint16_t view;
+    tile_layouts::Place place;
+  };
+  std::vector<OtherSpot> other_spots;
+  std::vector<uint16_t> new_page_views;
+  const grid_layout::Layout other =
+      layout == grid_layout::Layout::kBar ? grid_layout::Layout::kPortrait : grid_layout::Layout::kBar;
+  const uint16_t home_id = TileConfig::rootFolderId();
+  if (pages_changed) {
+    if (!tileConfig.loadFolderGridClassic(home_id, *grid)) {
+      sendJsonError(server, 500, "Home grid unavailable");
+      return;
+    }
+    auto is_page = [&](const Tile& tile) {
+      return tile.type == TILE_FOLDER && std::find(pages.begin(), pages.end(), getNavigateTargetId(tile)) != pages.end();
+    };
+    for (const Tile& tile : grid->tiles) {
+      if (is_page(tile) && tile.view_id) new_page_views.push_back(tile.view_id);
+    }
+    if (grid_layout::available(other)) {
+      const grid_layout::Shown other_screen = grid_layout::layout_grid(other);
+      std::vector<tile_layouts::Place> taken;
+      std::vector<const Tile*> leaving;
+      for (const Tile& tile : grid->tiles) {
+        if (tile.type == TILE_EMPTY || !tile.view_id || is_page(tile)) continue;
+        tile_layouts::Place place{};
+        const bool placed = tile_layouts::find(other, home_id, tile.view_id, place) &&
+                            grid_layout::inside(other_screen, place.col, place.row, place.span_w, place.span_h);
+        if (placed) {
+          taken.push_back(place);
+        } else if (tile.type == TILE_FOLDER &&
+                   std::find(before, before + before_count, getNavigateTargetId(tile)) != before + before_count) {
+          leaving.push_back(&tile);
+        }
+      }
+      for (const Tile* tile : leaving) {
+        const bool own_size = tile_geometry::supported_size(tile->type, 0, 0, tile->span_w, tile->span_h);
+        tile_layouts::Place place{};
+        if (findFreeLayoutPlace(other_screen, taken, own_size ? tile->span_w : 1, own_size ? tile->span_h : 1, place) ||
+            findFreeLayoutPlace(other_screen, taken, 1, 1, place)) {
+          taken.push_back(place);
+          other_spots.push_back({tile->view_id, place});
+        } else if (other == grid_layout::active()) {
+          // The panel shows that layout: the folder would be out of reach.
+          sendJsonError(server, 409, "No free cell");
+          return;
+        }
+      }
+    }
+    // Pages have no PIN (the browser asked before).
+    for (const uint16_t id : pages) {
+      if (!id || std::find(before, before + before_count, id) != before + before_count) continue;
+      if (tileConfig.isFolderPinEnabled(id) && !tileConfig.clearFolderPin(id)) {
+        sendJsonError(server, 500, "Save failed");
+        return;
+      }
+    }
+    // A new page's tile leaves Home in the other bar layout too; this
+    // layout's places come below.
+    for (const uint16_t view : new_page_views) tile_layouts::remove(other, home_id, view);
+    for (const OtherSpot& spot : other_spots) tile_layouts::set(other, home_id, spot.view, spot.place);
+    tile_layouts::set_pages(pages.data(), pages.size());
+  }
   bool ok = true;
   bool screensaver_changed = false;
   for (JsonPairConst folder : folders) {
@@ -1685,7 +1837,7 @@ void WebAdminServer::handleSaveLayouts() {
     const bool screensaver = folder_id == screensaver_places::kFolder;
     screensaver_changed = screensaver_changed || screensaver;
     readFolderPlaces(folder.value().as<JsonObjectConst>(), *grid, screen,
-                     layout != grid_layout::Layout::kClassic && folder_id == TileConfig::rootFolderId(), places);
+                     layout != grid_layout::Layout::kClassic && folder_id == home_id ? &pages : nullptr, places);
     if (layout != grid_layout::Layout::kClassic) {
       for (const Tile& tile : grid->tiles) {
         if (tile.type == TILE_EMPTY || !tile.view_id) continue;
@@ -1737,6 +1889,16 @@ void WebAdminServer::handleSaveLayouts() {
     sendJsonError(server, 500, "Save failed");
     return;
   }
+  // New pages on a bar layout the panel shows: every prepared grid's head
+  // gets its dots, gear or X, Home's tiles change (handleSavePages).
+  if (pages_changed && grid_layout::active() != grid_layout::Layout::kClassic) {
+    tiles_rebuild_heads(!powerManager.isInSleep());
+    tiles_invalidate_folder_only(home_id);
+    if (layout != grid_layout::active() && tileConfig.getActiveFolderId() == home_id &&
+        tileConfig.setActiveFolder(home_id)) {
+      tiles_request_reload(GridType::TAB0);
+    }
+  }
   // The panel shows this layout: it takes the new places right away.
   if (layout == grid_layout::active()) {
     tileConfig.setActiveFolder(tileConfig.getActiveFolderId());
@@ -1745,7 +1907,7 @@ void WebAdminServer::handleSaveLayouts() {
     if (screensaver_changed) image_screensaver_tiles_changed();
     if (clock.size() == 4) image_screensaver_config_changed();
   }
-  Serial.printf("[WebAdmin] Layout %s saved\n", grid_layout::key(layout));
+  Serial.printf("[WebAdmin] Layout %s saved%s\n", grid_layout::key(layout), pages_changed ? " with pages" : "");
   server.send(200, "application/json", "{\"success\":true}");
 }
 
@@ -1831,29 +1993,21 @@ void WebAdminServer::handleSavePages() {
     const long id = list.substring(start, end).toInt();
     start = end + 1;
     // 0: a free slot, kept in its place (user 2026-10-12).
-    if (id == 0) {
-      wanted.push_back(0);
-      continue;
-    }
-    if (id < 0 || id >= 0xFFFF || !tileConfig.folderExists(static_cast<uint16_t>(id)) ||
-        tileConfig.getFolderParent(static_cast<uint16_t>(id)) != TileConfig::rootFolderId() ||
-        std::find(wanted.begin(), wanted.end(), static_cast<uint16_t>(id)) != wanted.end()) {
+    if (id < 0 || id >= 0xFFFF) {
       sendJsonError(server, 400, "Not a Home folder");
       return;
     }
     wanted.push_back(static_cast<uint16_t>(id));
   }
-  if (wanted.size() > tile_layouts::kMaxPages) {
-    sendJsonError(server, 400, "Too many pages");
+  if (const char* error = checkPageSlots(wanted)) {
+    sendJsonError(server, 400, error);
     return;
   }
   uint16_t before[tile_layouts::kMaxPages];
   const size_t before_count = tile_layouts::pages(before);
   auto was_page = [&](uint16_t id) { return std::find(before, before + before_count, id) != before + before_count; };
-  const bool unlock = server.arg("unlock") == "1";
-  for (const uint16_t id : wanted) {
-    if (!id || was_page(id) || !tileConfig.isFolderPinEnabled(id) || unlock) continue;
-    server.send(409, "application/json", "{\"success\":false,\"error\":\"locked\",\"folder\":" + String(id) + "}");
+  if (const uint16_t locked = lockedNewPage(wanted, before, before_count, server.arg("unlock") == "1")) {
+    server.send(409, "application/json", "{\"success\":false,\"error\":\"locked\",\"folder\":" + String(locked) + "}");
     return;
   }
 

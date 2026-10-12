@@ -136,7 +136,7 @@ for (const marker of [
   'LV_EVENT_RELEASED, this);',
   'static_cast<lv_obj_t*>(lv_event_get_param(event));',
   'if (object == self->tab_panels[tab])',
-  'if (!started_on_home) return;',
+  'if (!started_on_home && !over_preview) return;',
   'settings_gesture_pressed_object_event_cb',
   'LV_EVENT_PRESSING, self);',
   'LV_EVENT_DELETE, self);',

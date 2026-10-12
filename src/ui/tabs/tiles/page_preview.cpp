@@ -198,6 +198,13 @@ void tappable(lv_obj_t* obj, lv_event_cb_t on_tap, void* data) {
 
 bool is_open() { return g_state.catcher != nullptr; }
 
+bool contains(lv_obj_t* obj) {
+  for (; obj && g_state.catcher; obj = lv_obj_get_parent(obj)) {
+    if (obj == g_state.catcher) return true;
+  }
+  return false;
+}
+
 void close() {
   if (g_state.catcher) lv_obj_delete(g_state.catcher);
   g_state.catcher = nullptr;

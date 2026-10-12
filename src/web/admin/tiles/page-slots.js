@@ -91,9 +91,8 @@
   // Home and the pages show the dots in their head and the gear; a page
   // left the slots shows its X again (home_bar.cpp). Only what differs is
   // touched: rebuilding the dots for every folder tab the page loaded made
-  // them blink (user 2026-10-12).
-  function syncPageHeads() {
-    const pages = pageFolders();
+  // them blink (user 2026-10-12). The layout window passes its own pages.
+  function syncPageHeads(pages = pageFolders()) {
     document.querySelectorAll('.tile-tab[data-folder-id]').forEach(tab => {
       const head = tab.querySelector('.head-bar-preview');
       if (!head) return;
@@ -258,6 +257,11 @@
     // Its own size when it fits there, else one cell, like the device
     // (/api/pages).
     const size = canPlacePageTile(candidate) ? {span_w: candidate.span_w, span_h: candidate.span_h} : {span_w: 1, span_h: 1};
+    // In the layout window it stays there until "Speichern" (layout-window.js).
+    if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) {
+      layoutPageOut(folder, {col: candidate.col, row: candidate.row, ...size});
+      return;
+    }
     // Its place stays free.
     savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, col: candidate.col, row: candidate.row, ...size});
   }

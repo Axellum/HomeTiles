@@ -18,5 +18,8 @@ namespace page_preview {
 void open(lv_obj_t* dots);
 void close();
 bool is_open();
+// The open card or the screen-wide catcher around it: an edge swipe that
+// starts there still works and closes it (user 2026-10-12).
+bool contains(lv_obj_t* obj);
 
 }  // namespace page_preview

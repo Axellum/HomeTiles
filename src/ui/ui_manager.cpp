@@ -733,6 +733,8 @@ void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
   // No tap on the tile the swipe started on.
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
+  // Started at an edge over the pages' overview: it closes (user 2026-10-12).
+  page_preview::close();
   turnPage(dx < 0 ? 1 : -1);
 }
 
@@ -806,6 +808,9 @@ void UIManager::processSettingsGestureMotion(lv_indev_t* input,
   // swipe cannot turn into a click on the newly opened popup.
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
+  // Started over the pages' overview: it closes, the edge's action runs
+  // (user 2026-10-12).
+  page_preview::close();
 
   runSwipeAction(access_gesture_action);
 }
@@ -941,7 +946,11 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
         break;
       }
     }
-    if (!started_on_home) return;
+    // The pages' overview over the tiles (page_preview.h): an edge swipe
+    // that starts on it still works and closes it (user 2026-10-12); its
+    // taps and other drags stay its own.
+    const bool over_preview = tab == 0 && page_preview::contains(pressed_object);
+    if (!started_on_home && !over_preview) return;
 
     lv_point_t point{};
     lv_indev_get_point(input, &point);
@@ -968,12 +977,13 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     // Home and its pages turn by a swipe that starts in the head beside its
     // gear or X, or right at the left or right edge (user 2026-10-12: never
     // across the tiles); never on a control that drags itself (it keeps its
-    // gestures, like the level bar of a dimmer or a cover).
+    // gestures, like the level bar of a dimmer or a cover). Over the
+    // overview only from the left or right edge.
     bool page_swipe = tab == 0 && grid_layout::head_bar() &&
                       tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
-                      ((point.y < GRID_PAD_TOP && !home_bar::is_button(pressed_object)) ||
+                      ((!over_preview && point.y < GRID_PAD_TOP && !home_bar::is_button(pressed_object)) ||
                        distance[0] < kSettingsGestureCaptureWidth || distance[1] < kSettingsGestureCaptureWidth);
-    for (lv_obj_t* object = pressed_object; page_swipe && object && object != self->tab_panels[tab];
+    for (lv_obj_t* object = pressed_object; page_swipe && !over_preview && object && object != self->tab_panels[tab];
          object = lv_obj_get_parent(object)) {
       if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) page_swipe = false;
     }

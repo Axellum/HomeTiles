@@ -12017,9 +12017,8 @@ async function saveGestureEdge(select) {
   // Home and the pages show the dots in their head and the gear; a page
   // left the slots shows its X again (home_bar.cpp). Only what differs is
   // touched: rebuilding the dots for every folder tab the page loaded made
-  // them blink (user 2026-10-12).
-  function syncPageHeads() {
-    const pages = pageFolders();
+  // them blink (user 2026-10-12). The layout window passes its own pages.
+  function syncPageHeads(pages = pageFolders()) {
     document.querySelectorAll('.tile-tab[data-folder-id]').forEach(tab => {
       const head = tab.querySelector('.head-bar-preview');
       if (!head) return;
@@ -12184,6 +12183,11 @@ async function saveGestureEdge(select) {
     // Its own size when it fits there, else one cell, like the device
     // (/api/pages).
     const size = canPlacePageTile(candidate) ? {span_w: candidate.span_w, span_h: candidate.span_h} : {span_w: 1, span_h: 1};
+    // In the layout window it stays there until "Speichern" (layout-window.js).
+    if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) {
+      layoutPageOut(folder, {col: candidate.col, row: candidate.row, ...size});
+      return;
+    }
     // Its place stays free.
     savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, col: candidate.col, row: candidate.row, ...size});
   }
@@ -12324,7 +12328,8 @@ async function saveGestureEdge(select) {
   // own arrangement: "Speichern" stores it, "Umstellen" stores it and
   // restarts the panel with it; switching between layouts keeps the unsaved
   // ones. Nothing else reaches the panel while the window is open: the
-  // editor's own saves stay in the window.
+  // editor's own saves stay in the window. The bar layouts' page row under
+  // Home (user 2026-10-12) is kept like the places and stored with them.
   const LAYOUT_KEYS = ['classic', 'bar', 'portrait'];
   let layoutWindow = null;
   const layoutWindowFetch = window.fetch.bind(window);
@@ -12339,11 +12344,12 @@ async function saveGestureEdge(select) {
   function layoutNavType(type) { return [7, 8].includes(Number(type)); }
   // The bar layouts' head has the X: no Back tile there. The Settings tile
   // is a tile like any other (user 2026-10-08). A page's folder tile is not
-  // on Home there either (/api/layouts "pages", user 2026-10-12).
+  // on Home there either (the window's page row, user 2026-10-12).
   function layoutBarHidden(tile, tab) {
     if (Number(tile.type) === 8) return true;
+    const pages = layoutWindow?.pageSlots || layoutWindow?.data?.places?.pages || [];
     return Number(tile.type) === 4 && layoutFolderId(tab) === '0' &&
-      (layoutWindow?.data?.places?.pages || []).map(Number).includes(Number(tile.navigate_target));
+      pages.map(Number).includes(Number(tile.navigate_target));
   }
   // Tiles that must be reached in every layout, so never in its storage:
   // folders, and the Settings tile (user 2026-10-12: always to be tapped;
@@ -12526,6 +12532,19 @@ async function saveGestureEdge(select) {
           }
         }
       }
+      // A folder back from the pages (reconcileLayoutPages): the screen's
+      // first free spot, whole cells before half steps, like the panel gives
+      // it one (/api/layouts).
+      if (tile._screen) {
+        const L = LAYOUTS[key];
+        for (const step of [1, 0.5]) {
+          for (let row = 0; !spot && row + h <= L.rows; row += step) {
+            for (let col = 0; !spot && col + w <= L.cols; col += step) {
+              if (free(tile, col, row, w, h)) spot = {col, row, span_w: w, span_h: h};
+            }
+          }
+        }
+      }
       for (const outside of [true, false]) {
         for (let row = 0; !spot && row + h <= canvas.rows; row += 0.5) {
           for (let col = 0; !spot && col + w <= canvas.cols; col += 0.5) {
@@ -12551,7 +12570,11 @@ async function saveGestureEdge(select) {
       }
       if (spot) { Object.assign(tile, spot); take(tile); }
     }
-    tiles.forEach(tile => { if (tile) delete tile._unplaced; });
+    tiles.forEach(tile => {
+      if (!tile) return;
+      delete tile._unplaced;
+      delete tile._screen;
+    });
     return tiles;
   }
 
@@ -12636,7 +12659,212 @@ async function saveGestureEdge(select) {
   function layoutDirty(key = layoutWindow?.key) {
     if (!layoutWindow) return false;
     const work = key === layoutWindow.key ? getTilesData : (layoutWindow.work[key] ? tab => layoutWindow.work[key][tab] : null);
-    return (!!work && layoutSignature(work) !== layoutSavedSig(key)) || layoutClockDirty(key);
+    return (!!work && layoutSignature(work) !== layoutSavedSig(key)) || layoutClockDirty(key) ||
+      (!!LAYOUTS[key]?.bar && layoutPagesDirty());
+  }
+
+  // --- The page row ----------------------------------------------------------
+
+  // The page slots under Home in the bar layouts, as in the editor
+  // (page-slots.js, user 2026-10-12): a Home folder put into one is a page,
+  // its tile leaves Home in both bar layouts. Kept like the places and stored
+  // with them ("Speichern"); both bar layouts share them.
+  function layoutPageSlotsFrom(data) {
+    const stored = (data?.places?.pages || []).map(Number);
+    return Array.from({length: PAGE_SLOT_COUNT}, (_, i) => stored[i] > 0 ? stored[i] : 0);
+  }
+  function layoutHomeTab() { return layoutTabs().find(tab => layoutFolderId(tab) === '0') || ''; }
+  // The page's folder tile on Home, in the page's data.
+  function layoutHomeFolderIndex(folder) {
+    return (layoutWindow.pages[layoutHomeTab()] || []).findIndex(tile =>
+      layoutUsed(tile) && Number(tile.type) === 4 && Number(tile.navigate_target) === Number(folder));
+  }
+  function layoutPagesDirty() {
+    return !!layoutWindow && JSON.stringify(layoutWindow.pageSlots) !== JSON.stringify(layoutWindow.savedPageSlots);
+  }
+
+  // A bar layout shown again (its unsaved places or its stored ones) follows
+  // the row: a new page's tile leaves its Home, a folder back from the pages
+  // without a place on its screen gets the first free one.
+  function reconcileLayoutPages(key, tab, tiles) {
+    if (!LAYOUTS[key].bar || layoutFolderId(tab) !== '0') return tiles;
+    const base = layoutWindow.pages[tab] || [];
+    const left = folder => (layoutWindow.savedPageSlots || []).includes(folder) &&
+      !(layoutWindow.pageSlots || []).includes(folder);
+    let back = false;
+    const out = tiles.map((tile, index) => {
+      const own = base[index];
+      if (!layoutUsed(own) || Number(own.type) !== 4) return tile;
+      if (layoutBarHidden(own, tab)) return layoutUsed(tile) ? layoutEmptyTile() : tile;
+      if ((layoutUsed(tile) && layoutInside(tile, key)) || !left(Number(own.navigate_target))) return tile;
+      back = true;
+      const moved = layoutClone(own);
+      delete moved.layout_hidden;
+      if (layoutUsed(tile)) Object.assign(moved, {col: tile.col, row: tile.row, span_w: tile.span_w, span_h: tile.span_h});
+      return Object.assign(moved, {_unplaced: true, _screen: true});
+    });
+    return back ? layoutSettle(key, out) : out;
+  }
+
+  // The row at the window's cell size, under a bar layout's Home only; it
+  // keeps its room elsewhere, so the window keeps its size.
+  function renderLayoutPages() {
+    const row = document.querySelector('.setup-pages');
+    if (!row || !layoutWindow) return;
+    const home = layoutHomeTab();
+    row.classList.toggle('is-off', !LAYOUTS[layoutWindow.key].bar || layoutWindow.tab !== home);
+    const grid = document.querySelector(`#tab-tiles-${layoutWindow.tab} .setup-grid`);
+    if (grid) {
+      for (const name of Array.from(grid.style)) {
+        if (name.startsWith('--') && !name.startsWith('--grid-')) row.style.setProperty(name, grid.style.getPropertyValue(name));
+      }
+    }
+    const tiles = layoutWindow.pages[home] || [];
+    row.querySelectorAll('.page-slot').forEach((slot, i) => {
+      const folder = layoutWindow.pageSlots[i] || 0;
+      const index = folder ? layoutHomeFolderIndex(folder) : -1;
+      slot.dataset.folder = index >= 0 ? String(folder) : '';
+      slot.className = 'page-slot ' + (index >= 0 ? 'has-tile' : 'empty');
+      slot.draggable = index >= 0;
+      slot.replaceChildren();
+      if (index < 0) return;
+      // Its folder tile as the grid draws it, and the folders' green tick:
+      // a page is reached by its dot.
+      const tile = document.createElement('div');
+      tile.id = 'setupPage-tile-' + i;
+      slot.appendChild(tile);
+      renderTileFromData('setupPage', i, tiles[index], sensorMetaCache);
+      tile.classList.remove('tile-unplaced', 'fractional-tile', 'active', 'sensor-compact', 'sensor-half', 'compact-title-only');
+      tile.querySelectorAll('.tile-resize-handle').forEach(handle => handle.remove());
+      const flag = document.createElement('span');
+      flag.className = 'setup-flag ok';
+      flag.innerHTML = '<i class="mdi mdi-check"></i>';
+      slot.appendChild(flag);
+    });
+    // The heads' dots as the window has the pages (the page's again on close).
+    if (typeof syncPageHeads === 'function') syncPageHeads(layoutWindow.pageSlots.filter(id => id > 0));
+  }
+
+  function layoutPagesChanged() {
+    renderLayoutPages();
+    markLayoutRed(layoutWindow.tab);
+  }
+
+  // A folder becomes a page: its tile leaves this layout's Home (the other
+  // bar layout's when that one is shown, reconcileLayoutPages).
+  function layoutPageIn(index) {
+    const home = layoutHomeTab();
+    const tiles = getTilesData(home);
+    if (currentTileTab === home && currentTileIndex === index) deselectLayoutTile(home);
+    tiles[index] = layoutEmptyTile();
+    renderTileFromData(home, index, tiles[index], sensorMetaCache);
+    layoutTiles(home, tiles);
+  }
+
+  // A page dragged onto the window's area (page-slots.js dropPageOnGrid):
+  // its folder tile there, its place in the row free.
+  function layoutPageOut(folder, place) {
+    const home = layoutHomeTab();
+    const index = layoutHomeFolderIndex(folder);
+    if (!layoutWindow || index < 0) return;
+    const tiles = getTilesData(home);
+    const tile = layoutClone(layoutWindow.pages[home][index]);
+    delete tile.layout_hidden;
+    Object.assign(tile, {col: place.col, row: place.row, span_w: place.span_w, span_h: place.span_h});
+    tiles[index] = tile;
+    renderTileFromData(home, index, tile, sensorMetaCache);
+    layoutTiles(home, tiles);
+    layoutWindow.pageSlots = layoutWindow.pageSlots.map(id => id === folder ? 0 : id);
+    layoutPagesChanged();
+  }
+
+  // Dragging like the editor's row: a Home folder from the area onto a free
+  // place, a page onto any place (onto another page they swap) or onto the
+  // area (drag-resize.js handleGridDrop).
+  function bindLayoutPages(row) {
+    row.querySelectorAll('.page-slot').forEach((slot, i) => {
+      const accepts = () => !!layoutWindow && ((draggedHomeFolder() > 0 && !layoutWindow.pageSlots[i]) ||
+        (dragSource?.kind === 'page-slot' && !!dragSource.window));
+      slot.addEventListener('dragover', event => {
+        if (!accepts()) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        if (slot.classList.contains('drop-target')) return;
+        restoreDragPreview(layoutHomeTab());
+        clearDragPlaceholder();
+        row.querySelectorAll('.page-slot').forEach(other => other.classList.toggle('drop-target', other === slot));
+      });
+      slot.addEventListener('dragleave', event => {
+        if (event.relatedTarget instanceof Node && slot.contains(event.relatedTarget)) return;
+        slot.classList.remove('drop-target');
+      });
+      slot.addEventListener('drop', event => {
+        if (!accepts()) return;
+        event.preventDefault();
+        event.stopPropagation();
+        slot.classList.remove('drop-target');
+        const home = layoutHomeTab();
+        restoreDragPreview(home);
+        clearDragPlaceholder();
+        const places = layoutWindow.pageSlots.slice();
+        const folder = dragSource.kind === 'page-slot' ? dragSource.folder : draggedHomeFolder();
+        const from = places.indexOf(folder);
+        if (from === i) return;
+        const index = layoutHomeFolderIndex(folder);
+        if (index < 0) return;
+        // Pages have no PIN: a locked folder asks before it becomes one.
+        const unlock = from < 0 && layoutWindow.pages[home][index]?.folder_pin_enabled === true;
+        if (unlock && !window.confirm(t('pageUnlockConfirm'))) return;
+        if (unlock) layoutWindow.pageUnlock = true;
+        // Exactly where it is dropped; the page there takes its old place.
+        if (from >= 0) places[from] = places[i];
+        places[i] = folder;
+        dragSource.dropCommitted = true;
+        if (from < 0) layoutPageIn(index);
+        layoutWindow.pageSlots = places;
+        layoutPagesChanged();
+      });
+      slot.addEventListener('dragstart', event => {
+        const folder = Number(slot.dataset.folder || 0);
+        const index = folder && layoutWindow ? layoutHomeFolderIndex(folder) : -1;
+        if (index < 0) {
+          event.preventDefault();
+          return;
+        }
+        // Its own size, a half-high one too; one cell when it has none.
+        const own = layoutWindow.pages[layoutHomeTab()][index];
+        const size = {span_w: Number(own.span_w || 1), span_h: Number(own.span_h || 1)};
+        const rect = slot.getBoundingClientRect();
+        const grabOffset = getDragGrabOffset(rect, event.clientX, event.clientY);
+        dragSource = {
+          kind: 'page-slot',
+          tab: layoutHomeTab(),
+          index,
+          folder,
+          window: true,
+          layout: {col: 0, row: 0, ...(supportedTileLayout(4, {col: 0, row: 0, ...size}) ? size : {span_w: 1, span_h: 1})},
+          grabCellCol: 0,
+          grabCellRow: 0,
+          dropOffset: grabOffset,
+          dropCommitted: false,
+          pageTarget: null
+        };
+        event.dataTransfer.effectAllowed = 'move';
+        slot.classList.add('dragging');
+        if (event.dataTransfer.setDragImage) {
+          dragPreview = createDragPreview(slot);
+          event.dataTransfer.setDragImage(dragPreview, grabOffset.x, grabOffset.y);
+        }
+      });
+      slot.addEventListener('dragend', () => {
+        slot.classList.remove('dragging');
+        row.querySelectorAll('.page-slot').forEach(other => other.classList.remove('drop-target'));
+        clearDragPlaceholder();
+        if (dragPreview && dragPreview.parentNode) dragPreview.parentNode.removeChild(dragPreview);
+        dragPreview = null;
+        dragSource = null;
+      });
+    });
   }
 
   // --- The screensaver clock -------------------------------------------------
@@ -12905,6 +13133,7 @@ async function saveGestureEdge(select) {
     // Tiles such as Media measure their card when they are drawn: draw them
     // again at the window's scale.
     showLayoutTiles(tab, getTilesData(tab));
+    renderLayoutPages();
     // The screensaver's clock at this layout's place.
     if (isScreensaverTileTab(tab) && typeof screensaverLoaded !== 'undefined' && screensaverLoaded) renderScreensaverEditor();
   }
@@ -12926,7 +13155,8 @@ async function saveGestureEdge(select) {
     useLayoutGrid();
     const work = !from && layoutWindow.work[key];
     for (const tab of layoutTabs()) {
-      showLayoutTiles(tab, from ? takeoverTiles(tab, key, from) : work?.[tab] ? layoutClone(work[tab]) : setupTiles(tab, key));
+      const tiles = from ? takeoverTiles(tab, key, from) : work?.[tab] ? layoutClone(work[tab]) : setupTiles(tab, key);
+      showLayoutTiles(tab, reconcileLayoutPages(key, tab, tiles));
     }
     delete layoutWindow.work[key];
     layoutSavedSig(key);
@@ -13085,6 +13315,13 @@ async function saveGestureEdge(select) {
       });
     }
     const body = {layout: key, folders};
+    // The page row with a bar layout's places, in one go (user 2026-10-12).
+    const pagesChanged = !!LAYOUTS[key].bar && layoutPagesDirty();
+    if (pagesChanged) {
+      const slots = layoutWindow.pageSlots;
+      body.pages = slots.slice(0, slots.reduce((end, id, i) => id ? i + 1 : end, 0));
+      if (layoutWindow.pageUnlock) body.unlock = true;
+    }
     const clock = layoutClockDirty(key) && layoutWindow.clocks[key];
     if (clock) body.clock = [clock.clock_x, clock.clock_y, clock.time_font_size, clock.date_font_size];
     layoutWindow.busy = true;
@@ -13092,23 +13329,49 @@ async function saveGestureEdge(select) {
     try {
       const response = await layoutWindowFetch('/api/layouts', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (!response.ok) {
+        // A folder back from the pages without room on the panel's screen.
+        let reason = '';
+        try { reason = (await response.json())?.error || ''; } catch (_) {}
+        throw new Error(reason === 'No free cell' ? t('tileDoesNotFit') : '');
+      }
       const data = await (await layoutWindowFetch('/api/layouts', {cache: 'no-store'})).json();
       if (data?.success) layoutWindow.data = data;
     } catch (error) {
-      showNotification(t('saveFailed'), false);
+      showNotification(error?.message || t('saveFailed'), false);
       return false;
     } finally {
       if (layoutWindow) layoutWindow.busy = false;
     }
     if (!layoutWindow) return false;
     if (key === ACTIVE_LAYOUT) layoutWindow.changed = true;
+    if (pagesChanged) {
+      // The other bar layout's unsaved places follow the new pages first
+      // (a folder back from them takes the spot the panel gave it).
+      for (const other of LAYOUT_KEYS) {
+        const work = layoutWindow.work[other];
+        if (other === key || !LAYOUTS[other].bar || !work) continue;
+        for (const tab of Object.keys(work)) work[tab] = reconcileLayoutPages(other, tab, work[tab]);
+      }
+      layoutWindow.savedPageSlots = layoutWindow.pageSlots.slice();
+      layoutWindow.pageUnlock = false;
+      layoutWindow.changed = true;
+    }
     // The page's screensaver tab shows the active layout's clock.
     if (clock && key === ACTIVE_LAYOUT && typeof screensaverDraft !== 'undefined' && screensaverDraft) {
       Object.assign(screensaverDraft, clock);
     }
     if (layoutWindow.clocks) delete layoutWindow.clocks[key];
     for (const other of Object.keys(layoutWindow.saved)) if (!layoutWindow.work[other]) delete layoutWindow.saved[other];
+    // The other bar layout's stored places changed with the pages (a folder
+    // back from them got a spot there): its unsaved ones count against those.
+    if (pagesChanged) {
+      for (const other of LAYOUT_KEYS) {
+        if (other !== key && LAYOUTS[other].bar && layoutWindow.work[other]) {
+          layoutWindow.saved[other] = layoutSignature(tab => setupTiles(tab, other));
+        }
+      }
+    }
     layoutWindow.undo = null;
     const undo = document.querySelector('.setup-undo');
     if (undo) undo.hidden = true;
@@ -13179,8 +13442,14 @@ async function saveGestureEdge(select) {
       saved: {},
       missingFolders: 0,
       blocked: false,
-      home: null
+      home: null,
+      pageSlots: [],
+      savedPageSlots: [],
+      pageUnlock: false
     };
+    // The page row as stored; a folder gone meanwhile left its place free.
+    layoutWindow.pageSlots = layoutPageSlotsFrom(data).map(id => id && layoutHomeFolderIndex(id) >= 0 ? id : 0);
+    layoutWindow.savedPageSlots = layoutWindow.pageSlots.slice();
     // Every layout's storage once, so the window has its size from the
     // start (it grows by rows where tiles find no spot).
     useLayoutGrid();
@@ -13230,8 +13499,13 @@ async function saveGestureEdge(select) {
 
       `<div class="setup-tabs">${tabButtons}</div>`,
       '<div class="setup-stage"></div>',
-      // The buttons always on the right.
-      '<div class="setup-foot"><div class="setup-actions">',
+      // The page row on the left (bar layouts, Home), the buttons always on
+      // the right.
+      '<div class="setup-foot">',
+      `<div class="setup-pages is-off"><div class="page-parking-label">${escapeHtml(t('pagesTitle'))}</div>` +
+        `<div class="page-parking"><div class="page-slots">${'<div class="page-slot empty"></div>'.repeat(PAGE_SLOT_COUNT)}` +
+        '</div></div></div>',
+      '<div class="setup-actions">',
       `<button type="button" class="btn setup-undo" hidden><i class="mdi mdi-undo"></i> ${escapeHtml(t('layoutUndo'))}</button>`,
       `<select class="setup-from" aria-label="${escapeHtml(t('layoutCopyFrom'))}"></select>`,
       `<button type="button" class="btn setup-save">${escapeHtml(t('save'))}</button>`,
@@ -13239,6 +13513,7 @@ async function saveGestureEdge(select) {
     ].join('');
     document.body.appendChild(backdrop);
     document.body.classList.add('setup-window');
+    bindLayoutPages(backdrop.querySelector('.setup-pages'));
     const buttons = [...backdrop.querySelectorAll('.setup-layout')];
     const widest = Math.max(...buttons.map(button => button.offsetWidth));
     buttons.forEach(button => { button.style.width = widest + 'px'; });
@@ -13279,6 +13554,9 @@ async function saveGestureEdge(select) {
     });
     document.querySelectorAll('.tile-specific-settings').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('.tile-settings').forEach(panel => { panel.dataset.pane = 'global'; });
+    // The editor's page slots as stored (the window may have saved them).
+    const pageSlots = typeof pageSlotsElement === 'function' ? pageSlotsElement() : null;
+    if (pageSlots) pageSlots.dataset.pages = encodePageSlots(state.savedPageSlots);
     // The page again, with what the panel now has.
     for (const tab of Object.keys(state.pages)) {
       tilesData[tab] = state.pages[tab];
@@ -13286,6 +13564,10 @@ async function saveGestureEdge(select) {
         try { await fetchTileGridData(tab, true); } catch (error) {}
       }
       showLayoutTiles(tab, getTilesData(tab));
+    }
+    if (pageSlots) {
+      renderPageSlots();
+      syncPageHeads();
     }
     // The tile the page had selected before, with its settings beside the
     // preview (the window's own selections are forgotten).

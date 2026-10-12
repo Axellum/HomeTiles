@@ -82,6 +82,7 @@ void appendAdminScripts(String& html) {
   appendJsEntry("importScreensaver", tr.js_import_screensaver);
   appendJsEntry("tileDoesNotFit", tr.js_tile_does_not_fit);
   appendJsEntry("pageUnlockConfirm", tr.js_page_unlock_confirm);
+  appendJsEntry("pagesTitle", tr.pages_title);
   appendJsEntry("pagesSaved", tr.js_pages_saved);
   appendJsEntry("folderTypeLocked", tr.js_folder_type_locked);
   appendJsEntry("noLayoutFound", tr.js_no_layout_found);

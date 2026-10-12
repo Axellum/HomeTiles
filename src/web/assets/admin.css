@@ -3746,7 +3746,18 @@ html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { co
   align-items:center; justify-content:center; background:var(--danger); color:#fff; font-size:13px; line-height:1;
 }
 .tile-grid.setup-grid > .setup-trash:hover { background:var(--danger-hover); }
-.setup-foot { display:flex; align-items:center; gap:16px; width:0; min-width:100%; }
+.setup-foot { display:flex; align-items:flex-end; gap:16px; width:0; min-width:100%; }
+/* The page row (user 2026-10-12): the editor's box at the window's cell size
+   (layout-window.js renderLayoutPages), left in the foot; where it does not
+   apply (classic layout, other tabs) its room stays, so the window does not
+   jump. A page has the folders' green tick: its dot reaches it. */
+.setup-pages { display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex:none; }
+.setup-pages.is-off { visibility:hidden; }
+.setup-pages .page-slot > .setup-flag {
+  position:absolute; z-index:40; top:-7px; right:-7px; width:18px; height:18px; border-radius:9px; display:flex;
+  align-items:center; justify-content:center; color:#fff; background:#43a047; pointer-events:none;
+}
+.setup-pages .page-slot > .setup-flag i { font-size:13px; }
 .setup-actions { flex:none; margin-left:auto; display:flex; align-items:center; gap:10px; }
 .setup-tabs { width:0; min-width:100%; }
 /* The notes right beside the layouts, small and left-aligned in a column;

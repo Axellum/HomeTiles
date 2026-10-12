@@ -41,7 +41,7 @@ const windowNames = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutNavT
   'layoutSignature', 'layoutSavedSig', 'layoutDirty', 'layoutSelectedTile', 'deselectLayoutTile', 'normalizeLayoutForTileType', 'clampHalf',
   'headBarLayout', 'placeCols', 'placeRows',
   'deleteLayoutTile', 'classicParked', 'layoutParked', 'layoutMustReach', 'layoutRed', 'loadLayoutWindow', 'mayLeaveLayout',
-  'layoutClockFrom', 'layoutClock', 'layoutClockDirty'];
+  'layoutClockFrom', 'layoutClock', 'layoutClockDirty', 'layoutPagesDirty', 'reconcileLayoutPages'];
 function windowContext(pages, data, extra = {}) {
   // Every case gets its own copy: the window changes the pages it holds.
   pages = JSON.parse(JSON.stringify(pages));

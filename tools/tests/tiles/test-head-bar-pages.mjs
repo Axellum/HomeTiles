@@ -31,7 +31,11 @@ assert.match(pageNumber, /if \(!g_page_count\) return -1;\s*if \(folder_id == 0\
 assert.match(pageNumber, /if \(!g_pages\[i\]\) continue;\s*\+\+number;/, 'The dots skip free places');
 assert.match(slice(layouts, 'size_t pages(uint16_t out[kMaxPages]) {', '\n}\n'), /if \(g_pages\[i\]\) out\[count\+\+\] = g_pages\[i\];/);
 assert.match(slice(layouts, 'void drop_folder(', '\n}\n'), /std::replace\(kept, kept \+ kMaxPages, folder_id, static_cast<uint16_t>\(0\)\);/);
-assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'), /if \(id == 0\) \{\s*wanted\.push_back\(0\);\s*continue;/, 'The device keeps free places');
+// Both ways in (/api/pages, the layout window's /api/layouts) keep a 0 as a
+// free place: one check for the slots.
+const savedPages = read('src/web/server/handlers/web_admin_tiles.cpp');
+assert.match(slice(savedPages, 'const char* checkPageSlots(', '\n}\n'), /if \(!id\) continue;/, 'The device keeps free places');
+assert.match(savedPages, /\/\/ 0: a free slot, kept in its place \(user 2026-10-12\)\.\s*if \(id < 0 \|\| id >= 0xFFFF\) \{[\s\S]*?\}\s*wanted\.push_back\(static_cast<uint16_t>\(id\)\);/);
 assert.match(layouts, /for \(JsonVariantConst folder : doc\["pages"\]\.as<JsonArrayConst>\(\)\)/);
 assert.match(layouts, /out \+= ",\\"pages\\":\[";/);
 
@@ -99,7 +103,7 @@ assert.ok(neighbours >= 0 && back > neighbours, 'Pages before Back and folder ti
 // top edge's strip still turns the page.
 const manager = read('src/ui/ui_manager.cpp');
 const press = slice(manager, 'void UIManager::settings_gesture_indev_event_cb', '\nvoid UIManager::nav_button_event_cb');
-assert.match(press, /bool page_swipe = tab == 0 && grid_layout::head_bar\(\) &&\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) >= 0 &&\s*\(\(point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*distance\[0\] < kSettingsGestureCaptureWidth \|\| distance\[1\] < kSettingsGestureCaptureWidth\);/);
+assert.match(press, /bool page_swipe = tab == 0 && grid_layout::head_bar\(\) &&\s*tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\) >= 0 &&\s*\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*distance\[0\] < kSettingsGestureCaptureWidth \|\| distance\[1\] < kSettingsGestureCaptureWidth\);/);
 assert.match(press, /if \(!lv_obj_has_flag\(object, LV_OBJ_FLAG_GESTURE_BUBBLE\)\) page_swipe = false;/);
 assert.match(press, /if \(edge == swipe_gestures::kEdgeOff && !page_swipe\) return;/);
 assert.match(press, /self->access_gesture_action = edge != swipe_gestures::kEdgeOff \? actions\[edge\] : kPageSwipe;/);
@@ -112,7 +116,7 @@ const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n')
 // One swipe, one step: past the threshold the page turns while the finger
 // is still down (user 2026-10-12: it snaps at once, step by step).
 assert.match(swipe, /abs_dx < kSettingsGestureThreshold \|\| abs_dx <= abs_dy/);
-assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
+assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*(?:\/\/[^\n]*\n\s*)*page_preview::close\(\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
 assert.doesNotMatch(manager, /page_drag_tick/);
 const showPage = slice(manager, 'void UIManager::openPage(int number) {', '\n}\n');
 assert.match(showPage, /if \(number < 0 \|\| number > count\) return;/);
@@ -123,9 +127,16 @@ assert.match(showPage, /requestFolderAccess\(folder_id, folder->name, folder->ic
 // taken out placed on the shown grid (or nothing changes).
 const handler = slice(read('src/web/server/handlers/web_admin_tiles.cpp'), 'void WebAdminServer::handleSavePages() {', '\nvoid WebAdminServer::handleGetFolderTab');
 assert.match(handler, /if \(grid_layout::active\(\) == grid_layout::Layout::kClassic\) \{\s*sendJsonError\(server, 409, "Pages need the head bar"\);/);
-assert.match(handler, /tileConfig\.getFolderParent\(static_cast<uint16_t>\(id\)\) != TileConfig::rootFolderId\(\)/);
-assert.match(handler, /if \(wanted\.size\(\) > tile_layouts::kMaxPages\)/);
-assert.match(handler, /if \(!id \|\| was_page\(id\) \|\| !tileConfig\.isFolderPinEnabled\(id\) \|\| unlock\) continue;\s*server\.send\(409/);
+// The slots and the lock are checked like the layout window's save does
+// (checkPageSlots, lockedNewPage).
+const tilesSource = read('src/web/server/handlers/web_admin_tiles.cpp');
+const slotCheck = slice(tilesSource, 'const char* checkPageSlots(', '\n}\n');
+assert.match(slotCheck, /tileConfig\.getFolderParent\(id\) != TileConfig::rootFolderId\(\)/);
+assert.match(slotCheck, /if \(slots\.size\(\) > tile_layouts::kMaxPages\) return "Too many pages";/);
+assert.match(handler, /if \(const char\* error = checkPageSlots\(wanted\)\) \{/);
+assert.match(slice(tilesSource, 'uint16_t lockedNewPage(', '\n}\n'),
+  /if \(unlock\) return 0;[\s\S]*?tileConfig\.isFolderPinEnabled\(id\)\) \{\s*return id;/);
+assert.match(handler, /if \(const uint16_t locked = lockedNewPage\(wanted, before, before_count, server\.arg\("unlock"\) == "1"\)\) \{\s*server\.send\(409/);
 assert.match(handler, /tile_layouts::remove\(grid_layout::Layout::kBar, TileConfig::rootFolderId\(\), tile->view_id\);\s*tile_layouts::remove\(grid_layout::Layout::kPortrait, TileConfig::rootFolderId\(\), tile->view_id\);/);
 const noRoom = handler.indexOf('sendJsonError(server, 409, "No free cell");');
 const firstWrite = handler.indexOf('tileConfig.clearFolderPin(id)');
@@ -133,7 +144,7 @@ assert.ok(noRoom >= 0 && firstWrite > noRoom, 'Room is checked before anything i
 assert.match(read('src/web/server/web_admin.cpp'), /server\.on\("\/api\/pages", HTTP_POST,/);
 // The layout window may leave a page's folder tile off Home.
 assert.match(read('src/web/server/handlers/web_admin_tiles.cpp'),
-  /if \(pages && tile_layouts::page_number\(getNavigateTargetId\(tile\)\) > 0\) continue;/);
+  /if \(pages && std::find\(pages->begin\(\), pages->end\(\), getNavigateTargetId\(tile\)\) != pages->end\(\)\) continue;/);
 
 // The preview card: a tap on the head's dots; its dot row lies exactly on
 // the head's (same row, same x, same y), the pictures from the built grids'
