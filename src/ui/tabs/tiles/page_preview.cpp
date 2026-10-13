@@ -100,29 +100,14 @@ struct State {
   PageTileRect* rects = nullptr;
   uint16_t first[kMaxPictures + 1] = {};
   Geometry geo{};
-  // Where the finger came down: only a tap counts (user 2026-10-12: a swipe
-  // over the overview must never do anything).
-  lv_point_t pressed_at{};
+  // The pages' cells (picture and name), for a finger that slides over them.
+  lv_obj_t* cells[kMaxPictures] = {};
+  int count = 0;
 };
 State g_state;
 
 void forget_dots(lv_event_t* event) {
   if (lv_event_get_target(event) == g_state.dots) g_state.dots = nullptr;
-}
-
-void remember_press(lv_event_t*) {
-  if (lv_indev_t* input = lv_indev_active()) lv_indev_get_point(input, &g_state.pressed_at);
-}
-
-bool was_tap() {
-  lv_indev_t* input = lv_indev_active();
-  if (!input) return true;
-  lv_point_t now{};
-  lv_indev_get_point(input, &now);
-  const int32_t dx = now.x - g_state.pressed_at.x;
-  const int32_t dy = now.y - g_state.pressed_at.y;
-  const int32_t limit = popup_layout::scale(12);
-  return dx * dx + dy * dy <= limit * limit;
 }
 
 // A picture: the screen in its color, the page's head as a circle and two
@@ -169,15 +154,27 @@ void picture_draw(lv_event_t* event) {
   }
 }
 
+// A tap on a page's cell shows it (a finger that moved taps nothing,
+// ui_manager.cpp).
 void on_picture(lv_event_t* event) {
-  if (!was_tap()) return;
   const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
   close();
   uiManager.showPage(index);
 }
 
-void on_close(lv_event_t*) {
-  if (was_tap()) close();
+// Any lift beside the pictures closes it (user 2026-10-13: a tap that moved
+// a little did not close it at once).
+void on_close(lv_event_t*) { close(); }
+
+// The page whose cell lies under a point, or -1.
+int cell_at(const lv_point_t& point) {
+  for (int i = 0; i < g_state.count; ++i) {
+    lv_area_t area;
+    if (!g_state.cells[i]) continue;
+    lv_obj_get_coords(g_state.cells[i], &area);
+    if (point.x >= area.x1 && point.x <= area.x2 && point.y >= area.y1 && point.y <= area.y2) return i;
+  }
+  return -1;
 }
 
 lv_obj_t* plain(lv_obj_t* parent) {
@@ -187,11 +184,10 @@ lv_obj_t* plain(lv_obj_t* parent) {
   return obj;
 }
 
-// A part a tap reaches: it remembers where the finger came down.
-void tappable(lv_obj_t* obj, lv_event_cb_t on_tap, void* data) {
+// A part a touch reaches: `code` is its tap (CLICKED) or any lift (RELEASED).
+void tappable(lv_obj_t* obj, lv_event_cb_t on_tap, void* data, lv_event_code_t code) {
   lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(obj, remember_press, LV_EVENT_PRESSED, nullptr);
-  lv_obj_add_event_cb(obj, on_tap, LV_EVENT_CLICKED, data);
+  lv_obj_add_event_cb(obj, on_tap, code, data);
 }
 
 }  // namespace
@@ -205,9 +201,28 @@ bool contains(lv_obj_t* obj) {
   return false;
 }
 
+void point_at(const lv_point_t& point) {
+  const int under = cell_at(point);
+  for (int i = 0; i < g_state.count; ++i) {
+    if (!g_state.cells[i]) continue;
+    if (i == under) lv_obj_add_state(g_state.cells[i], LV_STATE_PRESSED);
+    else lv_obj_remove_state(g_state.cells[i], LV_STATE_PRESSED);
+  }
+}
+
+void lift_at(const lv_point_t& point) {
+  const int under = cell_at(point);
+  point_at({-1, -1});
+  if (under < 0) return;
+  close();
+  uiManager.showPage(under);
+}
+
 void close() {
   if (g_state.catcher) lv_obj_delete(g_state.catcher);
   g_state.catcher = nullptr;
+  for (lv_obj_t*& cell : g_state.cells) cell = nullptr;
+  g_state.count = 0;
   if (g_state.rects) heap_caps_free(g_state.rects);
   g_state.rects = nullptr;
   if (g_state.dots) {
@@ -264,12 +279,12 @@ void open(lv_obj_t* dots) {
 
   g_state.catcher = plain(lv_layer_top());
   lv_obj_set_size(g_state.catcher, grid_layout::screen_w(), grid_layout::screen_h());
-  tappable(g_state.catcher, on_close, nullptr);
+  tappable(g_state.catcher, on_close, nullptr, LV_EVENT_RELEASED);
 
   // The popups' frame: their card color, corner, hairline and shadow. A tap
   // on it beside the pictures closes it too (user 2026-10-12).
   lv_obj_t* card = plain(g_state.catcher);
-  tappable(card, on_close, nullptr);
+  tappable(card, on_close, nullptr, LV_EVENT_RELEASED);
   lv_obj_set_pos(card, card_x, card_y);
   lv_obj_set_size(card, card_w, card_h);
   lv_obj_set_style_bg_color(card, lv_color_hex(ui_theme::popup_card()), 0);
@@ -283,7 +298,7 @@ void open(lv_obj_t* dots) {
   lv_obj_t* card_dots = home_bar::create_dots(card, count, current, (grid_layout::screen_w() - dots_w) / 2 - card_x,
                                               head.center_y - dot.dot / 2 - card_y);
   // A tap on them closes it again, like on the head's (user 2026-10-12).
-  tappable(card_dots, on_close, nullptr);
+  tappable(card_dots, on_close, nullptr, LV_EVENT_RELEASED);
   lv_obj_set_ext_click_area(card_dots, geo.pad);
 
   const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
@@ -297,7 +312,8 @@ void open(lv_obj_t* dots) {
     lv_obj_set_style_bg_color(cell, pressed, 0);
     lv_obj_set_style_bg_opa(cell, i == current ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, LV_STATE_PRESSED);
-    tappable(cell, on_picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+    tappable(cell, on_picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)), LV_EVENT_CLICKED);
+    g_state.cells[i] = cell;
 
     lv_obj_t* picture = plain(cell);
     lv_obj_set_user_data(picture, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
@@ -319,6 +335,7 @@ void open(lv_obj_t* dots) {
     lv_label_set_text(name, i == 0 || !folder || !folder->name[0] ? tr.home : folder->name);
   }
 
+  g_state.count = count;
   // The head's own dots hide under the card's.
   g_state.dots = dots;
   if (dots) {

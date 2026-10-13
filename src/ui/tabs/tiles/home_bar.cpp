@@ -20,6 +20,7 @@
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/shared/tabular_digits.h"
+#include "src/ui/shared/touch_rules.h"
 
 // grid_layout.h sizes the bar's grid with the head's frame; it must be the
 // popups' (and the Settings head's).
@@ -245,46 +246,82 @@ void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch
   lv_anim_start(&anim);
 }
 
-// A tap on the head's dots opens the pages' preview right there.
-void on_dots(lv_event_t* event) { page_preview::open(static_cast<lv_obj_t*>(lv_event_get_current_target(event))); }
-
-// The press: the pill once the finger has rested 50 ms (user 2026-10-12: at
-// once it flashed up at the start of a sideways swipe over the head; after
-// 90 ms it showed on some taps only; the touch is read every 8 ms), gone as
-// soon as the finger moves (a swipe) and whenever a swipe takes over
-// (cancel_press: the input then waits for the release and the row never
-// hears it; the pill stayed).
+// The head's dots (user 2026-10-13: one touch, one meaning, like the
+// iPhone's page dots; they opened sometimes and sometimes not, a held finger
+// lost the pill): until the finger has moved a swipe's distance
+// (touch_rules.h) it is a press on them, the pill shows after 50 ms of it
+// (user 2026-10-12: at once it flashed up at the start of a sideways swipe)
+// and stays. A tap opens the pages' overview when the finger lifts; a hold
+// of 400 ms opens it under the finger, which then picks a page by sliding
+// onto its picture and lifting there (page_preview.h). A swipe turns the
+// page (ui_manager.cpp; cancel_press: the input then waits for the release
+// and the row never hears it).
 constexpr uint32_t kPressShowMs = 50;
+constexpr uint32_t kHoldOpenMs = 400;
 lv_obj_t* g_press_dots = nullptr;
 lv_point_t g_press_at{};
 uint32_t g_press_ms = 0;
+bool g_press_held = false;  // the overview opened under the finger
 void release_press(lv_obj_t* dots) {
   if (dots) lv_obj_remove_state(dots, LV_STATE_USER_1);
   if (g_press_dots == dots) g_press_dots = nullptr;
+  g_press_held = false;
 }
 void dots_event(lv_event_t* event) {
   lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
   const lv_event_code_t code = lv_event_get_code(event);
   lv_indev_t* input = lv_indev_active();
+  lv_point_t now{};
+  if (input) lv_indev_get_point(input, &now);
   if (code == LV_EVENT_PRESSED) {
     g_press_dots = dots;
     g_press_ms = lv_tick_get();
-    if (input) lv_indev_get_point(input, &g_press_at);
-  } else if (code == LV_EVENT_PRESSING) {
-    if (!input || g_press_dots != dots) return;
-    lv_point_t now{};
-    lv_indev_get_point(input, &now);
+    g_press_held = false;
+    g_press_at = now;
+    return;
+  }
+  if (g_press_dots != dots) return;
+  if (code == LV_EVENT_PRESSING) {
+    if (!input) return;
+    if (g_press_held) {
+      page_preview::point_at(now);
+      return;
+    }
     const int32_t dx = now.x - g_press_at.x;
     const int32_t dy = now.y - g_press_at.y;
-    const int32_t limit = popup_layout::scale(8);
+    const int32_t limit = touch_rules::kSwipeDistance;
     if (dx * dx + dy * dy > limit * limit) {
+      // A swipe: the page turns when it went sideways, nothing else.
       release_press(dots);
-    } else if (lv_tick_elaps(g_press_ms) >= kPressShowMs && !lv_obj_has_state(dots, LV_STATE_USER_1)) {
+      return;
+    }
+    const uint32_t held = lv_tick_elaps(g_press_ms);
+    if (held >= kHoldOpenMs) {
+      // Under the finger: no page turn and no edge action any more.
+      lv_obj_remove_state(dots, LV_STATE_USER_1);
+      g_press_held = true;
+      uiManager.cancelTouchGesture();
+      if (!page_preview::is_open()) page_preview::open(dots);
+    } else if (held >= kPressShowMs && !lv_obj_has_state(dots, LV_STATE_USER_1)) {
       lv_obj_add_state(dots, LV_STATE_USER_1);
     }
-  } else {
-    release_press(dots);
+    return;
   }
+  if (code == LV_EVENT_RELEASED) {
+    // Lifted after a hold: the picture under the finger, or the overview
+    // stays open; after a tap the overview opens.
+    if (g_press_held) {
+      release_press(dots);
+      page_preview::lift_at(now);
+      return;
+    }
+    release_press(dots);
+    if (!page_preview::is_open()) page_preview::open(dots);
+    return;
+  }
+  // Lost (a swipe took over): no page lights up any more.
+  if (g_press_held) page_preview::point_at({-1, -1});
+  release_press(dots);
 }
 // The row is gone: nothing may reach it any more.
 void forget_dots(lv_event_t* event) {
@@ -500,7 +537,8 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSING, nullptr);
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESS_LOST, nullptr);
-    lv_obj_add_event_cb(dots, on_dots, LV_EVENT_CLICKED, nullptr);
+    // A drag down onto the overview's pictures never scrolls a parent.
+    lv_obj_remove_flag(dots, LV_OBJ_FLAG_SCROLL_CHAIN);
     // The title ends a gap before them.
     if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
   }

@@ -43,6 +43,7 @@
 #include "src/core/hardware/board_hal.h"
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/shared/theme_schedule.h"
+#include "src/ui/shared/touch_rules.h"
 
 static const lv_font_t* get_status_time_font() {
   const DeviceConfig& cfg = configManager.getConfig();
@@ -539,7 +540,7 @@ void UIManager::switchToFolder(uint16_t folder_id) {
 // The Settings tab (build_settings_tab in tab_panels[3]).
 static constexpr uint8_t kSettingsTab = 3;
 static constexpr int kSettingsGestureCaptureWidth = popup_layout::scale(56);
-static constexpr int kSettingsGestureThreshold = popup_layout::scale(48);
+static constexpr int kSettingsGestureThreshold = touch_rules::kSwipeDistance;
 // An armed swipe inside the screen that turns the page (no edge action).
 static constexpr uint8_t kPageSwipe = 0xFE;
 
@@ -686,6 +687,14 @@ void UIManager::createSettingsGestureZone() {
                           LV_EVENT_PRESSED, this);
     lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
                           LV_EVENT_RELEASED, this);
+    // The input hears a tap and a long press before the object: a touch
+    // that moved is none (touch_rules.h).
+    lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
+                          LV_EVENT_SHORT_CLICKED, this);
+    lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
+                          LV_EVENT_CLICKED, this);
+    lv_indev_add_event_cb(input, settings_gesture_indev_event_cb,
+                          LV_EVENT_LONG_PRESSED, this);
   }
   syncSettingsGestureZone();
 }
@@ -697,6 +706,11 @@ void UIManager::refreshSettingsGestureZone() {
 // The edge swipes read the config on every press (swipe_gestures.h); a
 // changed gesture menu only cancels a swipe that is under way.
 void UIManager::syncSettingsGestureZone() {
+  access_gesture_eligible = false;
+  detachSettingsGesturePressedObject();
+}
+
+void UIManager::cancelTouchGesture() {
   access_gesture_eligible = false;
   detachSettingsGesturePressedObject();
 }
@@ -917,7 +931,18 @@ void UIManager::settings_gesture_pressed_object_event_cb(lv_event_t* event) {
   if (code != LV_EVENT_PRESSING) return;
 
   lv_indev_t* input = static_cast<lv_indev_t*>(lv_event_get_param(event));
+  self->noteTouchMotion(input);
   self->processSettingsGestureMotion(input, false);
+}
+
+// Further than a tap from where it came down (touch_rules.h).
+void UIManager::noteTouchMotion(lv_indev_t* input) {
+  if (!input || !touch_watched || touch_moved) return;
+  lv_point_t current{};
+  lv_indev_get_point(input, &current);
+  const int32_t dx = current.x - access_gesture_start.x;
+  const int32_t dy = current.y - access_gesture_start.y;
+  touch_moved = dx * dx + dy * dy > touch_rules::kTapSlop * touch_rules::kTapSlop;
 }
 
 void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
@@ -928,10 +953,25 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
   if (!input) return;
   const lv_event_code_t code = lv_event_get_code(event);
 
+  // A touch on Home that moved further than a tap is neither a tap nor a
+  // long press (user 2026-10-13: a swipe must cause no false input).
+  if (code == LV_EVENT_SHORT_CLICKED || code == LV_EVENT_CLICKED || code == LV_EVENT_LONG_PRESSED) {
+    if (self->touch_watched && self->touch_moved) {
+      lv_indev_stop_processing(input);
+    } else if (code == LV_EVENT_LONG_PRESSED) {
+      // A long press is what the touch meant (a tile's popup): sliding on
+      // turns no page and opens no edge action.
+      self->cancelTouchGesture();
+    }
+    return;
+  }
+
   if (code == LV_EVENT_PRESSED) {
     self->detachSettingsGesturePressedObject();
     self->access_gesture_eligible = false;
     self->access_gesture_triggered = false;
+    self->touch_watched = false;
+    self->touch_moved = false;
     // The tiles, or Settings without an open list, dialog, entry or setup.
     const uint8_t tab = self->active_tab_index;
     if (tab != 0 && (tab != kSettingsTab || settings_screen::overlay_open())) return;
@@ -946,9 +986,9 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
         break;
       }
     }
-    // The pages' overview over the tiles (page_preview.h): an edge swipe
-    // that starts on it still works and closes it (user 2026-10-12); its
-    // taps and other drags stay its own.
+    // The pages' overview over the tiles (page_preview.h): an edge swipe or
+    // a sideways swipe that starts on it still works and closes it (user
+    // 2026-10-12, 2026-10-13); its taps stay its own.
     const bool over_preview = tab == 0 && page_preview::contains(pressed_object);
     if (!started_on_home && !over_preview) return;
 
@@ -974,34 +1014,38 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
         edge = candidate;
       }
     }
-    // Home and its pages turn by a swipe that starts in the head beside its
-    // gear or X, on the grid where no tile lies, or right at the left or
-    // right edge (user 2026-10-12: never across the tiles, but on the empty
-    // places); never on a control that drags itself (it keeps its gestures,
-    // like the level bar of a dimmer or a cover). Over the overview only
-    // from the left or right edge.
-    bool on_empty_place = false;
-    for (lv_obj_t* object = tiles_visible_grid(); !over_preview && object; object = lv_obj_get_parent(object)) {
-      if (object == pressed_object) on_empty_place = true;
-      if (object == pressed_object || object == self->tab_panels[tab]) break;
-    }
-    bool page_swipe = tab == 0 && grid_layout::head_bar() &&
-                      tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
-                      ((!over_preview && point.y < GRID_PAD_TOP && !home_bar::is_button(pressed_object)) ||
-                       on_empty_place || distance[0] < kSettingsGestureCaptureWidth ||
-                       distance[1] < kSettingsGestureCaptureWidth);
-    for (lv_obj_t* object = pressed_object; page_swipe && !over_preview && object && object != self->tab_panels[tab];
+    // A control that drags itself keeps its gestures and its taps (the level
+    // bar of a dimmer or a cover: level_bar.h). Up to the tab, or the top
+    // layer under the overview (a root has no gesture bubbling of its own).
+    bool drags_itself = false;
+    for (lv_obj_t* object = pressed_object; object && lv_obj_get_parent(object) && object != self->tab_panels[tab];
          object = lv_obj_get_parent(object)) {
-      if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) page_swipe = false;
+      if (!lv_obj_has_flag(object, LV_OBJ_FLAG_GESTURE_BUBBLE)) drags_itself = true;
     }
-    if (edge == swipe_gestures::kEdgeOff && !page_swipe) return;
+    // Home and its pages turn by a sideways swipe that starts anywhere on
+    // them (user 2026-10-13: not only from the edge, the head or the empty
+    // places; a tile under a finger that moved does nothing), never on the
+    // head's gear or X; over the pages' overview too, which then closes.
+    const bool page_swipe = tab == 0 && grid_layout::head_bar() &&
+                            tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
+                            !home_bar::is_button(pressed_object) && !drags_itself;
+    // Every touch on the tiles is watched: one that moves further than a tap
+    // is none.
+    self->touch_watched = tab == 0 && !drags_itself;
+    self->access_gesture_start = point;
+    if (edge == swipe_gestures::kEdgeOff && !page_swipe) {
+      if (!self->touch_watched) return;
+      self->access_gesture_pressed_object = pressed_object;
+      lv_obj_add_event_cb(pressed_object, settings_gesture_pressed_object_event_cb, LV_EVENT_PRESSING, self);
+      lv_obj_add_event_cb(pressed_object, settings_gesture_pressed_object_event_cb, LV_EVENT_DELETE, self);
+      return;
+    }
     // An edge's own action first; a sideways swipe from the top edge's
     // strip in the head still turns the page.
     self->access_page_swipe = page_swipe;
     self->access_gesture_edge = edge;
     self->access_gesture_action = edge != swipe_gestures::kEdgeOff ? actions[edge] : kPageSwipe;
     self->access_gesture_tab = tab;
-    self->access_gesture_start = point;
     self->access_gesture_eligible = true;
     self->access_gesture_pressed_object = pressed_object;
     lv_obj_add_event_cb(pressed_object,
@@ -1013,6 +1057,7 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     return;
   }
   if (code == LV_EVENT_RELEASED) {
+    self->noteTouchMotion(input);
     self->processSettingsGestureMotion(input, true);
   }
 }

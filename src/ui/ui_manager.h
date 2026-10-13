@@ -41,6 +41,9 @@ public:
   // the page dots' preview open them.
   void showPage(int number);
   void refreshSettingsGestureZone();
+  // The touch under way turns no page and opens no edge action (the head's
+  // dots opened the pages' overview under the finger).
+  void cancelTouchGesture();
 
   // The theme (dark/light) applies while running, like the global tile
   // color: a save only requests it (any task), the loop applies the stored
@@ -74,8 +77,12 @@ private:
   // The tab the swipe started on: the tiles (0) or Settings (kSettingsTab).
   uint8_t access_gesture_tab = UINT8_MAX;
   // The swipe started where a sideways move turns the page (the head
-  // beside its buttons, or a side edge).
+  // beside its buttons, a tile or the grid, a side edge, the overview).
   bool access_page_swipe = false;
+  // A touch on Home that may become a swipe, and whether it moved further
+  // than a tap (touch_rules.h): then its tile gets no click or long press.
+  bool touch_watched = false;
+  bool touch_moved = false;
 
   enum class PendingAccessKind : uint8_t {
     None,
@@ -105,6 +112,7 @@ private:
   void detachSettingsGesturePressedObject();
   void processSettingsGestureMotion(lv_indev_t *input, bool released);
   void processPageSwipeMotion(lv_indev_t *input, bool released);
+  void noteTouchMotion(lv_indev_t *input);
   void runSwipeAction(uint8_t action);
   void turnPage(int step);
   void openPage(int number);

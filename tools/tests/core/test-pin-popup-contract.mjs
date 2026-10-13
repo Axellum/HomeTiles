@@ -157,7 +157,7 @@ for (const marker of [
   'SettingsRevealEdge::Right:',
   'SettingsRevealEdge::Top:',
   'SettingsRevealEdge::Bottom:',
-  'static constexpr int kSettingsGestureThreshold = popup_layout::scale(48);',
+  'static constexpr int kSettingsGestureThreshold = touch_rules::kSwipeDistance;',
   'const int32_t threshold = kSettingsGestureThreshold;',
   'matches = dx >= threshold && abs_dx > abs_dy;',
   'matches = -dx >= threshold && abs_dx > abs_dy;',
@@ -230,10 +230,16 @@ if (manager.slice(completeAccessStart, completeAccessEnd)
   throw new Error('A PIN touch callback must never build a folder grid synchronously');
 }
 
+// The input stops only a tap or long press whose finger moved further than a
+// tap (user 2026-10-13: a swipe must cause no false input); a still tap at
+// an edge always reaches its tile.
+if ((manager.match(/lv_indev_stop_processing\(input\)/g) || []).length !== 1 ||
+    !/if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);/.test(manager)) {
+  throw new Error('Settings gesture must not block a still tap: stop processing only after the finger moved');
+}
 for (const forbidden of [
   'settings_gesture_zone = lv_obj_create',
   'lv_obj_move_foreground(settings_gesture_zone)',
-  'lv_indev_stop_processing(input)',
   'access_gesture_timer',
   'processAccessGesture()',
 ]) {

@@ -8,9 +8,10 @@
 // dots (its dot row lies exactly on the head's), with a schematic picture of
 // every page (its tiles as rectangles in their card colors, no text), three
 // per row, the name under each and the current one marked like the active
-// dot. A tap on a picture shows that page, a tap anywhere else closes it. No
-// dimming and no animation (both cost whole-screen redraws); the popups'
-// cached card shadow.
+// dot. A tap on a picture shows that page, any lift beside them closes it, a
+// sideways swipe over it closes it and turns the page (ui_manager.cpp, user
+// 2026-10-13). No dimming and no animation (both cost whole-screen redraws);
+// the popups' cached card shadow.
 namespace page_preview {
 
 // Opens over the head of the shown grid; `dots` (the head's dot row) hides
@@ -18,6 +19,11 @@ namespace page_preview {
 void open(lv_obj_t* dots);
 void close();
 bool is_open();
+// A finger still down after the dots' hold opened it (home_bar.cpp): the
+// page under it lights up like a pressed one, lifting there shows it;
+// lifted beside the pictures the overview stays open.
+void point_at(const lv_point_t& point);
+void lift_at(const lv_point_t& point);
 // The open card or the screen-wide catcher around it: an edge swipe that
 // starts there still works and closes it (user 2026-10-12).
 bool contains(lv_obj_t* obj);

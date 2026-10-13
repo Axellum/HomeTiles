@@ -21,15 +21,18 @@ assert.match(slice(read('src/ui/tabs/tiles/page_preview.cpp'), 'bool contains(lv
   /for \(; obj && g_state\.catcher; obj = lv_obj_get_parent\(obj\)\) \{\s*if \(obj == g_state\.catcher\) return true;/);
 
 const manager = read('src/ui/ui_manager.cpp');
-// A press on it arms the edges like a press on the tiles; a sideways page
-// turn only from the left or right edge there, never from the head over it.
+// A press on it arms the edges and a sideways page turn like a press on the
+// tiles (user 2026-10-13: it could not be swiped over); the top layer under
+// it ends the search for a control that drags itself (a root has no gesture
+// bubbling, every swipe over it was blocked).
 const pressed = slice(manager, 'void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {', '\n}\n');
 assert.match(pressed, /const bool over_preview = tab == 0 && page_preview::contains\(pressed_object\);\s*if \(!started_on_home && !over_preview\) return;/);
-assert.match(pressed, /\(\(!over_preview && point\.y < GRID_PAD_TOP && !home_bar::is_button\(pressed_object\)\) \|\|\s*on_empty_place \|\| distance\[0\] < kSettingsGestureCaptureWidth \|\|\s*distance\[1\] < kSettingsGestureCaptureWidth\)/);
+assert.match(pressed, /object && lv_obj_get_parent\(object\) && object != self->tab_panels\[tab\];/);
+assert.doesNotMatch(pressed, /!over_preview &&/);
 // A swipe that counts closes it before its action or page turn, after the
 // touch was let go of (no tap on the card).
 const edge = slice(manager, 'void UIManager::processSettingsGestureMotion(', '\n}\n');
 assert.match(edge, /lv_indev_reset\(input, nullptr\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*page_preview::close\(\);\s*runSwipeAction\(access_gesture_action\);/);
 const turn = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n');
 assert.match(turn, /lv_indev_reset\(input, nullptr\);\s*\/\/[^\n]*\n\s*page_preview::close\(\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
-console.log('Pages overview: an edge swipe still works and closes it');
+console.log('Pages overview: an edge or sideways swipe still works and closes it');
