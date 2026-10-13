@@ -70,8 +70,9 @@ struct PageTileRect {
   uint32_t color;
 };
 // A folder's shown tiles: from its built grid when it is cached (the card
-// colors as drawn), else from its stored grid in the theme's card color.
-// Transparent cards are left out. Loop task only.
+// colors as drawn), else its kept picture (a page's, made when its grid was
+// shown or let go, or while the panel rested), else from its stored grid in
+// the theme's card color. Transparent cards are left out. Loop task only.
 size_t tiles_page_schematic(uint16_t folder_id, PageTileRect* out, size_t max);
 
 #endif // TAB_TILES_UNIFIED_H

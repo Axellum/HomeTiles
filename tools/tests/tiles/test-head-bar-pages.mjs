@@ -220,7 +220,8 @@ assert.doesNotMatch(preview, /lv_obj_set_style_bg_opa\(g_state\.catcher/, 'No di
 assert.match(preview, /popup_layout::apply_card_shadow\(card\);/);
 assert.match(preview, /lv_obj_add_event_cb\(picture, picture_draw, LV_EVENT_DRAW_MAIN_END, nullptr\);/, 'Pictures are drawn, not built of objects');
 assert.match(preview, /close\(\);\s*uiManager\.showPage\(index\);/);
-const schematic = slice(tiles, 'size_t tiles_page_schematic(', '\n}\n');
+// The pictures' tiles (page_schematic_from, test-page-pictures.mjs).
+const schematic = slice(tiles, 'static size_t page_schematic_from(', '\n}\n');
 assert.match(schematic, /color = lv_color_to_u32\(lv_obj_get_style_bg_color\(obj, LV_PART_MAIN\)\) & 0xFFFFFF;/);
 assert.match(schematic, /if \(lv_obj_get_style_bg_opa\(obj, LV_PART_MAIN\) < LV_OPA_50\) continue;/);
 assert.match(slice(manager, 'void UIManager::switchToTab(uint8_t index) {', '\n}\n'), /page_preview::close\(\);/);

@@ -30,6 +30,7 @@
 #include <misc/cache/instance/lv_image_cache.h>
 #include <Arduino.h>
 #include <atomic>
+#include <algorithm>
 #include <cstring>
 #include <strings.h>
 #include <esp_heap_caps.h>
@@ -773,7 +774,92 @@ static void reconstruct_cache_entry(FolderCacheEntry& entry,
   entry.folder_id = folder_id;
 }
 
+// The pages' overview pictures (page_preview.cpp), one per page (Home and
+// tile_layouts::pages): kept so the overview reads no grid from storage
+// (user 2026-10-13: the S3 keeps four built grids; from Home and four pages
+// on, every opening read the others). Made from a built grid whenever the
+// overview shows it or the grid is let go, from the stored one while the
+// panel rests (prefill_page_picture); dropped when the grid changes (a Web
+// Admin edit, the theme: process_folder_cache_invalidation). A few hundred
+// bytes each, in PSRAM.
+struct PagePicture {
+  uint16_t folder_id = kInvalidFolderId;
+  uint16_t count = 0;
+  PageTileRect* rects = nullptr;  // TILES_PER_GRID
+};
+static PagePicture g_page_pictures[tile_layouts::kMaxPages + 1];
+
+static bool is_page_folder(uint16_t folder_id) {
+  return folder_id != kInvalidFolderId && tile_layouts::page_number(folder_id) >= 0;
+}
+
+static PagePicture* find_page_picture(uint16_t folder_id) {
+  for (PagePicture& picture : g_page_pictures) {
+    if (picture.folder_id == folder_id) return &picture;
+  }
+  return nullptr;
+}
+
+// The picture's slot for a page: its own, a free one or one of a folder
+// that is no page any more.
+static PagePicture* page_picture_slot(uint16_t folder_id) {
+  PagePicture* slot = find_page_picture(folder_id);
+  for (size_t i = 0; !slot && i < sizeof(g_page_pictures) / sizeof(g_page_pictures[0]); ++i) {
+    PagePicture& picture = g_page_pictures[i];
+    if (picture.folder_id == kInvalidFolderId || !is_page_folder(picture.folder_id)) slot = &picture;
+  }
+  if (!slot) return nullptr;
+  if (!slot->rects) {
+    slot->rects = static_cast<PageTileRect*>(
+        heap_caps_malloc(TILES_PER_GRID * sizeof(PageTileRect), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!slot->rects) return nullptr;
+  }
+  slot->folder_id = folder_id;
+  slot->count = 0;
+  return slot;
+}
+
+static void forget_page_picture(uint16_t folder_id) {
+  if (PagePicture* picture = find_page_picture(folder_id)) picture->folder_id = kInvalidFolderId;
+}
+
+static void forget_page_pictures() {
+  for (PagePicture& picture : g_page_pictures) picture.folder_id = kInvalidFolderId;
+}
+
+// A grid's shown tiles: with its built objects the card colors as drawn,
+// else the theme's card color; transparent cards are left out.
+static size_t page_schematic_from(const TileGridConfig& config, lv_obj_t* const* objs, PageTileRect* out,
+                                  size_t max) {
+  size_t count = 0;
+  for (size_t i = 0; i < TILES_PER_GRID && count < max; ++i) {
+    const Tile& tile = config.tiles[i];
+    float col = 0, row = 0, span_w = 1, span_h = 1;
+    if (tile.type == TILE_EMPTY || !shownTileLayout(tile, col, row, span_w, span_h)) continue;
+    uint32_t color = ui_theme::card();
+    if (lv_obj_t* obj = objs ? objs[i] : nullptr) {
+      if (lv_obj_get_style_bg_opa(obj, LV_PART_MAIN) < LV_OPA_50) continue;
+      color = lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN)) & 0xFFFFFF;
+    } else if (tileTransparent(tile)) {
+      continue;
+    }
+    out[count++] = {col, row, span_w, span_h, color};
+  }
+  return count;
+}
+
+static void keep_page_picture(uint16_t folder_id, const TileGridConfig& config, lv_obj_t* const* objs) {
+  if (!is_page_folder(folder_id)) return;
+  if (PagePicture* picture = page_picture_slot(folder_id)) {
+    picture->count = static_cast<uint16_t>(page_schematic_from(config, objs, picture->rects, TILES_PER_GRID));
+  }
+}
+
 static void release_cache_entry(FolderCacheEntry& entry, uint16_t next_folder_id) {
+  // A page's built grid leaves its picture behind (its card colors as drawn).
+  if (entry.grid && entry.grid_loaded && entry.widgets_valid && !entry.dirty) {
+    keep_page_picture(entry.folder_id, entry.grid_config, entry.tile_objs);
+  }
   lv_obj_t* grid = entry.grid;
   entry.grid = nullptr;
   if (grid) {
@@ -2206,6 +2292,8 @@ static void process_folder_cache_invalidation() {
         }
         reset_cache_entry(entry);
       }
+      // Its picture shows the grid before the change.
+      forget_page_picture(g_folder_only_invalidations[n]);
     }
     g_folder_only_invalidation_count = 0;
     return;
@@ -2220,6 +2308,35 @@ static void process_folder_cache_invalidation() {
     if (&entry != g_active_cache) {
       reset_cache_entry(entry);
     }
+  }
+  forget_page_pictures();
+}
+
+// While the panel rests (no touch for 3 s, no Web Admin, nothing to build),
+// one page without a picture gets it from its stored grid, at most one a
+// second: the overview then opens at once from the start on.
+static void prefill_page_picture() {
+  static uint32_t last_ms = 0;
+  if (!grid_layout::head_bar() || g_folder_switch_pending || page_preview::is_open()) return;
+  if (lv_display_get_inactive_time(nullptr) < 3000 || millis() - last_ms < 1000) return;
+  uint16_t pages[tile_layouts::kMaxPages];
+  const size_t count = tile_layouts::pages(pages);
+  for (size_t i = 0; i <= count; ++i) {
+    const uint16_t folder_id = i == 0 ? TileConfig::rootFolderId() : pages[i - 1];
+    // A built grid is read live (and leaves its picture when let go).
+    const FolderCacheEntry* built = find_folder_cache(folder_id);
+    if (find_page_picture(folder_id) || (built && built->grid) ||
+        (g_active_cache && g_active_cache->folder_id == folder_id)) {
+      continue;
+    }
+    last_ms = millis();
+    std::unique_ptr<TileGridConfig> stored(new (std::nothrow) TileGridConfig{});
+    const uint32_t started = millis();
+    if (!stored || !tileConfig.loadFolderGrid(folder_id, *stored)) return;
+    keep_page_picture(folder_id, *stored, nullptr);
+    Serial.printf("[Pages] Picture of folder %u from storage in %lu ms\n", static_cast<unsigned>(folder_id),
+                  static_cast<unsigned long>(millis() - started));
+    return;
   }
 }
 
@@ -2449,6 +2566,7 @@ void tiles_process_reload_requests() {
   release_folder_cache_under_pressure();
 #endif
   if (!did_reload) process_navigation_preload();
+  if (!did_reload) prefill_page_picture();
 }
 
 size_t tiles_page_schematic(uint16_t folder_id, PageTileRect* out, size_t max) {
@@ -2462,26 +2580,18 @@ size_t tiles_page_schematic(uint16_t folder_id, PageTileRect* out, size_t max) {
   } else if (entry && entry->grid && entry->grid_loaded && entry->widgets_valid && !entry->dirty) {
     config = &entry->grid_config;
     objs = entry->tile_objs;
+  } else if (const PagePicture* picture = find_page_picture(folder_id)) {
+    // Not built: its kept picture, no read from storage.
+    const size_t count = std::min<size_t>(picture->count, max);
+    memcpy(out, picture->rects, count * sizeof(PageTileRect));
+    return count;
   } else {
     stored.reset(new (std::nothrow) TileGridConfig{});
     if (!stored || !tileConfig.loadFolderGrid(folder_id, *stored)) return 0;
     config = stored.get();
   }
-  size_t count = 0;
-  for (size_t i = 0; i < TILES_PER_GRID && count < max; ++i) {
-    const Tile& tile = config->tiles[i];
-    float col = 0, row = 0, span_w = 1, span_h = 1;
-    if (tile.type == TILE_EMPTY || !shownTileLayout(tile, col, row, span_w, span_h)) continue;
-    uint32_t color = ui_theme::card();
-    if (lv_obj_t* obj = objs ? objs[i] : nullptr) {
-      if (lv_obj_get_style_bg_opa(obj, LV_PART_MAIN) < LV_OPA_50) continue;
-      color = lv_color_to_u32(lv_obj_get_style_bg_color(obj, LV_PART_MAIN)) & 0xFFFFFF;
-    } else if (tileTransparent(tile)) {
-      continue;
-    }
-    out[count++] = {col, row, span_w, span_h, color};
-  }
-  return count;
+  keep_page_picture(folder_id, *config, objs);
+  return page_schematic_from(*config, objs, out, max);
 }
 
 void tiles_process_pending_folder_switch() {
