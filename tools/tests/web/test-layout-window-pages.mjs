@@ -1,15 +1,17 @@
-// The layout window's page row (user 2026-10-12: the window lacked the page
-// slots, so the page folders were simply missing there). The bar layouts
-// show the editor's five slots under Home; a folder dropped in leaves Home in
-// both bar layouts, a page dragged onto the area is a folder tile again. The
-// window keeps the row like its places and "Speichern" stores both in one
-// request; the panel gives a folder back from the pages a spot in the other
-// bar layout, and refuses when the layout it shows has no room.
+// The layout window's pages (user 2026-10-12: the window lacked the page
+// slots, so the page folders were simply missing there; 2026-10-13: Home's
+// own fields, test-layout-window-fields.mjs). A folder dropped in leaves
+// Home's area in both bar layouts and stands in its field, a page dragged
+// onto the area is a folder tile again. The window keeps the pages like its
+// places and "Speichern" stores both in one request; the panel gives a
+// folder back from the pages a spot in the other bar layout, and refuses
+// when the layout it shows has no room.
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {extractDeliveredFunction, readRepoFile} from '../../lib/admin-source.mjs';
 
-const names = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutNavType', 'layoutBarHidden', 'layoutCanvas',
+const names = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutShown', 'layoutNavType', 'layoutBarHidden',
+  'layoutBarTile', 'layoutWindowPages', 'layoutCanvas',
   'layoutInside', 'layoutFolderId', 'classicHidden', 'classicParked', 'layoutParked', 'layoutBase', 'layoutSettle',
   'takeoverTiles', 'setupTiles', 'isCompactSensorType', 'isEditableValueType', 'supportsHalfSize', 'supportedTileLayout',
   'normalizeLayoutForTileType', 'clampHalf', 'headBarLayout', 'placeCols', 'placeRows', 'layoutTabs', 'layoutSignature',
@@ -39,7 +41,7 @@ function windowContext(extra = {}) {
     ACTIVE_LAYOUT: 'bar', MEDIA_TILE_TYPE: 15, MEDIA_TILE_MIN_SPAN: 2, MEDIA_TILE_MAX_SPAN: 4, GRID_COLS: 7, GRID_ROWS: 7,
     tileTabs: ['folder0'], tilesData: {}, currentTileTab: 'folder0', currentTileIndex: -1, sensorMetaCache: {},
     refreshLayoutStatus: () => {}, refreshLayoutButtons: () => {}, mountLayoutTab: async () => {}, useLayoutGrid: () => {},
-    renderLayoutPages: () => {}, markLayoutRed: () => {}, layoutPagesChanged: () => {},
+    markLayoutRed: () => {}, layoutPagesChanged: () => {},
     renderTileFromData: () => {}, layoutTiles: () => {},
     showLayoutTiles: (tab, tiles) => { ctx.tilesData[tab] = tiles; },
     getTilesData: tab => ctx.tilesData[tab] || [], getFolderIdForTab: tab => Number(tab.slice('folder'.length)),
@@ -56,16 +58,19 @@ function windowContext(extra = {}) {
 }
 const placeOf = (list, view) => {
   const t = list.find(entry => entry && entry.view_id === view);
-  return t && t.type ? [t.col, t.row, t.span_w, t.span_h] : null;
+  return t && t.type && !t.layout_hidden ? [t.col, t.row, t.span_w, t.span_h] : null;
 };
 
-// The row as stored; the pages' tiles are no part of a bar layout's Home.
+// The pages as stored; their own tiles stand in their fields, no part of a
+// bar layout's area.
 {
   const ctx = windowContext();
   const run = code => vm.runInContext(code, ctx);
   assert.deepEqual(JSON.parse(JSON.stringify(run('layoutWindow.pageSlots'))), [1, 0, 2, 0, 0], 'five places, a gap kept');
   await run("loadLayoutWindow('bar', '')");
-  assert.equal(placeOf(run("getTilesData('folder0')"), 101), null, 'a page has no tile on Home');
+  assert.equal(placeOf(run("getTilesData('folder0')"), 101), null, 'a page has no place on Home');
+  assert.equal(run("getTilesData('folder0')[0].layout_hidden"), true, 'its own tile stands in its field');
+  assert.equal(run("layoutShown(getTilesData('folder0')[0])"), false);
   assert.deepEqual(placeOf(run("getTilesData('folder0')"), 103), [0, 0, 1, 1]);
   assert.equal(run("layoutDirty('bar')"), false);
 }
@@ -79,7 +84,9 @@ const placeOf = (list, view) => {
   run("layoutPageOut(1, {col: 3, row: 1, span_w: 1, span_h: 1})");
   assert.deepEqual(JSON.parse(JSON.stringify(run('layoutWindow.pageSlots'))), [0, 0, 2, 0, 0], 'its place stays free');
   assert.deepEqual(placeOf(run("getTilesData('folder0')"), 101), [3, 1, 1, 1], 'where it was dropped');
-  run("layoutWindow.pageSlots = [0, 0, 2, 0, 3]");
+  run("layoutWindowPages([0, 0, 2, 0, 3], false)");
+  assert.equal(placeOf(run("getTilesData('folder0')"), 103), null, 'the new page went into its field');
+  assert.equal(run("getTilesData('folder0')[2].layout_hidden"), true);
   assert.equal(run("layoutDirty('bar')"), true);
   assert.equal(run("layoutDirty('portrait')"), true, 'both bar layouts share the pages');
   assert.equal(run("layoutDirty('classic')"), false, 'the classic layout has none');
@@ -105,7 +112,7 @@ const placeOf = (list, view) => {
   await run("loadLayoutWindow('portrait', '')");
   await run("loadLayoutWindow('bar', '')");
   run("layoutPageOut(1, {col: 3, row: 1, span_w: 1, span_h: 1})");
-  run("getTilesData('folder0')[2] = layoutEmptyTile(); layoutWindow.pageSlots = [0, 0, 2, 0, 3]; layoutWindow.pageUnlock = true");
+  run("layoutWindowPages([0, 0, 2, 0, 3], true)");
   assert.equal(await run('saveLayoutWindow()'), true);
   const body = JSON.parse(calls[0][1]);
   assert.deepEqual(body.pages, [0, 0, 2, 0, 3], 'the slots, a free one as 0');
@@ -121,19 +128,23 @@ const placeOf = (list, view) => {
   assert.equal(JSON.parse(calls[0][1]).pages, undefined, 'never with the classic places');
 }
 
-// The row in the window: the editor's box in the foot, the grid's drop of a
-// page stays in the window, the heads show the window's pages, the editor's
-// slots return on close.
+// The fields in the window: no row of its own, the drops of pages stay in
+// the window, the heads show the window's pages, the editor's pages return
+// on close.
 const windowJs = readRepoFile('src/web/admin/tiles/layout-window.js');
-assert.match(windowJs, /'<div class="setup-foot">',\s*`<div class="setup-pages is-off"><div class="page-parking-label">\$\{escapeHtml\(t\('pagesTitle'\)\)\}<\/div>`/);
-assert.match(windowJs, /row\.classList\.toggle\('is-off', !LAYOUTS\[layoutWindow\.key\]\.bar \|\| layoutWindow\.tab !== home\);/);
-assert.match(windowJs, /bindLayoutPages\(backdrop\.querySelector\('\.setup-pages'\)\);/);
+assert.doesNotMatch(windowJs, /setup-pages|page-slot\b|bindLayoutPages|renderLayoutPages/);
+assert.match(windowJs, /ensurePageFields\(\);/, 'a panel showing the classic layout gets the fields in the window');
+assert.match(windowJs, /holder\.dataset\.pages = encodePageSlots\(layoutWindow\.pageSlots\);/);
 assert.match(windowJs, /if \(pageSlots\) pageSlots\.dataset\.pages = encodePageSlots\(state\.savedPageSlots\);/);
 const pageSlots = readRepoFile('src/web/admin/tiles/page-fields.js');
-assert.match(pageSlots, /if \(typeof layoutWindowOpen === 'function' && layoutWindowOpen\(\)\) \{\s*layoutPageOut\(folder, place\);\s*return;\s*\}/,
+assert.match(pageSlots, /if \(pageFieldsInWindow\(\)\) \{\s*layoutPageOut\(folder, place\);\s*return;\s*\}/,
   'a page dropped on the window\'s area is not sent to /api/pages');
+assert.match(pageSlots, /if \(pageFieldsInWindow\(\)\) layoutWindowPages\(places, unlock\);\s*else savePages\(places, \{\}, unlock\);/,
+  'nor a page dropped on a field');
 assert.match(pageSlots, /function syncPageHeads\(pages = pageFolders\(\)\) \{/);
-assert.match(readRepoFile('src/web/assets/admin.css'), /\.setup-pages\.is-off \{ visibility:hidden; \}/);
+const css = readRepoFile('src/web/assets/admin.css');
+assert.doesNotMatch(css, /\.setup-pages|\.page-slot\b|\.page-parking/);
+assert.match(css, /\.tile-grid\.setup-grid::before \{[^}]*right:calc\(var\(--setup-room-right, 0px\) - 1px\);/);
 assert.match(readRepoFile('src/web/server/render/web_admin_scripts.cpp'), /appendJsEntry\("pagesTitle", tr\.pages_title\);/);
 
 // The panel: the slots checked like /api/pages, a locked folder refused
@@ -155,11 +166,11 @@ assert.match(save, /if \(pages_changed && grid_layout::active\(\) != grid_layout
 const pagesHandler = server.slice(server.indexOf('void WebAdminServer::handleSavePages() {'));
 assert.match(pagesHandler, /if \(const char\* error = checkPageSlots\(wanted\)\) \{/, 'one check for both ways');
 assert.match(pagesHandler, /const tile_layouts::Place dropped\{server\.arg\("col"\)\.toFloat\(\), server\.arg\("row"\)\.toFloat\(\), 1, 1\};[\s\S]*?if \(!placed\) placed = findFreeShownPlace\(\*home, \*tile, 1, 1, place\);/);
-assert.match(windowJs, /window: true,\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*layout: \{col: 0, row: 0, span_w: 1, span_h: 1\},/);
+assert.match(pageSlots, /kind: 'page-slot', folder: Number\(tile\.dataset\.navigateTarget \|\| 0\),\s*layout: \{col: 0, row: 0, span_w: 1, span_h: 1\}/);
 assert.match(pageSlots, /const place = \{col: candidate\.col, row: candidate\.row, span_w: 1, span_h: 1\};/);
 // A new folder goes into a page slot at once: the save tells its tile the
 // folder (user 2026-10-12: only after a few clicks; an autosave draws
 // nothing again).
 assert.match(readRepoFile('src/web/admin/tiles/autosave.js'),
   /const tileEl = document\.getElementById\(tab \+ '-tile-' \+ tileIndex\);\s*if \(tileEl\) tileEl\.dataset\.navigateTarget = resolvedNavTarget;/);
-console.log('Layout window page row: kept like the places, stored with them');
+console.log('Layout window pages: kept like the places, stored with them');

@@ -3081,43 +3081,6 @@
    the settings panel gives way (down to its minimum). */
 .with-page-fields.compact-grid .tile-editor-main { flex:0 0 auto; }
 
-/* The layout window's page row (layout-window.js renderLayoutPages). */
-.page-parking {
-  display:grid;
-  grid-template-columns:repeat(var(--slot-cols, 5), var(--preview-cell-w));
-  grid-auto-rows:var(--preview-cell-h);
-  gap:var(--preview-gap);
-  padding:var(--preview-pad) var(--preview-pad-right, var(--preview-pad)) var(--preview-pad)
-    var(--preview-pad-left, var(--preview-pad));
-  background:var(--pv-screen, #000000);
-  border:1px solid var(--line);
-  border-radius:calc(var(--tile-radius, 11px) + var(--preview-pad) + 1px);
-  width:fit-content;
-}
-.page-parking > .page-slots { display:contents; }
-.page-parking-label {
-  font-size:12px;
-  line-height:1.2;
-  font-weight:600;
-  color:var(--muted);
-  padding-left:2px;
-}
-.page-slot {
-  position:relative;
-  box-sizing:border-box;
-  border-radius:var(--tile-radius, 11px);
-  user-select:none;
-}
-.page-slot > .tile { width:100%; height:100%; margin:0; cursor:grab; }
-.page-slot.empty:not(.drop-target) { border:1px solid var(--line); background:none; }
-.page-slot.drop-target {
-  border:3px dashed #26a69a;
-  background:rgba(38,166,154,0.18);
-  box-shadow:0 0 0 2px rgba(38,166,154,0.2) inset;
-}
-.page-slot.drop-target > * { visibility:hidden; }
-.page-slot.dragging { opacity:0.4; }
-
 /* Fractional placement preserves the existing cell pitch and gutter. */
 .tile-grid > .fractional-tile {
   position:absolute;
@@ -3724,12 +3687,34 @@ input[data-entity-picker].hidden + .entity-picker { display:none; }
 /* The head over the layout's screen, in the middle of the area. */
 /* The editor's area: the layout's screen in the screen color, the rest is
    outside (the storage). The light theme's storage is a light grey a little
-   darker than its screen (user 2026-10-10: the dark storage was too hard). */
+   darker than its screen (user 2026-10-10: the dark storage was too hard).
+   Beside or under it the page fields' room (layout-window.js
+   mountLayoutTab), kept in every tab and layout: the area is drawn behind
+   its own part only. */
 .tile-grid.setup-grid {
-  background-color:var(--panel, #141414); background-repeat:no-repeat; background-position:0 0;
-  border:1px dashed var(--line-strong);
+  background:none;
+  border-color:transparent;
+  isolation:isolate;
+  padding-right:calc(var(--preview-pad-right, var(--preview-pad)) + var(--setup-room-right, 0px));
+  padding-bottom:calc(var(--preview-pad-bottom, var(--preview-pad)) + var(--setup-room-bottom, 0px));
 }
-html[data-panel-theme="light"] .tile-grid.setup-grid { background-color:#DCDFE3; }
+.tile-grid.setup-grid::before {
+  content:"";
+  position:absolute;
+  z-index:-1;
+  left:-1px;
+  top:-1px;
+  right:calc(var(--setup-room-right, 0px) - 1px);
+  bottom:calc(var(--setup-room-bottom, 0px) - 1px);
+  background:var(--setup-screen, none) no-repeat var(--setup-screen-pos, 0 0), var(--panel, #141414);
+  border:1px dashed var(--line-strong);
+  border-radius:inherit;
+  pointer-events:none;
+}
+html[data-panel-theme="light"] .tile-grid.setup-grid::before { background-color:#DCDFE3; }
+/* No Settings field in the window: parking is one for every layout and
+   takes effect at once (page-fields.js). */
+.tile-grid.setup-grid > .settings-hidden-slot { display:none; }
 html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { color:var(--pv-text-secondary); }
 /* No new tiles in the window. */
 .tile-grid.setup-grid > .tile.empty { display:none !important; }
@@ -3748,7 +3733,7 @@ html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { co
    (user 2026-10-08: it is only about the layout; the clock per layout). */
 .tile-grid.setup-grid.screensaver-tile-grid > :not(.tile):not(.screensaver-grid-clock):not(.setup-storage-label):not(.setup-flag):not(.setup-trash):not(.tile-drop-placeholder):not(.tile-resize-placeholder) { display:none !important; }
 .tile-grid.setup-grid > .setup-storage-label {
-  position:absolute; right:12px; bottom:8px; pointer-events:none; display:flex; align-items:baseline;
+  position:absolute; right:calc(12px + var(--setup-room-right, 0px)); bottom:calc(8px + var(--setup-room-bottom, 0px)); pointer-events:none; display:flex; align-items:baseline;
   gap:6px; white-space:nowrap; color:var(--text-3, #9e9e9e);
 }
 .setup-storage-label b { font-size:12px; font-weight:600; letter-spacing:0.02em; }
@@ -3774,17 +3759,6 @@ html[data-panel-theme="light"] .tile-grid.setup-grid > .setup-storage-label { co
 }
 .tile-grid.setup-grid > .setup-trash:hover { background:var(--danger-hover); }
 .setup-foot { display:flex; align-items:flex-end; gap:16px; width:0; min-width:100%; }
-/* The page row (user 2026-10-12): the editor's box at the window's cell size
-   (layout-window.js renderLayoutPages), left in the foot; where it does not
-   apply (classic layout, other tabs) its room stays, so the window does not
-   jump. A page has the folders' green tick: its dot reaches it. */
-.setup-pages { display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex:none; }
-.setup-pages.is-off { visibility:hidden; }
-.setup-pages .page-slot > .setup-flag {
-  position:absolute; z-index:40; top:-7px; right:-7px; width:18px; height:18px; border-radius:9px; display:flex;
-  align-items:center; justify-content:center; color:#fff; background:#43a047; pointer-events:none;
-}
-.setup-pages .page-slot > .setup-flag i { font-size:13px; }
 .setup-actions { flex:none; margin-left:auto; display:flex; align-items:center; gap:10px; }
 .setup-tabs { width:0; min-width:100%; }
 /* The notes right beside the layouts, small and left-aligned in a column;

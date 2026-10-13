@@ -35,7 +35,7 @@ import {extractDeliveredFunction, readRepoFile} from '../../lib/admin-source.mjs
 }
 
 // --- The window's places (Tab5: classic 7 x 4, bar 5 x 3, upright 3 x 6).
-const windowNames = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutNavType', 'layoutBarHidden', 'layoutCanvas',
+const windowNames = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutShown', 'layoutNavType', 'layoutBarHidden', 'layoutBarTile', 'layoutCanvas',
   'layoutInside', 'layoutFolderId', 'classicHidden', 'layoutBase', 'layoutSettle', 'takeoverTiles', 'setupTiles',
   'isCompactSensorType', 'isEditableValueType', 'supportsHalfSize', 'supportedTileLayout', 'saveLayoutWindow', 'refreshLayoutSave', 'layoutTabs',
   'layoutSignature', 'layoutSavedSig', 'layoutDirty', 'layoutSelectedTile', 'deselectLayoutTile', 'normalizeLayoutForTileType', 'clampHalf',

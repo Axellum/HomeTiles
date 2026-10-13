@@ -6,7 +6,8 @@
   // field becomes a page, a page onto the screen a folder tile again, a page
   // onto another field moves there (onto a page they swap). The parked
   // Settings tile stands in the Settings field (settings/access.js parks it).
-  // The dots take the pages in field order and skip the free fields.
+  // The dots take the pages in field order and skip the free fields. The
+  // layout window shows the same fields with its own pages (layout-window.js).
   const PAGE_SLOT_COUNT = 5;
 
   // The markup's holder: the page places (data-pages), and at first the
@@ -52,10 +53,56 @@
     return tile ? Number(tile.dataset.index) : -1;
   }
 
-  // The fields show in Home's grid of a head bar layout (not in the layout
-  // window, which shows each layout without its head: HEAD_BAR is off).
+  // The layout window shows the fields too (user 2026-10-13), on Home in its
+  // bar layouts, its own pages, without the Settings field (parking is one
+  // for every layout and takes effect at once: no part of a layout).
+  function pageFieldsInWindow() {
+    return typeof layoutWindowOpen === 'function' && layoutWindowOpen();
+  }
+
+  // The fields show in Home's grid of a head bar layout.
   function pageFieldsShown() {
-    return !!pageSlotsElement() && headBarLayout();
+    if (!pageSlotsElement()) return false;
+    return pageFieldsInWindow() ? layoutWindowShowsPages() : headBarLayout();
+  }
+
+  // A panel whose active layout is the classic one has no fields in its
+  // page: the layout window brings them for its bar layouts.
+  function ensurePageFields() {
+    if (pageSlotsElement()) return;
+    const holder = document.createElement('div');
+    holder.id = 'pageSlots';
+    holder.className = 'page-fields';
+    holder.dataset.pages = '';
+    const word = document.createElement('div');
+    word.className = 'page-fields-label';
+    word.textContent = t('pagesTitle');
+    holder.appendChild(word);
+    for (let i = 0; i < PAGE_SLOT_COUNT; ++i) {
+      const field = document.createElement('div');
+      field.className = 'page-field';
+      field.dataset.slot = String(i);
+      holder.appendChild(field);
+    }
+    document.body.appendChild(holder);
+    enablePageFields();
+  }
+
+  // The fields: the pages', and the Settings field outside the window.
+  function pageFieldCount() {
+    return PAGE_SLOT_COUNT + (pageFieldsInWindow() ? 0 : 1);
+  }
+
+  // The room the fields take beside a square or upright screen (two
+  // columns, 14 px apart) or under a landscape one (rows, one word over
+  // them): a part that grows with the cells and a fixed one. The layout
+  // window keeps it beside its area (layout-window.js mountLayoutTab).
+  function pageFieldRoom(cellW, cellH, gap, cols, rows) {
+    if (cols > rows) {
+      const fieldRows = Math.ceil(pageFieldCount() / cols);
+      return {beside: false, w: 0, h: gap + fieldRows * (cellH + gap), fixedW: 0, fixedH: 20};
+    }
+    return {beside: true, w: 2 * (cellW + gap) + gap, h: 0, fixedW: 14, fixedH: 0};
   }
 
   // Where the fields lie, in the grid's cell units from its first cell
@@ -67,23 +114,26 @@
     const cellW = px('--preview-cell-w'), cellH = px('--preview-cell-h'), gap = px('--preview-gap');
     const padRight = px('--preview-pad-right') || px('--preview-pad');
     const padBottom = px('--preview-pad-bottom') || px('--preview-pad');
+    // In the layout window its whole area (screen and storage).
     const cols = placeCols('folder0'), rows = placeRows('folder0');
     const stepX = cellW + gap, stepY = cellH + gap;
     const screenW = cols * stepX - gap, screenH = rows * stepY - gap;
     // The fields lie on a black box of their own like the screen (user
     // 2026-10-13), its margin one grid gap, one word over it.
-    const fieldRows = cols > rows ? Math.floor(PAGE_SLOT_COUNT / cols) + 1 : Math.ceil((PAGE_SLOT_COUNT + 1) / 2);
-    if (cols > rows) {
+    const room = pageFieldRoom(cellW, cellH, gap, cols, rows);
+    const fieldRows = Math.ceil(pageFieldCount() / (room.beside ? 2 : cols));
+    const settingsField = pageFieldCount() > PAGE_SLOT_COUNT;
+    if (!room.beside) {
       // Under a landscape screen in its columns; the Settings field last,
       // in the sixth column or under the last one.
-      const word = 20 + gap;
+      const word = room.fixedH + gap;
       const top = (screenH + padBottom + word) / stepY;
       const at = (col, row) => ({col, row: top + row});
       return {
         pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
-        settings: at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols)),
+        settings: settingsField ? at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols)) : null,
         right: 0,
-        bottom: word + fieldRows * stepY,
+        bottom: room.h + room.fixedH,
         // The box from the screen's left edge to its right one (padding box
         // units, from the first cell's corner).
         box: {x: null, y: screenH + padBottom + word - gap, w: null, h: fieldRows * stepY + gap},
@@ -92,12 +142,12 @@
     }
     // Beside a square or upright screen in two columns along its rows, the
     // word in its head's height; the Settings field bottom right.
-    const apart = 14;
+    const apart = room.fixedW;
     const left = (screenW + padRight + apart + gap) / stepX;
     return {
       pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
-      settings: {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)},
-      right: apart + 2 * stepX + gap,
+      settings: settingsField ? {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)} : null,
+      right: room.w + room.fixedW,
       bottom: 0,
       box: {x: screenW + padRight + apart, y: -gap, w: 2 * stepX + gap, h: fieldRows * stepY + gap},
       word: {x: screenW + padRight + apart, y: -gap - 19}
@@ -181,7 +231,7 @@
       word.style.setProperty('--word-y', places.word.y + 'px');
     }
     const settings = grid.querySelector(':scope > .settings-hidden-slot');
-    if (settings) setFieldPlace(settings, places.settings);
+    if (settings && places.settings) setFieldPlace(settings, places.settings);
   }
 
   // The field under the pointer: a page field or the Settings field.
@@ -225,7 +275,22 @@
   function pageFieldDrag(tab, event, drop) {
     if (tab !== 'folder0' || !dragSource) return false;
     const field = pageFieldAt(event.clientX, event.clientY);
-    if (!field) return false;
+    if (!field) {
+      // Beside the screen only the fields take a tile (between them, or the
+      // layout window's free spot where the editor has its Settings field).
+      if (!pointerBesideScreen(getTileGrid('folder0'), event.clientX, event.clientY)) return false;
+      event.preventDefault();
+      restoreDragPreview(tab);
+      dragSource.previewKey = '';
+      if (drop) {
+        event.stopPropagation();
+        clearDragPlaceholder();
+      } else {
+        event.dataTransfer.dropEffect = 'none';
+        ensureDragPlaceholder(tab)?.classList.remove('show');
+      }
+      return true;
+    }
     event.preventDefault();
     if (drop) event.stopPropagation();
     const places = pageSlotList();
@@ -264,7 +329,9 @@
     // Exactly where it is dropped; the page there takes its old place.
     if (from >= 0) places[from] = places[field.slot];
     places[field.slot] = folder;
-    savePages(places, {}, unlock);
+    // In the layout window it stays there until "Speichern" (layout-window.js).
+    if (pageFieldsInWindow()) layoutWindowPages(places, unlock);
+    else savePages(places, {}, unlock);
     return true;
   }
 
@@ -414,7 +481,7 @@
     // One cell, like the device (/api/pages).
     const place = {col: candidate.col, row: candidate.row, span_w: 1, span_h: 1};
     // In the layout window it stays there until "Speichern" (layout-window.js).
-    if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) {
+    if (pageFieldsInWindow()) {
       layoutPageOut(folder, place);
       return;
     }

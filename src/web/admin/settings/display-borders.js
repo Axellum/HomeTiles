@@ -4,7 +4,7 @@
     document.querySelectorAll('.normal-tile-border-toggle').forEach(input => {
       input.checked = !!enabled;
     });
-    document.querySelectorAll('.tile-grid:not(.screensaver-tile-grid), .page-slots').forEach(grid => {
+    document.querySelectorAll('.tile-grid:not(.screensaver-tile-grid)').forEach(grid => {
       grid.classList.toggle('tiles-bordered', !!enabled);
     });
   }
