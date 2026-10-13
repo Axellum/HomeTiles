@@ -230,11 +230,14 @@ if (manager.slice(completeAccessStart, completeAccessEnd)
   throw new Error('A PIN touch callback must never build a folder grid synchronously');
 }
 
-// The input stops only a tap or long press whose finger moved further than a
-// tap (user 2026-10-13: a swipe must cause no false input); a still tap at
-// an edge always reaches its tile.
-if ((manager.match(/lv_indev_stop_processing\(input\)/g) || []).length !== 1 ||
-    !/if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);/.test(manager)) {
+// The input stops a tap or long press only when its finger moved further than
+// a tap (user 2026-10-13: a swipe must cause no false input), and holds back
+// a press only to give it once the finger rests or lifts: a still tap at an
+// edge always reaches its tile.
+if ((manager.match(/lv_indev_stop_processing\(input\)/g) || []).length !== 2 ||
+    !/if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);/.test(manager) ||
+    !/if \(self->touch_watched && !home_bar::is_dots\(pressed_object\)\) \{\s*lv_indev_stop_processing\(input\);\s*self->touch_press_obj = pressed_object;/.test(manager) ||
+    !/lv_obj_send_event\(released, LV_EVENT_PRESSED, input\);/.test(manager)) {
   throw new Error('Settings gesture must not block a still tap: stop processing only after the finger moved');
 }
 for (const forbidden of [

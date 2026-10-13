@@ -2025,7 +2025,9 @@ void tiles_request_release_all() {
 
 void tiles_switch_to_folder(uint16_t folder_id) {
   viewNavigationClosePopups();
-  page_preview::close();
+  // A page turn under the open overview keeps it (user 2026-10-13), any
+  // other folder closes it.
+  page_preview::follow(folder_id);
   const uint8_t idx = static_cast<uint8_t>(GridType::TAB0);
   if (!g_tiles_roots[idx] || !tileConfig.folderExists(folder_id)) {
     uiManager.finishFolderSwitch(folder_id, false);

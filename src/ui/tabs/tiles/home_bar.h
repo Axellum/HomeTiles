@@ -63,13 +63,18 @@ void build(lv_obj_t* grid, uint16_t folder_id);
 void cancel_press();
 // The pages changed: the grid's bar again, with its new dots, gear or X.
 void rebuild(lv_obj_t* grid, uint16_t folder_id);
-// The folder's grid became visible: coming from another page, its line is
-// at rest on its own dot (lead() moved it on the old page already).
+// The folder's grid became visible: a page's line is at rest on its own dot,
+// wherever it came from (lead() moved it on the page when it was left).
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id);
 // A page turn: the shown grid's line goes over from page `from` to `to` in
 // `duration` ms before the new page shows (user 2026-10-12: started after
 // the new page, the dots trailed behind it). False without dots.
 bool lead(lv_obj_t* grid, int from, int to, uint32_t duration);
+// Any dot row's line (the pages' overview's own): from page `from` to `to`
+// in `duration` ms, at rest on `to` without one.
+void glide(lv_obj_t* dots, int from, int to, uint32_t duration);
+// The head's dot row (its press is its own, home_bar.cpp).
+bool is_dots(const lv_obj_t* obj);
 
 // The camera's circle (camera_indicator.h, user 2026-10-08): with the head
 // bar it takes the place of the camera pill. The page circle's size on the

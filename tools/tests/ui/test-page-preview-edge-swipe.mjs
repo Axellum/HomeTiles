@@ -33,6 +33,9 @@ assert.doesNotMatch(pressed, /!over_preview &&/);
 // touch was let go of (no tap on the card).
 const edge = slice(manager, 'void UIManager::processSettingsGestureMotion(', '\n}\n');
 assert.match(edge, /lv_indev_reset\(input, nullptr\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*page_preview::close\(\);\s*runSwipeAction\(access_gesture_action\);/);
+// A sideways swipe turns the page and the overview stays open, marking the
+// new one (user 2026-10-13: swiping turns, tapping decides).
 const turn = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n');
-assert.match(turn, /lv_indev_reset\(input, nullptr\);\s*\/\/[^\n]*\n\s*page_preview::close\(\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
-console.log('Pages overview: an edge or sideways swipe still works and closes it');
+assert.match(turn, /lv_indev_reset\(input, nullptr\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*turnPage\(dx < 0 \? 1 : -1\);/);
+assert.doesNotMatch(turn, /page_preview::close\(\);/);
+console.log('Pages overview: an edge swipe closes it, a sideways swipe turns the page under it');

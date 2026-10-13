@@ -407,7 +407,9 @@ lv_obj_t* UIManager::createTabPanel(lv_obj_t *parent) {
 }
 
 void UIManager::switchToTab(uint8_t index) {
-  page_preview::close();
+  // Another tab closes the pages' overview; a page turn on the tiles' tab
+  // keeps it (tiles_switch_to_folder: page_preview::follow).
+  if (index != active_tab_index) page_preview::close();
   viewNavigationClosePopups();
   if (index >= TAB_COUNT) return;
   if (active_tab_index == index) return;
@@ -747,8 +749,8 @@ void UIManager::processPageSwipeMotion(lv_indev_t* input, bool released) {
   // No tap on the tile the swipe started on.
   if (!released) lv_indev_wait_release(input);
   lv_indev_reset(input, nullptr);
-  // Started at an edge over the pages' overview: it closes (user 2026-10-12).
-  page_preview::close();
+  // Over the pages' overview it stays open and marks the new page (user
+  // 2026-10-13: swiping turns, tapping decides; page_preview::follow).
   turnPage(dx < 0 ? 1 : -1);
 }
 
@@ -888,7 +890,12 @@ void UIManager::showPage(int number) {
   const int count = static_cast<int>(tile_layouts::pages(pages));
   const int current = tile_layouts::page_number(tileConfig.getActiveFolderId());
   if (number < 0 || number > count || number == current) return;
-  if (current >= 0 && home_bar::lead(tiles_visible_grid(), current, number, kPageLeadMs)) {
+  // Over the open overview its own line goes over; the head's lies hidden
+  // under it (one line moves at a time, home_bar.cpp).
+  const bool led = current >= 0 && (page_preview::is_open()
+                                        ? page_preview::lead(current, number, kPageLeadMs)
+                                        : home_bar::lead(tiles_visible_grid(), current, number, kPageLeadMs));
+  if (led) {
     g_page_lead_target = number;
     g_page_lead = lv_timer_create(page_lead_done, kPageLeadMs, nullptr);
     lv_timer_set_repeat_count(g_page_lead, 1);
@@ -926,13 +933,67 @@ void UIManager::settings_gesture_pressed_object_event_cb(lv_event_t* event) {
       self->access_gesture_pressed_object = nullptr;
       self->access_gesture_eligible = false;
     }
+    if (lv_event_get_current_target(event) == self->touch_press_obj) self->touch_press_obj = nullptr;
     return;
   }
   if (code != LV_EVENT_PRESSING) return;
 
   lv_indev_t* input = static_cast<lv_indev_t*>(lv_event_get_param(event));
   self->noteTouchMotion(input);
+  self->updateTouchPress(input);
   self->processSettingsGestureMotion(input, false);
+}
+
+// The touched object's press (touch_rules.h, like Android's tap timeout and
+// iOS's delayed content touches): shown once the finger rested within a
+// tap's distance; a finger that went further shows none, or takes it away.
+void UIManager::updateTouchPress(lv_indev_t* input) {
+  lv_obj_t* obj = touch_press_obj;
+  if (!obj) return;
+  if (touch_moved) {
+    if (touch_press_shown) lv_obj_remove_state(obj, LV_STATE_PRESSED);
+    touch_press_obj = nullptr;
+    return;
+  }
+  if (!touch_press_shown && lv_tick_elaps(touch_press_ms) >= touch_rules::kPressDelayMs) {
+    touch_press_shown = true;
+    lv_obj_send_event(obj, LV_EVENT_PRESSED, input);
+  }
+}
+
+// A quick tap shows its press a moment after the lift (it came only then).
+static lv_obj_t* g_tap_flash_obj = nullptr;
+static lv_timer_t* g_tap_flash_timer = nullptr;
+
+static void tap_flash_forget(lv_event_t* event) {
+  if (lv_event_get_current_target(event) == g_tap_flash_obj) g_tap_flash_obj = nullptr;
+}
+
+static void end_tap_flash() {
+  if (g_tap_flash_timer) {
+    lv_timer_delete(g_tap_flash_timer);
+    g_tap_flash_timer = nullptr;
+  }
+  if (g_tap_flash_obj) {
+    lv_obj_remove_event_cb(g_tap_flash_obj, tap_flash_forget);
+    lv_obj_remove_state(g_tap_flash_obj, LV_STATE_PRESSED);
+    g_tap_flash_obj = nullptr;
+  }
+}
+
+static void tap_flash_done(lv_timer_t*) {
+  g_tap_flash_timer = nullptr;
+  end_tap_flash();
+}
+
+static void flash_tap(lv_obj_t* obj) {
+  end_tap_flash();
+  if (!obj) return;
+  g_tap_flash_obj = obj;
+  lv_obj_add_event_cb(obj, tap_flash_forget, LV_EVENT_DELETE, nullptr);
+  lv_obj_add_state(obj, LV_STATE_PRESSED);
+  g_tap_flash_timer = lv_timer_create(tap_flash_done, touch_rules::kTapFlashMs, nullptr);
+  if (g_tap_flash_timer) lv_timer_set_repeat_count(g_tap_flash_timer, 1);
 }
 
 // Further than a tap from where it came down (touch_rules.h).
@@ -958,10 +1019,16 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
   if (code == LV_EVENT_SHORT_CLICKED || code == LV_EVENT_CLICKED || code == LV_EVENT_LONG_PRESSED) {
     if (self->touch_watched && self->touch_moved) {
       lv_indev_stop_processing(input);
-    } else if (code == LV_EVENT_LONG_PRESSED) {
+      return;
+    }
+    if (code == LV_EVENT_LONG_PRESSED) {
       // A long press is what the touch meant (a tile's popup): sliding on
       // turns no page and opens no edge action.
       self->cancelTouchGesture();
+    } else if (self->touch_press_late && lv_event_get_param(event) == self->touch_press_obj) {
+      // A quick tap: its press shows a moment, the tile acts as ever.
+      self->touch_press_late = false;
+      flash_tap(static_cast<lv_obj_t*>(lv_event_get_param(event)));
     }
     return;
   }
@@ -972,6 +1039,10 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     self->access_gesture_triggered = false;
     self->touch_watched = false;
     self->touch_moved = false;
+    self->touch_press_obj = nullptr;
+    self->touch_press_shown = false;
+    self->touch_press_late = false;
+    end_tap_flash();
     // The tiles, or Settings without an open list, dialog, entry or setup.
     const uint8_t tab = self->active_tab_index;
     if (tab != 0 && (tab != kSettingsTab || settings_screen::overlay_open())) return;
@@ -1033,6 +1104,13 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     // is none.
     self->touch_watched = tab == 0 && !drags_itself;
     self->access_gesture_start = point;
+    // Its object's press waits until the finger rests (updateTouchPress);
+    // the head's dots keep their own (home_bar.cpp).
+    if (self->touch_watched && !home_bar::is_dots(pressed_object)) {
+      lv_indev_stop_processing(input);
+      self->touch_press_obj = pressed_object;
+      self->touch_press_ms = lv_tick_get();
+    }
     if (edge == swipe_gestures::kEdgeOff && !page_swipe) {
       if (!self->touch_watched) return;
       self->access_gesture_pressed_object = pressed_object;
@@ -1058,6 +1136,14 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
   }
   if (code == LV_EVENT_RELEASED) {
     self->noteTouchMotion(input);
+    // A tap lifted before its press showed: the object hears its press now,
+    // before its release, and shows it a moment after (flash_tap).
+    lv_obj_t* released = static_cast<lv_obj_t*>(lv_event_get_param(event));
+    if (released && released == self->touch_press_obj && !self->touch_press_shown && !self->touch_moved) {
+      self->touch_press_shown = true;
+      self->touch_press_late = true;
+      lv_obj_send_event(released, LV_EVENT_PRESSED, input);
+    }
     self->processSettingsGestureMotion(input, true);
   }
 }

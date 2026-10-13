@@ -69,28 +69,33 @@ assert.match(bar, /const int dot = \(12 \* side \+ 400\) \/ 800;\s*return \{dot,
 // new page shows as it arrives, its line at rest (user 2026-10-12: started
 // after the new page, the dots trailed behind it).
 const shown = slice(bar, 'void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {', '\n}\n');
-assert.match(shown, /if \(!dots \|\| page < 0 \|\| from < 0 \|\| from == page\) return;[\s\S]*lay_out_line\(dots, page, page, 0, 0\);/);
+// Whatever came before (user 2026-10-13: back from a folder inside page 1
+// by the Home swipe, Home's line stayed on the second dot, where the page
+// turn's lead had left it).
+assert.match(shown, /if \(!dots \|\| page < 0\) return;[\s\S]*lay_out_line\(dots, page, page, 0, 0\);/);
+assert.doesNotMatch(shown, /from < 0/);
 assert.match(slice(bar, 'bool lead(', '\n}\n'), /move_line\(dots, from, to, 0\.0f, 1\.0f, 0, duration\);/);
 const leadManager = read('src/ui/ui_manager.cpp');
 const lead = slice(leadManager, 'void UIManager::showPage(int number) {', '\n}\n');
-assert.match(lead, /if \(current >= 0 && home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\) \{\s*g_page_lead_target = number;\s*g_page_lead = lv_timer_create\(page_lead_done, kPageLeadMs, nullptr\);/);
+assert.match(lead, /home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\);\s*if \(led\) \{\s*g_page_lead_target = number;\s*g_page_lead = lv_timer_create\(page_lead_done, kPageLeadMs, nullptr\);/);
 assert.match(leadManager, /static constexpr uint32_t kPageLeadMs = 120;/);
 assert.doesNotMatch(bar, /start_waiting|move_line_after_frame/);
 // No line following the finger (user 2026-10-12: it snaps at once).
 assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
 // The dots: one touch, one meaning (user 2026-10-13: they opened sometimes
-// and sometimes not, a held finger lost the pill). Until the finger moved a
-// swipe's distance it is a press: the pill after 50 ms of it (user
-// 2026-10-12: at once it flashed up at the start of a sideways swipe), kept;
-// a tap opens the overview on the lift, a hold of 400 ms under the finger,
-// which then picks a page by sliding onto it and lifting; whenever a swipe
-// takes over the pill goes (it stayed after swipes).
-assert.match(bar, /constexpr uint32_t kPressShowMs = 50;/);
+// and sometimes not; the pill showed at the start of every swipe). While
+// the finger stays within a tap's distance it is a press: the pill once it
+// rested 100 ms (like Android's tap timeout), a tap opens the overview on
+// the lift, a hold of 400 ms under the finger, which then picks a page by
+// sliding onto it and lifting; a finger that went further is a swipe (no
+// pill, no overview); whenever a swipe takes over the pill goes.
+assert.doesNotMatch(bar, /kPressShowMs/);
 assert.match(bar, /constexpr uint32_t kHoldOpenMs = 400;/);
 assert.match(bar, /if \(code == LV_EVENT_PRESSED\) \{\s*g_press_dots = dots;\s*g_press_ms = lv_tick_get\(\);\s*g_press_held = false;\s*g_press_at = now;\s*return;\s*\}/,
   'Not on the press itself');
-assert.match(bar, /const int32_t limit = touch_rules::kSwipeDistance;\s*if \(dx \* dx \+ dy \* dy > limit \* limit\) \{[^}]*release_press\(dots\);\s*return;\s*\}/,
-  'Only a swipe\'s distance ends the press');
+assert.match(bar, /const int32_t limit = touch_rules::kTapSlop;\s*if \(dx \* dx \+ dy \* dy > limit \* limit\) \{[^}]*release_press\(dots\);\s*return;\s*\}/,
+  'A tap\'s distance ends the press');
+assert.match(bar, /\} else if \(held >= touch_rules::kPressDelayMs && !lv_obj_has_state\(dots, LV_STATE_USER_1\)\) \{\s*lv_obj_add_state\(dots, LV_STATE_USER_1\);/);
 assert.match(bar, /if \(held >= kHoldOpenMs\) \{[\s\S]*?g_press_held = true;\s*uiManager\.cancelTouchGesture\(\);\s*if \(!page_preview::is_open\(\)\) page_preview::open\(dots\);/,
   'A hold opens it under the finger; no page turns then');
 assert.match(bar, /if \(g_press_held\) \{\s*page_preview::point_at\(now\);\s*return;\s*\}/);
@@ -124,12 +129,12 @@ assert.match(press, /for \(lv_obj_t\* object = pressed_object; object && lv_obj_
 assert.doesNotMatch(press, /on_empty_place|GRID_PAD_TOP/);
 assert.match(read('src/tiles/runtime/level_bar.h'), /lv_obj_remove_flag\(bar, LV_OBJ_FLAG_GESTURE_BUBBLE\);/, 'The level bars drag themselves');
 assert.match(press, /self->touch_watched = tab == 0 && !drags_itself;/);
-assert.match(press, /if \(code == LV_EVENT_SHORT_CLICKED \|\| code == LV_EVENT_CLICKED \|\| code == LV_EVENT_LONG_PRESSED\) \{\s*if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);\s*\} else if \(code == LV_EVENT_LONG_PRESSED\) \{[^}]*self->cancelTouchGesture\(\);/);
+assert.match(press, /if \(code == LV_EVENT_SHORT_CLICKED \|\| code == LV_EVENT_CLICKED \|\| code == LV_EVENT_LONG_PRESSED\) \{\s*if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);\s*return;\s*\}\s*if \(code == LV_EVENT_LONG_PRESSED\) \{[^}]*self->cancelTouchGesture\(\);/);
 for (const code of ['LV_EVENT_SHORT_CLICKED', 'LV_EVENT_CLICKED', 'LV_EVENT_LONG_PRESSED']) {
   assert.match(manager, new RegExp(`lv_indev_add_event_cb\\(input, settings_gesture_indev_event_cb,\\s*${code}, this\\);`), code + ' reaches the input first');
 }
 assert.match(manager, /touch_moved = dx \* dx \+ dy \* dy > touch_rules::kTapSlop \* touch_rules::kTapSlop;/);
-assert.match(press, /if \(code == LV_EVENT_RELEASED\) \{\s*self->noteTouchMotion\(input\);\s*self->processSettingsGestureMotion\(input, true\);/);
+assert.match(press, /if \(code == LV_EVENT_RELEASED\) \{\s*self->noteTouchMotion\(input\);[\s\S]*?self->processSettingsGestureMotion\(input, true\);\s*\}\s*\}\s*$/);
 assert.match(press, /if \(edge == swipe_gestures::kEdgeOff && !page_swipe\) \{\s*if \(!self->touch_watched\) return;/);
 assert.match(press, /self->access_gesture_action = edge != swipe_gestures::kEdgeOff \? actions\[edge\] : kPageSwipe;/);
 assert.match(bar, /lv_obj_set_user_data\(button, &g_button_marker\);/, 'The gear and the X are marked');
@@ -141,7 +146,7 @@ const swipe = slice(manager, 'void UIManager::processPageSwipeMotion(', '\n}\n')
 // One swipe, one step: past the threshold the page turns while the finger
 // is still down (user 2026-10-12: it snaps at once, step by step).
 assert.match(swipe, /abs_dx < kSettingsGestureThreshold \|\| abs_dx <= abs_dy/);
-assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*(?:\/\/[^\n]*\n\s*)*page_preview::close\(\);\s*turnPage\(dx < 0 \? 1 : -1\);/);
+assert.match(swipe, /if \(!released\) lv_indev_wait_release\(input\);\s*lv_indev_reset\(input, nullptr\);\s*(?:\/\/[^\n]*\n\s*)*turnPage\(dx < 0 \? 1 : -1\);/);
 assert.doesNotMatch(manager, /page_drag_tick/);
 const showPage = slice(manager, 'void UIManager::openPage(int number) {', '\n}\n');
 assert.match(showPage, /if \(number < 0 \|\| number > count\) return;/);
@@ -224,9 +229,37 @@ assert.match(preview, /close\(\);\s*uiManager\.showPage\(index\);/);
 const schematic = slice(tiles, 'static size_t page_schematic_from(', '\n}\n');
 assert.match(schematic, /color = lv_color_to_u32\(lv_obj_get_style_bg_color\(obj, LV_PART_MAIN\)\) & 0xFFFFFF;/);
 assert.match(schematic, /if \(lv_obj_get_style_bg_opa\(obj, LV_PART_MAIN\) < LV_OPA_50\) continue;/);
-assert.match(slice(manager, 'void UIManager::switchToTab(uint8_t index) {', '\n}\n'), /page_preview::close\(\);/);
+// Another tab closes it; a page turn keeps it open, marking the new page
+// (user 2026-10-13: swiping turns, tapping decides), any other folder
+// closes it.
+assert.match(slice(manager, 'void UIManager::switchToTab(uint8_t index) {', '\n}\n'), /if \(index != active_tab_index\) page_preview::close\(\);/);
 assert.match(slice(manager, 'void UIManager::processThemeChange() {', '\n}\n'), /viewNavigationClosePopups\(\);\s*page_preview::close\(\);/);
-assert.match(slice(tiles, 'void tiles_switch_to_folder(uint16_t folder_id) {', '\n}\n'), /page_preview::close\(\);/);
+assert.match(slice(tiles, 'void tiles_switch_to_folder(uint16_t folder_id) {', '\n}\n'), /page_preview::follow\(folder_id\);/);
+const follow = slice(preview, 'void follow(uint16_t folder_id) {', '\n}\n');
+assert.match(follow, /if \(page < 0 \|\| page >= g_state\.count\) \{\s*close\(\);\s*return;\s*\}/);
+// At rest on the shown page whatever moved before (user 2026-10-13: the
+// head's glide took the one line motion over, the overview's line kept the
+// old page while the new one was marked).
+assert.match(follow, /\/\/[^\n]*\n\s*home_bar::glide\(g_state\.card_dots, page, page, 0\);\s*mark\(page\);\s*$/);
+assert.doesNotMatch(follow, /page != g_state\.current/);
+// Over the open overview only its own line glides (one line moves at a time).
+assert.match(slice(manager, 'void UIManager::showPage(int number) {', '\n}\n'),
+  /const bool led = current >= 0 && \(page_preview::is_open\(\)\s*\? page_preview::lead\(current, number, kPageLeadMs\)\s*: home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\);/);
+assert.match(preview, /if \(g_state\.cells\[i\]\) lv_obj_set_style_bg_opa\(g_state\.cells\[i\], i == page \? LV_OPA_COVER : LV_OPA_TRANSP, 0\);/);
+// A press shows once the finger rested 100 ms within a tap's distance (user
+// 2026-10-13: tiles and dots showed it at the start of every swipe; Android
+// waits its tap timeout, iOS delays content touches): the input holds the
+// object's press back, the PRESSING after the rest gives it, a finger that
+// went further takes it away; a tap lifted before shows it a moment.
+assert.match(read('src/ui/shared/touch_rules.h'), /constexpr uint32_t kPressDelayMs = 100;[\s\S]*constexpr uint32_t kTapFlashMs = 90;/);
+assert.match(press, /if \(self->touch_watched && !home_bar::is_dots\(pressed_object\)\) \{\s*lv_indev_stop_processing\(input\);\s*self->touch_press_obj = pressed_object;\s*self->touch_press_ms = lv_tick_get\(\);/);
+const pressShow = slice(manager, 'void UIManager::updateTouchPress(lv_indev_t* input) {', '\n}\n');
+assert.match(pressShow, /if \(touch_moved\) \{\s*if \(touch_press_shown\) lv_obj_remove_state\(obj, LV_STATE_PRESSED\);\s*touch_press_obj = nullptr;\s*return;\s*\}/);
+assert.match(pressShow, /lv_tick_elaps\(touch_press_ms\) >= touch_rules::kPressDelayMs\) \{\s*touch_press_shown = true;\s*lv_obj_send_event\(obj, LV_EVENT_PRESSED, input\);/);
+assert.match(press, /if \(released && released == self->touch_press_obj && !self->touch_press_shown && !self->touch_moved\) \{\s*self->touch_press_shown = true;\s*self->touch_press_late = true;\s*lv_obj_send_event\(released, LV_EVENT_PRESSED, input\);/);
+assert.match(press, /flash_tap\(static_cast<lv_obj_t\*>\(lv_event_get_param\(event\)\)\);/);
+assert.match(slice(manager, 'static void flash_tap(lv_obj_t* obj) {', '\n}\n'),
+  /lv_obj_add_event_cb\(obj, tap_flash_forget, LV_EVENT_DELETE, nullptr\);\s*lv_obj_add_state\(obj, LV_STATE_PRESSED\);\s*g_tap_flash_timer = lv_timer_create\(tap_flash_done, touch_rules::kTapFlashMs, nullptr\);/);
 
 // No folder is ever out of reach (user 2026-10-12): a layout where folder
 // tiles have no place is not switched to, on the Web Admin (with the hint)

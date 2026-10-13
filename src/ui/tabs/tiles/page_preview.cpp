@@ -103,6 +103,9 @@ struct State {
   // The pages' cells (picture and name), for a finger that slides over them.
   lv_obj_t* cells[kMaxPictures] = {};
   int count = 0;
+  // Its own dot row and the page it marks (a swipe turns the page under it).
+  lv_obj_t* card_dots = nullptr;
+  int current = -1;
 };
 State g_state;
 
@@ -218,11 +221,41 @@ void lift_at(const lv_point_t& point) {
   uiManager.showPage(under);
 }
 
+// The shown page's cell filled like a pressed one, the others clear.
+static void mark(int page) {
+  g_state.current = page;
+  for (int i = 0; i < g_state.count; ++i) {
+    if (g_state.cells[i]) lv_obj_set_style_bg_opa(g_state.cells[i], i == page ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+  }
+}
+
+bool lead(int from, int to, uint32_t duration) {
+  if (!is_open() || !g_state.card_dots || to < 0 || to >= g_state.count) return false;
+  home_bar::glide(g_state.card_dots, from, to, duration);
+  mark(to);
+  return true;
+}
+
+void follow(uint16_t folder_id) {
+  if (!is_open()) return;
+  const int page = tile_layouts::page_number(folder_id);
+  if (page < 0 || page >= g_state.count) {
+    close();
+    return;
+  }
+  // At rest on the shown page, whatever moved before (user 2026-10-13: a
+  // line taken over by another kept the old page).
+  home_bar::glide(g_state.card_dots, page, page, 0);
+  mark(page);
+}
+
 void close() {
   if (g_state.catcher) lv_obj_delete(g_state.catcher);
   g_state.catcher = nullptr;
   for (lv_obj_t*& cell : g_state.cells) cell = nullptr;
   g_state.count = 0;
+  g_state.card_dots = nullptr;
+  g_state.current = -1;
   if (g_state.rects) heap_caps_free(g_state.rects);
   g_state.rects = nullptr;
   if (g_state.dots) {
@@ -336,6 +369,8 @@ void open(lv_obj_t* dots) {
   }
 
   g_state.count = count;
+  g_state.card_dots = card_dots;
+  g_state.current = current;
   // The head's own dots hide under the card's.
   g_state.dots = dots;
   if (dots) {

@@ -247,16 +247,15 @@ void move_line(lv_obj_t* dots, int from, int to, float p0, float p1, int stretch
 }
 
 // The head's dots (user 2026-10-13: one touch, one meaning, like the
-// iPhone's page dots; they opened sometimes and sometimes not, a held finger
-// lost the pill): until the finger has moved a swipe's distance
-// (touch_rules.h) it is a press on them, the pill shows after 50 ms of it
-// (user 2026-10-12: at once it flashed up at the start of a sideways swipe)
-// and stays. A tap opens the pages' overview when the finger lifts; a hold
-// of 400 ms opens it under the finger, which then picks a page by sliding
-// onto its picture and lifting there (page_preview.h). A swipe turns the
-// page (ui_manager.cpp; cancel_press: the input then waits for the release
-// and the row never hears it).
-constexpr uint32_t kPressShowMs = 50;
+// iPhone's page dots): while the finger stays within a tap's distance
+// (touch_rules.h) it is a press on them; the pill shows once it rested
+// there 100 ms (at once it showed at the start of every swipe). A tap opens
+// the pages' overview when the finger lifts; a hold of 400 ms opens it under
+// the finger, which then picks a page by sliding onto its picture and
+// lifting there (page_preview.h). A finger that went further is a swipe:
+// no pill, no overview; sideways it turns the page (ui_manager.cpp;
+// cancel_press: the input then waits for the release, the row never hears
+// it).
 constexpr uint32_t kHoldOpenMs = 400;
 lv_obj_t* g_press_dots = nullptr;
 lv_point_t g_press_at{};
@@ -289,9 +288,9 @@ void dots_event(lv_event_t* event) {
     }
     const int32_t dx = now.x - g_press_at.x;
     const int32_t dy = now.y - g_press_at.y;
-    const int32_t limit = touch_rules::kSwipeDistance;
+    const int32_t limit = touch_rules::kTapSlop;
     if (dx * dx + dy * dy > limit * limit) {
-      // A swipe: the page turns when it went sideways, nothing else.
+      // A swipe: the page turns when it goes sideways, nothing else.
       release_press(dots);
       return;
     }
@@ -302,7 +301,7 @@ void dots_event(lv_event_t* event) {
       g_press_held = true;
       uiManager.cancelTouchGesture();
       if (!page_preview::is_open()) page_preview::open(dots);
-    } else if (held >= kPressShowMs && !lv_obj_has_state(dots, LV_STATE_USER_1)) {
+    } else if (held >= touch_rules::kPressDelayMs && !lv_obj_has_state(dots, LV_STATE_USER_1)) {
       lv_obj_add_state(dots, LV_STATE_USER_1);
     }
     return;
@@ -594,11 +593,14 @@ lv_obj_t* create_dots(lv_obj_t* parent, int count, int active, int x, int y) {
 }
 
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {
+  (void)previous_folder_id;
   const int page = tile_layouts::page_number(folder_id);
-  const int from = tile_layouts::page_number(previous_folder_id);
   lv_obj_t* dots = find_dots(grid);
-  if (!dots || page < 0 || from < 0 || from == page) return;
-  // The line went over on the old page already (lead): here it is at rest.
+  if (!dots || page < 0) return;
+  // At rest on its own dot whatever came before: a page turn's line went
+  // over on the old page (lead), which kept it there when it was left (user
+  // 2026-10-13: Home -> page 1 -> a folder in it -> the Home swipe showed
+  // Home's line on the second dot).
   if (g_motion.dots == dots) stop_motion();
   lay_out_line(dots, page, page, 0, 0);
 }
@@ -609,6 +611,18 @@ bool lead(lv_obj_t* grid, int from, int to, uint32_t duration) {
   move_line(dots, from, to, 0.0f, 1.0f, 0, duration);
   return true;
 }
+
+void glide(lv_obj_t* dots, int from, int to, uint32_t duration) {
+  if (!dots) return;
+  if (from == to || !duration) {
+    if (g_motion.dots == dots) stop_motion();
+    lay_out_line(dots, to, to, 0, 0);
+    return;
+  }
+  move_line(dots, from, to, 0.0f, 1.0f, 0, duration);
+}
+
+bool is_dots(const lv_obj_t* obj) { return obj && lv_obj_get_user_data(const_cast<lv_obj_t*>(obj)) == &g_dots_marker; }
 
 // With pages the dots hold the middle: the camera circle sits before the
 // time (user 2026-10-12), which moves right on Home and its pages without

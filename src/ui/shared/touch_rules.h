@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "src/ui/popups/popup_layout.h"
 
 // One touch, one meaning (user 2026-10-13: the page dots opened sometimes
@@ -9,10 +11,15 @@
 namespace touch_rules {
 
 // A finger that moved further is no tap: the tile under it gets no click and
-// no long press (ui_manager.cpp).
+// no long press, the press it showed goes (ui_manager.cpp).
 constexpr int kTapSlop = popup_layout::scale(20);
-// Sideways this far a swipe turns the page; on the head's dots it is a press
-// until then (home_bar.cpp).
+// Sideways this far a swipe turns the page.
 constexpr int kSwipeDistance = popup_layout::scale(48);
+// A press shows once the finger has rested this long within kTapSlop (user
+// 2026-10-13: the press showed at the start of every swipe; Android waits
+// its tap timeout of about 100 ms, iOS delays content touches likewise).
+constexpr uint32_t kPressDelayMs = 100;
+// A tap lifted before that shows its press this long after the lift.
+constexpr uint32_t kTapFlashMs = 90;
 
 }  // namespace touch_rules

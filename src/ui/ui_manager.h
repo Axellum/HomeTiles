@@ -83,6 +83,13 @@ private:
   // than a tap (touch_rules.h): then its tile gets no click or long press.
   bool touch_watched = false;
   bool touch_moved = false;
+  // The touched object's press shows once the finger rested (touch_rules.h):
+  // the object, when the finger came down, whether its press shows, and
+  // whether a quick tap got it only at the lift (it then shows a moment).
+  lv_obj_t* touch_press_obj = nullptr;
+  uint32_t touch_press_ms = 0;
+  bool touch_press_shown = false;
+  bool touch_press_late = false;
 
   enum class PendingAccessKind : uint8_t {
     None,
@@ -113,6 +120,7 @@ private:
   void processSettingsGestureMotion(lv_indev_t *input, bool released);
   void processPageSwipeMotion(lv_indev_t *input, bool released);
   void noteTouchMotion(lv_indev_t *input);
+  void updateTouchPress(lv_indev_t *input);
   void runSwipeAction(uint8_t action);
   void turnPage(int step);
   void openPage(int number);
