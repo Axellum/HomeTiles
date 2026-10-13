@@ -76,8 +76,6 @@ const lead = slice(leadManager, 'void UIManager::showPage(int number) {', '\n}\n
 assert.match(lead, /if \(current >= 0 && home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\) \{\s*g_page_lead_target = number;\s*g_page_lead = lv_timer_create\(page_lead_done, kPageLeadMs, nullptr\);/);
 assert.match(leadManager, /static constexpr uint32_t kPageLeadMs = 120;/);
 assert.doesNotMatch(bar, /start_waiting|move_line_after_frame/);
-// The words over the Web Admin boxes keep their size when the boxes shrink.
-assert.match(read('src/web/assets/admin.css'), /\.compact-grid \.page-stack \.page-parking-label \{ font-size:calc\(12px \/ var\(--stack-zoom, 1\)\); \}/);
 // No line following the finger (user 2026-10-12: it snaps at once).
 assert.doesNotMatch(bar, /void drag\(|int release\(|g_handoff/);
 // The press pill shows once the finger has rested 50 ms (user 2026-10-12:
@@ -255,31 +253,26 @@ const tabs = read('src/ui/tabs/tiles/tab_tiles_unified.cpp');
 assert.match(slice(tabs, 'void tiles_rebuild_heads(bool draw_now) {', '\n}\n'), /home_bar::rebuild\(entry\.grid, entry\.folder_id\);/);
 assert.match(slice(bar, 'void rebuild(lv_obj_t* grid, uint16_t folder_id) {', '\n}\n'), /if \(is_bar\(child\)\) lv_obj_delete\(child\);[\s\S]*build\(grid, folder_id\);/);
 
-// The Web Admin: the five page slots in a box, the Settings slot in its own
-// below it, one word over each box (user 2026-10-12).
+// The Web Admin (user 2026-10-13): the page fields and the Settings field
+// are cells of Home's grid (page-fields.js; its behaviour in
+// test-page-fields.mjs), no boxes of their own, nothing made smaller.
 const markup = read('src/web/server/render/web_admin_html.cpp');
-assert.ok(markup.indexOf('id=\\"pageSlots\\"') > markup.indexOf('<!-- Grid Preview -->'), 'The slots under the preview');
-assert.ok(markup.indexOf('id=\\"pageSlots\\"') < markup.indexOf('id=\\"settingsHiddenSlot\\"'), 'Left of the Settings slot');
-assert.match(markup, /if \(!page_slots\) \{\s*html \+= "<div class=\\"settings-parking-texts/);
-// One word over each box, outside it (user 2026-10-12: not inside).
-assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-label\\">";\s*appendHtmlEscaped\(html, tr\.pages_title\);\s*html \+= "<\/div><div class=\\"page-parking\\" style=\\"--slot-cols:";/);
-assert.match(markup, /<div class=\\"page-group\\"><div class=\\"page-parking-label\\">";\s*appendHtmlEscaped\(html, tr\.tile_type_settings\);\s*html \+= "<\/div><div class=\\"page-parking page-settings\\">";/);
-// Beside a square or upright preview two columns, under a landscape one a
-// row under its columns (a 4-column one: four, the fifth below).
+assert.ok(markup.indexOf('id=\\"pageSlots\\"') > markup.indexOf('<!-- Grid Preview -->'), "The fields' markup after the preview");
+assert.ok(markup.indexOf('id=\\"pageSlots\\"') < markup.indexOf('id=\\"settingsHiddenSlot\\"'), 'Before the Settings field');
+assert.match(markup, /if \(!page_fields\) \{\s*html \+= "<div class=\\"settings-parking-texts/);
+assert.match(markup, /html \+= "\\"><div class=\\"page-fields-label\\">";\s*appendHtmlEscaped\(html, tr\.pages_title\);/, 'One word over the page fields');
+assert.match(markup, /html \+= "<div class=\\"page-field\\" data-slot=\\"" \+ String\(i\) \+ "\\"><\/div>";/);
+assert.match(markup, /if \(page_fields\) html \+= " data-in-grid=\\"1\\"";/);
+assert.match(markup, /if \(grid_layout::head_bar\(\)\) html \+= " with-page-fields";/);
 assert.match(markup, /static bool previewSlotsBeside\(\) \{\s*return grid_layout::screen_w\(\) <= grid_layout::screen_h\(\);\s*\}/);
-// Under a landscape preview only; beside a square one like an upright one
-// (user 2026-10-12: the S3 like the upright V2).
-assert.match(markup, /html \+= String\(pageSlotsUnder\(\) \? max_pages : 2\);/);
-assert.match(markup, /static bool pageSlotsUnder\(\) \{\s*return grid_layout::screen_w\(\) > grid_layout::screen_h\(\);/);
-assert.doesNotMatch(markup, /page-slots-under/);
-assert.doesNotMatch(read('src/web/assets/admin.css'), /page-slots-under/);
-assert.match(read('src/web/admin/tiles/page-slots.js'),
-  /function fitPageStack\(\) \{\s*const stack = document\.querySelector\('\.compact-grid \.settings-hidden-parking\.page-stack'\);/,
-  'Beside an upright preview and under a square one the boxes fit the column');
-// Under a landscape preview Settings right of the pages, both smaller alike
-// to the preview's width (user 2026-10-12).
-assert.match(read('src/web/assets/admin.css'), /\.wrapper:not\(\.compact-grid\) \.settings-hidden-parking\.page-stack \{ flex-direction:row; zoom:var\(--slot-zoom, 1\); \}/);
-assert.match(read('src/web/server/render/web_admin_styles.cpp'), /--slot-zoom:%\.4f;/);
+assert.doesNotMatch(markup, /page-stack|page-group|page-settings|pageSlotsUnder/);
+const css = read('src/web/assets/admin.css');
+assert.doesNotMatch(css, /page-stack|page-group|page-settings|slot-zoom|stack-zoom|page-slots-under/);
+assert.doesNotMatch(read('src/web/server/render/web_admin_styles.cpp'), /slot-zoom/);
+assert.match(css, /\.tile-grid\.has-page-fields \{[\s\S]*?padding-right:calc\(var\(--preview-pad-right, var\(--preview-pad\)\) \+ var\(--fields-right, 0px\)\);/,
+  "The fields take their room as the grid's padding: its pointer mapping stays");
+assert.match(css, /\.tile-grid > \.page-field,\s*\.tile-grid > \.tile-grid\.settings-hidden-slot \{[\s\S]*?width:var\(--preview-cell-w\);\s*height:var\(--preview-cell-h\);/,
+  "A field is a tile's size");
 assert.match(markup, /if \(previewSlotsBeside\(\)\) html \+= " compact-grid";/);
 
 console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');

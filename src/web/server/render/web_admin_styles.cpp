@@ -560,19 +560,6 @@ static void appendHeadBarVars(String& html) {
   emit_scaled("head-dot", dots.dot);
   emit_scaled("head-dot-active", dots.active);
   emit_scaled("head-dot-gap", dots.gap);
-  {
-    // Under a landscape preview the page slots and, right of them, the
-    // Settings slot (user 2026-10-12), both boxes smaller alike when the row
-    // is wider than the preview: six cells, four gaps, two boxes' margins,
-    // and 18 px of gap and borders.
-    const float scale = static_cast<float>(preview_cell_h_px()) / GRID_CELL_H;
-    const float margins = static_cast<float>(GRID_PAD_LEFT + GRID_PAD_RIGHT);
-    const float shown_w = GRID_SHOWN_COLS * static_cast<float>(GRID_CELL_W) + (GRID_SHOWN_COLS - 1) * GRID_GAP + margins;
-    const float row_w = 6.0f * GRID_CELL_W + 4.0f * GRID_GAP + 2.0f * margins + 18.0f / scale;
-    char zoom[32];
-    snprintf(zoom, sizeof(zoom), "--slot-zoom:%.4f;", static_cast<double>(row_w > shown_w ? shown_w / row_w : 1.0f));
-    html += zoom;
-  }
   char color[96];
   snprintf(color, sizeof(color), "--head-disc-color:#%06X;--head-dot-on:#%06X;--head-dot-off:#%06X;",
            static_cast<unsigned>(settings_style::tone(ui_theme::light() ? ui_theme::screen() : tileDefaultBgColor(),

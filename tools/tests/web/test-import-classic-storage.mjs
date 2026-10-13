@@ -145,7 +145,7 @@ const exported = (screen = {screen_width: 800, screen_height: 480}) => ({
   const source = read('src/web/server/handlers/web_admin_tiles.cpp');
   assert.match(source, /if \(loaded && classic_places\) markClassicStorage\(folder_id, grid\);/);
   assert.match(source, /if \(grid_loaded && classic_places\) markClassicStorage\(folder_id, \*grid\);/);
-  assert.match(source, /tile\.layout_hidden = classic_places && tile\.type != TILE_EMPTY && server\.arg\("layout_hidden"\) == "1";/);
+  assert.match(source, /tile\.layout_hidden = page_tile \|\| \(classic_places && tile\.type != TILE_EMPTY && server\.arg\("layout_hidden"\) == "1"\);/);
   assert.match(source, /if \(!tile\.layout_hidden && placementOverlaps\(\*grid, index, rect\)\)/);
   assert.match(source, /tile_layouts::set\(grid_layout::Layout::kClassic, folder_id, tile\.view_id, storage_spot\);/);
   assert.match(source, /tile_layouts::set_classic_hidden\(folder_id, tile\.view_id, tile\.layout_hidden\);/);

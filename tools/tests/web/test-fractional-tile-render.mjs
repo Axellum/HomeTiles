@@ -78,7 +78,7 @@ for (const file of sources) {
   if (direct) throw Error(`${file} sets a tile's classes directly (${direct.length}x): use resetTileClasses`);
 }
 const layoutJs = readRepoFile('src/web/admin/tiles/layout.js');
-if (!/function resetTileClasses\(el, classes\) \{\s*const fractional = el\.classList\.contains\('fractional-tile'\);\s*el\.className = classes\.join\(' '\);\s*if \(fractional\) el\.classList\.add\('fractional-tile'\);\s*\}/.test(layoutJs)) {
+if (!/function resetTileClasses\(el, classes\) \{\s*const fractional = el\.classList\.contains\('fractional-tile'\);[\s\S]{0,200}el\.className = classes\.join\(' '\);\s*if \(fractional\) el\.classList\.add\('fractional-tile'\);/.test(layoutJs)) {
   throw Error('resetTileClasses keeps the grid place');
 }
 for (const file of ['src/web/admin/tiles/grid-preview.js', 'src/web/admin/tiles/live-preview.js']) {

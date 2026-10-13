@@ -344,7 +344,7 @@
   // --- The page row ----------------------------------------------------------
 
   // The page slots under Home in the bar layouts, as in the editor
-  // (page-slots.js, user 2026-10-12): a Home folder put into one is a page,
+  // (page-fields.js, user 2026-10-12): a Home folder put into one is a page,
   // its tile leaves Home in both bar layouts. Kept like the places and stored
   // with them ("Speichern"); both bar layouts share them.
   function layoutPageSlotsFrom(data) {
@@ -440,7 +440,7 @@
     layoutTiles(home, tiles);
   }
 
-  // A page dragged onto the window's area (page-slots.js dropPageOnGrid):
+  // A page dragged onto the window's area (page-fields.js dropPageOnGrid):
   // its folder tile there, its place in the row free.
   function layoutPageOut(folder, place) {
     const home = layoutHomeTab();
@@ -1243,10 +1243,7 @@
       }
       showLayoutTiles(tab, getTilesData(tab));
     }
-    if (pageSlots) {
-      renderPageSlots();
-      syncPageHeads();
-    }
+    if (pageSlots) syncPageHeads();
     // The tile the page had selected before, with its settings beside the
     // preview (the window's own selections are forgotten).
     const selection = state.selection;

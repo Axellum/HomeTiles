@@ -79,8 +79,6 @@
         }
       });
     }
-    // A page's slot under Home shows the selection too (page-slots.js).
-    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
   }
   function ensureNavigateTargetOption(folderId, label) {
     const folderValue = String(folderId);

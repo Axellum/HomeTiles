@@ -5659,8 +5659,6 @@ async function saveGestureEdge(select) {
         }
       });
     }
-    // A page's slot under Home shows the selection too (page-slots.js).
-    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
   }
   function ensureNavigateTargetOption(folderId, label) {
     const folderValue = String(folderId);
@@ -6384,8 +6382,11 @@ async function saveGestureEdge(select) {
   // render).
   function resetTileClasses(el, classes) {
     const fractional = el.classList.contains('fractional-tile');
+    // A page's tile stays in its field (page-fields.js).
+    const pageField = el.classList.contains('page-field-tile');
     el.className = classes.join(' ');
     if (fractional) el.classList.add('fractional-tile');
+    if (pageField) el.classList.add('page-field-tile');
   }
 
   function getTileElementLayout(tab, index) {
@@ -6418,6 +6419,13 @@ async function saveGestureEdge(select) {
         return;
       }
       const el = document.getElementById(tab + '-tile-' + idx);
+      // A page's folder tile stands in its page field (page-fields.js).
+      const field = typeof pageFieldOfTile === 'function' ? pageFieldOfTile(tab, tile) : null;
+      if (el && field) {
+        placeOnPageField(el, field);
+        return;
+      }
+      el?.classList.remove('page-field-tile');
       if (tile.layout_hidden) {
         el?.classList.add('tile-unplaced');
         if (el) el.style.display = 'none';
@@ -6463,6 +6471,8 @@ async function saveGestureEdge(select) {
         el.style.display = 'none';
       }
     });
+    // Home's page fields and Settings field beside or under the screen.
+    if (typeof layoutPageFields === 'function') layoutPageFields(tab);
     // The layout window marks what does not fit its layout.
     if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) markLayoutRed(tab);
   }
@@ -6620,8 +6630,15 @@ async function saveGestureEdge(select) {
       el.classList.add('free-slot-hover');
       return el;
     };
+    // Beside or under the screen only the page fields are: no free slot.
+    const besideScreen = event => typeof pointerBesideScreen === 'function' &&
+      pointerBesideScreen(grid, event.clientX, event.clientY);
     grid.addEventListener('pointermove', event => {
       if (event.pointerType === 'touch' || resizeState || dragSource) return;
+      if (besideScreen(event)) {
+        grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
+        return;
+      }
       const over = event.target.closest('.tile');
       if (over && over.parentElement === grid && !over.classList.contains('empty')) {
         grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
@@ -6633,7 +6650,7 @@ async function saveGestureEdge(select) {
       grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
     });
     grid.addEventListener('click', event => {
-      if (event.target !== grid) return;
+      if (event.target !== grid || besideScreen(event)) return;
       const el = placeAt(event.clientX, event.clientY);
       if (el) selectTile(parseInt(el.dataset.index, 10), tab);
     });
@@ -6688,6 +6705,9 @@ async function saveGestureEdge(select) {
 
   function updateLayoutFromInputs(tab) {
     if (currentTileIndex === -1) return;
+    // A page's tile keeps its field; its place and size fields are its
+    // stored ones (page-fields.js selectedPageTile).
+    if (typeof selectedPageTile === 'function' && selectedPageTile(tab)) return;
     const layout = normalizeLayoutInputs(tab);
     if (newTileSpot && newTileSpot.tab === tab && newTileSpot.index === currentTileIndex) {
       newTileSpot.layout = layout;
@@ -6952,8 +6972,6 @@ async function saveGestureEdge(select) {
       selectedTile.dataset.selected = '1';
       selectedTile.classList.add('active');
     }
-    // A page's slot under Home carries the selection too (page-slots.js).
-    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const settingsId = tab + 'Settings';
     const settingsPanel = document.getElementById(settingsId);
     if (settingsPanel) {
@@ -6990,7 +7008,6 @@ async function saveGestureEdge(select) {
       delete tile.dataset.selected;
     });
     hiddenTile.classList.add('active');
-    if (typeof markSelectedPageSlot === 'function') markSelectedPageSlot();
     const panel = document.getElementById('folder0Settings');
     const specific = panel?.querySelector('.tile-specific-settings');
     if (specific) {
@@ -7539,6 +7556,10 @@ async function saveGestureEdge(select) {
     const tileId = tab + '-tile-' + currentTileIndex;
     const tileElem = document.getElementById(tileId);
     if (!tileElem) return;
+    // A page's tile is drawn as one cell in its field; its stored size
+    // stays in the size fields (page-fields.js).
+    const pageTile = tileElem.classList.contains('page-field-tile');
+    const tileSpan = name => pageTile ? 1 : Number(document.getElementById(prefix + '_tile_' + name)?.value || 1);
 
     const wasActive = currentTileTab === tab && currentTileIndex >= 0;
     const typeWas = tileElem.dataset.type || '0';
@@ -7550,7 +7571,7 @@ async function saveGestureEdge(select) {
     const switchStyle = document.getElementById(prefix + '_switch_style')?.value || '0';
     const isEnergyType = type === '14';
     // Half-height tiles offer only the value sizes that fit.
-    const halfHeight = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1) === 0.5;
+    const halfHeight = tileSpan('span_h') === 0.5;
     for (const id of ['_sensor_value_font', '_binary_sensor_value_font', '_energy_value_font'])
       syncCompactValueFontOptions(document.getElementById(prefix + id), halfHeight);
     for (const kind of ['number', 'select', 'datetime'])
@@ -7558,7 +7579,7 @@ async function saveGestureEdge(select) {
     if (type === '5') {
       // The state beside the disc takes the half-height sizes, the large
       // state of a tall tile the full-size ones.
-      const spanH = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1);
+      const spanH = tileSpan('span_h');
       syncCompactValueFontOptions(document.getElementById(prefix + '_switch_value_font'),
                                   !switchSensorLook(switchStyle, spanH));
       syncSwitchChoices(tab);
@@ -7567,7 +7588,7 @@ async function saveGestureEdge(select) {
     if (type === '19' || deviceKind) {
       // Like the Switch: beside the disc the half-height sizes, from 1.5 rows
       // the full-size ones (tile_header.h).
-      const spanH = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1);
+      const spanH = tileSpan('span_h');
       syncCompactValueFontOptions(document.getElementById(prefix + (deviceKind ? '_' + deviceKind : '_cover') +
         '_value_font'), !(spanH > 1));
       syncSwitchChoices(tab);
@@ -7676,8 +7697,8 @@ async function saveGestureEdge(select) {
       applyTileAriaLabel(tileElem, '', type);
       if (wasActive) tileElem.classList.add('active');
       updateLayoutFromInputs(tab);
-    applyCompactSensorPreview(tileElem, type, {span_w:Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-      span_h:Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)},
+    applyCompactSensorPreview(tileElem, type, {span_w:tileSpan('span_w'),
+      span_h:tileSpan('span_h')},
       document.getElementById(prefix + '_sensor_display_mode')?.value || 0, sensorValueFont);
       return;
     }
@@ -7770,10 +7791,8 @@ async function saveGestureEdge(select) {
     applyTileAriaLabel(tileElem, displayTitle, type);
 
     if (previewKind === 'climate') {
-      const climateSpanW = document.getElementById(
-        prefix + '_tile_span_w')?.value || 1;
-      const climateSpanH = document.getElementById(
-        prefix + '_tile_span_h')?.value || 1;
+      const climateSpanW = tileSpan('span_w');
+      const climateSpanH = tileSpan('span_h');
       // Layout "with value" and half height: the value pair beside the
       // disc; half height has no mini fields.
       const climateHalf = Number(climateSpanH) === 0.5;
@@ -7870,8 +7889,8 @@ async function saveGestureEdge(select) {
         document.getElementById(prefix + '_weather_humidity_sensor')?.value || '',
         sensorMetaCache.values, sensorMetaCache.units), {
         col: Number(tileElem.dataset.col || 0),
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-        span_h: Number(document.getElementById(prefix + '_tile_span_h')?.value || 1),
+        span_w: tileSpan('span_w'),
+        span_h: tileSpan('span_h'),
         sensor_display_mode: document.getElementById(prefix + '_weather_colored_icons')?.checked === false ? 1 : 0
       }, iconName, previewIconColor(type, iconRecord, weatherEntity, sensorMetaCache, null, ''));
     }
@@ -7879,8 +7898,8 @@ async function saveGestureEdge(select) {
       applyMediaPreview(tileElem, parseMediaPreviewPayload(
         mediaEntity ? (sensorMetaCache.mediaValues?.[mediaEntity] ?? '') : ''), {
         sensor_entity: mediaEntity,
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-        span_h: Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)
+        span_w: tileSpan('span_w'),
+        span_h: tileSpan('span_h')
       }, iconName, mediaEntity ? (sensorMetaCache.names?.[mediaEntity] || '') : '');
     }
     if (typeof applyTileRulesTint === 'function' && typeof collectIconColorRecord === 'function' &&
@@ -7897,7 +7916,7 @@ async function saveGestureEdge(select) {
     if (previewKind === 'camera') {
       applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight, {
         col: Number(tileElem.dataset.col || 0),
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1)});
+        span_w: tileSpan('span_w')});
     }
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
@@ -7909,8 +7928,8 @@ async function saveGestureEdge(select) {
     }
     if (type === '5') updateSwitchValuePreview(tab);
     updateLayoutFromInputs(tab);
-    applyCompactSensorPreview(tileElem, type, {span_w:Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-      span_h:Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)},
+    applyCompactSensorPreview(tileElem, type, {span_w:tileSpan('span_w'),
+      span_h:tileSpan('span_h')},
       document.getElementById(prefix + '_sensor_display_mode')?.value || 0, sensorValueFont);
     // The analog and the wall clock place their face once the tile has its
     // size and classes again (updateLayoutFromInputs, applyCompactSensorPreview):
@@ -7919,7 +7938,7 @@ async function saveGestureEdge(select) {
     // a click on the clock shrank its face into the corner).
     if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') layoutClockFacePreview(tileElem);
     if (previewKind === 'climate' &&
-        Number(document.getElementById(prefix + '_tile_span_h')?.value || 1) !== 0.5 &&
+        tileSpan('span_h') !== 0.5 &&
         typeof mountClimateMiniEditor === 'function') {
       mountClimateMiniEditor(tab);
       syncClimateSlotFields(tab);
@@ -8111,7 +8130,9 @@ async function saveGestureEdge(select) {
   function syncTileSizePolicy(tab) {
     const typeEl = document.getElementById(tab + '_tile_type');
     if (!typeEl) return;
-    const h = Number(document.getElementById(tab + '_tile_span_h')?.value || 1);
+    // A page's tile is one cell (page-fields.js).
+    const h = typeof selectedPageTile === 'function' && selectedPageTile(tab)
+      ? 1 : Number(document.getElementById(tab + '_tile_span_h')?.value || 1);
     // Half a row high only suits the half-size types.
     const halfHeight = h < 1;
     // A new half-height tile may still take a larger type when it can grow.
@@ -10155,6 +10176,8 @@ async function saveGestureEdge(select) {
   function renderTileFromData(tab, index, tile, sensorMeta, forcedSurface) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return;
+    // A page's folder tile is one cell in its field (page-fields.js).
+    if (typeof pageFieldOfTile === 'function' && pageFieldOfTile(tab, tile)) tile = {...tile, span_w: 1, span_h: 1};
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
@@ -10453,8 +10476,6 @@ async function saveGestureEdge(select) {
       renderTileFromData(tab, index, tile, sensorMeta, 'jewel');
       return;
     }
-    // A page's folder tile: its slot under Home follows (page-slots.js).
-    if (typeof pageTileRendered === 'function') pageTileRendered(tab, index);
   }
 
   function fetchTileGridData(tab, force = false) {
@@ -11348,6 +11369,8 @@ async function saveGestureEdge(select) {
 
   function handleGridDragMove(tab, e) {
     if (!dragSource || dragSource.tab !== tab) return;
+    // Over one of Home's page fields or its Settings field (page-fields.js).
+    if (typeof pageFieldDrag === 'function' && pageFieldDrag(tab, e, false)) return;
     const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
     if (!cell) return;
     e.preventDefault();
@@ -11370,7 +11393,7 @@ async function saveGestureEdge(select) {
       dragSource.hiddenTarget = valid ? candidate : null;
       return;
     }
-    // A page taken out of the slots (page-slots.js) onto Home's grid.
+    // A page taken out of its field (page-fields.js) onto Home's screen.
     if (dragSource.kind === 'page-slot') {
       const candidate = {col: targetCol, row: targetRow, span_w: sourceLayout.span_w, span_h: sourceLayout.span_h};
       ensureDragPlaceholder(tab)?.classList.toggle('invalid', !canPlacePageTile(candidate));
@@ -11402,6 +11425,7 @@ async function saveGestureEdge(select) {
 
   function handleGridDrop(tab, e) {
     if (!dragSource || dragSource.tab !== tab) return;
+    if (typeof pageFieldDrag === 'function' && pageFieldDrag(tab, e, true)) return;
     const sourceLayout = getDragSourceLayout();
     const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
     clearDragPlaceholder();
@@ -11752,9 +11776,11 @@ async function saveGestureEdge(select) {
     // The slot is one more drop cell of the Settings tile and works like a
     // grid cell (user 2026-10-02): with the pointer over it the teal
     // placeholder shows in the slot and the grid's placeholder and reflow
-    // preview go back; a parked tile dropped on it stays parked.
-    const draggingSettings = () => acceptsGridSettings() ||
-      (dragSource?.kind === 'hidden-settings' && dragSource.tab === 'folder0');
+    // preview go back; a parked tile dropped on it stays parked. In a head
+    // bar layout it is a field of Home's grid, which takes its drops
+    // (page-fields.js pageFieldDrag).
+    const draggingSettings = () => slot.dataset.inGrid !== '1' && (acceptsGridSettings() ||
+      (dragSource?.kind === 'hidden-settings' && dragSource.tab === 'folder0'));
     slot.addEventListener('dragover', event => {
       if (!draggingSettings()) return;
       event.preventDefault();
@@ -11842,7 +11868,8 @@ async function saveGestureEdge(select) {
       const handle = e.target.closest('.tile-resize-handle');
       if (!handle) return;
       const tile = handle.closest('.tile');
-      if (!tile || tile.classList.contains('empty')) return;
+      // A page's tile is one cell: no resizing (page-fields.js).
+      if (!tile || tile.classList.contains('empty') || tile.classList.contains('page-field-tile')) return;
       beginTileResize(tab, tile, handle.dataset.resizeDir || 'se', e);
     });
   }
@@ -11916,7 +11943,7 @@ async function saveGestureEdge(select) {
     document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(tile => {
       const index = parseInt(tile.dataset.index, 10);
       if (isNaN(index) || Number(tile.dataset.type || 0) === 0 ||
-          tile.classList.contains('tile-unplaced')) return;
+          tile.classList.contains('tile-unplaced') || tile.classList.contains('page-field-tile')) return;
       const row = Number(tile.dataset.row);
       const col = Number(tile.dataset.col);
       const safeRow = isNaN(row) ? Number.MAX_SAFE_INTEGER : row;
@@ -11929,16 +11956,27 @@ async function saveGestureEdge(select) {
     });
     return selectedIndex >= 0 ? selectedIndex : 0;
   }
-  // The page slots under Home's preview (head bar layouts, user 2026-10-12,
-  // tile_layouts::pages): five places beside the Settings slot. A Home
-  // folder dropped on a free one becomes a page beside Home (its tile leaves
-  // Home), a page dragged onto the grid becomes a folder tile again. Every
-  // page stays where it was put, free places too; the panel's dots take the
-  // pages in this order and skip the free places.
+  // Home's page fields and Settings field (head bar layouts, user 2026-10-13,
+  // build/design-mockups/pages/felder-*.png): cells of Home's own grid,
+  // exactly the tiles' size, in two columns beside a square or upright screen
+  // or in rows under a landscape one. A page is its folder's own tile shown
+  // in its field (one cell), dragged like any tile: a Home folder onto a free
+  // field becomes a page, a page onto the screen a folder tile again, a page
+  // onto another field moves there (onto a page they swap). The parked
+  // Settings tile stands in the Settings field (settings/access.js parks it).
+  // The dots take the pages in field order and skip the free fields.
   const PAGE_SLOT_COUNT = 5;
 
+  // The markup's holder: the page places (data-pages), and at first the
+  // fields' elements, which layoutPageFields moves into the grid.
   function pageSlotsElement() {
     return document.getElementById('pageSlots');
+  }
+
+  // The places as stored, without looking for their tiles.
+  function pageSlotIds() {
+    const stored = String(pageSlotsElement()?.dataset.pages || '').split(',').map(Number);
+    return Array.from({length: PAGE_SLOT_COUNT}, (_, i) => stored[i] > 0 ? stored[i] : 0);
   }
 
   // The places as put: a folder or 0 for a free one; a folder deleted
@@ -11972,55 +12010,224 @@ async function saveGestureEdge(select) {
     return tile ? Number(tile.dataset.index) : -1;
   }
 
-  // A filled slot shows the page's folder tile as the grid draws it (its
-  // tile stays in Home's grid, hidden: tile-unplaced). Only what changed is
-  // touched: rebuilding every slot on each change made them blink (user
-  // 2026-10-12).
-  function renderPageSlots() {
-    const slots = pageSlotsElement();
-    if (!slots) return;
-    const places = pageSlotList();
-    slots.querySelectorAll('.page-slot').forEach((slot, i) => {
-      const folder = places[i] || 0;
-      const source = folder ? homeFolderTile(folder) : null;
-      const selected = !!source && currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index);
-      // The folder tile's look without its place in the grid and without
-      // the editor's marks and handles; no id or index, so the editor never
-      // takes it for a grid tile.
-      let tile = null;
-      if (source) {
-        tile = document.createElement('div');
-        tile.className = source.className;
-        tile.classList.remove('tile-unplaced', 'fractional-tile', 'active', 'dragging', 'drop-target',
-          'sensor-compact', 'sensor-half', 'compact-title-only');
-        for (const property of Array.from(source.style)) {
-          if (/^(grid|display|--tile-(col|row|w|h)$)/.test(property)) continue;
-          tile.style.setProperty(property, source.style.getPropertyValue(property));
-        }
-        tile.innerHTML = source.innerHTML;
-        tile.querySelectorAll('.tile-resize-handle').forEach(handle => handle.remove());
-      }
-      const look = tile ? tile.className + '|' + tile.style.cssText + '|' + tile.innerHTML : '';
-      if (slot.dataset.look === look && slot.dataset.folder === (folder ? String(folder) : '')) {
-        slot.querySelector(':scope > .tile')?.classList.toggle('active', selected);
-        return;
-      }
-      slot.dataset.look = look;
-      slot.dataset.folder = folder ? String(folder) : '';
-      slot.draggable = !!tile;
-      slot.className = 'page-slot ' + (tile ? 'has-tile' : 'empty');
-      if (!tile) {
-        slot.replaceChildren();
-        return;
-      }
-      // Picked in the editor: the teal selection like in the grid.
-      tile.classList.toggle('active', selected);
-      slot.replaceChildren(tile);
+  // The fields show in Home's grid of a head bar layout (not in the layout
+  // window, which shows each layout without its head: HEAD_BAR is off).
+  function pageFieldsShown() {
+    return !!pageSlotsElement() && headBarLayout();
+  }
+
+  // Where the fields lie, in the grid's cell units from its first cell
+  // (fractional: they start one grid gap off the screen's edge), and the
+  // room they take beside or under the screen.
+  function pageFieldPlaces(grid) {
+    const style = getComputedStyle(grid);
+    const px = name => parseFloat(style.getPropertyValue(name)) || 0;
+    const cellW = px('--preview-cell-w'), cellH = px('--preview-cell-h'), gap = px('--preview-gap');
+    const padRight = px('--preview-pad-right') || px('--preview-pad');
+    const padBottom = px('--preview-pad-bottom') || px('--preview-pad');
+    const cols = placeCols('folder0'), rows = placeRows('folder0');
+    const stepX = cellW + gap, stepY = cellH + gap;
+    const screenW = cols * stepX - gap, screenH = rows * stepY - gap;
+    // The fields lie on a black box of their own like the screen (user
+    // 2026-10-13), its margin one grid gap, one word over it.
+    const fieldRows = cols > rows ? Math.floor(PAGE_SLOT_COUNT / cols) + 1 : Math.ceil((PAGE_SLOT_COUNT + 1) / 2);
+    if (cols > rows) {
+      // Under a landscape screen in its columns; the Settings field last,
+      // in the sixth column or under the last one.
+      const word = 20 + gap;
+      const top = (screenH + padBottom + word) / stepY;
+      const at = (col, row) => ({col, row: top + row});
+      return {
+        pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
+        settings: at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols)),
+        right: 0,
+        bottom: word + fieldRows * stepY,
+        // The box from the screen's left edge to its right one (padding box
+        // units, from the first cell's corner).
+        box: {x: null, y: screenH + padBottom + word - gap, w: null, h: fieldRows * stepY + gap},
+        word: {x: 0, y: screenH + padBottom + 3}
+      };
+    }
+    // Beside a square or upright screen in two columns along its rows, the
+    // word in its head's height; the Settings field bottom right.
+    const apart = 14;
+    const left = (screenW + padRight + apart + gap) / stepX;
+    return {
+      pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
+      settings: {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)},
+      right: apart + 2 * stepX + gap,
+      bottom: 0,
+      box: {x: screenW + padRight + apart, y: -gap, w: 2 * stepX + gap, h: fieldRows * stepY + gap},
+      word: {x: screenW + padRight + apart, y: -gap - 19}
+    };
+  }
+
+  function setFieldPlace(el, place) {
+    el.style.setProperty('--tile-col', String(place.col));
+    el.style.setProperty('--tile-row', String(place.row));
+  }
+
+  // A page's folder tile stands in its field as one cell (layout.js
+  // layoutTiles, grid-preview.js renderTileFromData).
+  function pageFieldOfTile(tab, tile) {
+    if (tab !== 'folder0' || !tile?.layout_hidden || Number(tile.type) !== 4 || !pageFieldsShown()) return null;
+    const slot = pageSlotIds().indexOf(Number(tile.navigate_target));
+    const grid = getTileGrid('folder0');
+    return slot >= 0 && grid ? pageFieldPlaces(grid).pages[slot] : null;
+  }
+
+  // The tile picked in the editor is a page's: one cell in its field, the
+  // editor neither moves nor sizes it (layout.js updateLayoutFromInputs,
+  // live-preview.js, type-selection.js) and its stored size stays.
+  function selectedPageTile(tab) {
+    return currentTileIndex >= 0 &&
+      !!document.getElementById(tab + '-tile-' + currentTileIndex)?.classList.contains('page-field-tile');
+  }
+
+  // Shown there only: its stored place (the tile's data-col/-row, which a
+  // tile save sends) stays as it is.
+  function placeOnPageField(el, place) {
+    el.classList.remove('tile-unplaced');
+    el.classList.add('fractional-tile', 'page-field-tile');
+    el.style.gridColumn = 'auto';
+    el.style.gridRow = 'auto';
+    for (const [name, value] of Object.entries({col: place.col, row: place.row, w: 1, h: 1})) {
+      el.style.setProperty('--tile-' + name, String(value));
+    }
+    el.style.display = '';
+  }
+
+  // The grid's room for the fields, the screen drawn behind its own part
+  // only (admin.css .has-page-fields), the free fields' frames, the word
+  // and the Settings field. Runs after every layout of Home's grid.
+  function layoutPageFields(tab) {
+    const holder = pageSlotsElement();
+    const grid = getTileGrid('folder0');
+    if (tab !== 'folder0' || !holder || !grid) return;
+    if (holder.children.length) grid.append(...holder.children);
+    const shown = pageFieldsShown();
+    grid.classList.toggle('has-page-fields', shown);
+    if (!shown) {
+      grid.style.removeProperty('--fields-right');
+      grid.style.removeProperty('--fields-bottom');
+      return;
+    }
+    const places = pageFieldPlaces(grid);
+    grid.style.setProperty('--fields-right', places.right + 'px');
+    grid.style.setProperty('--fields-bottom', places.bottom + 'px');
+    // The fields' box (admin.css .has-page-fields::after), from the grid's
+    // padding box corner; under the screen as wide as it.
+    const style = getComputedStyle(grid);
+    const padLeft = parseFloat(style.paddingLeft) || 0, padTop = parseFloat(style.paddingTop) || 0;
+    const box = places.box;
+    const boxLeft = box.x === null ? -1 : padLeft + box.x;
+    const boxTop = padTop + box.y;
+    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w + 1;
+    grid.style.setProperty('--fields-box-l', boxLeft + 'px');
+    grid.style.setProperty('--fields-box-t', boxTop + 'px');
+    grid.style.setProperty('--fields-box-w', boxWidth + 'px');
+    grid.style.setProperty('--fields-box-h', (box.x === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
+    const slots = pageSlotList();
+    grid.querySelectorAll(':scope > .page-field').forEach(field => {
+      const slot = Number(field.dataset.slot);
+      setFieldPlace(field, places.pages[slot]);
+      field.hidden = !!slots[slot];
     });
+    const word = grid.querySelector(':scope > .page-fields-label');
+    if (word) {
+      word.style.setProperty('--word-x', places.word.x + 'px');
+      word.style.setProperty('--word-y', places.word.y + 'px');
+    }
+    const settings = grid.querySelector(':scope > .settings-hidden-slot');
+    if (settings) setFieldPlace(settings, places.settings);
+  }
+
+  // The field under the pointer: a page field or the Settings field.
+  function pageFieldAt(clientX, clientY) {
+    const grid = getTileGrid('folder0');
+    if (!grid || !pageFieldsShown()) return null;
+    const style = getComputedStyle(grid);
+    const px = name => parseFloat(style.getPropertyValue(name)) || 0;
+    const rect = grid.getBoundingClientRect();
+    const cellW = px('--preview-cell-w'), cellH = px('--preview-cell-h'), gap = px('--preview-gap');
+    const left = rect.left + grid.clientLeft + parseFloat(style.paddingLeft);
+    const top = rect.top + grid.clientTop + parseFloat(style.paddingTop);
+    const inside = place => place &&
+      clientX >= left + place.col * (cellW + gap) && clientX < left + place.col * (cellW + gap) + cellW &&
+      clientY >= top + place.row * (cellH + gap) && clientY < top + place.row * (cellH + gap) + cellH;
+    const places = pageFieldPlaces(grid);
+    const slot = places.pages.findIndex(inside);
+    if (slot >= 0) return {kind: 'page', slot, place: places.pages[slot]};
+    return inside(places.settings) ? {kind: 'settings', place: places.settings} : null;
+  }
+
+  // True beside or under the screen, where only the fields are: no free
+  // slot follows the pointer there (layout.js enableFreeSlotHover).
+  function pointerBesideScreen(grid, clientX, clientY) {
+    if (!grid?.classList.contains('has-page-fields')) return false;
+    const rect = grid.getBoundingClientRect();
+    const style = getComputedStyle(grid);
+    return clientX > rect.right - (parseFloat(style.getPropertyValue('--fields-right')) || 0) ||
+      clientY > rect.bottom - (parseFloat(style.getPropertyValue('--fields-bottom')) || 0);
+  }
+
+  function draggedHomeFolder() {
+    if (!dragSource || dragSource.kind !== 'grid-tile' || dragSource.tab !== 'folder0') return 0;
+    const tile = document.getElementById('folder0-tile-' + dragSource.index);
+    return tile?.dataset.type === '4' ? Number(tile.dataset.navigateTarget || 0) : 0;
+  }
+
+  // A drag over a field (drag-resize.js asks first): the grid's placeholder
+  // there, and the drop decides there. False when no field is under the
+  // pointer, so the grid handles it.
+  function pageFieldDrag(tab, event, drop) {
+    if (tab !== 'folder0' || !dragSource) return false;
+    const field = pageFieldAt(event.clientX, event.clientY);
+    if (!field) return false;
+    event.preventDefault();
+    if (drop) event.stopPropagation();
+    const places = pageSlotList();
+    const folder = dragSource.kind === 'page-slot' ? dragSource.folder : draggedHomeFolder();
+    const settings = dragSource.kind === 'hidden-settings' ||
+      (dragSource.kind === 'grid-tile' && Number(dragSource.type) === 7);
+    // A folder onto a free field, a page onto any; Settings onto its own.
+    const fits = field.kind === 'page'
+      ? folder > 0 && (dragSource.kind === 'page-slot' || !places[field.slot])
+      : settings;
+    restoreDragPreview(tab);
+    dragSource.previewKey = '';
+    if (!drop) {
+      event.dataTransfer.dropEffect = fits ? 'move' : 'none';
+      const placeholder = ensureDragPlaceholder(tab);
+      if (placeholder) {
+        placeholder.classList.add('show');
+        placeholder.classList.toggle('invalid', !fits);
+        setTileGridPosition(placeholder, field.place.col, field.place.row, 1, 1);
+      }
+      return true;
+    }
+    clearDragPlaceholder();
+    if (!fits) return true;
+    if (field.kind === 'settings') {
+      dragSource.dropCommitted = true;
+      if (dragSource.kind !== 'hidden-settings') hideSettingsTileFromGrid();
+      return true;
+    }
+    const from = places.indexOf(folder);
+    if (from === field.slot) return true;
+    // Pages have no PIN: a locked folder asks before it becomes one.
+    const unlock = from < 0 && homeFolderTile(folder)?.dataset.folderPinEnabled === '1';
+    if (unlock && !window.confirm(t('pageUnlockConfirm'))) return true;
+    dragSource.dropCommitted = true;
+    // Exactly where it is dropped; the page there takes its old place.
+    if (from >= 0) places[from] = places[field.slot];
+    places[field.slot] = folder;
+    savePages(places, {}, unlock);
+    return true;
   }
 
   // Home and the pages show the dots in their head and the gear; a page
-  // left the slots shows its X again (home_bar.cpp). Only what differs is
+  // left the fields shows its X again (home_bar.cpp). Only what differs is
   // touched: rebuilding the dots for every folder tab the page loaded made
   // them blink (user 2026-10-12). The layout window passes its own pages.
   function syncPageHeads(pages = pageFolders()) {
@@ -12060,33 +12267,27 @@ async function saveGestureEdge(select) {
     });
   }
 
-  // Shows a change of the pages at once, like the Settings parking slot:
-  // the slots, Home's folder tiles and the heads. `slots` and `previous` are
-  // the places after and before; a folder leaving them comes back on the
-  // grid (`out`: at its dropped spot).
+  // Shows a change of the pages at once, like any move: Home's folder tiles
+  // in their fields or on the screen, and the heads. `slots` and `previous`
+  // are the places after and before; a folder leaving them comes back on the
+  // screen as one cell (`out`: at its dropped spot).
   function showPagesLocally(slots, previous, out = null) {
     pageSlotsElement().dataset.pages = encodePageSlots(slots);
-    const loaded = tileDataLoadedTabs.has('folder0');
     const tiles = getTilesData('folder0') || [];
     const pages = slots.filter(id => id > 0);
-    const folders = new Set([...pages, ...previous.filter(id => id > 0)]);
-    folders.forEach(folder => {
+    new Set([...pages, ...previous.filter(id => id > 0)]).forEach(folder => {
       const el = homeFolderTile(folder);
-      if (!el) return;
+      const tile = el ? tiles[Number(el.dataset.index)] : null;
+      if (!tile) return;
       const page = pages.includes(folder);
-      const tile = loaded ? tiles[Number(el.dataset.index)] : null;
-      if (tile) {
-        tile.layout_hidden = page;
-        if (!page && out && out.folder === folder) {
-          Object.assign(tile, {col: out.col, row: out.row, span_w: out.span_w, span_h: out.span_h});
-          // Drawn again in its size (a half-high tile has its own look).
-          renderTileFromData('folder0', Number(el.dataset.index), tile, sensorMetaCache);
-        }
-      }
-      el.classList.toggle('tile-unplaced', page);
+      // A folder in the fields is one cell, and comes back as one (user
+      // 2026-10-12: a half-high one changed its size in and out).
+      tile.layout_hidden = page;
+      Object.assign(tile, {span_w: 1, span_h: 1});
+      if (!page && out && out.folder === folder) Object.assign(tile, {col: out.col, row: out.row});
+      renderTileFromData('folder0', Number(el.dataset.index), tile, sensorMetaCache);
     });
-    if (loaded) layoutTiles('folder0', tiles);
-    renderPageSlots();
+    layoutTiles('folder0', tiles);
     syncPageHeads();
     // A page has no PIN: its folder's PIN option goes.
     if (currentTileTab === 'folder0' && typeof syncFolderPinControls === 'function') syncFolderPinControls('folder0');
@@ -12097,8 +12298,7 @@ async function saveGestureEdge(select) {
 
   function savePages(slots, extra = {}, unlock = false) {
     const previous = pageSlotList();
-    const out = extra.out ? {folder: Number(extra.out), col: Number(extra.col), row: Number(extra.row),
-      span_w: Number(extra.span_w || 1), span_h: Number(extra.span_h || 1)} : null;
+    const out = extra.out ? {folder: Number(extra.out), col: Number(extra.col), row: Number(extra.row)} : null;
     showPagesLocally(slots, previous, out);
     pageSlotsQueue = pageSlotsQueue.then(() => sendPages(slots, previous, extra, unlock));
     return pageSlotsQueue;
@@ -12126,32 +12326,30 @@ async function saveGestureEdge(select) {
       if (!response.ok || !data.success) {
         return undo(data.error === 'No free cell' ? t('tileDoesNotFit') : t('networkErrorSave'));
       }
+      const tiles = getTilesData('folder0') || [];
       // A page has no PIN: its lock went with the save.
       if (unlock) {
         slots.filter(id => id > 0).forEach(folder => {
-          const el = homeFolderTile(folder);
-          if (!el) return;
-          el.dataset.folderPinEnabled = '0';
-          el.querySelector('.tile-icon-lock')?.remove();
-          const tile = getTilesData('folder0')?.[Number(el.dataset.index)];
-          if (tile) tile.folder_pin_enabled = false;
+          const index = homeFolderTileIndex(folder);
+          if (index < 0 || !tiles[index]) return;
+          tiles[index].folder_pin_enabled = false;
+          renderTileFromData('folder0', index, tiles[index], sensorMetaCache);
         });
-        renderPageSlots();
+        layoutTiles('folder0', tiles);
       }
-      // A folder back on the grid: the place the device gave it.
+      // A folder back on the screen: the place the device gave it.
       if (extra.out !== undefined) {
-        const el = homeFolderTile(Number(extra.out));
-        const tile = el ? getTilesData('folder0')?.[Number(el.dataset.index)] : null;
+        const index = homeFolderTileIndex(Number(extra.out));
+        const tile = index >= 0 ? tiles[index] : null;
         const place = tile ? data.places?.[ACTIVE_LAYOUT]?.['0']?.[String(tile.view_id)] : null;
         if (place) {
           Object.assign(tile, {col: place[0], row: place[1], span_w: place[2], span_h: place[3]});
-          renderTileFromData('folder0', Number(el.dataset.index), tile, sensorMetaCache);
-          layoutTiles('folder0', getTilesData('folder0'));
-        } else {
-          const tiles = await fetchTileGridData('folder0', true);
-          tiles.forEach((data, index) => renderTileFromData('folder0', index, data, sensorMetaCache));
+          renderTileFromData('folder0', index, tile, sensorMetaCache);
           layoutTiles('folder0', tiles);
-          renderPageSlots();
+        } else {
+          const fresh = await fetchTileGridData('folder0', true);
+          fresh.forEach((data, i) => renderTileFromData('folder0', i, data, sensorMetaCache));
+          layoutTiles('folder0', fresh);
         }
       }
       showNotification(t('pagesSaved'));
@@ -12161,13 +12359,8 @@ async function saveGestureEdge(select) {
     }
   }
 
-  function draggedHomeFolder() {
-    if (!dragSource || dragSource.kind !== 'grid-tile' || dragSource.tab !== 'folder0') return 0;
-    const tile = document.getElementById('folder0-tile-' + dragSource.index);
-    return tile?.dataset.type === '4' ? Number(tile.dataset.navigateTarget || 0) : 0;
-  }
-
-  // A page leaving the slots onto Home's grid (drag-resize.js handleGridDrop).
+  // A page leaving the fields onto Home's screen (drag-resize.js
+  // handleGridDrop).
   function canPlacePageTile(candidate) {
     if (!dragSource || dragSource.kind !== 'page-slot') return false;
     return supportedTileLayout(4, candidate) && canPlaceTileLayout('folder0', dragSource.index, candidate);
@@ -12183,136 +12376,27 @@ async function saveGestureEdge(select) {
       layoutPageOut(folder, place);
       return;
     }
-    // Its place stays free.
+    // Its field stays free.
     savePages(pageSlotList().map(id => id === folder ? 0 : id), {out: folder, ...place});
   }
 
-  // The editor picked a tile: the teal selection on its page's slot only,
-  // nothing is built again.
-  function markSelectedPageSlot() {
-    pageSlotsElement()?.querySelectorAll('.page-slot').forEach(slot => {
-      const source = slot.dataset.folder ? homeFolderTile(Number(slot.dataset.folder)) : null;
-      const selected = !!source && currentTileTab === 'folder0' && currentTileIndex === Number(source.dataset.index);
-      const tile = slot.querySelector(':scope > .tile');
-      if (tile && tile.classList.contains('active') !== selected) tile.classList.toggle('active', selected);
-    });
-  }
-
-  // A folder tile was drawn again (renderTileFromData): its slot follows
-  // when it is a page's (an edited title, icon or color).
-  function pageTileRendered(tab, index) {
-    if (tab !== 'folder0' || !pageSlotsElement()) return;
-    const el = document.getElementById('folder0-tile-' + index);
-    if (el?.dataset.type === '4' && pageFolders().includes(Number(el.dataset.navigateTarget))) renderPageSlots();
-  }
-
-  // Beside a square or upright preview the boxes shrink alike to the editor
-  // column (user 2026-10-12: on the S3 they slid under the settings panel;
-  // on 600 and 480 px wide upright panels they would too).
-  function fitPageStack() {
-    const stack = document.querySelector('.compact-grid .settings-hidden-parking.page-stack');
-    const main = stack?.closest('.tile-editor-main');
-    if (!stack || !main) return;
-    stack.style.zoom = '';
-    stack.style.removeProperty('--stack-zoom');
-    const room = main.getBoundingClientRect().right - stack.getBoundingClientRect().left;
-    const need = stack.scrollWidth;
-    if (room > 0 && need > room) {
-      stack.style.zoom = String(room / need);
-      stack.style.setProperty('--stack-zoom', String(room / need));
-    }
-  }
-
-  function enablePageSlots() {
-    const slots = pageSlotsElement();
-    if (!slots || slots.dataset.bound === '1') return;
-    slots.dataset.bound = '1';
-    renderPageSlots();
+  function enablePageFields() {
+    const grid = getTileGrid('folder0');
+    if (!pageSlotsElement() || !grid || grid.dataset.pageFieldsBound === '1') return;
+    grid.dataset.pageFieldsBound = '1';
+    layoutPageFields('folder0');
     syncPageHeads();
-    const main = slots.closest('.tile-editor-main');
-    if (main && typeof ResizeObserver === 'function') new ResizeObserver(fitPageStack).observe(main);
-    fitPageStack();
-    slots.querySelectorAll('.page-slot').forEach((slot, i) => {
-      // A page is edited like its folder tile: a tap picks it.
-      slot.addEventListener('click', () => {
-        const index = homeFolderTileIndex(Number(slot.dataset.folder || 0));
-        if (index >= 0) selectTile(index, 'folder0');
-      });
-      // A folder from the grid onto a free place; a page onto any place
-      // (onto another page they swap).
-      const accepts = () => (draggedHomeFolder() > 0 && !pageSlotList()[i]) ||
-        (dragSource?.kind === 'page-slot' && dragSource.tab === 'folder0');
-      slot.addEventListener('dragover', event => {
-        if (!accepts()) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-        if (slot.classList.contains('drop-target')) return;
-        restoreDragPreview('folder0');
-        clearDragPlaceholder();
-        slots.querySelectorAll('.page-slot').forEach(other => other.classList.toggle('drop-target', other === slot));
-      });
-      slot.addEventListener('dragleave', event => {
-        if (event.relatedTarget instanceof Node && slot.contains(event.relatedTarget)) return;
-        slot.classList.remove('drop-target');
-      });
-      slot.addEventListener('drop', event => {
-        if (!accepts()) return;
-        event.preventDefault();
-        event.stopPropagation();
-        slot.classList.remove('drop-target');
-        restoreDragPreview('folder0');
-        clearDragPlaceholder();
-        const places = pageSlotList();
-        const folder = dragSource.kind === 'page-slot' ? dragSource.folder : draggedHomeFolder();
-        const from = places.indexOf(folder);
-        if (from === i) return;
-        // Pages have no PIN: a locked folder asks before it becomes one.
-        const unlock = from < 0 && homeFolderTile(folder)?.dataset.folderPinEnabled === '1';
-        if (unlock && !window.confirm(t('pageUnlockConfirm'))) return;
-        // Exactly where it is dropped; the page there takes its old place.
-        if (from >= 0) places[from] = places[i];
-        places[i] = folder;
-        dragSource.dropCommitted = true;
-        savePages(places, {}, unlock);
-      });
-      slot.addEventListener('dragstart', event => {
-        const folder = Number(slot.dataset.folder || 0);
-        const index = homeFolderTileIndex(folder);
-        if (!folder || index < 0) {
-          event.preventDefault();
-          return;
-        }
-        const rect = slot.getBoundingClientRect();
-        const grabOffset = getDragGrabOffset(rect, event.clientX, event.clientY);
-        dragSource = {
-          kind: 'page-slot',
-          tab: 'folder0',
-          index,
-          folder,
-          // A folder dragged in is a 1x1 tile and comes back as one (user
-          // 2026-10-12: a half-high one changed its size in and out).
-          layout: {col: 0, row: 0, span_w: 1, span_h: 1},
-          grabCellCol: 0,
-          grabCellRow: 0,
-          dropOffset: grabOffset,
-          dropCommitted: false,
-          pageTarget: null
-        };
-        event.dataTransfer.effectAllowed = 'move';
-        slot.classList.add('dragging');
-        if (event.dataTransfer.setDragImage) {
-          dragPreview = createDragPreview(slot);
-          event.dataTransfer.setDragImage(dragPreview, grabOffset.x, grabOffset.y);
-        }
-      });
-      slot.addEventListener('dragend', () => {
-        slot.classList.remove('dragging');
-        slots.querySelectorAll('.page-slot').forEach(other => other.classList.remove('drop-target'));
-        clearDragPlaceholder();
-        if (dragPreview && dragPreview.parentNode) dragPreview.parentNode.removeChild(dragPreview);
-        dragPreview = null;
-        dragSource = null;
-      });
+    // A page's tile is taken like any tile; its drag is a page's: one cell,
+    // onto the screen it becomes a folder tile again (after the tile's own
+    // dragstart, drag-resize.js enableTileDrag).
+    grid.addEventListener('dragstart', event => {
+      const tile = event.target.closest?.('.tile.page-field-tile');
+      if (!tile || dragSource?.kind !== 'grid-tile' || dragSource.index !== Number(tile.dataset.index)) return;
+      // The grab point from where it is drawn: its stored place lies elsewhere.
+      dragSource = {...dragSource, kind: 'page-slot', folder: Number(tile.dataset.navigateTarget || 0),
+        layout: {col: 0, row: 0, span_w: 1, span_h: 1}, grabCellCol: 0, grabCellRow: 0,
+        dropOffset: getDragGrabOffset(tile.getBoundingClientRect(), event.clientX, event.clientY),
+        baseLayouts: null, pageTarget: null};
     });
   }
   // The layout window ("Layout ändern", grid_layout.h / tile_layouts.h). It
@@ -12661,7 +12745,7 @@ async function saveGestureEdge(select) {
   // --- The page row ----------------------------------------------------------
 
   // The page slots under Home in the bar layouts, as in the editor
-  // (page-slots.js, user 2026-10-12): a Home folder put into one is a page,
+  // (page-fields.js, user 2026-10-12): a Home folder put into one is a page,
   // its tile leaves Home in both bar layouts. Kept like the places and stored
   // with them ("Speichern"); both bar layouts share them.
   function layoutPageSlotsFrom(data) {
@@ -12757,7 +12841,7 @@ async function saveGestureEdge(select) {
     layoutTiles(home, tiles);
   }
 
-  // A page dragged onto the window's area (page-slots.js dropPageOnGrid):
+  // A page dragged onto the window's area (page-fields.js dropPageOnGrid):
   // its folder tile there, its place in the row free.
   function layoutPageOut(folder, place) {
     const home = layoutHomeTab();
@@ -13560,10 +13644,7 @@ async function saveGestureEdge(select) {
       }
       showLayoutTiles(tab, getTilesData(tab));
     }
-    if (pageSlots) {
-      renderPageSlots();
-      syncPageHeads();
-    }
+    if (pageSlots) syncPageHeads();
     // The tile the page had selected before, with its settings beside the
     // preview (the window's own selections are forgotten).
     const selection = state.selection;
@@ -14869,7 +14950,7 @@ async function saveGestureEdge(select) {
       enableFreeSlotHover(tab);
     });
     enableSettingsHiddenSlot();
-    enablePageSlots();
+    enablePageFields();
     associateFieldLabels();
     fillStaticClockPreviews();
     setInterval(fillStaticClockPreviews, 30000);

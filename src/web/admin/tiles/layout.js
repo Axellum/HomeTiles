@@ -210,8 +210,11 @@
   // render).
   function resetTileClasses(el, classes) {
     const fractional = el.classList.contains('fractional-tile');
+    // A page's tile stays in its field (page-fields.js).
+    const pageField = el.classList.contains('page-field-tile');
     el.className = classes.join(' ');
     if (fractional) el.classList.add('fractional-tile');
+    if (pageField) el.classList.add('page-field-tile');
   }
 
   function getTileElementLayout(tab, index) {
@@ -244,6 +247,13 @@
         return;
       }
       const el = document.getElementById(tab + '-tile-' + idx);
+      // A page's folder tile stands in its page field (page-fields.js).
+      const field = typeof pageFieldOfTile === 'function' ? pageFieldOfTile(tab, tile) : null;
+      if (el && field) {
+        placeOnPageField(el, field);
+        return;
+      }
+      el?.classList.remove('page-field-tile');
       if (tile.layout_hidden) {
         el?.classList.add('tile-unplaced');
         if (el) el.style.display = 'none';
@@ -289,6 +299,8 @@
         el.style.display = 'none';
       }
     });
+    // Home's page fields and Settings field beside or under the screen.
+    if (typeof layoutPageFields === 'function') layoutPageFields(tab);
     // The layout window marks what does not fit its layout.
     if (typeof layoutWindowOpen === 'function' && layoutWindowOpen()) markLayoutRed(tab);
   }
@@ -446,8 +458,15 @@
       el.classList.add('free-slot-hover');
       return el;
     };
+    // Beside or under the screen only the page fields are: no free slot.
+    const besideScreen = event => typeof pointerBesideScreen === 'function' &&
+      pointerBesideScreen(grid, event.clientX, event.clientY);
     grid.addEventListener('pointermove', event => {
       if (event.pointerType === 'touch' || resizeState || dragSource) return;
+      if (besideScreen(event)) {
+        grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
+        return;
+      }
       const over = event.target.closest('.tile');
       if (over && over.parentElement === grid && !over.classList.contains('empty')) {
         grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
@@ -459,7 +478,7 @@
       grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
     });
     grid.addEventListener('click', event => {
-      if (event.target !== grid) return;
+      if (event.target !== grid || besideScreen(event)) return;
       const el = placeAt(event.clientX, event.clientY);
       if (el) selectTile(parseInt(el.dataset.index, 10), tab);
     });
@@ -514,6 +533,9 @@
 
   function updateLayoutFromInputs(tab) {
     if (currentTileIndex === -1) return;
+    // A page's tile keeps its field; its place and size fields are its
+    // stored ones (page-fields.js selectedPageTile).
+    if (typeof selectedPageTile === 'function' && selectedPageTile(tab)) return;
     const layout = normalizeLayoutInputs(tab);
     if (newTileSpot && newTileSpot.tab === tab && newTileSpot.index === currentTileIndex) {
       newTileSpot.layout = layout;

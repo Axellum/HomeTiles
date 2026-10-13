@@ -283,6 +283,8 @@
 
   function handleGridDragMove(tab, e) {
     if (!dragSource || dragSource.tab !== tab) return;
+    // Over one of Home's page fields or its Settings field (page-fields.js).
+    if (typeof pageFieldDrag === 'function' && pageFieldDrag(tab, e, false)) return;
     const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
     if (!cell) return;
     e.preventDefault();
@@ -305,7 +307,7 @@
       dragSource.hiddenTarget = valid ? candidate : null;
       return;
     }
-    // A page taken out of the slots (page-slots.js) onto Home's grid.
+    // A page taken out of its field (page-fields.js) onto Home's screen.
     if (dragSource.kind === 'page-slot') {
       const candidate = {col: targetCol, row: targetRow, span_w: sourceLayout.span_w, span_h: sourceLayout.span_h};
       ensureDragPlaceholder(tab)?.classList.toggle('invalid', !canPlacePageTile(candidate));
@@ -337,6 +339,7 @@
 
   function handleGridDrop(tab, e) {
     if (!dragSource || dragSource.tab !== tab) return;
+    if (typeof pageFieldDrag === 'function' && pageFieldDrag(tab, e, true)) return;
     const sourceLayout = getDragSourceLayout();
     const cell = getGridCellFromPointer(tab, e.clientX, e.clientY);
     clearDragPlaceholder();
@@ -687,9 +690,11 @@
     // The slot is one more drop cell of the Settings tile and works like a
     // grid cell (user 2026-10-02): with the pointer over it the teal
     // placeholder shows in the slot and the grid's placeholder and reflow
-    // preview go back; a parked tile dropped on it stays parked.
-    const draggingSettings = () => acceptsGridSettings() ||
-      (dragSource?.kind === 'hidden-settings' && dragSource.tab === 'folder0');
+    // preview go back; a parked tile dropped on it stays parked. In a head
+    // bar layout it is a field of Home's grid, which takes its drops
+    // (page-fields.js pageFieldDrag).
+    const draggingSettings = () => slot.dataset.inGrid !== '1' && (acceptsGridSettings() ||
+      (dragSource?.kind === 'hidden-settings' && dragSource.tab === 'folder0'));
     slot.addEventListener('dragover', event => {
       if (!draggingSettings()) return;
       event.preventDefault();
@@ -777,7 +782,8 @@
       const handle = e.target.closest('.tile-resize-handle');
       if (!handle) return;
       const tile = handle.closest('.tile');
-      if (!tile || tile.classList.contains('empty')) return;
+      // A page's tile is one cell: no resizing (page-fields.js).
+      if (!tile || tile.classList.contains('empty') || tile.classList.contains('page-field-tile')) return;
       beginTileResize(tab, tile, handle.dataset.resizeDir || 'se', e);
     });
   }
@@ -851,7 +857,7 @@
     document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(tile => {
       const index = parseInt(tile.dataset.index, 10);
       if (isNaN(index) || Number(tile.dataset.type || 0) === 0 ||
-          tile.classList.contains('tile-unplaced')) return;
+          tile.classList.contains('tile-unplaced') || tile.classList.contains('page-field-tile')) return;
       const row = Number(tile.dataset.row);
       const col = Number(tile.dataset.col);
       const safeRow = isNaN(row) ? Number.MAX_SAFE_INTEGER : row;

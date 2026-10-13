@@ -172,7 +172,9 @@
   function syncTileSizePolicy(tab) {
     const typeEl = document.getElementById(tab + '_tile_type');
     if (!typeEl) return;
-    const h = Number(document.getElementById(tab + '_tile_span_h')?.value || 1);
+    // A page's tile is one cell (page-fields.js).
+    const h = typeof selectedPageTile === 'function' && selectedPageTile(tab)
+      ? 1 : Number(document.getElementById(tab + '_tile_span_h')?.value || 1);
     // Half a row high only suits the half-size types.
     const halfHeight = h < 1;
     // A new half-height tile may still take a larger type when it can grow.

@@ -49,7 +49,7 @@
       enableFreeSlotHover(tab);
     });
     enableSettingsHiddenSlot();
-    enablePageSlots();
+    enablePageFields();
     associateFieldLabels();
     fillStaticClockPreviews();
     setInterval(fillStaticClockPreviews, 30000);

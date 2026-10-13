@@ -794,6 +794,8 @@
   function renderTileFromData(tab, index, tile, sensorMeta, forcedSurface) {
     const el = document.getElementById(tab + '-tile-' + index);
     if (!el) return;
+    // A page's folder tile is one cell in its field (page-fields.js).
+    if (typeof pageFieldOfTile === 'function' && pageFieldOfTile(tab, tile)) tile = {...tile, span_w: 1, span_h: 1};
     // The whole tile draws with its surface's rules (tile_surface).
     const surfaceType = String(tile?.type ?? '0');
     const surfaceKind = getTileTypeMeta(surfaceType).preview || '';
@@ -1092,8 +1094,6 @@
       renderTileFromData(tab, index, tile, sensorMeta, 'jewel');
       return;
     }
-    // A page's folder tile: its slot under Home follows (page-slots.js).
-    if (typeof pageTileRendered === 'function') pageTileRendered(tab, index);
   }
 
   function fetchTileGridData(tab, force = false) {

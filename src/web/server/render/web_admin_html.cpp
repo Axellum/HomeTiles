@@ -417,14 +417,6 @@ static bool previewSlotsBeside() {
   return grid_layout::screen_w() <= grid_layout::screen_h();
 }
 
-// Home's page slots lie in a row with Settings right of them under a
-// landscape preview; beside a square or upright one they stand in two
-// columns with Settings below (user 2026-10-12: the S3 like the upright V2;
-// page-slots.js fitPageStack keeps them inside the editor column).
-static bool pageSlotsUnder() {
-  return grid_layout::screen_w() > grid_layout::screen_h();
-}
-
 // Helper function to generate tile tab HTML (unified for all folders)
 static void appendTileTabHTML(
     String& html,
@@ -901,43 +893,35 @@ static void appendTileTabHTML(
     char hidden_color_hex[8];
     snprintf(hidden_color_hex, sizeof(hidden_color_hex), "#%06X",
              static_cast<unsigned>(hidden_color));
-    // The head bar layouts (user 2026-10-12): the five page slots in a box
-    // of their own and the Settings slot in another, one word over each box,
-    // outside it, no sentences. Under a landscape preview both in one row,
-    // smaller alike to the preview's width (admin.css --slot-zoom); beside a
-    // square or upright one the pages in two columns, Settings below.
-    // page-slots.js fills the slots from the Home grid's folder tiles and
-    // saves them through /api/pages. Not a .tile-grid with .tile children:
-    // the editor finds Home's grid and its tiles by those classes.
-    const bool page_slots = grid_layout::head_bar();
-    const int max_pages = static_cast<int>(tile_layouts::kMaxPages);
-    if (page_slots) {
-      html += "<div class=\"settings-hidden-parking page-stack\"><div class=\"page-group\"><div class=\"page-parking-label\">";
-      appendHtmlEscaped(html, tr.pages_title);
-      html += "</div><div class=\"page-parking\" style=\"--slot-cols:";
-      html += String(pageSlotsUnder() ? max_pages : 2);
-      html += "\">";
+    // The head bar layouts (user 2026-10-13, build/design-mockups/pages/
+    // felder-*.png): Home's five page fields and its Settings field are
+    // cells of its grid beside or under the screen, the tiles' size, one
+    // word over the page fields. page-fields.js moves these into the grid
+    // and places them; the holder keeps the page places (/api/pages).
+    const bool page_fields = grid_layout::head_bar();
+    if (page_fields) {
       uint16_t pages[tile_layouts::kMaxPages];
       const size_t count = tile_layouts::page_slots(pages);
-      html += "<div id=\"pageSlots\" class=\"page-slots\" data-pages=\"";
+      html += "<div id=\"pageSlots\" class=\"page-fields\" data-pages=\"";
       for (size_t i = 0; i < count; ++i) {
         if (i) html += ",";
         html += String(pages[i]);
       }
-      html += "\">";
+      html += "\"><div class=\"page-fields-label\">";
+      appendHtmlEscaped(html, tr.pages_title);
+      html += "</div>";
       for (size_t i = 0; i < tile_layouts::kMaxPages; ++i) {
-        html += "<div class=\"page-slot empty\" draggable=\"false\"></div>";
+        html += "<div class=\"page-field\" data-slot=\"" + String(i) + "\"></div>";
       }
-      html += "</div></div></div><div class=\"page-group\"><div class=\"page-parking-label\">";
-      appendHtmlEscaped(html, tr.tile_type_settings);
-      html += "</div><div class=\"page-parking page-settings\">";
     } else {
       html += "<div class=\"settings-hidden-parking\">";
     }
     html += "<div id=\"settingsHiddenSlot\" class=\"tile-grid settings-hidden-slot";
     if (configManager.getConfig().tile_borders) html += " tiles-bordered";
     if (hidden) html += " has-tile";
-    html += "\"><div id=\"settingsHiddenTile\" class=\"tile settings-hidden-tile ";
+    html += "\"";
+    if (page_fields) html += " data-in-grid=\"1\"";
+    html += "><div id=\"settingsHiddenTile\" class=\"tile settings-hidden-tile ";
     html += hidden ? "navigate" : "empty";
     html += "\"";
     html += hidden ? " draggable=\"true\"" : " draggable=\"false\"";
@@ -973,10 +957,9 @@ static void appendTileTabHTML(
       html += "><i class=\"mdi mdi-tray-arrow-down tile-icon\"></i>";
     }
     html += "</div></div>";
-    if (page_slots) html += "</div></div>";
     // The classic layout: beside the slot its drop hint while it is empty,
     // and the tile editing hint the other grids show in their footer.
-    if (!page_slots) {
+    if (!page_fields) {
       html += "<div class=\"settings-parking-texts\"><div id=\"settingsHiddenHint\" class=\"settings-hidden-hint";
       if (hidden) html += " is-hidden";
       html += "\">";
@@ -2336,6 +2319,8 @@ String WebAdminServer::getAdminPage() {
   // Settings slot moves beside them (admin.css .compact-grid; user
   // 2026-10-11: an upright layout "like the square ones").
   if (previewSlotsBeside()) html += " compact-grid";
+  // Home's page fields beside or under the preview (admin.css).
+  if (grid_layout::head_bar()) html += " with-page-fields";
   html += R"html(">
 <div class="card">
 <div class="brand">

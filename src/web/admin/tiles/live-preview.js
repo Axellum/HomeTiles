@@ -24,6 +24,10 @@
     const tileId = tab + '-tile-' + currentTileIndex;
     const tileElem = document.getElementById(tileId);
     if (!tileElem) return;
+    // A page's tile is drawn as one cell in its field; its stored size
+    // stays in the size fields (page-fields.js).
+    const pageTile = tileElem.classList.contains('page-field-tile');
+    const tileSpan = name => pageTile ? 1 : Number(document.getElementById(prefix + '_tile_' + name)?.value || 1);
 
     const wasActive = currentTileTab === tab && currentTileIndex >= 0;
     const typeWas = tileElem.dataset.type || '0';
@@ -35,7 +39,7 @@
     const switchStyle = document.getElementById(prefix + '_switch_style')?.value || '0';
     const isEnergyType = type === '14';
     // Half-height tiles offer only the value sizes that fit.
-    const halfHeight = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1) === 0.5;
+    const halfHeight = tileSpan('span_h') === 0.5;
     for (const id of ['_sensor_value_font', '_binary_sensor_value_font', '_energy_value_font'])
       syncCompactValueFontOptions(document.getElementById(prefix + id), halfHeight);
     for (const kind of ['number', 'select', 'datetime'])
@@ -43,7 +47,7 @@
     if (type === '5') {
       // The state beside the disc takes the half-height sizes, the large
       // state of a tall tile the full-size ones.
-      const spanH = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1);
+      const spanH = tileSpan('span_h');
       syncCompactValueFontOptions(document.getElementById(prefix + '_switch_value_font'),
                                   !switchSensorLook(switchStyle, spanH));
       syncSwitchChoices(tab);
@@ -52,7 +56,7 @@
     if (type === '19' || deviceKind) {
       // Like the Switch: beside the disc the half-height sizes, from 1.5 rows
       // the full-size ones (tile_header.h).
-      const spanH = Number(document.getElementById(prefix + '_tile_span_h')?.value || 1);
+      const spanH = tileSpan('span_h');
       syncCompactValueFontOptions(document.getElementById(prefix + (deviceKind ? '_' + deviceKind : '_cover') +
         '_value_font'), !(spanH > 1));
       syncSwitchChoices(tab);
@@ -161,8 +165,8 @@
       applyTileAriaLabel(tileElem, '', type);
       if (wasActive) tileElem.classList.add('active');
       updateLayoutFromInputs(tab);
-    applyCompactSensorPreview(tileElem, type, {span_w:Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-      span_h:Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)},
+    applyCompactSensorPreview(tileElem, type, {span_w:tileSpan('span_w'),
+      span_h:tileSpan('span_h')},
       document.getElementById(prefix + '_sensor_display_mode')?.value || 0, sensorValueFont);
       return;
     }
@@ -255,10 +259,8 @@
     applyTileAriaLabel(tileElem, displayTitle, type);
 
     if (previewKind === 'climate') {
-      const climateSpanW = document.getElementById(
-        prefix + '_tile_span_w')?.value || 1;
-      const climateSpanH = document.getElementById(
-        prefix + '_tile_span_h')?.value || 1;
+      const climateSpanW = tileSpan('span_w');
+      const climateSpanH = tileSpan('span_h');
       // Layout "with value" and half height: the value pair beside the
       // disc; half height has no mini fields.
       const climateHalf = Number(climateSpanH) === 0.5;
@@ -355,8 +357,8 @@
         document.getElementById(prefix + '_weather_humidity_sensor')?.value || '',
         sensorMetaCache.values, sensorMetaCache.units), {
         col: Number(tileElem.dataset.col || 0),
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-        span_h: Number(document.getElementById(prefix + '_tile_span_h')?.value || 1),
+        span_w: tileSpan('span_w'),
+        span_h: tileSpan('span_h'),
         sensor_display_mode: document.getElementById(prefix + '_weather_colored_icons')?.checked === false ? 1 : 0
       }, iconName, previewIconColor(type, iconRecord, weatherEntity, sensorMetaCache, null, ''));
     }
@@ -364,8 +366,8 @@
       applyMediaPreview(tileElem, parseMediaPreviewPayload(
         mediaEntity ? (sensorMetaCache.mediaValues?.[mediaEntity] ?? '') : ''), {
         sensor_entity: mediaEntity,
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-        span_h: Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)
+        span_w: tileSpan('span_w'),
+        span_h: tileSpan('span_h')
       }, iconName, mediaEntity ? (sensorMetaCache.names?.[mediaEntity] || '') : '');
     }
     if (typeof applyTileRulesTint === 'function' && typeof collectIconColorRecord === 'function' &&
@@ -382,7 +384,7 @@
     if (previewKind === 'camera') {
       applyCameraPicturePreview(tileElem, cameraPictureOptions(tab), halfHeight, {
         col: Number(tileElem.dataset.col || 0),
-        span_w: Number(document.getElementById(prefix + '_tile_span_w')?.value || 1)});
+        span_w: tileSpan('span_w')});
     }
     if (previewKind === 'cover') applyCoverPreview(tileElem, coverPreviewState, halfHeight);
     if (deviceKind) applyDevicePreview(tileElem, deviceKind, devicePreviewState, halfHeight);
@@ -394,8 +396,8 @@
     }
     if (type === '5') updateSwitchValuePreview(tab);
     updateLayoutFromInputs(tab);
-    applyCompactSensorPreview(tileElem, type, {span_w:Number(document.getElementById(prefix + '_tile_span_w')?.value || 1),
-      span_h:Number(document.getElementById(prefix + '_tile_span_h')?.value || 1)},
+    applyCompactSensorPreview(tileElem, type, {span_w:tileSpan('span_w'),
+      span_h:tileSpan('span_h')},
       document.getElementById(prefix + '_sensor_display_mode')?.value || 0, sensorValueFont);
     // The analog and the wall clock place their face once the tile has its
     // size and classes again (updateLayoutFromInputs, applyCompactSensorPreview):
@@ -404,7 +406,7 @@
     // a click on the clock shrank its face into the corner).
     if (previewKind === 'clock' && typeof layoutClockFacePreview === 'function') layoutClockFacePreview(tileElem);
     if (previewKind === 'climate' &&
-        Number(document.getElementById(prefix + '_tile_span_h')?.value || 1) !== 0.5 &&
+        tileSpan('span_h') !== 0.5 &&
         typeof mountClimateMiniEditor === 'function') {
       mountClimateMiniEditor(tab);
       syncClimateSlotFields(tab);

@@ -129,7 +129,7 @@ assert.match(windowJs, /'<div class="setup-foot">',\s*`<div class="setup-pages i
 assert.match(windowJs, /row\.classList\.toggle\('is-off', !LAYOUTS\[layoutWindow\.key\]\.bar \|\| layoutWindow\.tab !== home\);/);
 assert.match(windowJs, /bindLayoutPages\(backdrop\.querySelector\('\.setup-pages'\)\);/);
 assert.match(windowJs, /if \(pageSlots\) pageSlots\.dataset\.pages = encodePageSlots\(state\.savedPageSlots\);/);
-const pageSlots = readRepoFile('src/web/admin/tiles/page-slots.js');
+const pageSlots = readRepoFile('src/web/admin/tiles/page-fields.js');
 assert.match(pageSlots, /if \(typeof layoutWindowOpen === 'function' && layoutWindowOpen\(\)\) \{\s*layoutPageOut\(folder, place\);\s*return;\s*\}/,
   'a page dropped on the window\'s area is not sent to /api/pages');
 assert.match(pageSlots, /function syncPageHeads\(pages = pageFolders\(\)\) \{/);

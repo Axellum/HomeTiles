@@ -749,33 +749,44 @@ void WebAdminServer::handleSaveTiles() {
     tile.background_opacity = kScreensaverDefaultTileOpacity;
   }
 
+  // A page's folder tile has no place on a bar layout's Home: its page sits
+  // beside it (tile_config.cpp applyLayoutPlaces). An edit of it (title,
+  // icon, PIN) keeps it so: not shown on Home, its stored place and size as
+  // they were (user 2026-10-13: a renamed page came back on Home in its old
+  // size, its place written to the layout).
+  const bool page_tile = !classic_places && !screensaver_grid && grid_layout::head_bar() &&
+                         folder_id == TileConfig::rootFolderId() && previous_tile.type == TILE_FOLDER &&
+                         type == TILE_FOLDER && tile_layouts::page_number(getNavigateTargetId(previous_tile)) > 0;
+
   // Parse exact half-cell values without truncating malformed input.
   float col = tile.col, row = tile.row;
   float span_w = tile.span_w > 0 ? tile.span_w : 1;
   float span_h = tile.span_h > 0 ? tile.span_h : 1;
-  auto parse_geometry = [&](const char* name, float& value) {
-    if (!server.hasArg(name)) return true;
-    const String input = server.arg(name);
-    char* end = nullptr;
-    value = strtof(input.c_str(), &end);
-    return end != input.c_str() && *end == '\0' && tile_geometry::half_step(value);
-  };
-  if (!parse_geometry("col", col) || !parse_geometry("row", row) ||
-      !parse_geometry("span_w", span_w) || !parse_geometry("span_h", span_h)) {
-    tile = previous_tile;
-    server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid layout\"}");
-    return;
+  if (!page_tile) {
+    auto parse_geometry = [&](const char* name, float& value) {
+      if (!server.hasArg(name)) return true;
+      const String input = server.arg(name);
+      char* end = nullptr;
+      value = strtof(input.c_str(), &end);
+      return end != input.c_str() && *end == '\0' && tile_geometry::half_step(value);
+    };
+    if (!parse_geometry("col", col) || !parse_geometry("row", row) ||
+        !parse_geometry("span_w", span_w) || !parse_geometry("span_h", span_h)) {
+      tile = previous_tile;
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid layout\"}");
+      return;
+    }
+    clamp_media_tile_layout(static_cast<TileType>(type), col, row, span_w, span_h, g_place_cols, g_place_rows);
+    if ((type != TILE_EMPTY && (!tile_geometry::supported_size(type, col, row, span_w, span_h) ||
+                                col + span_w > g_place_cols || row + span_h > g_place_rows)) ||
+        (screensaver_grid &&
+         row < (screensaver_layout ? screensaver_places::first_row(grid_layout::active()) : GRID_ROWS - 2) - 0.001f)) {
+      tile = previous_tile;
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"Unsupported tile size\"}");
+      return;
+    }
+    tile.col = col; tile.row = row; tile.span_w = span_w; tile.span_h = span_h;
   }
-  clamp_media_tile_layout(static_cast<TileType>(type), col, row, span_w, span_h, g_place_cols, g_place_rows);
-  if ((type != TILE_EMPTY && (!tile_geometry::supported_size(type, col, row, span_w, span_h) ||
-                              col + span_w > g_place_cols || row + span_h > g_place_rows)) ||
-      (screensaver_grid &&
-       row < (screensaver_layout ? screensaver_places::first_row(grid_layout::active()) : GRID_ROWS - 2) - 0.001f)) {
-    tile = previous_tile;
-    server.send(400, "application/json", "{\"success\":false,\"error\":\"Unsupported tile size\"}");
-    return;
-  }
-  tile.col = col; tile.row = row; tile.span_w = span_w; tile.span_h = span_h;
 
   // Type-specific fields
   String error_message;
@@ -825,10 +836,14 @@ void WebAdminServer::handleSaveTiles() {
 
   // An imported tile from the classic storage: no classic place, it takes
   // no room (its stored place is only a valid placeholder).
-  tile.layout_hidden = classic_places && tile.type != TILE_EMPTY && server.arg("layout_hidden") == "1";
+  // A page's tile stays hidden: no place is written for it, it is not drawn
+  // on Home (resolveLayoutPlaces, previewActiveFolderGrid).
+  tile.layout_hidden = page_tile || (classic_places && tile.type != TILE_EMPTY && server.arg("layout_hidden") == "1");
   tile_layouts::Place storage_spot{};
   const bool has_storage_spot = tile.layout_hidden && parseClassicStorageSpot(server.arg("layout_spot"), storage_spot);
-  if (tile.type != TILE_EMPTY) {
+  // A page's stored place may lie outside the shown grid or under a shown
+  // tile: it is not checked (an edit of its title was refused then).
+  if (tile.type != TILE_EMPTY && !page_tile) {
     TileRect rect{};
     if (!buildTileRect(col, row, span_w, span_h, rect)) {
       tile = previous_tile;

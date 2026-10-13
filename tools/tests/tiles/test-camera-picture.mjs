@@ -320,7 +320,7 @@ assert.match(html, /append_switch_choice\(html, tab_id, "camera_tap", tr\.camera
 assert.doesNotMatch(html, /class="hint"|screensaver_picture_hint/, 'no hint text under the options');
 assert.match(readRepoFile('src/types/switch/admin.js'), /'camera_display', 'camera_fit',\s*'camera_head', 'camera_tap'\];/);
 assert.match(readRepoFile('src/web/admin/tiles/live-preview.js'),
-  /applyCameraPicturePreview\(tileElem, cameraPictureOptions\(tab\), halfHeight, \{\s*col: Number\(tileElem\.dataset\.col \|\| 0\),\s*span_w: Number\(document\.getElementById\(prefix \+ '_tile_span_w'\)\?\.value \|\| 1\)\}\);/);
+  /applyCameraPicturePreview\(tileElem, cameraPictureOptions\(tab\), halfHeight, \{\s*col: Number\(tileElem\.dataset\.col \|\| 0\),\s*span_w: tileSpan\('span_w'\)\}\);/);
 assert.match(readRepoFile('src/web/admin/tiles/grid-preview.js'),
   /applyCameraPicturePreview\(el, cameraPictureOptionsOf\(tile\), Number\(tile\.span_h\) === 0\.5, tile\);/);
 assert.match(readRepoFile('src/web/admin/tiles/snapshots.js'),
