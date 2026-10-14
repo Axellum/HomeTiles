@@ -37,9 +37,18 @@ export async function startDocsBrowser(executable, directory) {
       if (message.error) callback.reject(new Error(JSON.stringify(message.error)));
       else callback.resolve(message.result);
     });
+    // A call the browser never answers (a hung or crashed renderer) fails the
+    // test with its name instead of holding the CI job until it is cancelled.
     const send = (method, params = {}) => new Promise((resolve, reject) => {
       const id = ++sequence;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Browser call ${method} got no answer in 30 s`));
+      }, 30000);
+      pending.set(id, {
+        resolve: value => { clearTimeout(timer); resolve(value); },
+        reject: error => { clearTimeout(timer); reject(error); },
+      });
       socket.send(JSON.stringify({ id, method, params }));
     });
     await send("Page.enable");
@@ -61,9 +70,13 @@ export async function startDocsBrowser(executable, directory) {
       },
       async close() {
         socket.close();
+        // A browser that already exited sends no second exit event.
+        if (child.exitCode !== null || child.signalCode !== null) return;
         const exited = new Promise(resolve => child.once("exit", resolve));
         child.kill();
+        const forced = setTimeout(() => child.kill("SIGKILL"), 5000);
         await exited;
+        clearTimeout(forced);
       },
     };
   } catch (error) {
