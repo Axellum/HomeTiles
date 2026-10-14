@@ -17,7 +17,8 @@ const names = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutShown', 'l
   'normalizeLayoutForTileType', 'clampHalf', 'headBarLayout', 'placeCols', 'placeRows', 'layoutTabs', 'layoutSignature',
   'layoutSavedSig', 'layoutDirty', 'layoutMustReach', 'layoutRed', 'loadLayoutWindow', 'saveLayoutWindow', 'refreshLayoutSave',
   'layoutClockFrom', 'layoutClock', 'layoutClockDirty', 'layoutPageSlotsFrom', 'layoutHomeTab', 'layoutHomeFolderIndex',
-  'layoutPagesDirty', 'reconcileLayoutPages', 'layoutPageOut'];
+  'layoutPagesDirty', 'reconcileLayoutPages', 'layoutPageOut', 'layoutParkSettings', 'layoutSettingsParkedFrom',
+  'layoutSettingsIndex', 'layoutSettingsIn', 'layoutSettingsOut', 'layoutWindowSettingsParked'];
 
 const tile = (type, col, row, w, h, view, extra = {}) => ({type, col, row, span_w: w, span_h: h, view_id: view, ...extra});
 // Home: Lighting and MISC are pages, Climate a folder tile; places as the
@@ -39,7 +40,7 @@ function windowContext(extra = {}) {
       portrait: {name: 'Kopfleiste hochkant', cols: 4, rows: 6.5, bar: true, portrait: true, available: true, switchable: true},
     },
     ACTIVE_LAYOUT: 'bar', MEDIA_TILE_TYPE: 15, MEDIA_TILE_MIN_SPAN: 2, MEDIA_TILE_MAX_SPAN: 4, GRID_COLS: 7, GRID_ROWS: 7,
-    tileTabs: ['folder0'], tilesData: {}, currentTileTab: 'folder0', currentTileIndex: -1, sensorMetaCache: {},
+    tileTabs: ['folder0'], tabByFolder: {}, tilesData: {}, currentTileTab: 'folder0', currentTileIndex: -1, sensorMetaCache: {},
     refreshLayoutStatus: () => {}, refreshLayoutButtons: () => {}, mountLayoutTab: async () => {}, useLayoutGrid: () => {},
     markLayoutRed: () => {}, layoutPagesChanged: () => {},
     renderTileFromData: () => {}, layoutTiles: () => {},
@@ -166,7 +167,10 @@ assert.match(save, /if \(pages_changed && grid_layout::active\(\) != grid_layout
 const pagesHandler = server.slice(server.indexOf('void WebAdminServer::handleSavePages() {'));
 assert.match(pagesHandler, /if \(const char\* error = checkPageSlots\(wanted\)\) \{/, 'one check for both ways');
 assert.match(pagesHandler, /const tile_layouts::Place dropped\{server\.arg\("col"\)\.toFloat\(\), server\.arg\("row"\)\.toFloat\(\), 1, 1\};[\s\S]*?if \(!placed\) placed = findFreeShownPlace\(\*home, \*tile, 1, 1, place\);/);
-assert.match(pageSlots, /kind: 'page-slot', folder: Number\(tile\.dataset\.navigateTarget \|\| 0\),\s*layout: \{col: 0, row: 0, span_w: 1, span_h: 1\}/);
+// A page out of its field is one cell; the window's parked Settings tile
+// keeps its own size.
+assert.match(pageSlots, /const own = settings \? getTilesData\('folder0'\)\?\.\[Number\(tile\.dataset\.index\)\] : null;/);
+assert.match(pageSlots, /kind: 'page-slot', folder: Number\(tile\.dataset\.navigateTarget \|\| 0\), settings,\s*layout: \{col: 0, row: 0, span_w: Number\(own\?\.span_w\) \|\| 1, span_h: Number\(own\?\.span_h\) \|\| 1\}/);
 assert.match(pageSlots, /const place = \{col: candidate\.col, row: candidate\.row, span_w: 1, span_h: 1\};/);
 // A new folder goes into a page slot at once: the save tells its tile the
 // folder (user 2026-10-12: only after a few clicks; an autosave draws

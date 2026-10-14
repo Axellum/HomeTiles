@@ -2052,6 +2052,22 @@ static bool find_settings_tile_rect_bottom_right(
   return false;
 }
 
+// The same in a grid with the shown bar layout's places: its cells, and the
+// tiles hidden in that layout take no room.
+static bool settings_tile_rect_is_free_shown(const TileGridConfig& grid, float col, float row,
+                                             float span_w, float span_h) {
+  if (!grid_layout::inside(col, row, span_w, span_h) ||
+      !tile_geometry::supported_size(TILE_SETTINGS, col, row, span_w, span_h)) {
+    return false;
+  }
+  for (const auto& tile : grid.tiles) {
+    float c = 0, r = 0, w = 1, h = 1;
+    if (tile.type == TILE_EMPTY || tile.type == TILE_SETTINGS || !shownTileLayout(tile, c, r, w, h)) continue;
+    if (col < c + w && c < col + span_w && row < r + h && r < row + span_h) return false;
+  }
+  return true;
+}
+
 static void collectFolderSubtree(const std::vector<FolderEntry>& entries, uint16_t parent_id, std::vector<uint16_t>& out) {
   for (const auto& entry : entries) {
     if (entry.parent_id != parent_id) continue;
@@ -2062,7 +2078,7 @@ static void collectFolderSubtree(const std::vector<FolderEntry>& entries, uint16
 }
 
 bool TileConfig::ensureSettingsTile(TileGridConfig& grid, float target_col,
-                                    float target_row) {
+                                    float target_row, bool shown_places) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     const Tile& tile = grid.tiles[i];
     if (tile.type == TILE_SETTINGS) {
@@ -2083,8 +2099,22 @@ bool TileConfig::ensureSettingsTile(TileGridConfig& grid, float target_col,
 
   float col = 0;
   float row = 0;
+  // A grid with a bar layout's places has that layout's cells; the
+  // snapshot's place is a classic one. Taken there it stood in for the
+  // tile's own place in the layout and overwrote it at the save (user
+  // 2026-10-13: dropped in the bottom row in the layout window, shown a row
+  // higher).
+  const bool bar_places = shown_places && grid_layout::active() != grid_layout::Layout::kClassic;
+  tile_layouts::Place kept{};
   const bool explicit_target = target_col >= 0 || target_row >= 0;
-  if (explicit_target) {
+  if (explicit_target && bar_places) {
+    if (target_col < 0 || target_row < 0 ||
+        !settings_tile_rect_is_free_shown(grid, target_col, target_row, span_w, span_h)) {
+      return false;
+    }
+    col = target_col;
+    row = target_row;
+  } else if (explicit_target) {
     if (target_col < 0 || target_row < 0 || target_col >= GRID_COLS ||
         target_row >= GRID_ROWS ||
         !settings_tile_rect_is_free(grid, target_col, target_row, span_w, span_h)) {
@@ -2092,6 +2122,29 @@ bool TileConfig::ensureSettingsTile(TileGridConfig& grid, float target_col,
     }
     col = target_col;
     row = target_row;
+  } else if (bar_places) {
+    // Its own place in the shown layout, kept while it was parked (the
+    // layout window may just have set it), else the first free one from the
+    // bottom right.
+    if (snapshot.valid && snapshot.view_id &&
+        tile_layouts::find(grid_layout::active(), kRootFolderId, snapshot.view_id, kept) &&
+        settings_tile_rect_is_free_shown(grid, kept.col, kept.row, kept.span_w, kept.span_h)) {
+      col = kept.col;
+      row = kept.row;
+      span_w = kept.span_w;
+      span_h = kept.span_h;
+    } else {
+      bool found = false;
+      for (float r = grid_layout::shown_rows() - span_h; !found && r >= 0; r -= 0.5f) {
+        for (float c = grid_layout::shown().cols - span_w; !found && c >= 0; c -= 0.5f) {
+          if (!settings_tile_rect_is_free_shown(grid, c, r, span_w, span_h)) continue;
+          col = c;
+          row = r;
+          found = true;
+        }
+      }
+      if (!found) return false;
+    }
   } else if (snapshot.valid && snapshot.col < GRID_COLS &&
              snapshot.row < GRID_ROWS &&
              settings_tile_rect_is_free(grid, snapshot.col, snapshot.row,
@@ -2129,6 +2182,9 @@ bool TileConfig::ensureSettingsTile(TileGridConfig& grid, float target_col,
   tile.row = row;
   tile.span_w = span_w;
   tile.span_h = span_h;
+  // Its ID from before it was parked: its places in the layouts stay
+  // (tile_layouts.h, user 2026-10-13: parked per layout).
+  tile.view_id = snapshot.valid ? snapshot.view_id : 0;
   return true;
 }
 
@@ -2144,6 +2200,21 @@ bool TileConfig::removeSettingsTiles(TileGridConfig& grid) {
 
 bool TileConfig::applySettingsTilePolicy(TileGridConfig& grid) {
   if (configManager.getConfig().settings_tile_hidden) {
+    // Parked in this layout, shown in the one before (user 2026-10-13: each
+    // layout decides): its look, place and ID go into the snapshot first.
+    bool in_grid = false;
+    for (const Tile& tile : grid.tiles) {
+      if (tile.type != TILE_SETTINGS) continue;
+      in_grid = true;
+      const SettingsTileSnapshot& kept = configManager.getConfig().settings_tile_snapshot;
+      if (kept.valid && tile.view_id && kept.view_id == tile.view_id) break;
+      std::unique_ptr<DeviceConfig> cfg(new (std::nothrow) DeviceConfig(configManager.getConfig()));
+      if (!cfg) break;
+      snapshotSettingsTile(tile, cfg->settings_tile_snapshot);
+      if (!configManager.save(*cfg)) Serial.println("[TileConfig] Parked Settings tile: snapshot not saved");
+      break;
+    }
+    if (!in_grid) giveParkedSettingsTileId();
     return removeSettingsTiles(grid);
   }
   return ensureSettingsTile(grid);
@@ -3052,6 +3123,23 @@ static bool ensureNavigationIds(TileGridConfig& grid, bool& changed) {
   return true;
 }
 
+// Parked before tiles kept their ID in the snapshot (b445): it gets one
+// once, so the layout window shows it in its field and its places in the
+// layouts can be kept (user 2026-10-13: "where is Settings?").
+void TileConfig::giveParkedSettingsTileId() {
+  const SettingsTileSnapshot& kept = configManager.getConfig().settings_tile_snapshot;
+  if (!kept.valid || kept.view_id) return;
+  std::unique_ptr<DeviceConfig> cfg(new (std::nothrow) DeviceConfig(configManager.getConfig()));
+  const uint16_t id = cfg ? reserveNavigationId("tile_next", 1) : 0;
+  if (!id) return;
+  cfg->settings_tile_snapshot.view_id = id;
+  if (configManager.save(*cfg)) {
+    Serial.printf("[TileConfig] Parked Settings tile got ID %u\n", static_cast<unsigned>(id));
+  } else {
+    Serial.println("[TileConfig] Parked Settings tile: ID not saved");
+  }
+}
+
 bool TileConfig::saveFolderGrid(uint16_t folder_id, TileGridConfig& grid) {
   if (!folderExists(folder_id)) return false;
   bool ids_changed = false;
@@ -3623,6 +3711,7 @@ void TileConfig::snapshotSettingsTile(const Tile& tile, SettingsTileSnapshot& ou
   out.row = tile.row;
   out.span_w = tile.span_w < 1 ? 1 : tile.span_w;
   out.span_h = tile.span_h < 0.5f ? 1 : tile.span_h;
+  out.view_id = tile.view_id;
 }
 
 int TileConfig::settingsTileIndex() {
@@ -3643,7 +3732,7 @@ bool TileConfig::previewSettingsTileVisible(bool visible, float target_col,
                                             float target_row) {
   if (active_folder_id != kRootFolderId) return false;
   TileGridConfig& grid = activeGrid();
-  return visible ? ensureSettingsTile(grid, target_col, target_row)
+  return visible ? ensureSettingsTile(grid, target_col, target_row, true)
                  : removeSettingsTiles(grid);
 }
 
@@ -3664,7 +3753,7 @@ SettingsTileVisibilityResult TileConfig::setSettingsTileVisible(
       }
     }
     if (!already_present) {
-      if (!ensureSettingsTile(grid, target_col, target_row)) {
+      if (!ensureSettingsTile(grid, target_col, target_row, true)) {
         return SettingsTileVisibilityResult::NoFreeCell;
       }
       changed = true;
@@ -3702,7 +3791,7 @@ SettingsTileVisibilityResult TileConfig::validateSettingsTileVisible(
       return SettingsTileVisibilityResult::Success;
     }
   }
-  return ensureSettingsTile(grid, target_col, target_row)
+  return ensureSettingsTile(grid, target_col, target_row, true)
              ? SettingsTileVisibilityResult::Success
              : SettingsTileVisibilityResult::NoFreeCell;
 }
@@ -3860,19 +3949,22 @@ static void applyLayoutPlaces(uint16_t folder_id, TileGridConfig& grid) {
 // A free place in the classic layout for a tile made under a bar layout: its
 // own size first, then the smallest its type allows; whole cells before half
 // steps.
+static bool fitsFreeClassicPlace(const std::vector<uint8_t>& occupied, const Tile& tile, float col, float row,
+                                 float w, float h) {
+  const int cols2 = GRID_COLS * 2;
+  if (col < 0 || row < 0 || col + w > GRID_COLS || row + h > GRID_ROWS) return false;
+  if (!tile_geometry::supported(tile.type, col, row, w, h)) return false;
+  for (int r = static_cast<int>(row * 2); r < static_cast<int>((row + h) * 2); ++r) {
+    for (int c = static_cast<int>(col * 2); c < static_cast<int>((col + w) * 2); ++c) {
+      if (occupied[r * cols2 + c]) return false;
+    }
+  }
+  return true;
+}
+
 static bool findFreeClassicPlace(const std::vector<uint8_t>& occupied, const Tile& tile,
                                  tile_layouts::Place& out) {
-  const int cols2 = GRID_COLS * 2;
-  auto fits = [&](float col, float row, float w, float h) {
-    if (col + w > GRID_COLS || row + h > GRID_ROWS) return false;
-    if (!tile_geometry::supported(tile.type, col, row, w, h)) return false;
-    for (int r = static_cast<int>(row * 2); r < static_cast<int>((row + h) * 2); ++r) {
-      for (int c = static_cast<int>(col * 2); c < static_cast<int>((col + w) * 2); ++c) {
-        if (occupied[r * cols2 + c]) return false;
-      }
-    }
-    return true;
-  };
+  auto fits = [&](float col, float row, float w, float h) { return fitsFreeClassicPlace(occupied, tile, col, row, w, h); };
   const float sizes[][2] = {{tile.span_w, tile.span_h}, {1, 1}, {1, 0.5f}};
   for (const auto& size : sizes) {
     for (float step : {1.0f, 0.5f}) {
@@ -3902,6 +3994,14 @@ static void resolveLayoutPlaces(uint16_t folder_id, TileGridConfig& grid, bool c
     const Tile& tile = grid.tiles[i];
     classic[i] = {tile.col, tile.row, tile.span_w, tile.span_h};
     if (tile.type != TILE_EMPTY && tile.view_id) views.push_back(tile.view_id);
+  }
+  // The Settings tile parked off Home keeps its places in the layouts that
+  // show it (user 2026-10-13: parked per layout), and no new tile in its
+  // slot takes them over.
+  if (folder_id == TileConfig::rootFolderId() &&
+      std::none_of(grid.tiles, grid.tiles + TILES_PER_GRID, [](const Tile& tile) { return tile.type == TILE_SETTINGS; })) {
+    const SettingsTileSnapshot& kept = configManager.getConfig().settings_tile_snapshot;
+    if (kept.valid && kept.view_id) views.push_back(kept.view_id);
   }
   if (active == Layout::kClassic && !tile_layouts::has_any(folder_id)) return;
 
@@ -3972,11 +4072,17 @@ static void resolveLayoutPlaces(uint16_t folder_id, TileGridConfig& grid, bool c
   }
   // Made under a bar layout: the first free classic place, else none (the
   // Layout window shows it red there).
+  const SettingsTileSnapshot& parked = configManager.getConfig().settings_tile_snapshot;
   for (size_t i = 0; active != Layout::kClassic && i < TILES_PER_GRID; ++i) {
     const Tile& tile = grid.tiles[i];
     if (tile.type == TILE_EMPTY || !tile.view_id || source[i] >= 0) continue;
     tile_layouts::Place place{};
-    const bool free = findFreeClassicPlace(occupied, tile, place);
+    // Settings back from parking keeps its classic place from before (its
+    // snapshot) while that is free.
+    const bool own = tile.type == TILE_SETTINGS && parked.valid && parked.view_id == tile.view_id &&
+                     fitsFreeClassicPlace(occupied, tile, parked.col, parked.row, parked.span_w, parked.span_h);
+    if (own) place = {parked.col, parked.row, parked.span_w, parked.span_h};
+    const bool free = own || findFreeClassicPlace(occupied, tile, place);
     tile_layouts::set_classic_hidden(folder_id, tile.view_id, !free);
     classic[i] = free ? place : tile_layouts::Place{0, 0, 1, 1};
     if (free) occupy(place);

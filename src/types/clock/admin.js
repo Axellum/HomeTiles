@@ -604,6 +604,10 @@ function getClockPreviewLanguage() {
     if (tileElem?.classList?.contains('clock')) observeClockTile(tileElem);
     const face = tileElem?.querySelector(':scope > .tile-clock-face');
     if (!face) return;
+    // On a page not shown (another tab, Settings) the tile measures 0 x 0 and
+    // the face came out negative (console: viewBox "0 0 -32 -32"); the resize
+    // observer lays it out once the page shows.
+    if (!tileElem.offsetWidth || !tileElem.offsetHeight) return;
     const options = clockDateOptions(face.dataset.options);
     // The tile's alignment (0 centered, 1 left, 2 right): the live editor
     // keeps it on the tile (its face options leave it out).

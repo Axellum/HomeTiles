@@ -63,6 +63,9 @@ assert.match(page, /section\(page, s\.settings_screensaver, false\)/);
 // Quarter turns on panels that support them, else normal and flipped (the
 // setup's first step shares the segment).
 assert.match(page, /g_rotation_segment = rotation_segment\(rotation\.row, palette\.group\);/);
+// The look below the rotation (user 2026-10-14): Dark, Light, Automatic as
+// stored, like the Web Admin's Design.
+assert.match(page, /g_rotation_segment = rotation_segment\(rotation\.row, palette\.group\);[\s\S]{0,400}settings_parts::Row design = settings_parts::row\(screen,\s+, s\.theme_label\);\s*const char\* const themes\[\] = \{s\.theme_dark, s\.theme_light, s\.theme_auto\};\s*settings_parts::segment\(design\.row, themes, 3, settings_model::theme_choice\(\), palette\.group,\s*\[\]\(lv_obj_t\*, uint8_t index\) \{ settings_model::theme_selected\(index\); \}\);/);
 const rotation = between(screen, 'lv_obj_t* rotation_segment(lv_obj_t* row, uint32_t track) {', 'const char* locale_title(');
 assert.match(rotation, /if \(settings_model::quarter_turns\(\)\) \{[\s\S]*?kQuarterTurns, 4,[\s\S]*?\}[\s\S]*?kFlip, 2,/);
 // The slider track is the control fill computed for the "From icon" card,

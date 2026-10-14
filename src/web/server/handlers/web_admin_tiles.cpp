@@ -812,6 +812,11 @@ void WebAdminServer::handleSaveTiles() {
       return;
     }
   }
+  // A folder tile's title and icon name its folder (navigate/web_handler.cpp
+  // updateFolder): the heads showing it are built again below.
+  const bool folder_renamed = !screensaver_grid && tile.type == TILE_FOLDER &&
+                              (previous_tile.type != TILE_FOLDER || previous_tile.title != tile.title ||
+                               previous_tile.icon_name != tile.icon_name);
   if (screensaver_grid && tile.type == TILE_SENSOR) {
     // Sensor history is not routed into the screensaver widget context.
     // Enforce the plain value mode for old imports and direct API callers too.
@@ -939,11 +944,22 @@ void WebAdminServer::handleSaveTiles() {
           !(display_awake && tiles_show_active_layout_now())) {
         tiles_request_reload_if_loaded(GridType::TAB0);
       }
+      // The renamed folder's page (shown or prepared) keeps its built head:
+      // every head again at once (user 2026-10-14: the shown PV page kept
+      // "PV" after the rename to PV1, the pages' overview had it).
+      if (folder_renamed) tiles_rebuild_heads(display_awake);
     } else if (!shown_before_save) {
       image_screensaver_tiles_changed();
     }
 
     String response = "{\"success\":true";
+    // The tile's stable ID, given here to a new tile: the editor's data takes
+    // it at once (user 2026-10-13: a new folder showed red in the layout
+    // window's storage, its places were looked up without its ID).
+    if (saved_grid.tiles[index].type != TILE_EMPTY) {
+      response += ",\"view_id\":";
+      response += String(saved_grid.tiles[index].view_id);
+    }
     if (tile.type == TILE_FOLDER) {
       response += ",\"navigate_target\":";
       response += String(getNavigateTargetId(tile));
@@ -1556,6 +1572,25 @@ void WebAdminServer::handleGetLayouts() {
     json += "\":[" + String(clock.x) + "," + String(clock.y) + "," + String(clock.time_size) + "," +
             String(clock.date_size) + "]";
   }
+  // Where Settings is parked (user 2026-10-13: each layout decides), and the
+  // parked tile while it is off Home: the window shows it in the other
+  // layouts with its ID, so its places there stay.
+  const DeviceConfig& cfg = configManager.getConfig();
+  json += "},\"settings\":{\"parked\":[";
+  for (uint8_t i = 0; i < grid_layout::kLayoutCount; ++i) {
+    if (i) json += ",";
+    json += (cfg.settings_parked >> i) & 1 ? "true" : "false";
+  }
+  json += "]";
+  const SettingsTileSnapshot& kept = cfg.settings_tile_snapshot;
+  if (kept.valid && kept.view_id && tileConfig.settingsTileIndex() < 0) {
+    json += ",\"tile\":{\"type\":7,\"view_id\":" + String(kept.view_id) + ",\"title\":\"";
+    appendJsonEscaped(json, String(kept.title));
+    json += "\",\"icon_name\":\"";
+    appendJsonEscaped(json, String(kept.icon_name[0] ? kept.icon_name : "cog"));
+    json += "\",\"bg_color\":" + String(kept.bg_color) + ",\"col\":" + String(kept.col) + ",\"row\":" +
+            String(kept.row) + ",\"span_w\":" + String(kept.span_w) + ",\"span_h\":" + String(kept.span_h) + "}";
+  }
   json += "}}";
   sendChunkedResponse(server, 200, "application/json", json);
 }
@@ -1748,10 +1783,35 @@ void WebAdminServer::handleSaveLayouts() {
   const bool pages_changed = pages_sent && !std::equal(pages.begin(), pages.end(), before, before + before_count);
   JsonObjectConst folders = doc["folders"].as<JsonObjectConst>();
   std::vector<LayoutPlace> places;
+  // Settings parked per layout (user 2026-10-13: each layout decides): this
+  // layout's choice, and the tile parked off Home in the layout the panel
+  // shows, which takes part with its kept ID (its places in the others).
+  JsonVariantConst settings_parked_sent = doc["settings_parked"];
+  const SettingsTileSnapshot& kept_settings = configManager.getConfig().settings_tile_snapshot;
+  const uint16_t parked_settings_view =
+      kept_settings.valid && kept_settings.view_id && tileConfig.settingsTileIndex() < 0 ? kept_settings.view_id : 0;
+  bool parked_settings_classic = false;
+  tile_layouts::Place parked_settings_place{};
   // A folder's classic grid, or the screensaver's with its slot keys as IDs
   // (screensaver_places.h).
   auto load = [&](uint16_t folder_id) {
-    if (folder_id != screensaver_places::kFolder) return tileConfig.loadFolderGridClassic(folder_id, *grid);
+    if (folder_id != screensaver_places::kFolder) {
+      if (!tileConfig.loadFolderGridClassic(folder_id, *grid)) return false;
+      if (folder_id == TileConfig::rootFolderId() && parked_settings_view) {
+        for (Tile& tile : grid->tiles) {
+          if (tile.type != TILE_EMPTY) continue;
+          tile = Tile();
+          tile.type = TILE_SETTINGS;
+          tile.view_id = parked_settings_view;
+          tile.col = kept_settings.col;
+          tile.row = kept_settings.row;
+          tile.span_w = kept_settings.span_w;
+          tile.span_h = kept_settings.span_h;
+          break;
+        }
+      }
+      return true;
+    }
     *grid = screensaverConfig.tileGrid();
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       grid->tiles[i].view_id = grid->tiles[i].type == TILE_EMPTY ? 0 : screensaver_places::key(i);
@@ -1874,12 +1934,25 @@ void WebAdminServer::handleSaveLayouts() {
         tile_layouts::set(grid_layout::Layout::kClassic, folder_id, tile.view_id, entry->place);
         continue;
       }
+      // Settings parked in this layout keeps its classic place (it is no
+      // tile of the storage).
+      if (tile.type == TILE_SETTINGS && entry == places.end()) continue;
       tile_layouts::set_classic_hidden(folder_id, tile.view_id, entry == places.end());
       if (entry == places.end()) continue;
       tile.col = entry->place.col;
       tile.row = entry->place.row;
       tile.span_w = entry->place.span_w;
       tile.span_h = entry->place.span_h;
+    }
+    // The tile parked off Home: its classic place goes with it (its
+    // snapshot), the grid stays without it.
+    if (folder_id == home_id && parked_settings_view) {
+      for (Tile& tile : grid->tiles) {
+        if (tile.type != TILE_SETTINGS || tile.view_id != parked_settings_view) continue;
+        parked_settings_classic = true;
+        parked_settings_place = {tile.col, tile.row, tile.span_w, tile.span_h};
+        tile = Tile();
+      }
     }
     if (screensaver) {
       // Its tiles have no IDs of their own.
@@ -1898,10 +1971,45 @@ void WebAdminServer::handleSaveLayouts() {
         static_cast<uint8_t>(constrain(clock[3].as<int>(), 0, 255)), true};
     ok = screensaverConfig.setClockPlace(layout, place) && ok;
   }
+  // This layout's Settings parking; in the layout the panel shows the tile
+  // leaves Home or comes back at once, like the editor's parking slot.
+  bool settings_visibility_changed = false;
+  if (ok && (!settings_parked_sent.isNull() || parked_settings_classic)) {
+    std::unique_ptr<DeviceConfig> cfg(new (std::nothrow) DeviceConfig(configManager.getConfig()));
+    if (!cfg) {
+      sendJsonError(server, 500, "No memory");
+      return;
+    }
+    if (parked_settings_classic && cfg->settings_tile_snapshot.valid) {
+      cfg->settings_tile_snapshot.col = parked_settings_place.col;
+      cfg->settings_tile_snapshot.row = parked_settings_place.row;
+      cfg->settings_tile_snapshot.span_w = parked_settings_place.span_w;
+      cfg->settings_tile_snapshot.span_h = parked_settings_place.span_h;
+    }
+    if (!settings_parked_sent.isNull()) {
+      const bool parked = settings_parked_sent.as<bool>();
+      const uint8_t bit = static_cast<uint8_t>(1u << static_cast<uint8_t>(layout));
+      cfg->settings_parked = parked ? static_cast<uint8_t>(cfg->settings_parked | bit)
+                                    : static_cast<uint8_t>(cfg->settings_parked & ~bit);
+      if (layout == grid_layout::active() && parked != cfg->settings_tile_hidden) {
+        settings_visibility_changed = true;
+        Tile shown{};
+        if (parked && tileConfig.getSettingsTile(shown)) TileConfig::snapshotSettingsTile(shown, cfg->settings_tile_snapshot);
+        cfg->settings_tile_hidden = parked;
+        // Parked: the swipe stays as the way to Settings.
+        if (parked) cfg->settings_swipe_enabled = true;
+      }
+    }
+    ok = configManager.save(*cfg);
+    if (ok && settings_visibility_changed) {
+      ok = tileConfig.setSettingsTileVisible(!cfg->settings_tile_hidden) == SettingsTileVisibilityResult::Success;
+    }
+  }
   if (!ok) {
     sendJsonError(server, 500, "Save failed");
     return;
   }
+  if (settings_visibility_changed) tiles_invalidate_folder(home_id);
   // New pages on a bar layout the panel shows: every prepared grid's head
   // gets its dots, gear or X, Home's tiles change (handleSavePages).
   if (pages_changed && grid_layout::active() != grid_layout::Layout::kClassic) {

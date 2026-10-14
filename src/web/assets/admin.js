@@ -32,6 +32,7 @@ function t(key) {
       if (!response.ok) return;
       const data = await response.json();
       applyPanelClockFormats(Number(data?.time_format), Number(data?.date_format));
+      if (typeof applyPanelThemeFromDevice === 'function') applyPanelThemeFromDevice(data?.theme, data?.theme_shown);
       const device = String(data?.language || '').toLowerCase();
       const page = String(document.documentElement.lang || APP_LOCALE).toLowerCase();
       if (device && device !== page && !adminEditsPending()) location.reload();
@@ -114,6 +115,29 @@ function t(key) {
     }
   }
 
+// The head bar's time and the pages' overview on its dots (Global tab
+// "Kopfleiste", every grid page's copy kept in step), saved at once.
+async function saveHeadSwitch(part, enabled) {
+  const show = value => {
+    document.querySelectorAll('.head-bar-' + part).forEach(box => { box.checked = value; });
+    if (part === 'clock') {
+      document.querySelectorAll('.head-bar-preview .head-time').forEach(time => time.classList.toggle('is-off', !value));
+    }
+  };
+  show(!!enabled);
+  try {
+    const response = await fetch('/api/display/head', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'part=' + encodeURIComponent(part) + '&enabled=' + (enabled ? '1' : '0')
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+  } catch (error) {
+    show(!enabled);
+    showNotification(t('networkErrorSave'), false);
+  }
+}
+
 // The gear in Home's head with a bar layout (a Settings tile option): saved
 // at once, the preview's head follows.
 async function saveHeadGear(enabled) {
@@ -134,6 +158,67 @@ async function saveHeadGear(enabled) {
     showNotification(t('networkErrorSave'), false);
   }
 }
+
+// Home's own title and icon in its head (the head bar tab, user 2026-10-13):
+// Auto is "Home" in the panel's language and the house, stored empty. Every
+// grid page's copy and Home's head previews follow; the title is saved after
+// a short pause, an icon at once.
+let homeHeadSaveTimer = 0;
+function homeHeadState(tab) {
+  const autoTitle = document.getElementById(tab + '_head_tile_title_auto')?.dataset.autoTitle || '';
+  const typed = String(document.getElementById(tab + '_head_tile_title')?.value || '').replace(/\s+/g, ' ').trim();
+  const title = typed === autoTitle ? '' : typed;
+  const icon = normalizeMdiIconName(String(document.getElementById(tab + '_head_tile_icon')?.value || ''));
+  return {title, icon, shownTitle: title || autoTitle, shownIcon: icon || 'home'};
+}
+function showHomeHead(state, tab) {
+  document.querySelectorAll('textarea.home-head-title').forEach(field => {
+    if (field.id !== tab + '_head_tile_title' && field.value !== state.shownTitle) field.value = state.shownTitle;
+  });
+  document.querySelectorAll('input.home-head-icon').forEach(field => {
+    if (field.value !== state.icon) field.value = state.icon;
+  });
+  document.querySelectorAll('.head-bar-preview.home-head').forEach(head => {
+    const title = head.querySelector('.head-title');
+    if (title) title.textContent = state.shownTitle;
+    const icon = head.querySelector('.head-disc > i');
+    if (icon) icon.className = 'mdi mdi-' + state.shownIcon;
+  });
+}
+async function saveHomeHead(state) {
+  try {
+    const response = await fetch('/api/display/home-head', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'title=' + encodeURIComponent(state.title) + '&icon=' + encodeURIComponent(state.icon)
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+  } catch (error) {
+    showNotification(t('networkErrorSave'), false);
+  }
+}
+document.addEventListener('input', event => {
+  const field = event.target;
+  const title = field?.classList?.contains('home-head-title');
+  if (!title && !field?.classList?.contains('home-head-icon')) return;
+  // One line: a pasted line break becomes a space.
+  if (title && field.value.includes('\n')) field.value = field.value.replace(/\s*\n\s*/g, ' ');
+  const tab = field.id.replace(/_head_tile_(title|icon)$/, '');
+  const state = homeHeadState(tab);
+  showHomeHead(state, tab);
+  clearTimeout(homeHeadSaveTimer);
+  homeHeadSaveTimer = setTimeout(() => saveHomeHead(state), title ? 600 : 0);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target?.classList?.contains('home-head-title')) event.preventDefault();
+});
+// An emptied title shows Auto's name again when the field is left.
+document.addEventListener('change', event => {
+  const field = event.target;
+  if (!field?.classList?.contains('home-head-title')) return;
+  const shown = homeHeadState(field.id.replace(/_head_tile_title$/, '')).shownTitle;
+  if (field.value !== shown) field.value = shown;
+});
 
 // A layout (grid_layout.h) is read at boot: the layout window restarts the
 // panel after choosing one.
@@ -180,6 +265,7 @@ function currentIconGlow() {
 // field shows the saved choice.
 let themeSaveSequence = 0;
 let themeChosen = null;
+let themeSaveBusy = 0;
 // The preview follows the theme at once: the roles (--pv-*) switch with
 // html[data-panel-theme], and what the script computes from them (circles,
 // tints, readable icons, bars, the head circle) is computed again.
@@ -229,6 +315,7 @@ async function saveTheme(value) {
   showThemeChoice(theme);
   if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
+  ++themeSaveBusy;
   try {
     const response = await fetch('/api/display/theme', {
       method: 'POST',
@@ -246,7 +333,23 @@ async function saveTheme(value) {
     showThemeChoice(previous);
     if (previousShown !== shownPanelTheme()) applyPanelThemePreview(previousShown);
     showNotification(t('networkErrorSave'), false);
+  } finally {
+    --themeSaveBusy;
   }
+}
+// A design chosen on the panel (Settings > Display, the setup) or Automatic
+// turning at dusk (user 2026-10-14: the page kept the old one): the poll
+// (localization.js) brings the stored choice and the shown look, the fields
+// and the previews follow. Not while this page saves one itself.
+function applyPanelThemeFromDevice(stored, shown) {
+  const theme = String(stored);
+  if (themeSaveBusy || !['0', '1', '2'].includes(theme)) return;
+  if (document.querySelector('.global-theme [data-theme].active')?.dataset.theme !== theme) {
+    themeChosen = theme;
+    showThemeChoice(theme);
+  }
+  const look = String(shown) === '1' ? '1' : '0';
+  if (look !== shownPanelTheme()) applyPanelThemePreview(look);
 }
 function syncGlobalDisplayControls(tabEl) {
   if (themeChosen !== null) showThemeChoice(themeChosen, tabEl);
@@ -741,6 +844,7 @@ async function saveGestureEdge(select) {
     tile.dataset.spanW = String(snapshot.span_w || 1);
     tile.dataset.spanH = String(snapshot.span_h || 1);
     tile.innerHTML = '';
+    tile.style.removeProperty('--tile-border-tint');
     if (!hidden) {
       tile.style.background = 'transparent';
       const icon = document.createElement('i');
@@ -752,6 +856,9 @@ async function saveGestureEdge(select) {
       ? tileBackgroundCss(getTileTypeMeta('7'), true,
           getTileTypeMeta('7').defaultBg || '#2A2A2A')
       : snapshot.color;
+    // Its frame line from its card like every tile's (grid-preview.js): it
+    // showed the bright fallback line in its field (user 2026-10-14).
+    if (typeof applyFrameLine === 'function') applyFrameLine(tile);
     // The Settings PIN shows its lock here too (previewTileLocked); without
     // an icon the lock is the icon.
     const locked = typeof previewTileLocked === 'function' && previewTileLocked('7', tile);
@@ -3645,6 +3752,12 @@ async function saveGestureEdge(select) {
     return entity && entity.value && typeof entityPickerName === 'function' ? entityPickerName(entity) : '';
   }
 
+  // The name Auto puts in: the entity's, or a fixed one (Home's head title:
+  // "Home" in the panel's language, data-auto-title).
+  function tileAutoTitle(tab) {
+    return document.getElementById(tab + '_tile_title_auto')?.dataset.autoTitle || tileEntityName(tab);
+  }
+
   // Auto lights while the title is the entity's name: choosing an entity or
   // the switch puts the name in, typing turns it off. The title stays a plain
   // stored title, so nothing new is saved.
@@ -3652,7 +3765,7 @@ async function saveGestureEdge(select) {
     const button = document.getElementById(tab + '_tile_title_auto');
     const title = document.getElementById(tab + '_tile_title');
     if (!button || !title) return;
-    const name = tileEntityName(tab);
+    const name = tileAutoTitle(tab);
     const on = !!name && title.value === normalizeTileTitle(name);
     button.classList.toggle('on', on);
     button.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -3664,6 +3777,9 @@ async function saveGestureEdge(select) {
   // The icon the tile shows without a choice of its own: its entity's icon,
   // else the icon its preview draws (type defaults such as a folder).
   function tileAutomaticIcon(tab) {
+    // A fixed one (Home's head: the house, data-auto-icon).
+    const fixed = document.getElementById(tab + '_tile_icon')?.dataset.autoIcon;
+    if (fixed) return fixed;
     const entity = document.querySelector('#' + tab + '_tile_entity_slot input[data-entity-picker]');
     const entry = entity && entity.value && typeof entityPickerEntryFor === 'function'
       ? entityPickerEntryFor(entity, entity.value) : null;
@@ -3765,9 +3881,11 @@ async function saveGestureEdge(select) {
       value + '"><span class="entity-picker-icon"><i class="mdi mdi-' + escapeHtml(icon) + '"></i></span>' +
       '<span class="entity-picker-text"><span class="entity-picker-name">' + escapeHtml(name) + '</span>' +
       '<span class="entity-picker-context">' + escapeHtml(hint) + '</span></span></button>';
-    let html = open.query ? '' : '<div class="icon-picker-choices">' +
-      choice('', tileAutomaticIcon(open.tab), t('iconPickerAuto'), t('iconPickerAutoHint')) +
-      choice('none', 'cancel', t('iconPickerNone'), t('iconPickerNoneHint')) + '</div>';
+    // Home's head always shows its circle: no "No icon" there.
+    const none = document.getElementById(open.tab + '_tile_icon')?.dataset.autoIcon
+      ? '' : choice('none', 'cancel', t('iconPickerNone'), t('iconPickerNoneHint'));
+    let html = open.query ? '' : '<div class="icon-picker-choices' + (none ? '' : ' single') + '">' +
+      choice('', tileAutomaticIcon(open.tab), t('iconPickerAuto'), t('iconPickerAutoHint')) + none + '</div>';
     if (open.state === 'loading') {
       html += '<div class="entity-picker-loading"><div></div><div></div><div></div></div>';
     } else if (open.state === 'failed') {
@@ -3917,7 +4035,7 @@ async function saveGestureEdge(select) {
       // Off: the entity's name comes back like typed (preview, draft, save).
       const tab = tileHeadTab(auto);
       const title = document.getElementById(tab + '_tile_title');
-      const name = tileEntityName(tab);
+      const name = tileAutoTitle(tab);
       if (title && name && !auto.classList.contains('on')) {
         title.value = normalizeTileTitle(name);
         title.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5801,6 +5919,16 @@ async function saveGestureEdge(select) {
       }
       return true;
     }
+    // A known folder whose page is not loaded yet: its tab takes the name
+    // and icon at once, its page loads (fresh) when it is opened. Loading it
+    // here held the tab back until the panel had built the page.
+    if ((name !== null || icon !== null) && !folderTabLoadPromises[folderNum] &&
+        document.querySelector('.folder-tab-btn[data-folder-id="' + folderNum + '"]')) {
+      updateFolderTabUi(folderNum, name || '', icon || '');
+      ensureNavigateTargetOption(folderNum, formatFolderLabel(name, folderNum));
+      forgetFolderTabSessionFragment(folderNum);
+      return true;
+    }
     if (folderTabLoadPromises[folderNum]) {
       return folderTabLoadPromises[folderNum];
     }
@@ -6584,7 +6712,10 @@ async function saveGestureEdge(select) {
     const selectedIsEmpty =
       String(document.getElementById(tab + '_tile_type')?.value ?? '0') === '0';
     grid.querySelectorAll(':scope > .tile[data-index]').forEach(el => {
-      if (el === freeEl || el.style.display === 'none') return;
+      // A page's tile stands in its field: its stored place takes no room
+      // (page-fields.js; user 2026-10-13: the pages' old places blocked the
+      // free slot, only half cells were left).
+      if (el === freeEl || el.style.display === 'none' || el.classList.contains('page-field-tile')) return;
       if (Number(el.dataset.type || 0) === 0 &&
           (el.dataset.selected !== '1' || selectedIsEmpty)) return;
       const layout = getTileElementLayout(tab, parseInt(el.dataset.index, 10));
@@ -7447,14 +7578,15 @@ async function saveGestureEdge(select) {
   }
 
   // The settings panel's tabs (web_admin_html.cpp): "Tile" shows the selected
-  // tile's settings, "Global" the global tile settings; the screensaver page
+  // tile's settings, "Head bar" Home's title, icon and the head's options
+  // (bar layouts), "Global" the global tile settings; the screensaver page
   // has "Tile", "Slideshow" (its picture settings, pane "global") and
   // "Global" (its tile options and design, pane "options"). Selecting a tile
   // shows its settings again; the panel's data-pane picks what admin.css
   // shows.
   function setSettingsPane(tab, pane) {
     const panel = document.getElementById(tab + 'Settings');
-    if (panel) panel.dataset.pane = pane === 'tile' || pane === 'options' ? pane : 'global';
+    if (panel) panel.dataset.pane = ['tile', 'options', 'head'].includes(pane) ? pane : 'global';
   }
 
   function showSettingsPane(tab, pane) {
@@ -7945,6 +8077,14 @@ async function saveGestureEdge(select) {
     }
     // The automatic icon of the head follows what the preview draws.
     if (typeof renderTileIconButton === 'function') renderTileIconButton(tab);
+    // A folder's tab and its page's head follow its tile's title and icon
+    // while typing (the panel names the folder after its tile; user
+    // 2026-10-14: they waited for the save, a folder not opened yet even for
+    // its page from the panel).
+    if (type === '4' && typeof updateFolderTabUi === 'function') {
+      const folder = Number(document.getElementById(prefix + '_navigate_target')?.value || tileElem.dataset.navigateTarget || 0);
+      if (folder > 0) updateFolderTabUi(folder, title.replace(/\s*\n\s*/g, ' '), iconInput?.value || '');
+    }
     } finally {
       globalThis.hometilesPreviewSurface = surfaceSaved;
     }
@@ -8364,6 +8504,12 @@ async function saveGestureEdge(select) {
         if (!isLatestSaveRequest(tab, tileIndex, requestId)) return;
         if (data.success) {
           if (!silent) showNotification(t('tileSaved'));
+          // A new tile's stable ID from the panel: its places are kept by it
+          // (the layout window looked a new folder's up without it).
+          if (data.view_id !== undefined && tilesData[tab] && tilesData[tab][tileIndex] &&
+              Number(tilesData[tab][tileIndex].type || 0) !== 0) {
+            tilesData[tab][tileIndex].view_id = Number(data.view_id) || 0;
+          }
           const currentDraft = drafts[tab] && drafts[tab][tileIndex];
           if (currentDraft && currentDraft._dirty && Number(currentDraft._rev || 0) !== draftRev) {
             queueSaveAfterFlight(tab, tileIndex, true);
@@ -10932,7 +11078,7 @@ async function saveGestureEdge(select) {
     document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(tile => {
       const index = Number(tile.dataset.index);
       if (!Number.isInteger(index) || Number(tile.dataset.type || 0) === 0 ||
-          tile.classList.contains('tile-unplaced')) return;
+          tile.classList.contains('tile-unplaced') || tile.classList.contains('page-field-tile')) return;
       const layout = getTileElementLayout(tab, index);
       if (!layout) return;
       layouts[index] = layout;
@@ -11579,6 +11725,23 @@ async function saveGestureEdge(select) {
     });
   }
 
+  // Chrome keeps :hover where a drag started until the pointer moves again:
+  // the tile or free slot that lands there after the drop showed its dashed
+  // hover ring at the dragged tile's old place (user 2026-10-13). The rings
+  // wait for the pointer's next real move or press (admin.css).
+  document.addEventListener('dragend', event => {
+    const x = event.clientX, y = event.clientY;
+    document.body.classList.add('tile-hover-stale');
+    const settle = next => {
+      if (next.type === 'pointermove' && Math.abs(next.clientX - x) < 3 && Math.abs(next.clientY - y) < 3) return;
+      document.body.classList.remove('tile-hover-stale');
+      document.removeEventListener('pointermove', settle, true);
+      document.removeEventListener('pointerdown', settle, true);
+    };
+    document.addEventListener('pointermove', settle, true);
+    document.addEventListener('pointerdown', settle, true);
+  }, true);
+
   function enableTileDrag(tab) {
     const grid = getTileGrid(tab);
     const tiles = grid ? grid.querySelectorAll(':scope > .tile') : [];
@@ -12011,17 +12174,25 @@ async function saveGestureEdge(select) {
     return tile ? Number(tile.dataset.index) : -1;
   }
 
-  // The layout window shows the fields too (user 2026-10-13), on Home in its
-  // bar layouts, its own pages, without the Settings field (parking is one
-  // for every layout and takes effect at once: no part of a layout).
+  // The layout window shows the fields too (user 2026-10-13), on Home: in its
+  // bar layouts its own pages, in every layout the Settings field, as
+  // Settings is parked per layout (stored with the places, layout-window.js).
   function pageFieldsInWindow() {
     return typeof layoutWindowOpen === 'function' && layoutWindowOpen();
   }
 
-  // The fields show in Home's grid of a head bar layout.
+  // The fields show in Home's grid of a head bar layout; in the layout window
+  // only while it holds Home's grid (behind it the page keeps its own).
   function pageFieldsShown() {
     if (!pageSlotsElement()) return false;
-    return pageFieldsInWindow() ? layoutWindowShowsPages() : headBarLayout();
+    if (!pageFieldsInWindow()) return headBarLayout();
+    return layoutWindowShowsFields() && !!getTileGrid('folder0')?.classList.contains('setup-grid');
+  }
+
+  // The page fields themselves: the window's classic layout has the
+  // Settings field only (pages need the head bar).
+  function pageSlotsShown() {
+    return !pageFieldsInWindow() || layoutWindowShowsPages();
   }
 
   // A panel whose active layout is the classic one has no fields in its
@@ -12046,19 +12217,22 @@ async function saveGestureEdge(select) {
     enablePageFields();
   }
 
-  // The fields: the pages', and the Settings field outside the window.
+  // The fields: the pages' and the Settings field.
   function pageFieldCount() {
-    return PAGE_SLOT_COUNT + (pageFieldsInWindow() ? 0 : 1);
+    return PAGE_SLOT_COUNT + 1;
   }
 
   // The room the fields take beside a square or upright screen (two
   // columns, 14 px apart) or under a landscape one (rows, one word over
-  // them): a part that grows with the cells and a fixed one. The layout
-  // window keeps it beside its area (layout-window.js mountLayoutTab).
+  // them, a little off the screen: user 2026-10-14): a part that grows with
+  // the cells and a fixed one. The layout window keeps it beside its area
+  // (layout-window.js mountLayoutTab).
+  const PAGE_FIELDS_WORD_ROOM = 26;
+  const PAGE_FIELDS_WORD_Y = 6;
   function pageFieldRoom(cellW, cellH, gap, cols, rows) {
     if (cols > rows) {
       const fieldRows = Math.ceil(pageFieldCount() / cols);
-      return {beside: false, w: 0, h: gap + fieldRows * (cellH + gap), fixedW: 0, fixedH: 20};
+      return {beside: false, w: 0, h: gap + fieldRows * (cellH + gap), fixedW: 0, fixedH: PAGE_FIELDS_WORD_ROOM};
     }
     return {beside: true, w: 2 * (cellW + gap) + gap, h: 0, fixedW: 14, fixedH: 0};
   }
@@ -12077,7 +12251,11 @@ async function saveGestureEdge(select) {
     const stepX = cellW + gap, stepY = cellH + gap;
     const screenW = cols * stepX - gap, screenH = rows * stepY - gap;
     // The fields lie on a black box of their own like the screen (user
-    // 2026-10-13), its margin one grid gap, one word over it.
+    // 2026-10-13), one word over it. Its black margin is one grid gap on
+    // every side (user 2026-10-14: the top one was a pixel short of it, its
+    // 1 px line inside), under a landscape screen its sides line up with the
+    // screen's. The boxes are outer edges in the grid's padding box units
+    // from its first cell's corner.
     const room = pageFieldRoom(cellW, cellH, gap, cols, rows);
     const fieldRows = Math.ceil(pageFieldCount() / (room.beside ? 2 : cols));
     const settingsField = pageFieldCount() > PAGE_SLOT_COUNT;
@@ -12087,28 +12265,62 @@ async function saveGestureEdge(select) {
       const word = room.fixedH + gap;
       const top = (screenH + padBottom + word) / stepY;
       const at = (col, row) => ({col, row: top + row});
+      const wordY = screenH + padBottom + PAGE_FIELDS_WORD_Y;
+      // A word over the Settings field where it starts a row of its own
+      // or stands in the first one (user 2026-10-14).
+      const settingsWord = place => ({x: place.col * stepX, y: wordY + (place.row - top) * stepY});
+      // The window's classic layout: the Settings field alone on its box.
+      if (!pageSlotsShown()) {
+        const place = at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols));
+        return {
+          pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
+          settings: settingsField ? place : null,
+          right: 0,
+          bottom: room.h + room.fixedH,
+          box: {x: place.col * stepX - gap - 1, y: place.row * stepY - gap - 1, w: cellW + 2 * gap + 2, h: cellH + 2 * gap + 2},
+          word: null,
+          settingsWord: settingsField ? settingsWord(place) : null
+        };
+      }
+      const settingsPlace = at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols));
       return {
         pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
-        settings: settingsField ? at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols)) : null,
+        settings: settingsField ? settingsPlace : null,
         right: 0,
         bottom: room.h + room.fixedH,
-        // The box from the screen's left edge to its right one (padding box
-        // units, from the first cell's corner).
-        box: {x: null, y: screenH + padBottom + word - gap, w: null, h: fieldRows * stepY + gap},
-        word: {x: 0, y: screenH + padBottom + 3}
+        // The box from the screen's left edge to its right one and down to
+        // the grid's end (its bottom margin is the grid's: one gap).
+        box: {x: null, y: screenH + padBottom + word - gap - 1, w: null, h: null},
+        word: {x: 0, y: wordY},
+        // Over the pages' row: no room for it under it.
+        settingsWord: settingsField && settingsPlace.row === top ? settingsWord(settingsPlace) : null
       };
     }
     // Beside a square or upright screen in two columns along its rows, the
     // word in its head's height; the Settings field bottom right.
     const apart = room.fixedW;
     const left = (screenW + padRight + apart + gap) / stepX;
+    // The window's classic layout: the Settings field alone on its box.
+    if (!pageSlotsShown()) {
+      const at = {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)};
+      return {
+        pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
+        settings: settingsField ? at : null,
+        right: room.w + room.fixedW,
+        bottom: 0,
+        box: {x: at.col * stepX - gap, y: at.row * stepY - gap, w: stepX + gap, h: stepY + gap},
+        word: null
+      };
+    }
     return {
       pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
       settings: settingsField ? {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)} : null,
       right: room.w + room.fixedW,
       bottom: 0,
-      box: {x: screenW + padRight + apart, y: -gap, w: 2 * stepX + gap, h: fieldRows * stepY + gap},
-      word: {x: screenW + padRight + apart, y: -gap - 19}
+      box: {x: screenW + padRight + apart - 1, y: -gap - 1, w: 2 * stepX + gap + 2, h: fieldRows * stepY + gap + 2},
+      word: {x: screenW + padRight + apart, y: -gap - 19},
+      // Between the fields' rows there is no room for a word.
+      settingsWord: null
     };
   }
 
@@ -12118,9 +12330,15 @@ async function saveGestureEdge(select) {
   }
 
   // A page's folder tile stands in its field as one cell (layout.js
-  // layoutTiles, grid-preview.js renderTileFromData).
+  // layoutTiles, grid-preview.js renderTileFromData); in the layout window
+  // the Settings tile parked in the shown layout stands in its field.
   function pageFieldOfTile(tab, tile) {
-    if (tab !== 'folder0' || !tile?.layout_hidden || Number(tile.type) !== 4 || !pageFieldsShown()) return null;
+    if (tab !== 'folder0' || !tile?.layout_hidden || !pageFieldsShown()) return null;
+    if (Number(tile.type) === 7) {
+      const grid = getTileGrid('folder0');
+      return pageFieldsInWindow() && grid ? pageFieldPlaces(grid).settings : null;
+    }
+    if (Number(tile.type) !== 4) return null;
     const slot = pageSlotIds().indexOf(Number(tile.navigate_target));
     const grid = getTileGrid('folder0');
     return slot >= 0 && grid ? pageFieldPlaces(grid).pages[slot] : null;
@@ -12155,6 +12373,10 @@ async function saveGestureEdge(select) {
     const grid = getTileGrid('folder0');
     if (tab !== 'folder0' || !holder || !grid) return;
     if (holder.children.length) grid.append(...holder.children);
+    // While the layout window is open Home's grid behind it stays as the
+    // page had it (user 2026-10-13: the window's sizes widened it there and
+    // squeezed the page); the window lays it out once it holds it.
+    if (pageFieldsInWindow() && !grid.classList.contains('setup-grid')) return;
     const shown = pageFieldsShown();
     grid.classList.toggle('has-page-fields', shown);
     if (!shown) {
@@ -12172,24 +12394,49 @@ async function saveGestureEdge(select) {
     const box = places.box;
     const boxLeft = box.x === null ? -1 : padLeft + box.x;
     const boxTop = padTop + box.y;
-    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w + 1;
+    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w;
     grid.style.setProperty('--fields-box-l', boxLeft + 'px');
     grid.style.setProperty('--fields-box-t', boxTop + 'px');
     grid.style.setProperty('--fields-box-w', boxWidth + 'px');
-    grid.style.setProperty('--fields-box-h', (box.x === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
+    grid.style.setProperty('--fields-box-h', (box.h === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
     const slots = pageSlotList();
-    grid.querySelectorAll(':scope > .page-field').forEach(field => {
+    grid.querySelectorAll(':scope > .page-field:not(.settings-field)').forEach(field => {
       const slot = Number(field.dataset.slot);
       setFieldPlace(field, places.pages[slot]);
-      field.hidden = !!slots[slot];
+      field.hidden = !pageSlotsShown() || !!slots[slot];
     });
-    const word = grid.querySelector(':scope > .page-fields-label');
-    if (word) {
-      word.style.setProperty('--word-x', places.word.x + 'px');
-      word.style.setProperty('--word-y', places.word.y + 'px');
+    const word = grid.querySelector(':scope > .page-fields-label:not(.settings-label)');
+    const placeWord = (el, place) => {
+      el.hidden = !place;
+      if (!place) return;
+      el.style.setProperty('--word-x', place.x + 'px');
+      el.style.setProperty('--word-y', place.y + 'px');
+    };
+    if (word) placeWord(word, places.word);
+    // The Settings field's own word, the tile type's name (user 2026-10-14).
+    let settingsWord = grid.querySelector(':scope > .page-fields-label.settings-label');
+    if (!settingsWord && places.settingsWord) {
+      settingsWord = document.createElement('div');
+      settingsWord.className = 'page-fields-label settings-label';
+      settingsWord.textContent = getTileTypeMeta('7')?.label || '';
+      grid.appendChild(settingsWord);
     }
+    if (settingsWord) placeWord(settingsWord, places.settingsWord);
     const settings = grid.querySelector(':scope > .settings-hidden-slot');
     if (settings && places.settings) setFieldPlace(settings, places.settings);
+    // The window's own free Settings field (its parked tile stands there
+    // itself; the editor's parking slot stays the page's).
+    let free = grid.querySelector(':scope > .page-field.settings-field');
+    if (pageFieldsInWindow() && !free) {
+      free = document.createElement('div');
+      free.className = 'page-field settings-field';
+      grid.appendChild(free);
+    }
+    if (free) {
+      if (places.settings) setFieldPlace(free, places.settings);
+      // Parked, its tile stands there (a free frame where there is none).
+      free.hidden = !pageFieldsInWindow() || (layoutWindowSettingsParked() && layoutSettingsIndex() >= 0);
+    }
   }
 
   // The field under the pointer: a page field or the Settings field.
@@ -12206,7 +12453,7 @@ async function saveGestureEdge(select) {
       clientX >= left + place.col * (cellW + gap) && clientX < left + place.col * (cellW + gap) + cellW &&
       clientY >= top + place.row * (cellH + gap) && clientY < top + place.row * (cellH + gap) + cellH;
     const places = pageFieldPlaces(grid);
-    const slot = places.pages.findIndex(inside);
+    const slot = pageSlotsShown() ? places.pages.findIndex(inside) : -1;
     if (slot >= 0) return {kind: 'page', slot, place: places.pages[slot]};
     return inside(places.settings) ? {kind: 'settings', place: places.settings} : null;
   }
@@ -12257,8 +12504,8 @@ async function saveGestureEdge(select) {
       (dragSource.kind === 'grid-tile' && Number(dragSource.type) === 7);
     // A folder onto a free field, a page onto any; Settings onto its own.
     const fits = field.kind === 'page'
-      ? folder > 0 && (dragSource.kind === 'page-slot' || !places[field.slot])
-      : settings;
+      ? pageSlotsShown() && folder > 0 && !dragSource.settings && (dragSource.kind === 'page-slot' || !places[field.slot])
+      : settings || !!dragSource.settings;
     restoreDragPreview(tab);
     dragSource.previewKey = '';
     if (!drop) {
@@ -12275,7 +12522,9 @@ async function saveGestureEdge(select) {
     if (!fits) return true;
     if (field.kind === 'settings') {
       dragSource.dropCommitted = true;
-      if (dragSource.kind !== 'hidden-settings') hideSettingsTileFromGrid();
+      // In the layout window parked in its layout until "Speichern".
+      if (pageFieldsInWindow()) layoutSettingsIn();
+      else if (dragSource.kind !== 'hidden-settings') hideSettingsTileFromGrid();
       return true;
     }
     const from = places.indexOf(folder);
@@ -12430,12 +12679,18 @@ async function saveGestureEdge(select) {
   // handleGridDrop).
   function canPlacePageTile(candidate) {
     if (!dragSource || dragSource.kind !== 'page-slot') return false;
-    return supportedTileLayout(4, candidate) && canPlaceTileLayout('folder0', dragSource.index, candidate);
+    return supportedTileLayout(dragSource.settings ? 7 : 4, candidate) &&
+      canPlaceTileLayout('folder0', dragSource.index, candidate);
   }
 
   function dropPageOnGrid(candidate) {
     const folder = dragSource.folder;
     dragSource.dropCommitted = true;
+    // The layout window's parked Settings tile back on its area, its own size.
+    if (dragSource.settings) {
+      layoutSettingsOut({col: candidate.col, row: candidate.row, span_w: candidate.span_w, span_h: candidate.span_h});
+      return;
+    }
     // One cell, like the device (/api/pages).
     const place = {col: candidate.col, row: candidate.row, span_w: 1, span_h: 1};
     // In the layout window it stays there until "Speichern" (layout-window.js).
@@ -12459,9 +12714,14 @@ async function saveGestureEdge(select) {
     grid.addEventListener('dragstart', event => {
       const tile = event.target.closest?.('.tile.page-field-tile');
       if (!tile || dragSource?.kind !== 'grid-tile' || dragSource.index !== Number(tile.dataset.index)) return;
+      // The layout window's parked Settings tile: out of its field in its
+      // own size (layoutSettingsOut).
+      const settings = tile.dataset.type === '7';
+      const own = settings ? getTilesData('folder0')?.[Number(tile.dataset.index)] : null;
       // The grab point from where it is drawn: its stored place lies elsewhere.
-      dragSource = {...dragSource, kind: 'page-slot', folder: Number(tile.dataset.navigateTarget || 0),
-        layout: {col: 0, row: 0, span_w: 1, span_h: 1}, grabCellCol: 0, grabCellRow: 0,
+      dragSource = {...dragSource, kind: 'page-slot', folder: Number(tile.dataset.navigateTarget || 0), settings,
+        layout: {col: 0, row: 0, span_w: Number(own?.span_w) || 1, span_h: Number(own?.span_h) || 1},
+        grabCellCol: 0, grabCellRow: 0,
         dropOffset: getDragGrabOffset(tile.getBoundingClientRect(), event.clientX, event.clientY),
         baseLayouts: null, pageTarget: null};
     });
@@ -12476,7 +12736,8 @@ async function saveGestureEdge(select) {
   // ones. Nothing else reaches the panel while the window is open: the
   // editor's own saves stay in the window. The bar layouts' page fields
   // beside Home's area (page-fields.js, user 2026-10-13) are kept like the
-  // places and stored with them.
+  // places and stored with them, and so is every layout's Settings field:
+  // Settings is parked per layout (user 2026-10-13: each layout decides).
   const LAYOUT_KEYS = ['classic', 'bar', 'portrait'];
   let layoutWindow = null;
   const layoutWindowFetch = window.fetch.bind(window);
@@ -12515,9 +12776,15 @@ async function saveGestureEdge(select) {
   // Preview px per screen px (web_admin_styles.cpp), the same for every layout.
   function layoutScale() { return layoutRootPx('--radius-preview-scale') || 1; }
   // The pages, then the screensaver (its two rows at the bottom of each
-  // screen, three upright, screensaver_places.h).
+  // screen, three upright, screensaver_places.h). Every folder takes part,
+  // also one whose page is not loaded yet: its tiles' data is enough until
+  // its tab is shown (mountLayoutTab loads it then; user 2026-10-13: opening
+  // loaded every folder's page one after the other, slower with each one).
   function layoutTabs() {
     const tabs = tileTabs.filter(tab => document.getElementById('tab-tiles-' + tab));
+    for (const tab of Object.values(tabByFolder)) {
+      if (tab && !tabs.includes(tab)) tabs.push(tab);
+    }
     return [...tabs.filter(tab => !isScreensaverTileTab(tab)), ...tabs.filter(isScreensaverTileTab)];
   }
   function layoutSize(key) { return LAYOUTS[key].cols + ' × ' + String(LAYOUTS[key].rows).replace('.', ','); }
@@ -12618,7 +12885,7 @@ async function saveGestureEdge(select) {
     (layoutWindow.data.classic?.[layoutFolderId(tab)] || []).forEach(([slot, view, col, row, w, h]) => {
       classic[slot] = {view, col, row, span_w: w, span_h: h};
     });
-    return layoutClone(layoutWindow.pages[tab] || []).map((tile, index) => {
+    const tiles = layoutClone(layoutWindow.pages[tab] || []).map((tile, index) => {
       if (!layoutUsed(tile)) return tile;
       delete tile.layout_hidden;
       const p = classic[index];
@@ -12629,6 +12896,15 @@ async function saveGestureEdge(select) {
       }
       return tile;
     });
+    // The Settings tile parked off Home in the layout the panel shows takes
+    // part with its kept ID and classic place (/api/layouts settings.tile):
+    // its places in the other layouts stay.
+    const parked = layoutWindow.settingsTile;
+    if (layoutFolderId(tab) === '0' && parked && !tiles.some(tile => layoutUsed(tile) && Number(tile.type) === 7)) {
+      const free = tiles.findIndex(tile => !layoutUsed(tile));
+      if (free >= 0) tiles[free] = layoutClone(parked);
+    }
+    return tiles;
   }
 
   // Every tile on its own spot of the window's area: tiles that need a place
@@ -12763,8 +13039,8 @@ async function saveGestureEdge(select) {
         }
       });
     }
-    return layoutSettle(key, L.bar ? tiles.map(tile => (layoutUsed(tile) && layoutBarHidden(tile, tab)
-      ? layoutBarTile(tile) : tile)) : tiles);
+    return layoutSettle(key, layoutParkSettings(tab, L.bar ? tiles.map(tile => (layoutUsed(tile) &&
+      layoutBarHidden(tile, tab) ? layoutBarTile(tile) : tile)) : tiles, !!layoutWindow.settingsParked?.[key]));
   }
 
   // The window's start: the layout's saved places; a layout never set up is
@@ -12782,11 +13058,11 @@ async function saveGestureEdge(select) {
           tile._unplaced = true;
         }
       });
-      return layoutSettle(key, tiles);
+      return layoutSettle(key, layoutParkSettings(tab, tiles, !!layoutWindow.savedSettingsParked?.[key]));
     }
     const places = layoutWindow.data.places?.[key]?.[layoutFolderId(tab)];
     if (!places) return takeoverTiles(tab, key, 'classic');
-    return layoutSettle(key, layoutBase(tab).map(tile => {
+    return layoutSettle(key, layoutParkSettings(tab, layoutBase(tab).map(tile => {
       if (!layoutUsed(tile)) return tile;
       if (layoutBarHidden(tile, tab)) return layoutBarTile(tile);
       const p = places[tile.view_id];
@@ -12797,7 +13073,7 @@ async function saveGestureEdge(select) {
         tile._unplaced = true;
       }
       return tile;
-    }));
+    }), !!layoutWindow.savedSettingsParked?.[key]));
   }
 
   // Every tile's place on every page, to tell unsaved changes.
@@ -12814,7 +13090,8 @@ async function saveGestureEdge(select) {
     if (!layoutWindow) return false;
     const work = key === layoutWindow.key ? getTilesData : (layoutWindow.work[key] ? tab => layoutWindow.work[key][tab] : null);
     return (!!work && layoutSignature(work) !== layoutSavedSig(key)) || layoutClockDirty(key) ||
-      (!!LAYOUTS[key]?.bar && layoutPagesDirty());
+      (!!LAYOUTS[key]?.bar && layoutPagesDirty()) ||
+      !!layoutWindow.settingsParked?.[key] !== !!layoutWindow.savedSettingsParked?.[key];
   }
 
   // --- The page fields --------------------------------------------------------
@@ -12837,9 +13114,64 @@ async function saveGestureEdge(select) {
   function layoutPagesDirty() {
     return !!layoutWindow && JSON.stringify(layoutWindow.pageSlots) !== JSON.stringify(layoutWindow.savedPageSlots);
   }
-  // The fields show on Home in a bar layout (page-fields.js pageFieldsShown).
+  // The page fields show on Home in a bar layout (page-fields.js
+  // pageSlotsShown), the Settings field in every layout (pageFieldsShown).
   function layoutWindowShowsPages() {
     return !!layoutWindow && !!LAYOUTS[layoutWindow.key].bar && layoutWindow.tab === layoutHomeTab();
+  }
+  function layoutWindowShowsFields() {
+    return !!layoutWindow && layoutWindow.tab === layoutHomeTab();
+  }
+
+  // --- The Settings field -----------------------------------------------------
+
+  // Where Settings is parked, as stored (user 2026-10-13: each layout
+  // decides; /api/layouts settings.parked, bit by bit in LAYOUT_KEYS order).
+  function layoutSettingsParkedFrom(data) {
+    const parked = data?.settings?.parked || [];
+    return Object.fromEntries(LAYOUT_KEYS.map((key, i) => [key, !!parked[i]]));
+  }
+  // The shown layout's choice in the window (page-fields.js).
+  function layoutWindowSettingsParked() {
+    return !!layoutWindow?.settingsParked?.[layoutWindow.key];
+  }
+  // Home's Settings tile parked (in its field, no place) or not.
+  function layoutParkSettings(tab, tiles, parked) {
+    if (layoutFolderId(tab) !== '0') return tiles;
+    tiles.forEach(tile => {
+      if (!layoutUsed(tile) || Number(tile.type) !== 7) return;
+      if (parked) tile.layout_hidden = true;
+      else delete tile.layout_hidden;
+    });
+    return tiles;
+  }
+  function layoutSettingsIndex() {
+    return (getTilesData(layoutHomeTab()) || []).findIndex(tile => layoutUsed(tile) && Number(tile.type) === 7);
+  }
+  // Dropped on its field (page-fields.js pageFieldDrag): parked in this
+  // layout until "Speichern".
+  function layoutSettingsIn() {
+    const home = layoutHomeTab();
+    const index = layoutSettingsIndex();
+    if (!layoutWindow || index < 0) return;
+    const tiles = getTilesData(home);
+    tiles[index] = {...tiles[index], layout_hidden: true};
+    renderTileFromData(home, index, tiles[index], sensorMetaCache);
+    layoutWindow.settingsParked[layoutWindow.key] = true;
+    layoutPagesChanged();
+  }
+  // Out of its field onto the window's area (page-fields.js dropPageOnGrid).
+  function layoutSettingsOut(place) {
+    const home = layoutHomeTab();
+    const index = layoutSettingsIndex();
+    if (!layoutWindow || index < 0) return;
+    const tiles = getTilesData(home);
+    const tile = {...tiles[index], col: place.col, row: place.row, span_w: place.span_w, span_h: place.span_h};
+    delete tile.layout_hidden;
+    tiles[index] = tile;
+    renderTileFromData(home, index, tile, sensorMetaCache);
+    layoutWindow.settingsParked[layoutWindow.key] = false;
+    layoutPagesChanged();
   }
 
   // A bar layout shown again (its unsaved places or its stored ones) follows
@@ -13084,13 +13416,23 @@ async function saveGestureEdge(select) {
     home.grid.querySelectorAll(':scope > .setup-storage-label, :scope > .setup-flag, :scope > .setup-trash')
       .forEach(node => node.remove());
     home.grid.classList.remove('setup-grid', 'setup-head', 'setup-no-head');
-    home.grid.removeAttribute('style');
+    // Back as the page had it (its fields' room): nothing behind the window
+    // changes size (user 2026-10-13).
+    if (home.style) home.grid.setAttribute('style', home.style);
+    else home.grid.removeAttribute('style');
+    home.grid.classList.toggle('has-page-fields', home.fields);
     home.placeholder.replaceWith(home.grid);
     layoutWindow.home = null;
   }
 
   async function mountLayoutTab(tab) {
     unmountLayoutGrid();
+    // A folder whose page is not loaded yet: now (its tiles stay the
+    // window's, layoutTabs).
+    if (!document.getElementById('tab-tiles-' + tab) && getFolderIdForTab(tab) !== undefined) {
+      try { await ensureFolderTabUi(getFolderIdForTab(tab)); } catch (error) {}
+      if (!layoutWindow) return;
+    }
     layoutWindow.tab = tab;
     layoutWindow.screen = null;
     await switchTab('tab-tiles-' + tab);
@@ -13103,7 +13445,7 @@ async function saveGestureEdge(select) {
     const placeholder = document.createElement('div');
     placeholder.style.cssText = `width:${grid.offsetWidth}px;height:${grid.offsetHeight}px;flex:none;`;
     grid.replaceWith(placeholder);
-    layoutWindow.home = {grid, placeholder};
+    layoutWindow.home = {grid, placeholder, style: grid.getAttribute('style'), fields: grid.classList.contains('has-page-fields')};
     // First in the tab, so the editor's "#tab-tiles-x .tile-grid" still finds this grid.
     host.insertBefore(backdrop, host.firstChild);
     backdrop.querySelector('.setup-stage').appendChild(grid);
@@ -13378,10 +13720,13 @@ async function saveGestureEdge(select) {
       const places = folders[layoutFolderId(tab)] = {};
       getTilesData(tab).forEach(tile => {
         if (!layoutUsed(tile) || !tile.view_id || (key !== 'classic' && layoutBarHidden(tile, tab))) return;
+        // Parked in this layout: in its field, no place.
+        if (Number(tile.type) === 7 && tile.layout_hidden) return;
         places[tile.view_id] = [tile.col, tile.row, tile.span_w, tile.span_h];
       });
     }
-    const body = {layout: key, folders};
+    const settingsParked = !!layoutWindow.settingsParked?.[key];
+    const body = {layout: key, folders, settings_parked: settingsParked};
     // The page row with a bar layout's places, in one go (user 2026-10-12).
     const pagesChanged = !!LAYOUTS[key].bar && layoutPagesDirty();
     if (pagesChanged) {
@@ -13412,6 +13757,11 @@ async function saveGestureEdge(select) {
     }
     if (!layoutWindow) return false;
     if (key === ACTIVE_LAYOUT) layoutWindow.changed = true;
+    // The panel's own layout: Settings left Home or came back at once.
+    if (key === ACTIVE_LAYOUT && settingsParked !== !!layoutWindow.savedSettingsParked?.[key]) {
+      layoutWindow.settingsActiveChanged = true;
+    }
+    if (layoutWindow.savedSettingsParked) layoutWindow.savedSettingsParked[key] = settingsParked;
     if (pagesChanged) {
       // The other bar layout's unsaved places follow the new pages first
       // (a folder back from them takes the spot the panel gave it).
@@ -13474,14 +13824,12 @@ async function saveGestureEdge(select) {
 
   async function openLayoutWindow() {
     if (layoutWindow) return;
-    // Every folder's page with its tiles, and the stored places.
-    for (const folderId of Object.keys(tabByFolder).map(Number).filter(id => id > 0)) {
-      try { await ensureFolderTabUi(folderId); } catch (error) {}
-    }
+    // Every folder's tiles side by side, and the stored places; a folder's
+    // page loads when its tab is shown.
     initTileTabs();
     let data = null;
     try {
-      for (const tab of tileTabs.filter(tab => !isScreensaverTileTab(tab))) await fetchTileGridData(tab);
+      await Promise.all(layoutTabs().filter(tab => !isScreensaverTileTab(tab)).map(tab => fetchTileGridData(tab)));
       const response = await layoutWindowFetch('/api/layouts', {cache: 'no-store'});
       data = await response.json();
       if (!response.ok || !data?.success) throw new Error('layouts');
@@ -13512,7 +13860,13 @@ async function saveGestureEdge(select) {
       home: null,
       pageSlots: [],
       savedPageSlots: [],
-      pageUnlock: false
+      pageUnlock: false,
+      // Settings parked per layout: the window's choice and the stored one,
+      // and the tile parked off Home in the panel's layout (layoutBase).
+      settingsParked: layoutSettingsParkedFrom(data),
+      savedSettingsParked: layoutSettingsParkedFrom(data),
+      settingsTile: data?.settings?.tile ? {...data.settings.tile, type: 7} : null,
+      settingsActiveChanged: false
     };
     // The page row as stored; a folder gone meanwhile left its place free.
     layoutWindow.pageSlots = layoutPageSlotsFrom(data).map(id => id && layoutHomeFolderIndex(id) >= 0 ? id : 0);
@@ -13547,11 +13901,13 @@ async function saveGestureEdge(select) {
       `<svg class="setup-arrows" viewBox="0 0 44 ${arrowHeight}" width="44" height="${arrowHeight}" aria-hidden="true">` +
       `${arrows}</svg><div class="setup-targets">${targets.map(layoutButton).join('')}</div>`;
     const tabButtons = tabs.map(tab => {
-      const host = document.getElementById('tab-tiles-' + tab);
+      // A folder not loaded yet has its name and icon on its page button.
+      const host = document.getElementById('tab-tiles-' + tab) ||
+        document.querySelector(`.folder-tab-btn[data-tab-id="${tab}"]`);
       const home = layoutFolderId(tab) === '0';
       const saver = isScreensaverTileTab(tab);
-      const name = home ? t('home') : saver ? t('importScreensaver') : host.dataset.folderName || tab;
-      const icon = home ? 'home' : saver ? 'monitor' : host.dataset.folderIcon || 'folder';
+      const name = home ? t('home') : saver ? t('importScreensaver') : host?.dataset.folderName || tab;
+      const icon = home ? 'home' : saver ? 'monitor' : host?.dataset.folderIcon || 'folder';
       return `<button type="button" class="tab-btn setup-tab" data-tab="${tab}"><i class="mdi mdi-${escapeHtml(icon)}"></i> ` +
         `${escapeHtml(name)}<span class="setup-badge" hidden></span></button>`;
     }).join('');
@@ -13630,6 +13986,15 @@ async function saveGestureEdge(select) {
       showLayoutTiles(tab, getTilesData(tab));
     }
     if (pageSlots) syncPageHeads();
+    // Settings parked or back in the panel's layout: the editor's parking
+    // checkbox and slot follow (settings/access.js).
+    if (state.settingsActiveChanged) {
+      const parked = !!state.savedSettingsParked[ACTIVE_LAYOUT];
+      const box = settingsAccessElement('settings_tile_hidden');
+      if (box) box.checked = parked;
+      settingsAccessCommittedState = readSettingsAccessState();
+      await reconcileSettingsTileUi(parked, state.settingsTile);
+    }
     // The tile the page had selected before, with its settings beside the
     // preview (the window's own selections are forgotten).
     const selection = state.selection;
@@ -15922,6 +16287,12 @@ function normalizeIconName(value) {
       if (tabEl) {
         tabEl.dataset.folderName = label;
         tabEl.dataset.folderIcon = iconName;
+        // Its page's head (web_admin_html.cpp) shows the folder's name and icon.
+        const head = tabEl.querySelector('.head-bar-preview');
+        const headTitle = head?.querySelector('.head-title');
+        if (headTitle) headTitle.textContent = label;
+        const headIcon = head?.querySelector('.head-disc > i');
+        if (headIcon) headIcon.className = 'mdi mdi-' + (iconName || 'folder');
       }
       const btn = document.querySelector(
         '.folder-tab-btn[data-folder-id="' + folderNum + '"]') ||
@@ -20810,6 +21181,10 @@ function getClockPreviewLanguage() {
     if (tileElem?.classList?.contains('clock')) observeClockTile(tileElem);
     const face = tileElem?.querySelector(':scope > .tile-clock-face');
     if (!face) return;
+    // On a page not shown (another tab, Settings) the tile measures 0 x 0 and
+    // the face came out negative (console: viewBox "0 0 -32 -32"); the resize
+    // observer lays it out once the page shows.
+    if (!tileElem.offsetWidth || !tileElem.offsetHeight) return;
     const options = clockDateOptions(face.dataset.options);
     // The tile's alignment (0 centered, 1 left, 2 right): the live editor
     // keeps it on the tile (its face options leave it out).

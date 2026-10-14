@@ -9,7 +9,10 @@
 //        [--page=display|wifi|localization|system|setup] [--open=<row>] [--press=<row>]
 //        [--state=off|new|ap|eth|ethwifi|online|wait|code|ok|guide|mqtt] [--step=0..3]
 //        [--dialog=github|restart|unpair|password|pairing|leave]
-//        [--entry=manual|join] [--no-mockup]
+//        [--entry=manual|join] [--scroll=bottom] [--drag=up] [--no-mockup]
+// --scroll=bottom shows a page taller than its area scrolled to its end;
+// --drag=up drags a finger 200 px up from a row of the page (real LVGL
+// input) and prints the page's scroll ("page scroll N").
 // --page=setup shows the first-start setup at --step (mockup wiz=A&step=):
 // step 1 lists the networks (--state=online: connected, ap: the phone
 // setup's hotspot on); steps 2 and 3 are online, step 2 offers Pair
@@ -259,6 +262,7 @@ void saver_changed(int, bool) {}
 void saver_brightness_changed(int, bool) {}
 void rotation_selected(uint8_t) {}
 uint8_t theme_index() { return 0; }
+uint8_t theme_choice() { return 0; }
 void theme_selected(uint8_t) {}
 // A new panel's first setup on a panel that is not square (--state=again:
 // opened from Settings, no layout).
@@ -372,6 +376,15 @@ const char* setup_guide_url() { return "https://galusperes.github.io/HomeTiles/"
 // The screen as shown (turned with --upright).
 static const int kShownW = ${upright ? 'SCREEN_HEIGHT' : 'SCREEN_WIDTH'};
 static const int kShownH = ${upright ? 'SCREEN_WIDTH' : 'SCREEN_HEIGHT'};
+static lv_point_t g_drag_point{};
+static bool g_drag_down = false;
+static void drag_step(lv_display_t* display, int x, int y, bool down) {
+  g_drag_point = {x, y};
+  g_drag_down = down;
+  lv_tick_inc(16);
+  lv_timer_handler();
+  (void)display;
+}
 int main(int argc, char** argv) {
   tone_color::g_from_icon_card = &host_from_icon_card;
   ${upright ? 'grid_layout::g_shown = grid_layout::layout_grid(grid_layout::Layout::kPortrait);' : ''}
@@ -417,6 +430,26 @@ int main(int argc, char** argv) {
   ${open === undefined ? '' : `settings_screen::open_locale_list(${Number(open)});`}
   ${press === undefined ? '' : `lv_obj_add_state(settings_screen::g_locale_rows[${Number(press)}].row, LV_STATE_PRESSED);`}
   settings_screen::system_changed();
+  ${option('scroll') === 'bottom' ? 'lv_obj_update_layout(screen); lv_obj_scroll_by(settings_screen::g_page, 0, -lv_obj_get_scroll_bottom(settings_screen::g_page), LV_ANIM_OFF);' : ''}
+  ${option('drag') === 'up' ? `{
+    lv_obj_update_layout(screen);
+    lv_indev_t* touch = lv_indev_create();
+    lv_indev_set_type(touch, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(touch, [](lv_indev_t*, lv_indev_data_t* data) {
+      data->point = g_drag_point;
+      data->state = g_drag_down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    });
+    lv_area_t page{};
+    lv_obj_get_coords(settings_screen::g_page, &page);
+    // On a row's name (no control under the finger), well inside the page.
+    const int x = page.x1 + 70, y0 = page.y1 + 120;
+    drag_step(display, x, y0, false);
+    for (int i = 0; i <= 20; ++i) drag_step(display, x, y0 - i * 10, true);
+    drag_step(display, x, y0 - 200, false);
+    for (int i = 0; i < 30; ++i) drag_step(display, x, y0 - 200, false);
+    std::printf("page scroll %d of %d\\n", static_cast<int>(lv_obj_get_scroll_y(settings_screen::g_page)),
+                static_cast<int>(lv_obj_get_scroll_y(settings_screen::g_page) + lv_obj_get_scroll_bottom(settings_screen::g_page)));
+  }` : ''}
   ${args.includes('--press-close') ? 'lv_obj_add_state(settings_screen::g_close, LV_STATE_PRESSED);' : ''}
   ${entry === undefined ? '' : `settings_screen::open_entry(${entry === 'manual'}, "FRITZ!Box 7590 XY");`}
   ${keys === 'accents' ? 'settings_keyboard::g_kb.accents = true; settings_keyboard::lay_out();' : ''}
@@ -503,6 +536,7 @@ for (const key of panels) {
     console.error(`${key}: render failed\n${run.stdout}${run.stderr}`);
     process.exit(1);
   }
+  if (option('drag')) process.stdout.write(run.stdout);
   const xrgb = fs.readFileSync(raw);
   const shownW = upright ? p.H : p.W, shownH = upright ? p.W : p.H;
   const firmware = Buffer.alloc(shownW * shownH * 3);

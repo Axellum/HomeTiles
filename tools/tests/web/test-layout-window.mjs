@@ -41,7 +41,7 @@ const windowNames = ['layoutClone', 'layoutEmptyTile', 'layoutUsed', 'layoutShow
   'layoutSignature', 'layoutSavedSig', 'layoutDirty', 'layoutSelectedTile', 'deselectLayoutTile', 'normalizeLayoutForTileType', 'clampHalf',
   'headBarLayout', 'placeCols', 'placeRows',
   'deleteLayoutTile', 'classicParked', 'layoutParked', 'layoutMustReach', 'layoutRed', 'loadLayoutWindow', 'mayLeaveLayout',
-  'layoutClockFrom', 'layoutClock', 'layoutClockDirty', 'layoutPagesDirty', 'reconcileLayoutPages'];
+  'layoutClockFrom', 'layoutClock', 'layoutClockDirty', 'layoutPagesDirty', 'reconcileLayoutPages', 'layoutParkSettings'];
 function windowContext(pages, data, extra = {}) {
   // Every case gets its own copy: the window changes the pages it holds.
   pages = JSON.parse(JSON.stringify(pages));
@@ -53,7 +53,7 @@ function windowContext(pages, data, extra = {}) {
       portrait: {name: 'Kopfleiste hochkant', cols: 3, rows: 6, bar: true, portrait: true, available: true, switchable: false},
     },
     ACTIVE_LAYOUT: 'classic', MEDIA_TILE_TYPE: 15, MEDIA_TILE_MIN_SPAN: 2, MEDIA_TILE_MAX_SPAN: 4, GRID_COLS: 7, GRID_ROWS: 6,
-    tileTabs: Object.keys(pages), tilesData: {}, currentTileTab: 'folder0',
+    tileTabs: Object.keys(pages), tabByFolder: {}, tilesData: {}, currentTileTab: 'folder0',
     layoutWindow: {pages, data, key: 'bar', missingFolders: 0, busy: false, shown: false, work: {}, saved: {}},
     refreshLayoutStatus: () => {}, refreshLayoutButtons: () => {}, mountLayoutTab: async () => {}, useLayoutGrid: () => {},
     showLayoutTiles: (tab, tiles) => { ctx.tilesData[tab] = tiles; },
@@ -199,7 +199,7 @@ const classic = {0: [[0, 11, 0, 0, 1, 1], [1, 12, 1, 0, 1, 1], [2, 13, 0, 1, 2, 
   ctx.layoutWindow.shown = true;
   assert.equal(await vm.runInContext('saveLayoutWindow()', ctx), true);
   assert.deepEqual(JSON.parse(calls[0][1]), {layout: 'classic', folders: {0: {11: [0, 0, 1, 1], 12: [1, 0, 1, 1],
-    13: [0, 1, 2, 1], 14: [6, 3, 1, 0.5]}}}, 'classic places, Settings included');
+    13: [0, 1, 2, 1], 14: [6, 3, 1, 0.5]}}, settings_parked: false}, 'classic places, Settings included');
   calls.length = 0;
   ctx.layoutWindow.key = 'bar';
   await vm.runInContext('saveLayoutWindow()', ctx);

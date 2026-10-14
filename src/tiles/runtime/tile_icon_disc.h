@@ -244,28 +244,13 @@ inline uint32_t card_state_color(lv_obj_t* card, bool pressed) {
   return lv_color_to_u32(lv_obj_get_style_bg_color(card, LV_PART_MAIN)) & 0xFFFFFF;
 }
 
-// A pressed tile fades to its lighter pressed color with the theme's press
-// transition. Circles and resting controls take the card's pressed state
-// (follow_card_state) with the same timing (LV_THEME_DEFAULT_TRANSITION_TIME,
-// back after the theme's 70 ms delay), so they keep their step above the card
-// during the whole fade; an instant recolor ran ahead of the card and flashed.
-inline void fade_with_card(lv_obj_t* obj) {
-  if (!obj) return;
-  static const lv_style_prop_t kProps[] = {LV_STYLE_BG_COLOR, static_cast<lv_style_prop_t>(0)};
-  static lv_style_transition_dsc_t down, back;
-  static bool ready = false;
-  if (!ready) {
-    lv_style_transition_dsc_init(&down, kProps, lv_anim_path_linear, LV_THEME_DEFAULT_TRANSITION_TIME, 0, nullptr);
-    lv_style_transition_dsc_init(&back, kProps, lv_anim_path_linear, LV_THEME_DEFAULT_TRANSITION_TIME, 70, nullptr);
-    ready = true;
-  }
-  lv_style_value_t value;
-  if (lv_obj_get_local_style_prop(obj, LV_STYLE_TRANSITION, &value, LV_PART_MAIN | LV_STATE_PRESSED) !=
-      LV_STYLE_RES_FOUND) {
-    lv_obj_set_style_transition(obj, &back, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_transition(obj, &down, LV_PART_MAIN | LV_STATE_PRESSED);
-  }
-}
+// A pressed tile takes its lighter pressed color the way its card does
+// (tile_press.h: at once, back after the theme's delay, at once when a
+// swipe took the press over). Circles and resting controls take the card's
+// pressed state (follow_card_state) with the very same transitions, so they
+// keep their step above the card the whole time; a recolor apart from the
+// card flashed.
+inline void fade_with_card(lv_obj_t* obj) { tile_press::apply(obj); }
 
 // Sets the resting and pressed fill of a circle or resting control; only a
 // change touches the styles.

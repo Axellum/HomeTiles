@@ -62,6 +62,22 @@ int preview_scaled_exact_px(int lvgl_px) {
   return scaled < 1 ? 1 : scaled;
 }
 
+// Home's page fields beside a square or upright screen (page-fields.js
+// pageFieldRoom: two cells, three gaps and 14 px beside its 1 px frame):
+// the page widens by what Home's grid needs beyond the 1200 px page, so the
+// settings panel keeps its width on every tab (user 2026-10-13: on the S3 it
+// shrank to 312 px). The page's frame (admin.css .wrapper and .card padding
+// and border) takes 106 px, the editor gap 24.
+int admin_page_extra_px() {
+  if (!grid_layout::head_bar() || grid_layout::screen_w() > grid_layout::screen_h()) return 0;
+  const double scale = static_cast<double>(preview_cell_h_px()) / GRID_CELL_H;
+  const double fields = 2.0 * (GRID_CELL_W + GRID_GAP) * scale + GRID_GAP * scale + 14.0;
+  const double grid = grid_layout::screen_w() * scale + 2.0 + fields;
+  const int needed = static_cast<int>(ceil(grid)) + 24 + settings_panel_target_width_px() + 106;
+  const int extra = needed - admin_wrapper_target_width_px();
+  return extra > 0 ? extra : 0;
+}
+
 }  // namespace
 
 namespace {
@@ -396,6 +412,8 @@ void appendPreviewScaleVars(String& html, const char* selector = ":root", bool p
   html += "px;";
   html += "--admin-wrapper-width:";
   html += String(admin_wrapper_target_width_px());
+  html += "px;--admin-page-extra:";
+  html += String(admin_page_extra_px());
   html += "px;";
   // The shown grid (grid_layout.h): with the head bar its fewer, larger
   // cells; a stored tile outside it sits beside the screen (tile-outside).

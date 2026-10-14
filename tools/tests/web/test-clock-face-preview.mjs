@@ -133,6 +133,23 @@ ${inlineScriptSafe(observer)}
   check(!t5.querySelector('.tile-clock-face-text').hidden && !t5.querySelector('.tile-clock-date').hidden,
     'grown: the date below the face');
   near(box(t5.querySelector('.tile-clock-face'), t5).w, 242 / 2, 'grown: the larger face');
+  // On a page not shown (user 2026-10-14, console: viewBox "0 0 -32 -32"):
+  // nothing is laid out at 0 x 0, the observer does it once it shows.
+  const hiddenPage = document.createElement('div');
+  hiddenPage.style.display = 'none';
+  document.body.appendChild(hiddenPage);
+  const t6 = t1.cloneNode(true);
+  t6.id = 't6';
+  t6.__clockObserved = false;
+  t6.querySelector('.tile-clock-face').removeAttribute('viewBox');
+  hiddenPage.appendChild(t6);
+  layoutClockFacePreview(t6);
+  check(!t6.querySelector('.tile-clock-face').hasAttribute('viewBox') && observed.includes(t6), 'hidden: no face laid out, observed');
+  hiddenPage.style.display = '';
+  notify([{target: t6}]);
+  const shownBox = t6.querySelector('.tile-clock-face').getAttribute('viewBox');
+  const shownSize = (shownBox || '').split(' ').map(Number);
+  check(shownSize.length === 4 && shownSize[2] > 0 && shownSize[2] === shownSize[3], 'shown: the face laid out: ' + shownBox);
   document.body.dataset.result = 'pass';
 } catch (error) { document.body.dataset.result = 'fail'; document.getElementById('result').textContent = error.message; } })();
 </script></body></html>`;

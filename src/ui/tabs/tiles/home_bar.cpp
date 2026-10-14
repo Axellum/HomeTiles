@@ -322,6 +322,14 @@ void dots_event(lv_event_t* event) {
   if (g_press_held) page_preview::point_at({-1, -1});
   release_press(dots);
 }
+// Beside the dots' pill a tap turns one page to that side (user
+// 2026-10-14, like the iPhone's page dots), as well as a swipe does.
+void step_event(lv_event_t* event) {
+  const int step = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
+  const int page = tile_layouts::page_number(tileConfig.getActiveFolderId());
+  if (page >= 0) uiManager.showPage(page + step);
+}
+
 // The row is gone: nothing may reach it any more.
 void forget_dots(lv_event_t* event) {
   lv_obj_t* dots = static_cast<lv_obj_t*>(lv_event_get_target(event));
@@ -343,6 +351,18 @@ uint32_t dot_color(bool active) {
   if (active) return ui_theme::text();
   return ui_theme::light() ? ui_theme::kLight.icon_unavailable : 0x5C5C5C;
 }
+
+const char* home_title(const char* fallback) {
+  const char* own = configManager.getConfig().head_title;
+  return own[0] ? own : fallback;
+}
+
+const char* home_icon() {
+  const char* own = configManager.getConfig().head_icon;
+  return own[0] ? own : "home";
+}
+
+int step_zone_width() { return 2 * popup_layout::kHeaderIconDiscSize; }
 
 // HH:MM in the panel's time format (12 hours without AM/PM, like a clock
 // face); dashes until the clock is set.
@@ -444,10 +464,10 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   lv_obj_set_pos(bar, -GRID_PAD_LEFT, -GRID_PAD_TOP);
   lv_obj_set_size(bar, grid_layout::screen_w(), GRID_PAD_TOP);
 
-  // The page's circle: Home's house or the folder's icon, in the Settings
-  // gear's grey over the global tile color.
+  // The page's circle: Home's icon (the house unless chosen) or the
+  // folder's, in the Settings gear's grey over the global tile color.
   const FolderEntry* folder = home ? nullptr : tileConfig.getFolder(folder_id);
-  const char* icon_name = home ? "home" : (folder && folder->icon_name[0] ? folder->icon_name : "folder");
+  const char* icon_name = home ? home_icon() : (folder && folder->icon_name[0] ? folder->icon_name : "folder");
   // The light theme's head sits on the screen, not on a card: its circle is
   // one step from the screen like the dark theme's circle from its card.
   const settings_style::Tone tone = page_circle_tone();
@@ -506,6 +526,9 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   if (!g_time_text[0]) format_time(g_time_text, sizeof(g_time_text));
   lv_label_set_text(time_label, g_time_text);
   remember_time_label(time_label);
+  // Without the time (Global tab "Kopfleiste", user 2026-10-13) its place
+  // stays empty.
+  if (!config.head_clock) lv_obj_add_flag(time_label, LV_OBJ_FLAG_HIDDEN);
   if (!g_time_timer) g_time_timer = lv_timer_create(time_tick, 5000, nullptr);
 
   // The dots in the middle of the head, Home's first.
@@ -528,23 +551,44 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
     lv_obj_set_style_bg_color(dots, lv_color_hex(ui_theme::icon()), LV_STATE_USER_1);
     lv_obj_set_style_bg_opa(dots, 31, LV_STATE_USER_1);
     lv_obj_set_user_data(dots, &g_dots_marker);
-    // A tap reaches them 20 px around the pill on an 800 px side (user
-    // 2026-10-12: one had to hit them exactly).
-    lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(dots, (20 * side + 400) / 800);
-    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSED, nullptr);
-    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSING, nullptr);
-    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_RELEASED, nullptr);
-    lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESS_LOST, nullptr);
-    // A drag down onto the overview's pictures never scrolls a parent.
-    lv_obj_remove_flag(dots, LV_OBJ_FLAG_SCROLL_CHAIN);
+    // Without the pages' overview (Global tab "Kopfleiste", user
+    // 2026-10-13) the dots only show the page: no press, no overview; a
+    // swipe on them still turns the page.
+    if (config.head_overview) {
+      // A tap reaches them 20 px around the pill on an 800 px side (user
+      // 2026-10-12: one had to hit them exactly).
+      lv_obj_add_flag(dots, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_set_ext_click_area(dots, (20 * side + 400) / 800);
+      lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSED, nullptr);
+      lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESSING, nullptr);
+      lv_obj_add_event_cb(dots, dots_event, LV_EVENT_RELEASED, nullptr);
+      lv_obj_add_event_cb(dots, dots_event, LV_EVENT_PRESS_LOST, nullptr);
+      // A drag down onto the overview's pictures never scrolls a parent.
+      lv_obj_remove_flag(dots, LV_OBJ_FLAG_SCROLL_CHAIN);
+    }
+    // A tap beside the pill turns one page to that side (step_event): over
+    // the whole head, the title or time under it included, never over the
+    // gear's touch area; Home has none on its left, the last page none on its
+    // right. A tap on the dots themselves opens the overview as before.
+    const int gear_left = gear_hidden ? grid_layout::screen_w() : g.close_x - popup_layout::kCloseButtonClickArea;
+    for (const int step : {-1, 1}) {
+      if (page + step < 0 || page + step >= count) continue;
+      const int x = step < 0 ? row_x - pad - step_zone_width() : row_x + dots_width(count) + pad;
+      const int w = step < 0 ? step_zone_width() : LV_MIN(step_zone_width(), gear_left - x);
+      if (w <= 0) continue;
+      lv_obj_t* zone = plain(bar);
+      lv_obj_set_size(zone, w, GRID_PAD_TOP);
+      lv_obj_set_pos(zone, x, 0);
+      lv_obj_add_flag(zone, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_add_event_cb(zone, step_event, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(step)));
+    }
     // The title ends a gap before them.
     if (row_x - g.disc / 5 < title_end) title_end = row_x - g.disc / 5;
   }
 
   // Home or the folder's name, one line between the circle and the time
   // (or the dots).
-  const char* title_text = home ? tr.home : (folder && folder->name[0] ? folder->name : tr.home);
+  const char* title_text = home ? home_title(tr.home) : (folder && folder->name[0] ? folder->name : tr.home);
   const int title_w = title_end > g.title_x ? title_end - g.title_x : 1;
   const lv_font_t* font = title_font(title_text, title_w);
   lv_obj_t* title = lv_label_create(bar);
@@ -603,13 +647,6 @@ void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id) {
   // Home's line on the second dot).
   if (g_motion.dots == dots) stop_motion();
   lay_out_line(dots, page, page, 0, 0);
-}
-
-bool lead(lv_obj_t* grid, int from, int to, uint32_t duration) {
-  lv_obj_t* dots = find_dots(grid);
-  if (!dots || from == to) return false;
-  move_line(dots, from, to, 0.0f, 1.0f, 0, duration);
-  return true;
 }
 
 void glide(lv_obj_t* dots, int from, int to, uint32_t duration) {

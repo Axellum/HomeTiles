@@ -59,7 +59,7 @@
     document.querySelectorAll('#tab-tiles-' + tab + ' .tile').forEach(tile => {
       const index = Number(tile.dataset.index);
       if (!Number.isInteger(index) || Number(tile.dataset.type || 0) === 0 ||
-          tile.classList.contains('tile-unplaced')) return;
+          tile.classList.contains('tile-unplaced') || tile.classList.contains('page-field-tile')) return;
       const layout = getTileElementLayout(tab, index);
       if (!layout) return;
       layouts[index] = layout;

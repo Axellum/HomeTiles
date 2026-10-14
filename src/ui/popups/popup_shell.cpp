@@ -75,52 +75,119 @@ class SceneChange {
   lv_display_t* display_;
 };
 
+// `area` without `cut`: up to four rectangles (above, below, left, right).
+int area_without(const lv_area_t& area, const lv_area_t& cut, lv_area_t* out) {
+  if (!lv_area_is_on(&area, &cut)) {
+    out[0] = area;
+    return 1;
+  }
+  int count = 0;
+  if (area.y1 < cut.y1) out[count++] = {area.x1, area.y1, area.x2, cut.y1 - 1};
+  if (area.y2 > cut.y2) out[count++] = {area.x1, cut.y2 + 1, area.x2, area.y2};
+  const int32_t y1 = LV_MAX(area.y1, cut.y1), y2 = LV_MIN(area.y2, cut.y2);
+  if (area.x1 < cut.x1) out[count++] = {area.x1, y1, cut.x1 - 1, y2};
+  if (area.x2 > cut.x2) out[count++] = {cut.x2 + 1, y1, area.x2, y2};
+  return count;
+}
+
+// The frame with its shadow around it.
+lv_area_t shell_outer_area() {
+  lv_area_t outer;
+  lv_obj_get_coords(shell.frame, &outer);
+  const int32_t ext = lv_obj_get_ext_draw_size(shell.frame);
+  lv_area_increase(&outer, ext, ext);
+  return outer;
+}
+
+// The popup's pieces: the opaque frame without its rounded corners, its top
+// and bottom edge between the corners, the four corner squares and the
+// shadow's strips around it.
+constexpr int kShellPieces = 11;
+int shell_pieces(lv_area_t* out) {
+  lv_area_t frame;
+  lv_obj_get_coords(shell.frame, &frame);
+  const int32_t r = LV_MIN(lv_obj_get_style_radius(shell.frame, LV_PART_MAIN),
+                           LV_MIN(lv_area_get_width(&frame), lv_area_get_height(&frame)) / 2);
+  out[0] = {frame.x1, frame.y1 + r, frame.x2, frame.y2 - r};
+  out[1] = {frame.x1 + r, frame.y1, frame.x2 - r, frame.y1 + r - 1};
+  out[2] = {frame.x1 + r, frame.y2 - r + 1, frame.x2 - r, frame.y2};
+  out[3] = {frame.x1, frame.y1, frame.x1 + r - 1, frame.y1 + r - 1};
+  out[4] = {frame.x2 - r + 1, frame.y1, frame.x2, frame.y1 + r - 1};
+  out[5] = {frame.x1, frame.y2 - r + 1, frame.x1 + r - 1, frame.y2};
+  out[6] = {frame.x2 - r + 1, frame.y2 - r + 1, frame.x2, frame.y2};
+  return 7 + area_without(shell_outer_area(), frame, out + 7);
+}
+
+// Just before LVGL draws (its dirty areas joined), every dirty area reaching
+// into the open popup is cut along the popup's pieces. As one area with the
+// shadow, or joined with the released tile or a label laid out late, LVGL's
+// refresh bands were wider than the frame or reached into its corners: no band
+// was covered by it and everything under the popup was drawn first, 60-90 ms
+// of every opening on the V2. Cut, LVGL starts each covered band at the frame.
+// The popup's parts go first: the tapped tile marks itself on release, before
+// its popup opens, so its area was drawn first and the part under the popup
+// showed a flat, popup-colored square until the popup's own area reached it
+// (V2 draws 28-line bands top to bottom; video of b92).
+void cut_at_popup(lv_event_t* event) {
+  if (!shell.active || lv_obj_get_style_bg_opa(shell.overlay, LV_PART_MAIN) != LV_OPA_TRANSP ||
+      !lv_obj_is_visible(shell.frame))
+    return;
+  auto* display = static_cast<lv_display_t*>(lv_event_get_target(event));
+  lv_area_t pieces[kShellPieces];
+  const int piece_count = shell_pieces(pieces);
+  const lv_area_t outer = shell_outer_area();
+  struct Part {
+    lv_area_t area;
+    int piece;
+  };
+  Part inside[LV_INV_BUF_SIZE];
+  lv_area_t outside[LV_INV_BUF_SIZE];
+  uint32_t in = 0, out = 0;
+  for (uint32_t i = 0; i < display->inv_p; ++i) {
+    if (display->inv_area_joined[i]) continue;
+    const lv_area_t& area = display->inv_areas[i];
+    lv_area_t rest[4];
+    const int rest_count = area_without(area, outer, rest);
+    // Too many areas: LVGL's own list stays as it is.
+    if (out + rest_count > LV_INV_BUF_SIZE) return;
+    for (int k = 0; k < rest_count; ++k) outside[out++] = rest[k];
+    for (int p = 0; p < piece_count; ++p) {
+      if (in == LV_INV_BUF_SIZE) return;
+      if (lv_area_intersect(&inside[in].area, &area, &pieces[p])) inside[in++].piece = p;
+    }
+  }
+  // Within a piece, overlapping parts join the way LVGL joins its areas (no
+  // part drawn twice); joined, they stay inside the piece.
+  for (bool joined = true; joined;) {
+    joined = false;
+    for (uint32_t a = 0; a < in && !joined; ++a) {
+      for (uint32_t b = a + 1; b < in && !joined; ++b) {
+        if (inside[a].piece != inside[b].piece || !lv_area_is_on(&inside[a].area, &inside[b].area)) continue;
+        lv_area_t both;
+        lv_area_join(&both, &inside[a].area, &inside[b].area);
+        if (lv_area_get_size(&both) >= lv_area_get_size(&inside[a].area) + lv_area_get_size(&inside[b].area))
+          continue;
+        inside[a].area = both;
+        inside[b] = inside[--in];
+        joined = true;
+      }
+    }
+  }
+  // The popup top to bottom, before anything beside it.
+  std::sort(inside, inside + in, [](const Part& l, const Part& r) { return l.area.y1 < r.area.y1; });
+  if (in + out > LV_INV_BUF_SIZE) return;
+  display->inv_p = 0;
+  for (uint32_t k = 0; k < in; ++k) display->inv_areas[display->inv_p++] = inside[k].area;
+  for (uint32_t k = 0; k < out; ++k) display->inv_areas[display->inv_p++] = outside[k];
+  for (uint32_t k = 0; k < display->inv_p; ++k) display->inv_area_joined[k] = 0;
+}
+
 void invalidate_shell() {
   // Transparent input overlays cover the display for hit testing only. Drawing
   // their full bounds would repaint every cached tile behind a small popup.
   if (lv_obj_get_style_bg_opa(shell.overlay, LV_PART_MAIN) != LV_OPA_TRANSP)
     lv_obj_invalidate(shell.overlay);
   else lv_obj_invalidate(shell.frame);
-}
-
-// LVGL draws dirty areas in the order they were marked. The tapped tile marks
-// itself on release, before its popup opens, so its area was drawn first: the
-// part under the popup showed a flat, popup-colored square until the popup's
-// own area reached it (V2 draws 28-line bands top to bottom; video of b92).
-// Moving the popup area to the front draws the popup first and leaves the
-// tile's area only its release, without drawing more pixels.
-void draw_shell_first() {
-  lv_display_t* display = lv_obj_get_display(shell.frame);
-  if (!display || display->inv_p < 2) return;
-  lv_area_t frame;
-  lv_obj_get_coords(shell.frame, &frame);
-  if (lv_area_is_in(&frame, &display->inv_areas[0], 0)) return;
-  for (uint32_t i = 1; i < display->inv_p; ++i) {
-    if (!lv_area_is_in(&frame, &display->inv_areas[i], 0)) continue;
-    const lv_area_t area = display->inv_areas[i];
-    for (uint32_t j = i; j > 0; --j) display->inv_areas[j] = display->inv_areas[j - 1];
-    display->inv_areas[0] = area;
-    return;
-  }
-}
-
-void draw_popup_background(lv_event_t* event) {
-  if (!shell.active) return;
-  // A shadow makes LVGL's refresh band wider than the opaque frame, so its
-  // whole-band cover test cannot skip the background. Check each widget's
-  // clipped draw area instead, before decoding its text or drawing its fill.
-  const auto* layer = lv_event_get_layer(event);
-  // Child layers may be translucent or use transformed coordinates.
-  if (layer->parent) return;
-  const auto& clip = layer->_clip_area;
-  lv_area_t frame;
-  lv_obj_get_coords(shell.frame, &frame);
-  if (clip.x1 < frame.x1 || clip.x2 > frame.x2 ||
-      clip.y1 < frame.y1 || clip.y2 > frame.y2) return;
-  const int radius = lv_obj_get_style_radius(shell.frame, LV_PART_MAIN);
-  if ((clip.x1 >= frame.x1 + radius && clip.x2 <= frame.x2 - radius) ||
-      (clip.y1 >= frame.y1 + radius && clip.y2 <= frame.y2 - radius))
-    lv_event_stop_processing(event);
 }
 
 // Only the shared shell header draws, so only it gets the icon disc. The
@@ -275,6 +342,13 @@ Binding* bind(lv_obj_t* owner, lv_obj_t* body, lv_obj_t* title,
 void ensure_shell() {
   if (shell.overlay) return;
   shell.overlay = lv_obj_create(lv_layer_top());
+  // Once per display: the shell is built again after popup_shell_delete_popups.
+  static lv_display_t* cut_display = nullptr;
+  lv_display_t* display = lv_obj_get_display(shell.overlay);
+  if (display != cut_display) {
+    lv_display_add_event_cb(display, cut_at_popup, LV_EVENT_RENDER_START, nullptr);
+    cut_display = display;
+  }
   lv_obj_remove_style_all(shell.overlay);
   lv_obj_set_size(shell.overlay, LV_PCT(100), LV_PCT(100));
   lv_obj_remove_flag(shell.overlay, LV_OBJ_FLAG_SCROLLABLE);
@@ -519,14 +593,6 @@ int8_t popup_drawn_surface(lv_obj_t* root) {
   return ui_theme::kThemeSurface;
 }
 
-void register_popup_background(lv_obj_t* root) {
-  if (!root) return;
-  lv_obj_add_event_cb(root, draw_popup_background,
-      static_cast<lv_event_code_t>(LV_EVENT_DRAW_MAIN | LV_EVENT_PREPROCESS), nullptr);
-  for (uint32_t i = 0; i < lv_obj_get_child_count(root); ++i)
-    register_popup_background(lv_obj_get_child(root, i));
-}
-
 PopupShellParts create_popup_body(lv_event_cb_t close_handler, void* context,
                                  uint32_t color) {
   PopupShellParts parts{};
@@ -629,10 +695,11 @@ void show_popup_shell(lv_obj_t* owner, lv_obj_t* body, lv_obj_t* title,
     sync_popup_shell();
   }
   invalidate_shell();
-  draw_shell_first();
 }
 
 bool popup_shell_active() { return shell.active != nullptr; }
+
+lv_obj_t* popup_shell_body() { return shell.active ? shell.active->body : nullptr; }
 
 void popup_shell_pulse_icon(lv_obj_t* body, bool on) {
   if (!shell.active || shell.active->body != body || !shell.icon) return;
@@ -687,9 +754,8 @@ void popup_shell_follow_tile_color(uint32_t color) {
   // takes the color only on the next sync. Drawn in that order, the tile's
   // part under the popup showed a flat square in the new color until the
   // popup's bands reached it (V2 video, cover change). As on opening, the
-  // frame is marked now and drawn first.
+  // frame is marked now and drawn first (cut_at_popup).
   lv_obj_invalidate(shell.frame);
-  draw_shell_first();
 }
 
 void popup_shell_delete_popups() {

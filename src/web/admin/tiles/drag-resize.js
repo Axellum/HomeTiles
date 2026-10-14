@@ -493,6 +493,23 @@
     });
   }
 
+  // Chrome keeps :hover where a drag started until the pointer moves again:
+  // the tile or free slot that lands there after the drop showed its dashed
+  // hover ring at the dragged tile's old place (user 2026-10-13). The rings
+  // wait for the pointer's next real move or press (admin.css).
+  document.addEventListener('dragend', event => {
+    const x = event.clientX, y = event.clientY;
+    document.body.classList.add('tile-hover-stale');
+    const settle = next => {
+      if (next.type === 'pointermove' && Math.abs(next.clientX - x) < 3 && Math.abs(next.clientY - y) < 3) return;
+      document.body.classList.remove('tile-hover-stale');
+      document.removeEventListener('pointermove', settle, true);
+      document.removeEventListener('pointerdown', settle, true);
+    };
+    document.addEventListener('pointermove', settle, true);
+    document.addEventListener('pointerdown', settle, true);
+  }, true);
+
   function enableTileDrag(tab) {
     const grid = getTileGrid(tab);
     const tiles = grid ? grid.querySelectorAll(':scope > .tile') : [];

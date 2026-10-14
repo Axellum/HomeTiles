@@ -940,10 +940,14 @@ private:
                        bool ensure_navigation_tile = true, bool layout_places = true);
   uint16_t nextFolderId() const;
   void ensureRootFolder();
+  // shown_places: the grid holds the shown layout's places (a bar layout's
+  // cells), not the classic ones the tile data stores.
   bool ensureSettingsTile(TileGridConfig& grid, float target_col = -1,
-                          float target_row = -1);
+                          float target_row = -1, bool shown_places = false);
   bool removeSettingsTiles(TileGridConfig& grid);
   bool applySettingsTilePolicy(TileGridConfig& grid);
+  // A tile parked before its snapshot kept the ID gets one once.
+  void giveParkedSettingsTileId();
   bool ensureBackTile(uint16_t folder_id, TileGridConfig& grid);
 };
 

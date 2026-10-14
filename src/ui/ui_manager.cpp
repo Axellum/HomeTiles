@@ -35,6 +35,7 @@
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/popups/popup_surface.h"
 #include "src/tiles/runtime/tile_icon_source.h"
+#include "src/tiles/runtime/tile_press.h"
 #include "src/core/config/tile_radius.h"
 
 #include <time.h>
@@ -870,38 +871,22 @@ void UIManager::turnPage(int step) {
   if (page >= 0) showPage(page + step);
 }
 
-// A page turn: the head's line goes over first (120 ms, a small area) and
-// the new page shows as it arrives (user 2026-10-12: started after the new
-// page, the dots trailed behind it). One turn at a time.
+// A page turn shows the new page at once (user 2026-10-13: swiping felt
+// slower than Settings; it waited 120 ms for the head's line to go over
+// first). The new page's head shows its line on its own dot
+// (home_bar::shown), so the dots never trail behind the page (user
+// 2026-10-12). Over the open overview its own line glides along.
 static constexpr uint32_t kPageLeadMs = 120;
-static lv_timer_t* g_page_lead = nullptr;
-static int g_page_lead_target = -1;
-
-void UIManager::page_lead_done(lv_timer_t*) {
-  g_page_lead = nullptr;
-  const int target = g_page_lead_target;
-  g_page_lead_target = -1;
-  uiManager.openPage(target);
-}
 
 void UIManager::showPage(int number) {
-  if (g_page_lead) return;
   uint16_t pages[tile_layouts::kMaxPages];
   const int count = static_cast<int>(tile_layouts::pages(pages));
   const int current = tile_layouts::page_number(tileConfig.getActiveFolderId());
   if (number < 0 || number > count || number == current) return;
-  // Over the open overview its own line goes over; the head's lies hidden
-  // under it (one line moves at a time, home_bar.cpp).
-  const bool led = current >= 0 && (page_preview::is_open()
-                                        ? page_preview::lead(current, number, kPageLeadMs)
-                                        : home_bar::lead(tiles_visible_grid(), current, number, kPageLeadMs));
-  if (led) {
-    g_page_lead_target = number;
-    g_page_lead = lv_timer_create(page_lead_done, kPageLeadMs, nullptr);
-    lv_timer_set_repeat_count(g_page_lead, 1);
-    return;
-  }
   openPage(number);
+  // After the switch's request: its follow settles the overview's line, the
+  // glide then starts from the page that was shown.
+  if (current >= 0 && page_preview::is_open()) page_preview::lead(current, number, kPageLeadMs);
 }
 
 void UIManager::openPage(int number) {
@@ -951,7 +936,8 @@ void UIManager::updateTouchPress(lv_indev_t* input) {
   lv_obj_t* obj = touch_press_obj;
   if (!obj) return;
   if (touch_moved) {
-    if (touch_press_shown) lv_obj_remove_state(obj, LV_STATE_PRESSED);
+    // At once, with no fade back (tile_press.h).
+    if (touch_press_shown) tile_press::off_at_once(obj);
     touch_press_obj = nullptr;
     return;
   }
@@ -997,13 +983,21 @@ static void flash_tap(lv_obj_t* obj) {
 }
 
 // Further than a tap from where it came down (touch_rules.h).
+// Only while the finger is down, and on two readings in a row: a single
+// jump of the touch chip (at the lift above all) swallowed taps (user
+// 2026-10-13: tiles reacted less reliably).
 void UIManager::noteTouchMotion(lv_indev_t* input) {
   if (!input || !touch_watched || touch_moved) return;
   lv_point_t current{};
   lv_indev_get_point(input, &current);
   const int32_t dx = current.x - access_gesture_start.x;
   const int32_t dy = current.y - access_gesture_start.y;
-  touch_moved = dx * dx + dy * dy > touch_rules::kTapSlop * touch_rules::kTapSlop;
+  const bool far = touch_rules::far_from_tap(dx, dy, touch_sideways, touch_upright);
+  touch_far_readings = far ? static_cast<uint8_t>(touch_far_readings + 1) : 0;
+  if (touch_far_readings < 2) return;
+  touch_moved = true;
+  touch_moved_dx = static_cast<int16_t>(dx);
+  touch_moved_dy = static_cast<int16_t>(dy);
 }
 
 void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
@@ -1019,6 +1013,10 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
   if (code == LV_EVENT_SHORT_CLICKED || code == LV_EVENT_CLICKED || code == LV_EVENT_LONG_PRESSED) {
     if (self->touch_watched && self->touch_moved) {
       lv_indev_stop_processing(input);
+      // Once per touch: was a tap swallowed as a swipe?
+      if (code == LV_EVENT_CLICKED) {
+        Serial.printf("[Touch] No tap: the finger moved %d,%d px\n", self->touch_moved_dx, self->touch_moved_dy);
+      }
       return;
     }
     if (code == LV_EVENT_LONG_PRESSED) {
@@ -1039,6 +1037,9 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     self->access_gesture_triggered = false;
     self->touch_watched = false;
     self->touch_moved = false;
+    self->touch_sideways = false;
+    self->touch_upright = false;
+    self->touch_far_readings = 0;
     self->touch_press_obj = nullptr;
     self->touch_press_shown = false;
     self->touch_press_late = false;
@@ -1103,6 +1104,11 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     // Every touch on the tiles is watched: one that moves further than a tap
     // is none.
     self->touch_watched = tab == 0 && !drags_itself;
+    // Sideways where the page turns or a side edge's swipe is armed, up and
+    // down where a top or bottom edge's is (edges: 0 left, 1 right, 2 top,
+    // 3 bottom).
+    self->touch_sideways = page_swipe || edge < 2;
+    self->touch_upright = edge == 2 || edge == 3;
     self->access_gesture_start = point;
     // Its object's press waits until the finger rests (updateTouchPress);
     // the head's dots keep their own (home_bar.cpp).
@@ -1135,9 +1141,10 @@ void UIManager::settings_gesture_indev_event_cb(lv_event_t* event) {
     return;
   }
   if (code == LV_EVENT_RELEASED) {
-    self->noteTouchMotion(input);
-    // A tap lifted before its press showed: the object hears its press now,
-    // before its release, and shows it a moment after (flash_tap).
+    // The lift's own point does not count as a move (the touch chip may
+    // jump there). A tap lifted before its press showed: the object hears
+    // its press now, before its release, and shows it a moment after
+    // (flash_tap).
     lv_obj_t* released = static_cast<lv_obj_t*>(lv_event_get_param(event));
     if (released && released == self->touch_press_obj && !self->touch_press_shown && !self->touch_moved) {
       self->touch_press_shown = true;

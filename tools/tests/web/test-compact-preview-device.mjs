@@ -65,6 +65,7 @@ struct Tile{String title,icon_name;float col=0,row=0,span_w=1,span_h=0.5f;uint8_
 ${read('src/tiles/config/tile_config.h').match(/static constexpr uint8_t SENSOR_VALUE_FONT_MAX = \d+;/)[0]}
 ${fn(read('src/tiles/runtime/tile_renderer_shared.h'),'apply_fractional_tile_geometry')}
 #include "src/types/climate/layout.h"
+#include "src/tiles/runtime/tile_press.h"
 ${strip(read('src/tiles/runtime/tile_icon_disc.h'))}
 ${strip(read('src/tiles/runtime/compact_sensor_layout.h'))}
 uint32_t tileDefaultBgColor(){return 0x1A1A1A;}

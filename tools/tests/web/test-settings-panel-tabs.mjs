@@ -39,6 +39,9 @@ context.showSettingsPane('folder1', 'tile');
 assert.equal(context.folder1Settings.dataset.pane, 'tile');
 context.showSettingsPane('folder1', 'global');
 assert.equal(context.folder1Settings.dataset.pane, 'global');
+// The head bar's tab (bar layouts, user 2026-10-13).
+context.showSettingsPane('folder1', 'head');
+assert.equal(context.folder1Settings.dataset.pane, 'head');
 context.showSettingsPane('screensaver', 'global');
 assert.ok(calls.includes('background'), 'the slideshow tab selects its background');
 assert.equal(context.screensaverSettings.dataset.pane, 'global');
@@ -56,7 +59,10 @@ const css = read('src/web/assets/admin.css');
 assert.ok(css.includes('flex:0 1 var(--settings-panel-width, 390px);'), 'the panel may shrink');
 assert.ok(css.includes('.tile-settings[data-pane="global"] > .tile-specific-settings,') &&
   css.includes('.tile-settings[data-pane="options"] > #screensaverBackgroundSettings,') &&
-  css.includes('.tile-settings:not([data-pane="options"]) > .panel-options { display:none; }'), 'the pane picks what shows');
+  css.includes('.tile-settings:not([data-pane="options"]) > .panel-options,') &&
+  css.includes('.tile-settings[data-pane="head"] > .tile-specific-settings,') &&
+  css.includes('.tile-settings[data-pane="head"] > .panel-global,') &&
+  css.includes('.tile-settings:not([data-pane="head"]) > .panel-head { display:none; }'), 'the pane picks what shows');
 
 // Every language names the tabs.
 const header = read('src/core/i18n/i18n.h');

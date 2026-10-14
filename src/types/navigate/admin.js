@@ -22,6 +22,12 @@ function normalizeIconName(value) {
       if (tabEl) {
         tabEl.dataset.folderName = label;
         tabEl.dataset.folderIcon = iconName;
+        // Its page's head (web_admin_html.cpp) shows the folder's name and icon.
+        const head = tabEl.querySelector('.head-bar-preview');
+        const headTitle = head?.querySelector('.head-title');
+        if (headTitle) headTitle.textContent = label;
+        const headIcon = head?.querySelector('.head-disc > i');
+        if (headIcon) headIcon.className = 'mdi mdi-' + (iconName || 'folder');
       }
       const btn = document.querySelector(
         '.folder-tab-btn[data-folder-id="' + folderNum + '"]') ||

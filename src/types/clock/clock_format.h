@@ -250,6 +250,32 @@ inline void format_date(char* out, size_t size, int day, int month, int year, ui
   }
 }
 
+// The month formats as a pattern in the locale's order, like the list's
+// other choices ("DD. MMMM", "DD MMMM YYYY"); a fixed example date (issue
+// #13's 21 August 2026) read like a value (user 2026-10-14).
+inline void format_date_pattern(char* out, size_t size, uint8_t format, const char* language_code) {
+  if (!out || size == 0) return;
+  out[0] = '\0';
+  const i18n::LocaleProfile& locale = i18n::locale(language_code);
+  const char* pattern = locale.long_date_pattern ? locale.long_date_pattern : "{d} {M}";
+  size_t used = 0;
+  for (const char* p = pattern; *p && used + 1 < size;) {
+    const char* part = strncmp(p, "{d}", 3) == 0 ? "DD" : strncmp(p, "{M}", 3) == 0 ? "MMMM" : nullptr;
+    if (!part) {
+      out[used++] = *p++;
+      out[used] = '\0';
+      continue;
+    }
+    const int written = snprintf(out + used, size - used, "%s", part);
+    if (written < 0) break;
+    used += static_cast<size_t>(written);
+    if (used >= size) used = size - 1;
+    p += 3;
+  }
+  out[used] = '\0';
+  if (format == DATE_FORMAT_D_MONTH_YEAR && used + 1 < size) snprintf(out + used, size - used, " YYYY");
+}
+
 // The clock's date line: "Samstag, 21. August", the weekday or the date
 // alone, empty without both.
 inline void format_date_line(char* out, size_t size, int tm_wday, int day, int month, int year, bool show_date,

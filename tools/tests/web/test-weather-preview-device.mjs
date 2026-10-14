@@ -165,6 +165,7 @@ ${['brighten_rgb_color','disable_pressed_button_animation','finish_press_before_
 ${fn(read('src/tiles/runtime/tile_renderer_shared.h'),'apply_fractional_tile_geometry')}
 ${fn(read('src/tiles/runtime/tile_renderer_shared.h'),'place_tile_card')}
 #include "src/types/climate/layout.h"
+#include "src/tiles/runtime/tile_press.h"
 ${strip(read('src/tiles/runtime/tile_icon_disc.h'))}
 ${strip(read('src/tiles/runtime/compact_sensor_layout.h'))}
 void show_weather_popup(const WeatherPopupInit&){}

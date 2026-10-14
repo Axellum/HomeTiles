@@ -73,7 +73,9 @@
       overflow:hidden;
     }
     .wrapper {
-      max-width:var(--admin-wrapper-width, 1200px);
+      /* A square screen's page fields beside it widen the page by what they
+         need (web_admin_styles.cpp admin_page_extra_px). */
+      max-width:calc(var(--admin-wrapper-width, 1200px) + var(--admin-page-extra, 0px));
       height:100vh;
       box-sizing:border-box;
       margin:0 auto;
@@ -863,6 +865,10 @@
       grid-column:2; grid-row:1; width:auto; min-width:0;
       flex-direction:column; align-items:flex-start;
     }
+    /* Home with its page fields has nothing beside the grid (they are cells
+       of it): no empty column (user 2026-10-13: it took 24 px of the S3's
+       settings panel). */
+    .compact-grid .tile-editor-main:has(> .page-fields) { grid-template-columns:max-content; column-gap:0; }
     @media (max-width: 780px) { .compact-grid .tile-editor-main { display:flex; } }
     /* The preview always keeps its device-specific size; the settings panel
        only uses the remaining desktop space. */
@@ -1200,6 +1206,9 @@
     }
     .tile:not(.empty):is(.active, [data-selected="1"])::after { border:3px solid #26a69a; }
     .tile:not(.empty):hover:not(.active):not([data-selected="1"])::after { border:3px dashed rgba(38,166,154,0.6); }
+    /* After a drag Chrome keeps :hover where it started until the pointer
+       moves (tiles/drag-resize.js): no ring on the tile moved there. */
+    body.tile-hover-stale .tile:not(.empty):hover:not(.active):not([data-selected="1"])::after { border-color:transparent; }
     /* The tile clips itself to its rounded corners, so an outline would be cut
        off. An inset ring is the visible focus indicator instead. */
     .tile:focus-visible {
@@ -1265,7 +1274,8 @@
       .tile:not(.empty):not(.sensor-compact):hover:not(.active):not([data-selected="1"]) {
         border:3px dashed rgba(38,166,154,0.6);
       }
-      body.tile-resize-active .tile:not(.empty):not(.sensor-compact):hover:not(.active):not([data-selected="1"]) {
+      body.tile-resize-active .tile:not(.empty):not(.sensor-compact):hover:not(.active):not([data-selected="1"]),
+      body.tile-hover-stale .tile:not(.empty):not(.sensor-compact):hover:not(.active):not([data-selected="1"]) {
         border-color:transparent;
       }
     }
@@ -1397,8 +1407,11 @@
     .tile.empty { background:transparent !important; border:3px solid transparent; }
     .tile.empty.active,
     .tile.empty[data-selected="1"] { border:3px solid #26a69a; box-shadow:0 0 12px rgba(38,166,154,0.55); }
-    /* A free slot hovers like a tile: the same dashed ring. */
-    .tile.empty:hover:not(.active):not([data-selected="1"]),
+    /* A free slot hovers like a tile: the same dashed ring, only where the
+       pointer is (tiles/layout.js enableFreeSlotHover). Not by :hover:
+       Chrome keeps that where a drag started, and the free slot resting
+       there after the drop showed the ring at the tile's old place (user
+       2026-10-13). */
     .tile.empty.free-slot-hover:not(.active):not([data-selected="1"]) { border:3px dashed rgba(38,166,154,0.6); }
     /* The free slot may lie over a selected empty new tile; it takes the click. */
     .tile.empty.free-slot-hover:not([data-selected="1"]) { z-index:1; }
@@ -1449,11 +1462,12 @@
       overflow:hidden;
     }
     .tile-settings.hidden { display:none; }
-    /* The panel's tabs (tiles/settings-pane.js): the selected tile's settings
-       or the global ones (the screensaver page: its picture settings); the
-       panel's data-pane picks what shows. */
+    /* The panel's tabs (tiles/settings-pane.js): the selected tile's settings,
+       the head bar's (bar layouts) or the global ones (the screensaver page:
+       its picture settings); the panel's data-pane picks what shows. */
     .tile-settings > .panel-tabs { flex:0 0 auto; margin:0 0 14px; }
     .tile-settings[data-pane="tile"] > .panel-tabs > [data-pane="tile"],
+    .tile-settings[data-pane="head"] > .panel-tabs > [data-pane="head"],
     .tile-settings[data-pane="global"] > .panel-tabs > [data-pane="global"],
     .tile-settings[data-pane="options"] > .panel-tabs > [data-pane="options"] { background:var(--accent-soft); color:#5fd4c7; }
     .tile-settings[data-pane="global"] > .tile-specific-settings,
@@ -1463,13 +1477,17 @@
     .tile-settings[data-pane="options"] > .tile-specific-settings,
     .tile-settings[data-pane="options"] > .screensaver-clock-settings,
     .tile-settings[data-pane="options"] > #screensaverBackgroundSettings,
-    .tile-settings:not([data-pane="options"]) > .panel-options { display:none; }
+    .tile-settings:not([data-pane="options"]) > .panel-options,
+    .tile-settings[data-pane="head"] > .tile-specific-settings,
+    .tile-settings[data-pane="head"] > .panel-global,
+    .tile-settings:not([data-pane="head"]) > .panel-head { display:none; }
     /* "Tile" without a selected tile: the hint how to pick one. */
     .panel-tile-hint { display:none; margin:0; }
     .tile-settings[data-pane="tile"]:not(:has(> .tile-specific-settings:not(.hidden), > .screensaver-clock-settings:not(.hidden))) > .panel-tile-hint { display:block; }
-    .panel-global, .panel-options { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+    .panel-global, .panel-options, .panel-head { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
     .panel-global > .global-settings-panel,
-    .panel-options > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
+    .panel-options > .global-settings-panel,
+    .panel-head > .global-settings-panel { background:none; border:0; border-radius:0; padding:0; }
     /* The Global tabs (user 2026-10-11): every label in one column, every
        field in the next, all fields as wide as the panel; checkboxes and
        sub-headings across both columns. */
@@ -1478,8 +1496,13 @@
       grid-template-columns:max-content minmax(0, 1fr); max-width:none; gap:12px 14px; align-items:center;
     }
     .panel-global .global-settings-grid > .inline-checkbox,
-    .panel-options .global-settings-grid > .inline-checkbox,
-    .global-settings-subheading { grid-column:1 / -1; }
+    .panel-options .global-settings-grid > .inline-checkbox { grid-column:1 / -1; }
+    /* Its captions like the tile settings' (Farbe, Erweitert; user
+       2026-10-13). */
+    .panel-global .global-settings-grid .tile-settings-group { grid-column:1 / -1; margin:6px 0 -4px; }
+    /* The head bar tab: Home's title and icon, its options one under the
+       other below them. */
+    .panel-head .head-bar-toggles { display:flex; flex-direction:column; align-items:flex-start; gap:10px; margin-top:16px; }
     .panel-global .global-settings-field,
     .panel-options .global-settings-field,
     .panel-global .gesture-settings { display:contents; }
@@ -1488,16 +1511,16 @@
     .panel-global .global-settings-field > :not(label),
     .panel-options .global-settings-field > :not(label) { width:100%; min-width:0; box-sizing:border-box; }
     /* Every field 32 px high: lists, the layout button and the segmented
-       design choice (without its usual gap below). */
+       design choice (without its usual gap below); a list's text in its
+       middle (user 2026-10-13: it sat high). */
     .panel-global .global-settings-grid select,
-    .panel-options .global-settings-grid select { height:32px; margin:0; padding-top:4px; padding-bottom:4px; }
+    .panel-options .global-settings-grid select { height:32px; margin:0; padding-top:0; padding-bottom:0; line-height:30px; }
     .panel-global .global-settings-grid .icon-color-segmented,
     .panel-options .global-settings-grid .icon-color-segmented { height:32px; margin:0; }
     .panel-global .global-settings-grid .icon-color-segmented button,
     .panel-options .global-settings-grid .icon-color-segmented button { padding:0 4px; }
     .panel-global .layout-choice { justify-content:space-between; }
     .panel-global .layout-choice .layout-current { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .global-settings-panel h3.global-settings-subheading { margin:8px 0 0; }
     /* The screensaver's opacity: its label and value on one line, the slider
        across the panel below, so the long label leaves the label column to
        the short ones. */
@@ -2891,6 +2914,8 @@
    layout is not shown (tile-unplaced); the layout window places it. */
 .tile-grid > .tile.tile-unplaced { display:none !important; }
 .head-bar-preview .head-gear.is-off { display:none; }
+/* Without the time (Global tab "Kopfleiste") its place stays empty. */
+.head-bar-preview .head-time.is-off { visibility:hidden; }
 .tile-grid:not(.head-bar-grid):not(.setup-head) > .head-bar-preview { display:none; }
 .head-bar-preview {
   position:absolute;
@@ -3591,6 +3616,7 @@ input[data-entity-picker].hidden + .entity-picker { display:none; }
 /* Icon picker: the entity picker's popover with Automatic and No icon side by
    side above a grid of the panel's icons. */
 .icon-picker-choices { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:4px 0 2px; }
+.icon-picker-choices.single { grid-template-columns:1fr; }
 .icon-picker-choice {
   display:flex; align-items:center; gap:10px; min-width:0; padding:7px 8px; border:0; border-radius:10px;
   background:none; color:var(--text); font:inherit; text-align:left; cursor:pointer;

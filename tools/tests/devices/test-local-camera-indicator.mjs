@@ -278,6 +278,13 @@ assert.match(indicator, /constexpr uint8_t kSettingsTab = 3;/);
 // Closed popups stay parked but visible on the top layer (b26 hid the pill for
 // good on the 8-inch and the V2): the shell and the screensaver decide.
 assert.match(indicator, /return tab != UINT8_MAX && tab != kSettingsTab && !popup_shell_active\(\) &&\s*!image_screensaver_covers_ui\(\);/);
+// The shell moves its objects with the display's invalidation off
+// (SceneChange). A pill shown then marked no area: after a popup closed it
+// came back cut to the popup's area (Tab5, 2026-10-14). It follows in the next
+// timer pass instead, with invalidation on again.
+assert.match(popupShell, /SceneChange\(\) : display_\(lv_obj_get_display\(shell\.overlay\)\) \{\s*lv_display_enable_invalidation\(display_, false\);/);
+assert.match(indicator, /inline void onTopLayerChanged\(lv_event_t\*\) \{\s*if \(!lv_display_is_invalidation_enabled\(lv_display_get_default\(\)\)\) \{\s*lv_async_call_cancel\(refreshLater, nullptr\);\s*lv_async_call\(refreshLater, nullptr\);\s*return;\s*\}\s*refreshGuarded\(\);/);
+assert.match(indicator, /inline void refreshLater\(void\*\) \{\s*if \(lv_display_is_invalidation_enabled\(lv_display_get_default\(\)\)\) refreshGuarded\(\);/);
 // The screensaver covers the UI from its overlay's creation on, not only after
 // its ~0.5 s setup (b28 showed the pill over the opening screensaver).
 {

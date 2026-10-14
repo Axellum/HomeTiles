@@ -89,8 +89,12 @@ struct PendingHistoryRequest {
 
 static PendingHistoryRequest g_pending_history[kHistoryPendingSlots];
 
-// The graph popup asks again on every range switch. An answer stays valid for
-// a minute: replay it instead of another Recorder query. Payloads in PSRAM.
+// The graph popup asks again on every range switch and every opening. An
+// answer stays valid as long as its own steps, at least a minute: a day in
+// 5-minute steps for 5 minutes, a week in hour steps for an hour (user
+// 2026-10-14: 7 days came at once within a minute, then slowly again, each
+// time a new Recorder query of a busy sensor). Replayed instead of another
+// query; the popup's head shows the current value. Payloads in PSRAM.
 struct HistoryReplayEntry {
   String entity_id;
   uint16_t hours = 0;
@@ -100,8 +104,12 @@ struct HistoryReplayEntry {
   char* payload = nullptr;
   size_t length = 0;
 };
-static constexpr uint8_t kHistoryReplaySlots = 4;
-static constexpr uint32_t kHistoryReplayMaxAgeMs = 60UL * 1000UL;
+static constexpr uint8_t kHistoryReplaySlots = 8;
+static constexpr uint32_t kHistoryReplayMinAgeMs = 60UL * 1000UL;
+static uint32_t history_replay_max_age_ms(uint16_t period_minutes) {
+  const uint32_t step = static_cast<uint32_t>(period_minutes) * 60UL * 1000UL;
+  return step > kHistoryReplayMinAgeMs ? step : kHistoryReplayMinAgeMs;
+}
 static constexpr size_t kHistoryReplayMaxBytes = 8UL * 1024UL;
 static HistoryReplayEntry g_history_replay[kHistoryReplaySlots];
 
@@ -460,7 +468,7 @@ static bool replay_history_response(const char* entity_id, uint16_t hours,
         entry.points != points) {
       continue;
     }
-    if (now - entry.stored_ms >= kHistoryReplayMaxAgeMs) return false;
+    if (now - entry.stored_ms >= history_replay_max_age_ms(entry.period_minutes)) return false;
     Serial.printf("[History] Reusing answer for %s (%lu s old)\n", entity_id,
                   static_cast<unsigned long>((now - entry.stored_ms) / 1000));
     queue_sensor_popup_history(nullptr, entry.payload, entry.length);
@@ -2137,6 +2145,10 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     const bool is_binary = response_kind.equalsIgnoreCase("binary");
     const bool is_state = response_kind.equalsIgnoreCase("state");
     const bool is_discrete = is_binary || is_state;
+    // The range and how long its answer took (user 2026-10-14: 7 days felt
+    // slow; the log showed neither).
+    uint16_t answer_hours = 0;
+    uint32_t answer_wait_ms = 0;
     if (has_entity) {
       if (is_discrete) {
         uint16_t response_hours = 0;
@@ -2155,6 +2167,10 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
         uint16_t response_period = 0;
         const PendingHistoryRequest* request =
             find_pending_history_request(response_entity.c_str());
+        if (request) {
+          answer_hours = request->hours;
+          answer_wait_ms = millis() - request->requested_at_ms;
+        }
         if (request &&
             extract_json_uint16_field(large_buf, "hours", response_hours) &&
             extract_json_uint16_field(large_buf, "period_minutes", response_period) &&
@@ -2165,12 +2181,17 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
         clear_pending_history_request(response_entity.c_str());
       }
     }
-    Serial.printf("[%s] Response received: %s, %u bytes\n",
+    char answer_time[48] = "";
+    if (answer_hours) {
+      snprintf(answer_time, sizeof(answer_time), ", %u h, %lu ms after the request",
+               static_cast<unsigned>(answer_hours), static_cast<unsigned long>(answer_wait_ms));
+    }
+    Serial.printf("[%s] Response received: %s, %u bytes%s\n",
                   is_binary ? "BinaryHistory"
                             : (is_state ? "StateHistory" : "History"),
                   response_entity.length() ? response_entity.c_str()
                                            : "unknown entity",
-                  static_cast<unsigned>(copy_len));
+                  static_cast<unsigned>(copy_len), answer_time);
     queue_sensor_popup_history(nullptr, large_buf, copy_len);
     if (!is_discrete) {
       queue_tile_graph_history(nullptr, large_buf, copy_len);

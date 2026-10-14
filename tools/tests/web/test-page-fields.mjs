@@ -6,7 +6,10 @@
 // a locked folder asks once before its PIN goes, pages move and swap
 // between fields, a page dragged onto the screen is a folder tile again as
 // one cell at the dropped spot, a sixth page sends nothing, a tap picks a
-// page like any tile, and the Settings tile parks in its field.
+// page like any tile, and the Settings tile parks in its field. A folder's
+// tab above the page and its page's head follow its tile's title and icon
+// while typing, a save loads no folder page from the panel (user
+// 2026-10-14: the tab waited for both).
 import {readAdminDeliverySource, readRepoFile, inlineScriptSafe} from '../../lib/admin-source.mjs';
 import {runDomHarness} from '../../lib/headless-dom.mjs';
 
@@ -25,7 +28,9 @@ ${Array.from({length: TILES}, (_, i) => `<div class="tile empty" id="folder0-til
 <div id="pageSlots" class="page-fields" data-pages=""><div class="page-fields-label">Pages</div>${
   Array.from({length: 5}, (_, i) => `<div class="page-field" data-slot="${i}"></div>`).join('')}<div id="settingsHiddenSlot" class="tile-grid settings-hidden-slot" data-in-grid="1"><div id="settingsHiddenTile" class="tile settings-hidden-tile empty" data-hidden="0"></div></div></div>
 </div></div></div></div>
-<div id="tab-tiles-folder1" class="tile-tab tab-content" data-folder-id="1"><div class="tile-grid head-bar-grid" id="folder1Grid">${head('Lights', '')}</div></div>
+<div id="tab-tiles-folder1" class="tile-tab tab-content" data-folder-id="1" data-tab-id="folder1"><div class="tile-grid head-bar-grid" id="folder1Grid">${head('Lights', '')}</div></div>
+<div class="tab-nav"><div id="folderTabs">${[[1, 'Lights', 'lightbulb'], [3, 'Alarm', 'shield']].map(([id, name, icon]) =>
+  `<button class="tab-btn folder-tab-btn" type="button" data-folder-id="${id}" data-folder-parent="0" data-tab-id="folder${id}" data-folder-name="${name}" data-folder-icon="${icon}"><span class="tab-disc"><i class="mdi mdi-${icon}"></i></span><span class="tab-label">${name}</span></button>`).join('')}</div></div>
 <div id="folder0Settings" class="tile-settings"><div class="tile-specific-settings">
 <select id="folder0_tile_type"><option value="0">Empty</option><option value="4">Folder</option><option value="7">Settings</option></select>
 <textarea id="folder0_tile_title"></textarea><input id="folder0_tile_icon"><input type="color" id="folder0_tile_color">
@@ -88,6 +93,7 @@ window.fetch = async (url, options) => {
     pages = wanted;
     return {ok:true, status:200, json:async()=>({success:true})};
   }
+  if (String(url).startsWith('/api/folders/tab')) log.push('PAGE ' + url);
   if (String(url).startsWith('/api/tiles?folder=0')) {
     await wait(10);
     return {ok:true, status:200, json:async()=>JSON.parse(JSON.stringify(device))};
@@ -114,6 +120,7 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   };
   const dots = tab => [...document.querySelectorAll('#tab-tiles-' + tab + ' .head-dots > i')].map(dot => dot.classList.contains('on') ? 'O' : 'o').join('');
   const settle = () => wait(300);
+  initTileTabs();
   folderByTab.folder0 = 0;
   tileDataLoadedTabs.add('folder0');
   tilesData.folder0 = JSON.parse(JSON.stringify(device));
@@ -126,6 +133,29 @@ ${inlineScriptSafe(readAdminDeliverySource())}
         grid.querySelector(':scope > #settingsHiddenSlot') && grid.querySelector(':scope > .page-fields-label'),
         'Five page fields, the Settings field and the word stand in Home\\'s grid');
   check(getTileGrid('folder0').id === 'folder0Grid', 'The editor still finds the Home grid first');
+  // The fields' black box: one grid gap of black above, below and between
+  // the fields (user 2026-10-14: the top was a pixel short, its line
+  // inside); the word a little off the screen, the Settings field its own
+  // word over it in the same line.
+  {
+    const cs = getComputedStyle(grid), after = getComputedStyle(grid, '::after');
+    const originX = box(grid).left + grid.clientLeft, originY = box(grid).top + grid.clientTop;
+    const gapPx = metric('--preview-gap'), cellH = metric('--preview-cell-h');
+    const cellTop = place => originY + parseFloat(cs.paddingTop) + place.row * (cellH + gapPx);
+    const cellLeft = place => originX + parseFloat(cs.paddingLeft) + place.col * (metric('--preview-cell-w') + gapPx);
+    const boxTop = originY + parseFloat(after.top), boxBottom = boxTop + parseFloat(after.height);
+    const first = fieldPlace(0), settingsPlace = fieldPlace('settings');
+    const top = cellTop(first) - (boxTop + 1), bottom = (boxBottom - 1) - (cellTop(first) + cellH);
+    check(Math.abs(top - gapPx) < 0.6 && Math.abs(bottom - gapPx) < 0.6, 'One gap of black above and below: ' + top + ' / ' + bottom);
+    const pagesWord = grid.querySelector(':scope > .page-fields-label:not(.settings-label)');
+    const settingsWord = grid.querySelector(':scope > .page-fields-label.settings-label');
+    const screenBottom = originY + parseFloat(cs.paddingTop) + 4 * (cellH + gapPx) - gapPx + metric('--preview-pad');
+    check(box(pagesWord).top - screenBottom >= 5 && boxTop - box(pagesWord).bottom >= 3,
+          'The word off the screen and over the box: ' + (box(pagesWord).top - screenBottom) + ' / ' + (boxTop - box(pagesWord).bottom));
+    check(settingsWord && !settingsWord.hidden && settingsWord.textContent === 'Settings' &&
+          Math.abs(box(settingsWord).left - cellLeft(settingsPlace)) < 1 && Math.abs(box(settingsWord).top - box(pagesWord).top) < 0.5,
+          'The Settings field has its word over it');
+  }
   {
     const field = grid.querySelector(':scope > .page-field');
     const tile = tileOf(1);
@@ -156,6 +186,12 @@ ${inlineScriptSafe(readAdminDeliverySource())}
   await settle();
   check(pages.join() === '0,0,0,1', 'Its place is kept, free places too: ' + pages.join());
   check(grid.querySelector(':scope > .page-field[data-slot="3"]').hidden, 'Its field\\'s frame is under the tile');
+  {
+    // Its stored place takes no room: the free slot can go there (user
+    // 2026-10-13: the pages' old places blocked it, only half cells were left).
+    const occupied = occupiedFromGrid('folder0', grid, null);
+    check(!occupied[0][0] && !occupied[1][1], 'A page\\'s stored place is free for a new tile');
+  }
   check(dots('folder0') === 'Oo' && dots('folder1') === 'oO', 'The dots skip the free places: ' + dots('folder0') + ' ' + dots('folder1'));
   check(document.querySelector('#tab-tiles-folder1 .head-button i').classList.contains('mdi-cog'), 'A page has the gear');
 
@@ -260,6 +296,22 @@ ${inlineScriptSafe(readAdminDeliverySource())}
     check([...tileOf(3).querySelectorAll('.tile-resize-handle')].every(handle => getComputedStyle(handle).display === 'none'),
           'No resize handles on a page');
     check([11, 12, 13, 14].every(folder => tileOf(folder).classList.contains('page-field-tile')), 'The other pages stay in their fields');
+    // Its folder's tab above the page follows while typing (not loaded yet).
+    const button = document.querySelector('.folder-tab-btn[data-folder-id="3"]');
+    check(button.querySelector('.tab-label').textContent === 'Alarm 2' && button.dataset.folderName === 'Alarm 2',
+          'The tab follows the title at once: ' + button.querySelector('.tab-label').textContent);
+    document.getElementById('folder0_tile_icon').value = 'shield-home';
+    updateTilePreview('folder0');
+    check(button.querySelector('.tab-disc i').className === 'mdi mdi-shield-home', 'The tab follows the icon at once');
+    // The save's answer loads no folder page from the panel for it.
+    check(await ensureFolderTabUi(3, 'Alarm 2', 'shield-home') === true && !log.some(line => line.startsWith('PAGE')),
+          'No folder page loaded for a name: ' + log.filter(line => line.startsWith('PAGE')).join());
+    // A loaded folder page's head follows too.
+    updateFolderTabUi(1, 'Licht', '');
+    check(document.querySelector('#tab-tiles-folder1 .head-title').textContent === 'Licht' &&
+          document.querySelector('#tab-tiles-folder1 .head-disc > i').className === 'mdi mdi-folder' &&
+          document.querySelector('.folder-tab-btn[data-folder-id="1"] .tab-label').textContent === 'Licht',
+          'A loaded page\\'s head and tab follow');
   }
   check(parseFloat(getComputedStyle(grid).getPropertyValue('--fields-box-h')) > 0 &&
         getComputedStyle(grid, '::after').backgroundColor === 'rgb(0, 0, 0)', 'The fields lie on a black box like the screen');
@@ -309,6 +361,11 @@ try {
   if (!save.includes('tile.layout_hidden = page_tile || (classic_places') ||
       !save.includes('if (tile.type != TILE_EMPTY && !page_tile) {')) {
     throw Error('An edited page must stay hidden and unchecked');
+  }
+  // A renamed folder's built page gets its head again at once.
+  if (!/const bool folder_renamed = !screensaver_grid && tile\.type == TILE_FOLDER &&\s*\(previous_tile\.type != TILE_FOLDER \|\| previous_tile\.title != tile\.title \|\|\s*previous_tile\.icon_name != tile\.icon_name\);/.test(save) ||
+      !/if \(folder_renamed\) tiles_rebuild_heads\(display_awake\);/.test(save)) {
+    throw Error('A folder renamed by its tile must rebuild the heads');
   }
   const config = readRepoFile('src/tiles/config/tile_config.cpp');
   if (!config.includes('if (!tile.layout_hidden && tile.type != TILE_BACK) {\n      tile_layouts::set(active, folder_id, tile.view_id,') &&

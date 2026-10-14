@@ -83,6 +83,13 @@ private:
   // than a tap (touch_rules.h): then its tile gets no click or long press.
   bool touch_watched = false;
   bool touch_moved = false;
+  // The ways a swipe can start from it (touch_rules::far_from_tap).
+  bool touch_sideways = false;
+  bool touch_upright = false;
+  // Readings beyond a tap's distance in a row, and how far it went (log).
+  uint8_t touch_far_readings = 0;
+  int16_t touch_moved_dx = 0;
+  int16_t touch_moved_dy = 0;
   // The touched object's press shows once the finger rested (touch_rules.h):
   // the object, when the finger came down, whether its press shows, and
   // whether a quick tap got it only at the lift (it then shows a moment).
@@ -124,7 +131,6 @@ private:
   void runSwipeAction(uint8_t action);
   void turnPage(int step);
   void openPage(int number);
-  static void page_lead_done(lv_timer_t *timer);
   static void settings_gesture_indev_event_cb(lv_event_t *e);
   static void settings_gesture_pressed_object_event_cb(lv_event_t *e);
   static bool verify_pending_access(const char* pin, void* context);

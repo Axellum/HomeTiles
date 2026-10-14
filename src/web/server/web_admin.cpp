@@ -216,6 +216,10 @@ bool WebAdminServer::start() {
               guarded(withStorageHold([this]() { this->handleGestures(); })));
     server.on("/api/display/head-gear", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveHeadGear(); })));
+    server.on("/api/display/head", HTTP_POST,
+              guarded(withStorageHold([this]() { this->handleSaveHeadSwitch(); })));
+    server.on("/api/display/home-head", HTTP_POST,
+              guarded(withStorageHold([this]() { this->handleSaveHomeHead(); })));
     server.on("/api/display/theme", HTTP_POST,
               guarded(withStorageHold([this]() { this->handleSaveTheme(); })));
     server.on("/api/local-camera", HTTP_GET,

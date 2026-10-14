@@ -96,6 +96,7 @@ ${['brighten_rgb_color','disable_pressed_button_animation','finish_press_before_
 ${fn(read('src/tiles/runtime/tile_renderer_shared.h'),'apply_fractional_tile_geometry')}
 ${fn(read('src/tiles/runtime/tile_renderer_shared.h'),'place_tile_card')}
 #include "src/types/climate/layout.h"
+#include "src/tiles/runtime/tile_press.h"
 ${strip(read('src/tiles/runtime/tile_icon_disc.h'))}
 ${strip(read('src/tiles/runtime/compact_sensor_layout.h'))}
 PopupShellParts popup;int opens=0,completed_opens=0,sensor_opens=0;
@@ -376,7 +377,6 @@ void check_value_alignment(lv_display_t* display) {
  std::cout<<"Value alignment: y="<<expected_y<<", all supported spans passed"<<std::endl;
  lv_obj_delete(sensor); lv_refr_now(display);
 }
-void remove_optimization(lv_obj_t*o){lv_obj_remove_event_cb(o,draw_popup_background);for(uint32_t i=0;i<lv_obj_get_child_count(o);++i)remove_optimization(lv_obj_get_child(o,i));}
 int main(){lv_init();auto*d=lv_display_create(SCREEN_WIDTH,SCREEN_HEIGHT);std::vector<uint32_t>pixels(SCREEN_WIDTH*SCREEN_HEIGHT),band(SCREEN_WIDTH*28);lv_display_set_color_format(d,LV_COLOR_FORMAT_XRGB8888);lv_display_set_buffers(d,band.data(),nullptr,band.size()*4,LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_user_data(d,&pixels);lv_display_set_flush_cb(d,[](lv_display_t*d,const lv_area_t*a,uint8_t*data){if(measuring)flushed_pixels+=lv_area_get_size(a);auto&pixels=*static_cast<std::vector<uint32_t>*>(lv_display_get_user_data(d));auto*source=reinterpret_cast<uint32_t*>(data);for(int y=a->y1;y<=a->y2;++y)for(int x=a->x1;x<=a->x2;++x)pixels[y*SCREEN_WIDTH+x]=*source++;lv_display_flush_ready(d);});
  lv_theme_default_init(d,lv_color_hex(0x26A69A),lv_color_hex(0xC14444),false,&ui_font_20);
  static_assert(LV_THEME_DEFAULT_TRANSITION_TIME==80);
@@ -395,13 +395,15 @@ int main(){lv_init();auto*d=lv_display_create(SCREEN_WIDTH,SCREEN_HEIGHT);std::v
   for(int cycle=0;cycle<5;++cycle){
    lv_area_t area;lv_obj_get_coords(card,&area);pointer={area.x1+40,area.y1+80};pressed=true;lv_indev_read(input);lv_tick_inc(30);lv_refr_now(d);const int before=opens;covered_draws=0;flushed_pixels=0;measuring=true;pressed=false;lv_indev_read(input);assert(opens==before+1);lv_refr_now(d);measuring=false;
    if(cycle==0)std::cout<<span<<"x"<<span<<" col="<<col<<": covered draws="<<covered_draws<<", flushed pixels="<<flushed_pixels<<std::endl;
-   const auto incremental=pixels;remove_optimization(card);lv_obj_invalidate(lv_screen_active());lv_refr_now(d);assert(incremental==pixels&&"Optimized popup pixels must match an unfiltered full redraw, including shadow and exposed tile");
-   total_covered+=covered_draws;register_popup_background(card);
-   hide_popup_shell(popup.card);lv_refr_now(d);const auto closed=pixels;remove_optimization(card);lv_obj_invalidate(lv_screen_active());lv_refr_now(d);assert(closed==pixels&&"Closing must restore the cached Weather tile completely");register_popup_background(card);
+   const auto incremental=pixels;lv_obj_invalidate(lv_screen_active());lv_refr_now(d);assert(incremental==pixels&&"Optimized popup pixels must match an unfiltered full redraw, including shadow and exposed tile");
+   total_covered+=covered_draws;
+   hide_popup_shell(popup.card);lv_refr_now(d);const auto closed=pixels;lv_obj_invalidate(lv_screen_active());lv_refr_now(d);assert(closed==pixels&&"Closing must restore the cached Weather tile completely");
    assert(lv_obj_get_child_count(card)==children&&"Opening must retain the existing Weather widgets");
   }
   lv_obj_delete(card);lv_refr_now(d);
  }
+ // No widget registers for this: the popup's own dirty areas (popup_shell.cpp
+ // shell_areas) let LVGL start each covered band at the opaque frame.
  assert(total_covered==0&&"Opening must not redraw Weather objects fully covered by the popup");lv_deinit();}
 `;
 const source=path.join(out,'test.cpp');fs.writeFileSync(source,cpp);

@@ -340,9 +340,9 @@ void build_category_tile(lv_obj_t* panel, uint8_t index, int x, int y, int w, in
 }
 
 // ---------- Display page ----------
-// Screen: Brightness, Sleep, Rotation; Screensaver: Starts after, Brightness
-// (mockup pageDisplay). All sliders start at the same x; the rotation offers
-// the quarter turns where the panel supports them.
+// Screen: Brightness, Sleep, Rotation, Design; Screensaver: Starts after,
+// Brightness (mockup pageDisplay). All sliders start at the same x; the
+// rotation offers the quarter turns where the panel supports them.
 
 void clear_display_refs() {
   g_brightness_value = nullptr;
@@ -454,6 +454,12 @@ void build_display_page(lv_obj_t* page) {
   settings_parts::Row rotation = settings_parts::row(screen, "screen-rotation", s.settings_rotation);
   // Controls sit one step above the group (the tile color).
   g_rotation_segment = rotation_segment(rotation.row, palette.group);
+  // The look (user 2026-10-14): Dark, Light, Automatic like the Web Admin's
+  // Design, applied at once.
+  settings_parts::Row design = settings_parts::row(screen, "theme-light-dark", s.theme_label);
+  const char* const themes[] = {s.theme_dark, s.theme_light, s.theme_auto};
+  settings_parts::segment(design.row, themes, 3, settings_model::theme_choice(), palette.group,
+                          [](lv_obj_t*, uint8_t index) { settings_model::theme_selected(index); });
 
   settings_parts::section(page, s.settings_screensaver, false);
   lv_obj_t* saver = settings_parts::group(page, palette);
@@ -1845,6 +1851,15 @@ void build_frame() {
   lv_obj_set_size(g_page, card_w, card_h);
   lv_obj_set_flex_flow(g_page, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_row(g_page, GRID_GAP, 0);
+  // A page taller than its area scrolls up and down (user 2026-10-14: the
+  // S3's Display page with Design cut the screensaver's brightness off); an
+  // open option list closes, it would stay where its row was.
+  // Clickable too: LVGL scrolls what a touch lands on (or its parents), and
+  // the rows are no input; a finger on a row's name moved nothing (S3 b450).
+  lv_obj_add_flag(g_page, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE));
+  lv_obj_set_scroll_dir(g_page, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(g_page, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_event_cb(g_page, [](lv_event_t*) { settings_parts::close_options(); }, LV_EVENT_SCROLL_BEGIN, nullptr);
 
   for (uint8_t i = 0; i < kCategoryCount; ++i) style_category(i);
   refresh_lines();
@@ -1854,6 +1869,8 @@ void select_category(Category category) {
   if (category == g_category && g_page_built) return;
   g_category = category;
   for (uint8_t i = 0; i < kCategoryCount; ++i) style_category(i);
+  // Another page starts at its top (its own rebuilds keep the place).
+  if (g_page) lv_obj_scroll_to_y(g_page, 0, LV_ANIM_OFF);
   build_page();
 }
 

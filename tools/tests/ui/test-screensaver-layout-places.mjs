@@ -62,7 +62,7 @@ assert.ok(windowSource.includes('return [...tabs.filter(tab => !isScreensaverTil
 assert.ok(windowSource.includes('const shift = isScreensaverTileTab(tab) ? L.rows - LAYOUTS[from].rows : 0;'));
 assert.ok(read('src/web/assets/admin.css').includes('.tile-grid.setup-grid.screensaver-tile-grid > :not(.tile):not(.screensaver-grid-clock)'));
 assert.ok(handler.includes('grid.tiles[i].view_id = grid.tiles[i].type == TILE_EMPTY ? 0 : screensaver_places::key(i);'));
-assert.ok(handler.includes('if (folder_id != screensaver_places::kFolder) return tileConfig.loadFolderGridClassic(folder_id, *grid);'));
+assert.match(handler, /if \(folder_id != screensaver_places::kFolder\) \{\s*if \(!tileConfig\.loadFolderGridClassic\(folder_id, \*grid\)\) return false;/);
 assert.ok(handler.includes('return place.inside && place.place.row < screensaver_places::first_row(layout) - 0.001f;'));
 assert.ok(handler.includes('ok = screensaverConfig.replaceTileGrid(*grid) && ok;'));
 

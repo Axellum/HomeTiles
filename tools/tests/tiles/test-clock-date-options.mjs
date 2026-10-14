@@ -83,6 +83,14 @@ int main() {
     std::printf("pack %d %d %d %d %d %d %d %d %d\n", raw, o.date_format, o.weekday, o.roll ? 1 : 0, o.align, o.style,
                 o.dial, o.hands, static_cast<int>(clock_tile::normalize_date_options(raw)));
   }
+  // The month formats' list labels: patterns in the locale's order.
+  for (const char* lang : {"de", "en", "fr", "pl"}) {
+    for (int format : {6, 7}) {
+      char pattern[32];
+      clock_tile::format_date_pattern(pattern, sizeof(pattern), static_cast<uint8_t>(format), lang);
+      std::printf("pattern %s %d %s|\n", lang, format, pattern);
+    }
+  }
   return 0;
 }
 `;
@@ -103,7 +111,14 @@ if (output !== null) {
   assert.equal(at('de', 10, 1, 1), 'Sa, 10.10.2026');
   assert.equal(at('de', 10, 1, 2, 0), 'Samstag', 'the weekday alone');
   assert.equal(at('de', 10, 1, 0, 0), '', 'nothing without both');
-  const packs = Object.fromEntries(lines.slice(cases.length).map(l => l.trim().split(' ')).map(([, raw, ...v]) => [raw, v.map(Number)]));
+  const packs = Object.fromEntries(lines.slice(cases.length).filter(l => l.startsWith('pack '))
+    .map(l => l.trim().split(' ')).map(([, raw, ...v]) => [raw, v.map(Number)]));
+  // The list shows patterns like its other choices, never a fixed date
+  // (user 2026-10-14).
+  const patterns = Object.fromEntries(lines.filter(l => l.startsWith('pattern '))
+    .map(l => l.replace(/\|\r?$/, '').match(/^pattern (\w+) (\d) (.*)$/)).map(m => [m[1] + m[2], m[3]]));
+  assert.deepEqual(patterns, {de6: 'DD. MMMM', de7: 'DD. MMMM YYYY', en6: 'DD MMMM', en7: 'DD MMMM YYYY',
+    fr6: 'DD MMMM', fr7: 'DD MMMM YYYY', pl6: 'DD MMMM', pl7: 'DD MMMM YYYY'});
   assert.deepEqual(packs['3'], [3, 0, 0, 0, 0, 0, 0, 3], 'an old tile: the format alone, centered, digital');
   assert.deepEqual(packs[String(0x106)], [6, 1, 0, 0, 0, 0, 0, 0x106]);
   assert.deepEqual(packs[String(0x405)], [5, 0, 1, 0, 0, 0, 0, 0x405], 'rolling digits');
@@ -175,7 +190,9 @@ assert.match(renderer, /update_clock_labels\(data\);\s*\/\/ The first text appea
 const html = read('src/types/clock/web_html.cpp');
 for (const id of ['_clock_roll', '_clock_weekday']) assert.ok(html.includes(id + '"'), id);
 assert.match(html, /<option value="4">DD\/MM\/YYYY<\/option>/);
-assert.match(html, /clock_tile::format_date\(sample, sizeof\(sample\), 21, 7, 2026, clock_tile::DATE_FORMAT_D_MONTH_YEAR, language\);/);
+assert.match(html, /clock_tile::format_date_pattern\(pattern, sizeof\(pattern\), clock_tile::DATE_FORMAT_D_MONTH, language\);/);
+assert.match(html, /clock_tile::format_date_pattern\(pattern, sizeof\(pattern\), clock_tile::DATE_FORMAT_D_MONTH_YEAR, language\);/);
+assert.doesNotMatch(html, /21, 7, 2026/, 'No fixed example date in the list');
 assert.match(read('src/types/clock/web_scripts.cpp'), /const CLOCK_I18N = Object\.freeze\(/);
 // The editor refreshes on the new fields.
 const editor = read('src/web/admin/tiles/editor.js');

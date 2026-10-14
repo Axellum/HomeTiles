@@ -433,16 +433,32 @@ inline void refresh(Objects& ui) {
   keepOnTop(ui);
 }
 
-// A popup or the screensaver overlay opened or closed on the top layer: hide
-// or restore the pill and keep the stripe above it at once, not at the next
-// poll. The indicator's own changes re-enter here; busy stops that.
-inline void onTopLayerChanged(lv_event_t*) {
+// The indicator's own changes re-enter here; busy stops that.
+inline void refreshGuarded() {
   static bool busy = false;
   Objects& ui = objects();
   if (busy || !ui.pill || !ui.visible) return;
   busy = true;
   refresh(ui);
   busy = false;
+}
+
+inline void refreshLater(void*) {
+  if (lv_display_is_invalidation_enabled(lv_display_get_default())) refreshGuarded();
+}
+
+// A popup or the screensaver overlay opened or closed on the top layer: hide
+// or restore the pill and keep the stripe above it at once, not at the next
+// poll. The popup shell moves its objects with the display's invalidation
+// off: a pill shown then marked no area and came back cut to the popup's area
+// (Tab5). Then it follows in the next timer pass, before the next frame.
+inline void onTopLayerChanged(lv_event_t*) {
+  if (!lv_display_is_invalidation_enabled(lv_display_get_default())) {
+    lv_async_call_cancel(refreshLater, nullptr);
+    lv_async_call(refreshLater, nullptr);
+    return;
+  }
+  refreshGuarded();
 }
 
 inline void poll(lv_timer_t*) { refresh(objects()); }

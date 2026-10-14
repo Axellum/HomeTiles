@@ -32,6 +32,7 @@ function t(key) {
       if (!response.ok) return;
       const data = await response.json();
       applyPanelClockFormats(Number(data?.time_format), Number(data?.date_format));
+      if (typeof applyPanelThemeFromDevice === 'function') applyPanelThemeFromDevice(data?.theme, data?.theme_shown);
       const device = String(data?.language || '').toLowerCase();
       const page = String(document.documentElement.lang || APP_LOCALE).toLowerCase();
       if (device && device !== page && !adminEditsPending()) location.reload();

@@ -473,7 +473,7 @@ static void appendTileTabHTML(
     // Home and its pages: the dots in the middle and the gear (home_bar.cpp).
     const int page = tile_layouts::page_number(folder_id);
     const bool home_level = home || page > 0;
-    const String icon = home ? String("home")
+    const String icon = home ? normalizeMdiIconName(String(home_bar::home_icon()))
                              : normalizeMdiIconName(folder.icon_name[0] ? String(folder.icon_name) : String("folder"));
     char time_text[8];
     home_bar::format_time(time_text, sizeof(time_text));
@@ -484,18 +484,22 @@ static void appendTileTabHTML(
     const size_t page_count = tile_layouts::pages(pages);
     // With pages the dots' count sizes the title (admin.css .has-dots).
     html += "<div class=\"head-bar-preview";
+    // Home's own title and icon follow the head bar tab (display-borders.js).
+    if (home) html += " home-head";
     if (page >= 0) html += " has-dots\" style=\"--head-dots-n:" + String(page_count + 1);
     html += "\" aria-hidden=\"true\"><span class=\"head-disc\"><i class=\"mdi mdi-";
     appendHtmlEscaped(html, icon);
     html += "\"></i></span><span class=\"head-title\">";
-    appendHtmlEscaped(html, home || !folder.name[0] ? String(tr.home) : String(folder.name));
+    appendHtmlEscaped(html, home ? String(home_bar::home_title(tr.home)) : !folder.name[0] ? String(tr.home) : String(folder.name));
     html += "</span>";
     if (page >= 0) {
       html += "<span class=\"head-dots\">";
       for (int i = 0; i <= static_cast<int>(page_count); ++i) html += i == page ? "<i class=\"on\"></i>" : "<i></i>";
       html += "</span>";
     }
-    html += "<span class=\"head-time\" data-hour12=\"";
+    // Without the time (Global tab "Kopfleiste") its place stays empty.
+    html += configManager.getConfig().head_clock ? "<span class=\"head-time\" data-hour12=\""
+                                                 : "<span class=\"head-time is-off\" data-hour12=\"";
     html += time_format == clock_tile::TIME_FORMAT_12H ? "1" : "0";
     html += "\">";
     // Fixed-width digits like the panel's head (tabular_digits, .tnum).
@@ -994,7 +998,7 @@ static void appendTileTabHTML(
     const String borders_id = tab_id + "_global_tile_borders";
     const String theme_id = tab_id + "_global_theme";
     global_panel += "<section class=\"global-settings-panel\"><h3>";
-    appendHtmlEscaped(global_panel, tr.global_settings_heading);
+    appendHtmlEscaped(global_panel, tr.panel_tab_global);
     global_panel += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
             "<input class=\"normal-tile-border-toggle\" id=\"" +
             borders_id + "\" type=\"checkbox\" onchange=\"saveNormalTileBorders(this.checked)\"";
@@ -1047,9 +1051,11 @@ static void appendTileTabHTML(
       const uint8_t order[swipe_gestures::kEdgeCount] = {2, 3, 0, 1};
       // In the same grid, so every label and field lines up (user
       // 2026-10-11).
-      global_panel += "<div class=\"gesture-settings\"><h3 class=\"global-settings-subheading\">";
+      // Its caption like the tile settings' (Farbe, Erweitert; user
+      // 2026-10-13).
+      global_panel += "<div class=\"gesture-settings\"><div class=\"tile-settings-group\">";
       appendHtmlEscaped(global_panel, tr.swipe_gestures_heading);
-      global_panel += "</h3>";
+      global_panel += "</div>";
       for (const uint8_t edge : order) {
         const String id = tab_id + "_gesture_" + String(edge);
         global_panel += "<div class=\"global-settings-field\"><label for=\"" + id + "\">";
@@ -1069,6 +1075,60 @@ static void appendTileTabHTML(
     }
     global_panel += "</div></section>\n";
   }
+  // The head bar's own tab (user 2026-10-13, mockup build/design-mockups/
+  // pages/kopf-tab.png): Home's title and icon like a tile's (Auto: "Home"
+  // in the panel's language and the house), then the gear (the Settings
+  // tile's own option, kept in step by its class), the time and the pages'
+  // overview on the dots, one under the other. The classic layout has no
+  // head, so no tab.
+  String head_panel;
+  if (!screensaver_mode && grid_layout::head_bar()) {
+    const DeviceConfig& display = configManager.getConfig();
+    const String head_id = tab_id + "_head";
+    head_panel += "<section class=\"global-settings-panel\"><h3>";
+    appendHtmlEscaped(head_panel, tr.head_bar_heading);
+    // Title and Icon as in a tile's head (tiles/tile-head.js): its Auto puts
+    // data-auto-title in, the icon list's Automatic is data-auto-icon.
+    head_panel += "</h3><div class=\"tile-head-row\"><div><div class=\"tile-title-label\"><label for=\"" + head_id +
+                  "_tile_title\">";
+    appendHtmlEscaped(head_panel, tr.head_bar_home_title);
+    head_panel += "</label><button type=\"button\" class=\"tile-title-auto\" id=\"" + head_id +
+                  "_tile_title_auto\" data-auto-title=\"";
+    appendHtmlEscaped(head_panel, tr.home);
+    head_panel += "\" aria-pressed=\"false\" title=\"";
+    appendHtmlEscaped(head_panel, tr.head_bar_home_auto_hint);
+    head_panel += "\">";
+    appendHtmlEscaped(head_panel, tr.tile_title_auto);
+    head_panel += "</button></div><textarea rows=\"1\" maxlength=\"31\" class=\"tile-title-input home-head-title\" "
+                  "spellcheck=\"false\" id=\"" + head_id + "_tile_title\" placeholder=\"";
+    appendHtmlEscaped(head_panel, tr.home);
+    head_panel += "\">";
+    appendHtmlEscaped(head_panel, home_bar::home_title(tr.home));
+    head_panel += "</textarea></div><div><label for=\"" + head_id + "_tile_icon_picker\">";
+    appendHtmlEscaped(head_panel, tr.tile_group_icon);
+    head_panel += "</label><input type=\"hidden\" class=\"home-head-icon\" id=\"" + head_id +
+                  "_tile_icon\" data-tile-icon data-auto-icon=\"home\" value=\"";
+    appendHtmlEscaped(head_panel, display.head_icon);
+    head_panel += "\"><button type=\"button\" class=\"tile-icon-picker\" id=\"" + head_id +
+                  "_tile_icon_picker\" aria-haspopup=\"listbox\"></button></div></div>";
+    const auto head_toggle = [&](const char* name, const char* onchange, bool on, const char* label) {
+      head_panel += "<label class=\"folder-pin-toggle\"><input type=\"checkbox\" class=\"";
+      head_panel += name;
+      head_panel += "\" id=\"" + tab_id + "_" + name + "\" onchange=\"";
+      head_panel += onchange;
+      head_panel += "\"";
+      if (on) head_panel += " checked";
+      head_panel += "><span>";
+      appendHtmlEscaped(head_panel, label);
+      head_panel += "</span></label>";
+    };
+    head_panel += "<div class=\"head-bar-toggles\">";
+    head_toggle("settings-head-gear", "saveHeadGear(this.checked)", display.head_gear, tr.head_bar_gear);
+    head_toggle("head-bar-clock", "saveHeadSwitch('clock', this.checked)", display.head_clock, tr.head_bar_clock);
+    head_toggle("head-bar-overview", "saveHeadSwitch('overview', this.checked)", display.head_overview,
+                tr.head_bar_overview);
+    head_panel += "</div></section>\n";
+  }
   html += R"html(</div>
 
 <!-- Settings Panel -->
@@ -1083,6 +1143,10 @@ static void appendTileTabHTML(
   html += "<div class=\"icon-color-segmented choice-row panel-tabs\" role=\"tablist\">";
   html += "<button type=\"button\" data-pane=\"tile\" onclick=\"showSettingsPane('" + tab_id + "','tile')\">";
   appendHtmlEscaped(html, tr.panel_tab_tile);
+  if (head_panel.length()) {
+    html += "</button><button type=\"button\" data-pane=\"head\" onclick=\"showSettingsPane('" + tab_id + "','head')\">";
+    appendHtmlEscaped(html, tr.head_bar_heading);
+  }
   html += "</button><button type=\"button\" data-pane=\"global\" onclick=\"showSettingsPane('" + tab_id + "','global')\">";
   appendHtmlEscaped(html, screensaver_mode ? tr.admin_slideshow : tr.panel_tab_global);
   if (screensaver_mode) {
@@ -1092,6 +1156,11 @@ static void appendTileTabHTML(
   html += "</button></div><p class=\"hint panel-tile-hint\">";
   html += tr.admin_tile_hint;
   html += "</p>";
+  if (head_panel.length()) {
+    html += "<div class=\"panel-head\">";
+    html += head_panel;
+    html += "</div>";
+  }
   if (!screensaver_mode) {
     html += "<div class=\"panel-global\">";
     html += global_panel;
@@ -1100,7 +1169,7 @@ static void appendTileTabHTML(
   if (screensaver_mode) {
     const ScreensaverConfigData& saver = screensaverConfig.get();
     html += "<div class=\"panel-options\"><section class=\"global-settings-panel\"><h3>";
-    appendHtmlEscaped(html, tr.global_settings_heading);
+    appendHtmlEscaped(html, tr.panel_tab_global);
     html += "</h3><div class=\"global-settings-grid\"><label class=\"inline-checkbox\">"
             "<input id=\"screensaverTileBorder\" type=\"checkbox\"> ";
     appendHtmlEscaped(html, tr.screensaver_tile_border);
@@ -1126,7 +1195,11 @@ static void appendTileTabHTML(
       html += "</button>";
     }
     html += "</div></div></div></section></div>\n";
+    // Every pane's heading is its tab's name (user 2026-10-13).
     html += R"html(            <div id="screensaverBackgroundSettings" class="screensaver-background-settings">
+<div class="tile-settings-head"><h3 style="margin-top:0;">)html";
+    appendHtmlEscaped(html, tr.admin_slideshow);
+    html += R"html(</h3></div>
 <div class="tile-settings-body">
 <div class="screensaver-fixed-type"><label for="screensaverPictureSource">)html";
     html += tr.admin_type;
@@ -1259,7 +1332,7 @@ static void appendTileTabHTML(
 <div class="tile-specific-settings hidden">
 <div class="tile-settings-head">
 <div class="tile-head-top"><h3>)html";
-  html += tr.admin_tile_settings;
+  appendHtmlEscaped(html, tr.panel_tab_tile);
   html += R"html(</h3>
 <select id=")html";
   html += tab_id;

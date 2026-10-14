@@ -92,6 +92,10 @@ bool park_settings_tile(const TileGridConfig& grid) {
     cfg->settings_tile_snapshot.title[0] = '\0';
   }
   cfg->settings_tile_hidden = true;
+  // Parked in the head bar layouts, which have the gear; the classic one
+  // shows the tile (user 2026-10-13: each layout decides).
+  cfg->settings_parked = (1u << static_cast<uint8_t>(grid_layout::Layout::kBar)) |
+                         (1u << static_cast<uint8_t>(grid_layout::Layout::kPortrait));
   cfg->settings_swipe_enabled = true;
   return configManager.save(*cfg) &&
          tileConfig.setSettingsTileVisible(false) == SettingsTileVisibilityResult::Success;

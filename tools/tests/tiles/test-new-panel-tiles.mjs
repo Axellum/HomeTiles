@@ -93,7 +93,10 @@ assert.match(read('src/tiles/config/tile_config.cpp'),
   /tile\.title = snapshot\.valid && snapshot\.title\[0\]\s*\? String\(snapshot\.title\)\s*: String\(i18n::strings\(configManager\.getConfig\(\)\.language\)\s*\.tile_type_settings\);/);
 assert.match(read('src/web/server/render/web_admin_html.cpp'),
   /snapshot\.valid && snapshot\.title\[0\]\s*\? String\(snapshot\.title\)\s*: String\(tr\.tile_type_settings\);/);
-assert.match(park, /cfg->settings_tile_hidden = true;\s*cfg->settings_swipe_enabled = true;/);
+assert.match(park, /cfg->settings_tile_hidden = true;[\s\S]*?cfg->settings_swipe_enabled = true;/);
+// Parked in the head bar layouts (the gear is there), shown in the classic
+// one (user 2026-10-13: each layout decides).
+assert.match(park, /cfg->settings_parked = \(1u << static_cast<uint8_t>\(grid_layout::Layout::kBar\)\) \|\s*\(1u << static_cast<uint8_t>\(grid_layout::Layout::kPortrait\)\);/);
 assert.match(park, /configManager\.save\(\*cfg\) &&\s*tileConfig\.setSettingsTileVisible\(false\) == SettingsTileVisibilityResult::Success/);
 // The Web Admin's park takes the same snapshot.
 assert.match(read('src/web/server/handlers/web_admin_handlers.cpp'),

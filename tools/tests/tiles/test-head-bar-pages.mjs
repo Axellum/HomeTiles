@@ -74,10 +74,14 @@ const shown = slice(bar, 'void shown(lv_obj_t* grid, uint16_t folder_id, uint16_
 // turn's lead had left it).
 assert.match(shown, /if \(!dots \|\| page < 0\) return;[\s\S]*lay_out_line\(dots, page, page, 0, 0\);/);
 assert.doesNotMatch(shown, /from < 0/);
-assert.match(slice(bar, 'bool lead(', '\n}\n'), /move_line\(dots, from, to, 0\.0f, 1\.0f, 0, duration\);/);
+assert.match(slice(bar, 'void glide(', '\n}\n'), /move_line\(dots, from, to, 0\.0f, 1\.0f, 0, duration\);/);
+assert.doesNotMatch(bar, /bool lead\(/, 'The head line no longer goes ahead of a page turn');
 const leadManager = read('src/ui/ui_manager.cpp');
 const lead = slice(leadManager, 'void UIManager::showPage(int number) {', '\n}\n');
-assert.match(lead, /home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\);\s*if \(led\) \{\s*g_page_lead_target = number;\s*g_page_lead = lv_timer_create\(page_lead_done, kPageLeadMs, nullptr\);/);
+// The new page shows at once (user 2026-10-13: swiping felt slower than
+// Settings, the turn waited 120 ms for the head's line).
+assert.match(lead, /if \(number < 0 \|\| number > count \|\| number == current\) return;\s*openPage\(number\);/);
+assert.doesNotMatch(leadManager, /g_page_lead|page_lead_done|home_bar::lead\(/);
 assert.match(leadManager, /static constexpr uint32_t kPageLeadMs = 120;/);
 assert.doesNotMatch(bar, /start_waiting|move_line_after_frame/);
 // No line following the finger (user 2026-10-12: it snaps at once).
@@ -129,12 +133,23 @@ assert.match(press, /for \(lv_obj_t\* object = pressed_object; object && lv_obj_
 assert.doesNotMatch(press, /on_empty_place|GRID_PAD_TOP/);
 assert.match(read('src/tiles/runtime/level_bar.h'), /lv_obj_remove_flag\(bar, LV_OBJ_FLAG_GESTURE_BUBBLE\);/, 'The level bars drag themselves');
 assert.match(press, /self->touch_watched = tab == 0 && !drags_itself;/);
-assert.match(press, /if \(code == LV_EVENT_SHORT_CLICKED \|\| code == LV_EVENT_CLICKED \|\| code == LV_EVENT_LONG_PRESSED\) \{\s*if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);\s*return;\s*\}\s*if \(code == LV_EVENT_LONG_PRESSED\) \{[^}]*self->cancelTouchGesture\(\);/);
+// Only the ways a swipe can start count at a tap's distance (user
+// 2026-10-13: a page tap that rolled 20 px down was swallowed);
+// test-touch-tap-rules runs the rule itself.
+assert.match(press, /self->touch_sideways = page_swipe \|\| edge < 2;\s*self->touch_upright = edge == 2 \|\| edge == 3;/);
+assert.match(press, /self->touch_moved = false;\s*self->touch_sideways = false;\s*self->touch_upright = false;/,
+  "Every touch starts without the last one's ways");
+assert.match(press, /if \(code == LV_EVENT_SHORT_CLICKED \|\| code == LV_EVENT_CLICKED \|\| code == LV_EVENT_LONG_PRESSED\) \{\s*if \(self->touch_watched && self->touch_moved\) \{\s*lv_indev_stop_processing\(input\);[\s\S]*?return;\s*\}\s*if \(code == LV_EVENT_LONG_PRESSED\) \{[^}]*self->cancelTouchGesture\(\);/);
 for (const code of ['LV_EVENT_SHORT_CLICKED', 'LV_EVENT_CLICKED', 'LV_EVENT_LONG_PRESSED']) {
   assert.match(manager, new RegExp(`lv_indev_add_event_cb\\(input, settings_gesture_indev_event_cb,\\s*${code}, this\\);`), code + ' reaches the input first');
 }
-assert.match(manager, /touch_moved = dx \* dx \+ dy \* dy > touch_rules::kTapSlop \* touch_rules::kTapSlop;/);
-assert.match(press, /if \(code == LV_EVENT_RELEASED\) \{\s*self->noteTouchMotion\(input\);[\s\S]*?self->processSettingsGestureMotion\(input, true\);\s*\}\s*\}\s*$/);
+// Only while the finger is down and on two readings in a row: a single jump
+// of the touch chip (at the lift above all) swallowed taps (user 2026-10-13).
+assert.match(manager, /const bool far = touch_rules::far_from_tap\(dx, dy, touch_sideways, touch_upright\);\s*touch_far_readings = far \? static_cast<uint8_t>\(touch_far_readings \+ 1\) : 0;\s*if \(touch_far_readings < 2\) return;\s*touch_moved = true;/);
+assert.ok(manager.includes('Serial.printf("[Touch] No tap: the finger moved %d,%d px\\n"'), 'A swallowed tap is logged');
+assert.match(press, /if \(code == LV_EVENT_RELEASED\) \{[\s\S]*?self->processSettingsGestureMotion\(input, true\);\s*\}\s*\}\s*$/);
+assert.doesNotMatch(slice(press, 'if (code == LV_EVENT_RELEASED) {', 'self->processSettingsGestureMotion(input, true);'), /noteTouchMotion/,
+  'The lift\'s point is no move');
 assert.match(press, /if \(edge == swipe_gestures::kEdgeOff && !page_swipe\) \{\s*if \(!self->touch_watched\) return;/);
 assert.match(press, /self->access_gesture_action = edge != swipe_gestures::kEdgeOff \? actions\[edge\] : kPageSwipe;/);
 assert.match(bar, /lv_obj_set_user_data\(button, &g_button_marker\);/, 'The gear and the X are marked');
@@ -242,19 +257,27 @@ assert.match(follow, /if \(page < 0 \|\| page >= g_state\.count\) \{\s*close\(\)
 // old page while the new one was marked).
 assert.match(follow, /\/\/[^\n]*\n\s*home_bar::glide\(g_state\.card_dots, page, page, 0\);\s*mark\(page\);\s*$/);
 assert.doesNotMatch(follow, /page != g_state\.current/);
+// Untouched for 10 s it closes by itself (user 2026-10-13); its timer goes
+// with it.
+assert.match(preview, /constexpr uint32_t kIdleCloseMs = 10000;/);
+assert.match(preview, /void close_when_idle\(lv_timer_t\*\) \{\s*if \(lv_display_get_inactive_time\(nullptr\) >= kIdleCloseMs\) close\(\);/);
+assert.match(preview, /g_state\.idle = lv_timer_create\(close_when_idle, 500, nullptr\);/);
+assert.match(preview, /void close\(\) \{\s*if \(g_state\.idle\) lv_timer_delete\(g_state\.idle\);\s*g_state\.idle = nullptr;/);
 // Over the open overview only its own line glides (one line moves at a time).
 assert.match(slice(manager, 'void UIManager::showPage(int number) {', '\n}\n'),
-  /const bool led = current >= 0 && \(page_preview::is_open\(\)\s*\? page_preview::lead\(current, number, kPageLeadMs\)\s*: home_bar::lead\(tiles_visible_grid\(\), current, number, kPageLeadMs\)\);/);
+  /openPage\(number\);[\s\S]*if \(current >= 0 && page_preview::is_open\(\)\) page_preview::lead\(current, number, kPageLeadMs\);/);
 assert.match(preview, /if \(g_state\.cells\[i\]\) lv_obj_set_style_bg_opa\(g_state\.cells\[i\], i == page \? LV_OPA_COVER : LV_OPA_TRANSP, 0\);/);
 // A press shows once the finger rested 100 ms within a tap's distance (user
 // 2026-10-13: tiles and dots showed it at the start of every swipe; Android
 // waits its tap timeout, iOS delays content touches): the input holds the
 // object's press back, the PRESSING after the rest gives it, a finger that
 // went further takes it away; a tap lifted before shows it a moment.
-assert.match(read('src/ui/shared/touch_rules.h'), /constexpr uint32_t kPressDelayMs = 100;[\s\S]*constexpr uint32_t kTapFlashMs = 90;/);
+assert.match(read('src/ui/shared/touch_rules.h'), /constexpr uint32_t kPressDelayMs = 70;[\s\S]*constexpr uint32_t kTapFlashMs = 90;/);
 assert.match(press, /if \(self->touch_watched && !home_bar::is_dots\(pressed_object\)\) \{\s*lv_indev_stop_processing\(input\);\s*self->touch_press_obj = pressed_object;\s*self->touch_press_ms = lv_tick_get\(\);/);
 const pressShow = slice(manager, 'void UIManager::updateTouchPress(lv_indev_t* input) {', '\n}\n');
-assert.match(pressShow, /if \(touch_moved\) \{\s*if \(touch_press_shown\) lv_obj_remove_state\(obj, LV_STATE_PRESSED\);\s*touch_press_obj = nullptr;\s*return;\s*\}/);
+// A press a swipe took over goes at once (tile_press.h; its fade back glowed
+// along every swipe, user 2026-10-13).
+assert.match(pressShow, /if \(touch_moved\) \{\s*\/\/[^\n]*\n\s*if \(touch_press_shown\) tile_press::off_at_once\(obj\);\s*touch_press_obj = nullptr;\s*return;\s*\}/);
 assert.match(pressShow, /lv_tick_elaps\(touch_press_ms\) >= touch_rules::kPressDelayMs\) \{\s*touch_press_shown = true;\s*lv_obj_send_event\(obj, LV_EVENT_PRESSED, input\);/);
 assert.match(press, /if \(released && released == self->touch_press_obj && !self->touch_press_shown && !self->touch_moved\) \{\s*self->touch_press_shown = true;\s*self->touch_press_late = true;\s*lv_obj_send_event\(released, LV_EVENT_PRESSED, input\);/);
 assert.match(press, /flash_tap\(static_cast<lv_obj_t\*>\(lv_event_get_param\(event\)\)\);/);
@@ -336,4 +359,21 @@ assert.match(css, /\.tile-grid > \.page-field,\s*\.tile-grid > \.tile-grid\.sett
   "A field is a tile's size");
 assert.match(markup, /if \(previewSlotsBeside\(\)\) html \+= " compact-grid";/);
 
+// A tap beside the dots turns one page to that side, in the head and in the
+// overview (user 2026-10-14, like the iPhone's page dots); on the dots the
+// overview as before.
+{
+  const head = read('src/ui/tabs/tiles/home_bar.cpp');
+  assert.match(head, /void step_event\(lv_event_t\* event\) \{\s*const int step = static_cast<int>\(reinterpret_cast<intptr_t>\(lv_event_get_user_data\(event\)\)\);\s*const int page = tile_layouts::page_number\(tileConfig\.getActiveFolderId\(\)\);\s*if \(page >= 0\) uiManager\.showPage\(page \+ step\);/);
+  // Two head circles wide over the whole head (user 2026-10-14: one circle
+  // had to be hit exactly), never over the gear's touch area.
+  assert.match(head, /int step_zone_width\(\) \{ return 2 \* popup_layout::kHeaderIconDiscSize; \}/);
+  assert.match(head, /const int gear_left = gear_hidden \? grid_layout::screen_w\(\) : g\.close_x - popup_layout::kCloseButtonClickArea;\s*for \(const int step : \{-1, 1\}\) \{\s*if \(page \+ step < 0 \|\| page \+ step >= count\) continue;\s*const int x = step < 0 \? row_x - pad - step_zone_width\(\) : row_x \+ dots_width\(count\) \+ pad;\s*const int w = step < 0 \? step_zone_width\(\) : LV_MIN\(step_zone_width\(\), gear_left - x\);\s*if \(w <= 0\) continue;\s*lv_obj_t\* zone = plain\(bar\);\s*lv_obj_set_size\(zone, w, GRID_PAD_TOP\);\s*lv_obj_set_pos\(zone, x, 0\);[\s\S]{0,120}lv_obj_add_event_cb\(zone, step_event, LV_EVENT_CLICKED,/,
+    'Beside the pill, one side each, only where a page lies');
+  const preview = read('src/ui/tabs/tiles/page_preview.cpp');
+  assert.match(preview, /void on_step\(lv_event_t\* event\) \{\s*const int to = g_state\.current \+ static_cast<int>\(reinterpret_cast<intptr_t>\(lv_event_get_user_data\(event\)\)\);\s*if \(to >= 0 && to < g_state\.count\) uiManager\.showPage\(to\);/,
+    'The overview stays open, showPage leads its line');
+  assert.match(preview, /lv_obj_set_ext_click_area\(card_dots, geo\.pad\);[\s\S]{0,200}const int dots_x = \(grid_layout::screen_w\(\) - dots_w\) \/ 2 - card_x;\s*for \(const int step : \{-1, 1\}\) \{\s*const int x = step < 0 \? LV_MAX\(0, dots_x - home_bar::step_zone_width\(\)\) : dots_x \+ dots_w;\s*const int w = step < 0 \? dots_x - x : LV_MIN\(home_bar::step_zone_width\(\), card_w - x\);[\s\S]{0,200}tappable\(zone, on_step,/,
+    'Its zones over the dots touch margin beside them (made after them)');
+}
 console.log('Head bar pages: storage, dots, swipe, preload, preview card, /api/pages, no PIN, no folder out of reach');

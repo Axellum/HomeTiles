@@ -29,6 +29,8 @@ void sync_popup_shell();
 // True from show_popup_shell() until the popup is hidden again. Every tile
 // popup and the PIN pad open through the shell.
 bool popup_shell_active();
+// The open popup's body (its card), nullptr without one.
+lv_obj_t* popup_shell_body();
 // Sets the active popup body's background; the frame copies it on the next
 // sync. Used when an open popup follows its tile's color.
 void popup_shell_follow_tile_color(uint32_t color);
@@ -80,9 +82,6 @@ void popup_shell_icon_lock(lv_obj_t* body, bool on);
 // the new colors.
 void popup_shell_delete_popups();
 
-// Register an existing background tree, once after construction. Opaque popup
-// pixels can skip its covered draw calls without hiding or rebuilding widgets.
-void register_popup_background(lv_obj_t* root);
 // A popup that takes its tile's color shows it with the open surface
 // (popup_surface::g_open_surface): its fixed texts and icons, colored when it
 // was built, take that surface's roles (and back on the next opening).

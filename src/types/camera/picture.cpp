@@ -17,6 +17,7 @@
 #include "src/tiles/runtime/tile_icon_source.h"
 #include "src/tiles/runtime/tile_renderer_fonts.h"
 #include "src/ui/popups/camera/camera_popup.h"
+#include "src/ui/popups/popup_shell.h"
 #include "src/ui/screensaver/image_screensaver.h"
 #include "src/ui/screensaver/wallpaper_cover.h"
 #include "src/ui/shared/title_label.h"
@@ -384,6 +385,10 @@ void service() {
   }
   // Every pass: a design change turns the corners with the next frame.
   for (PictureTile* tile : g_tiles) follow_corners(*tile);
+  // Under an open tile popup nothing of a picture shows: no decode, and no
+  // redraw of the popup over it (user 2026-10-14: the Weather popup turned
+  // slower with a camera tile on Home). The newest one shows when it closes.
+  if (popup_shell_active()) return;
   // One decode per call keeps the loop responsive with many tiles.
   for (PictureTile* tile : g_tiles) {
     if (!tile->due) continue;

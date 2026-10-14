@@ -198,7 +198,7 @@ assert.ok(display.includes('if (gestureActions) showGestureActions(gestureAction
 
 // Translations of the new heading.
 const i18n = read('src/core/i18n/i18n.cpp');
-for (const text of ['"Wischgesten"', '"Swipe gestures"', '"Gestes de balayage"', '"Gesty przesunięcia"']) {
+for (const text of ['"Wischen vom Rand"', '"Edge swipes"', '"Balayages depuis le bord"', '"Przesunięcia od krawędzi"']) {
   assert.ok(i18n.includes(text), text);
 }
 console.log('Swipe gestures: one action per edge, Settings safe, panel, endpoint and menu swap pass');

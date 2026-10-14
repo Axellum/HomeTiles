@@ -270,6 +270,19 @@ static uint16_t navigation_folder_id_from_tile(const Tile& tile) {
       (static_cast<uint16_t>(tile.key_modifier) << 8) | tile.key_code);
 }
 
+// A prepared folder dropped by an edit (Web Admin) is built again while the
+// panel rests, once the editing has paused (user 2026-10-14: after edits on
+// Home the way back built it, 412 ms; the panel should get fast again by
+// itself). Its place in the plan comes round again.
+static constexpr uint32_t kNavigationPreloadAfterEditMs = 5000;
+static size_t navigation_preload_priority(uint16_t folder_id);
+static void rewind_navigation_preload(uint16_t folder_id) {
+  const size_t priority = navigation_preload_priority(folder_id);
+  if (priority >= g_navigation_preload_target_count) return;
+  if (priority < g_navigation_preload_cursor) g_navigation_preload_cursor = priority;
+  g_navigation_preload_not_before_ms = millis() + kNavigationPreloadAfterEditMs;
+}
+
 static size_t navigation_preload_priority(uint16_t folder_id) {
   for (size_t i = 0; i < g_navigation_preload_target_count; ++i) {
     if (g_navigation_preload_targets[i] == folder_id) return i;
@@ -2296,6 +2309,7 @@ static void process_folder_cache_invalidation() {
       }
       // Its picture shows the grid before the change.
       forget_page_picture(g_folder_only_invalidations[n]);
+      rewind_navigation_preload(g_folder_only_invalidations[n]);
     }
     g_folder_only_invalidation_count = 0;
     return;

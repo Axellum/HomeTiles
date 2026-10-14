@@ -53,17 +53,25 @@
     return tile ? Number(tile.dataset.index) : -1;
   }
 
-  // The layout window shows the fields too (user 2026-10-13), on Home in its
-  // bar layouts, its own pages, without the Settings field (parking is one
-  // for every layout and takes effect at once: no part of a layout).
+  // The layout window shows the fields too (user 2026-10-13), on Home: in its
+  // bar layouts its own pages, in every layout the Settings field, as
+  // Settings is parked per layout (stored with the places, layout-window.js).
   function pageFieldsInWindow() {
     return typeof layoutWindowOpen === 'function' && layoutWindowOpen();
   }
 
-  // The fields show in Home's grid of a head bar layout.
+  // The fields show in Home's grid of a head bar layout; in the layout window
+  // only while it holds Home's grid (behind it the page keeps its own).
   function pageFieldsShown() {
     if (!pageSlotsElement()) return false;
-    return pageFieldsInWindow() ? layoutWindowShowsPages() : headBarLayout();
+    if (!pageFieldsInWindow()) return headBarLayout();
+    return layoutWindowShowsFields() && !!getTileGrid('folder0')?.classList.contains('setup-grid');
+  }
+
+  // The page fields themselves: the window's classic layout has the
+  // Settings field only (pages need the head bar).
+  function pageSlotsShown() {
+    return !pageFieldsInWindow() || layoutWindowShowsPages();
   }
 
   // A panel whose active layout is the classic one has no fields in its
@@ -88,19 +96,22 @@
     enablePageFields();
   }
 
-  // The fields: the pages', and the Settings field outside the window.
+  // The fields: the pages' and the Settings field.
   function pageFieldCount() {
-    return PAGE_SLOT_COUNT + (pageFieldsInWindow() ? 0 : 1);
+    return PAGE_SLOT_COUNT + 1;
   }
 
   // The room the fields take beside a square or upright screen (two
   // columns, 14 px apart) or under a landscape one (rows, one word over
-  // them): a part that grows with the cells and a fixed one. The layout
-  // window keeps it beside its area (layout-window.js mountLayoutTab).
+  // them, a little off the screen: user 2026-10-14): a part that grows with
+  // the cells and a fixed one. The layout window keeps it beside its area
+  // (layout-window.js mountLayoutTab).
+  const PAGE_FIELDS_WORD_ROOM = 26;
+  const PAGE_FIELDS_WORD_Y = 6;
   function pageFieldRoom(cellW, cellH, gap, cols, rows) {
     if (cols > rows) {
       const fieldRows = Math.ceil(pageFieldCount() / cols);
-      return {beside: false, w: 0, h: gap + fieldRows * (cellH + gap), fixedW: 0, fixedH: 20};
+      return {beside: false, w: 0, h: gap + fieldRows * (cellH + gap), fixedW: 0, fixedH: PAGE_FIELDS_WORD_ROOM};
     }
     return {beside: true, w: 2 * (cellW + gap) + gap, h: 0, fixedW: 14, fixedH: 0};
   }
@@ -119,7 +130,11 @@
     const stepX = cellW + gap, stepY = cellH + gap;
     const screenW = cols * stepX - gap, screenH = rows * stepY - gap;
     // The fields lie on a black box of their own like the screen (user
-    // 2026-10-13), its margin one grid gap, one word over it.
+    // 2026-10-13), one word over it. Its black margin is one grid gap on
+    // every side (user 2026-10-14: the top one was a pixel short of it, its
+    // 1 px line inside), under a landscape screen its sides line up with the
+    // screen's. The boxes are outer edges in the grid's padding box units
+    // from its first cell's corner.
     const room = pageFieldRoom(cellW, cellH, gap, cols, rows);
     const fieldRows = Math.ceil(pageFieldCount() / (room.beside ? 2 : cols));
     const settingsField = pageFieldCount() > PAGE_SLOT_COUNT;
@@ -129,28 +144,62 @@
       const word = room.fixedH + gap;
       const top = (screenH + padBottom + word) / stepY;
       const at = (col, row) => ({col, row: top + row});
+      const wordY = screenH + padBottom + PAGE_FIELDS_WORD_Y;
+      // A word over the Settings field where it starts a row of its own
+      // or stands in the first one (user 2026-10-14).
+      const settingsWord = place => ({x: place.col * stepX, y: wordY + (place.row - top) * stepY});
+      // The window's classic layout: the Settings field alone on its box.
+      if (!pageSlotsShown()) {
+        const place = at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols));
+        return {
+          pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
+          settings: settingsField ? place : null,
+          right: 0,
+          bottom: room.h + room.fixedH,
+          box: {x: place.col * stepX - gap - 1, y: place.row * stepY - gap - 1, w: cellW + 2 * gap + 2, h: cellH + 2 * gap + 2},
+          word: null,
+          settingsWord: settingsField ? settingsWord(place) : null
+        };
+      }
+      const settingsPlace = at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols));
       return {
         pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => at(i % cols, Math.floor(i / cols))),
-        settings: settingsField ? at(cols - 1, Math.floor(PAGE_SLOT_COUNT / cols)) : null,
+        settings: settingsField ? settingsPlace : null,
         right: 0,
         bottom: room.h + room.fixedH,
-        // The box from the screen's left edge to its right one (padding box
-        // units, from the first cell's corner).
-        box: {x: null, y: screenH + padBottom + word - gap, w: null, h: fieldRows * stepY + gap},
-        word: {x: 0, y: screenH + padBottom + 3}
+        // The box from the screen's left edge to its right one and down to
+        // the grid's end (its bottom margin is the grid's: one gap).
+        box: {x: null, y: screenH + padBottom + word - gap - 1, w: null, h: null},
+        word: {x: 0, y: wordY},
+        // Over the pages' row: no room for it under it.
+        settingsWord: settingsField && settingsPlace.row === top ? settingsWord(settingsPlace) : null
       };
     }
     // Beside a square or upright screen in two columns along its rows, the
     // word in its head's height; the Settings field bottom right.
     const apart = room.fixedW;
     const left = (screenW + padRight + apart + gap) / stepX;
+    // The window's classic layout: the Settings field alone on its box.
+    if (!pageSlotsShown()) {
+      const at = {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)};
+      return {
+        pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
+        settings: settingsField ? at : null,
+        right: room.w + room.fixedW,
+        bottom: 0,
+        box: {x: at.col * stepX - gap, y: at.row * stepY - gap, w: stepX + gap, h: stepY + gap},
+        word: null
+      };
+    }
     return {
       pages: Array.from({length: PAGE_SLOT_COUNT}, (_, i) => ({col: left + i % 2, row: Math.floor(i / 2)})),
       settings: settingsField ? {col: left + 1, row: Math.floor(PAGE_SLOT_COUNT / 2)} : null,
       right: room.w + room.fixedW,
       bottom: 0,
-      box: {x: screenW + padRight + apart, y: -gap, w: 2 * stepX + gap, h: fieldRows * stepY + gap},
-      word: {x: screenW + padRight + apart, y: -gap - 19}
+      box: {x: screenW + padRight + apart - 1, y: -gap - 1, w: 2 * stepX + gap + 2, h: fieldRows * stepY + gap + 2},
+      word: {x: screenW + padRight + apart, y: -gap - 19},
+      // Between the fields' rows there is no room for a word.
+      settingsWord: null
     };
   }
 
@@ -160,9 +209,15 @@
   }
 
   // A page's folder tile stands in its field as one cell (layout.js
-  // layoutTiles, grid-preview.js renderTileFromData).
+  // layoutTiles, grid-preview.js renderTileFromData); in the layout window
+  // the Settings tile parked in the shown layout stands in its field.
   function pageFieldOfTile(tab, tile) {
-    if (tab !== 'folder0' || !tile?.layout_hidden || Number(tile.type) !== 4 || !pageFieldsShown()) return null;
+    if (tab !== 'folder0' || !tile?.layout_hidden || !pageFieldsShown()) return null;
+    if (Number(tile.type) === 7) {
+      const grid = getTileGrid('folder0');
+      return pageFieldsInWindow() && grid ? pageFieldPlaces(grid).settings : null;
+    }
+    if (Number(tile.type) !== 4) return null;
     const slot = pageSlotIds().indexOf(Number(tile.navigate_target));
     const grid = getTileGrid('folder0');
     return slot >= 0 && grid ? pageFieldPlaces(grid).pages[slot] : null;
@@ -197,6 +252,10 @@
     const grid = getTileGrid('folder0');
     if (tab !== 'folder0' || !holder || !grid) return;
     if (holder.children.length) grid.append(...holder.children);
+    // While the layout window is open Home's grid behind it stays as the
+    // page had it (user 2026-10-13: the window's sizes widened it there and
+    // squeezed the page); the window lays it out once it holds it.
+    if (pageFieldsInWindow() && !grid.classList.contains('setup-grid')) return;
     const shown = pageFieldsShown();
     grid.classList.toggle('has-page-fields', shown);
     if (!shown) {
@@ -214,24 +273,49 @@
     const box = places.box;
     const boxLeft = box.x === null ? -1 : padLeft + box.x;
     const boxTop = padTop + box.y;
-    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w + 1;
+    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w;
     grid.style.setProperty('--fields-box-l', boxLeft + 'px');
     grid.style.setProperty('--fields-box-t', boxTop + 'px');
     grid.style.setProperty('--fields-box-w', boxWidth + 'px');
-    grid.style.setProperty('--fields-box-h', (box.x === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
+    grid.style.setProperty('--fields-box-h', (box.h === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
     const slots = pageSlotList();
-    grid.querySelectorAll(':scope > .page-field').forEach(field => {
+    grid.querySelectorAll(':scope > .page-field:not(.settings-field)').forEach(field => {
       const slot = Number(field.dataset.slot);
       setFieldPlace(field, places.pages[slot]);
-      field.hidden = !!slots[slot];
+      field.hidden = !pageSlotsShown() || !!slots[slot];
     });
-    const word = grid.querySelector(':scope > .page-fields-label');
-    if (word) {
-      word.style.setProperty('--word-x', places.word.x + 'px');
-      word.style.setProperty('--word-y', places.word.y + 'px');
+    const word = grid.querySelector(':scope > .page-fields-label:not(.settings-label)');
+    const placeWord = (el, place) => {
+      el.hidden = !place;
+      if (!place) return;
+      el.style.setProperty('--word-x', place.x + 'px');
+      el.style.setProperty('--word-y', place.y + 'px');
+    };
+    if (word) placeWord(word, places.word);
+    // The Settings field's own word, the tile type's name (user 2026-10-14).
+    let settingsWord = grid.querySelector(':scope > .page-fields-label.settings-label');
+    if (!settingsWord && places.settingsWord) {
+      settingsWord = document.createElement('div');
+      settingsWord.className = 'page-fields-label settings-label';
+      settingsWord.textContent = getTileTypeMeta('7')?.label || '';
+      grid.appendChild(settingsWord);
     }
+    if (settingsWord) placeWord(settingsWord, places.settingsWord);
     const settings = grid.querySelector(':scope > .settings-hidden-slot');
     if (settings && places.settings) setFieldPlace(settings, places.settings);
+    // The window's own free Settings field (its parked tile stands there
+    // itself; the editor's parking slot stays the page's).
+    let free = grid.querySelector(':scope > .page-field.settings-field');
+    if (pageFieldsInWindow() && !free) {
+      free = document.createElement('div');
+      free.className = 'page-field settings-field';
+      grid.appendChild(free);
+    }
+    if (free) {
+      if (places.settings) setFieldPlace(free, places.settings);
+      // Parked, its tile stands there (a free frame where there is none).
+      free.hidden = !pageFieldsInWindow() || (layoutWindowSettingsParked() && layoutSettingsIndex() >= 0);
+    }
   }
 
   // The field under the pointer: a page field or the Settings field.
@@ -248,7 +332,7 @@
       clientX >= left + place.col * (cellW + gap) && clientX < left + place.col * (cellW + gap) + cellW &&
       clientY >= top + place.row * (cellH + gap) && clientY < top + place.row * (cellH + gap) + cellH;
     const places = pageFieldPlaces(grid);
-    const slot = places.pages.findIndex(inside);
+    const slot = pageSlotsShown() ? places.pages.findIndex(inside) : -1;
     if (slot >= 0) return {kind: 'page', slot, place: places.pages[slot]};
     return inside(places.settings) ? {kind: 'settings', place: places.settings} : null;
   }
@@ -299,8 +383,8 @@
       (dragSource.kind === 'grid-tile' && Number(dragSource.type) === 7);
     // A folder onto a free field, a page onto any; Settings onto its own.
     const fits = field.kind === 'page'
-      ? folder > 0 && (dragSource.kind === 'page-slot' || !places[field.slot])
-      : settings;
+      ? pageSlotsShown() && folder > 0 && !dragSource.settings && (dragSource.kind === 'page-slot' || !places[field.slot])
+      : settings || !!dragSource.settings;
     restoreDragPreview(tab);
     dragSource.previewKey = '';
     if (!drop) {
@@ -317,7 +401,9 @@
     if (!fits) return true;
     if (field.kind === 'settings') {
       dragSource.dropCommitted = true;
-      if (dragSource.kind !== 'hidden-settings') hideSettingsTileFromGrid();
+      // In the layout window parked in its layout until "Speichern".
+      if (pageFieldsInWindow()) layoutSettingsIn();
+      else if (dragSource.kind !== 'hidden-settings') hideSettingsTileFromGrid();
       return true;
     }
     const from = places.indexOf(folder);
@@ -472,12 +558,18 @@
   // handleGridDrop).
   function canPlacePageTile(candidate) {
     if (!dragSource || dragSource.kind !== 'page-slot') return false;
-    return supportedTileLayout(4, candidate) && canPlaceTileLayout('folder0', dragSource.index, candidate);
+    return supportedTileLayout(dragSource.settings ? 7 : 4, candidate) &&
+      canPlaceTileLayout('folder0', dragSource.index, candidate);
   }
 
   function dropPageOnGrid(candidate) {
     const folder = dragSource.folder;
     dragSource.dropCommitted = true;
+    // The layout window's parked Settings tile back on its area, its own size.
+    if (dragSource.settings) {
+      layoutSettingsOut({col: candidate.col, row: candidate.row, span_w: candidate.span_w, span_h: candidate.span_h});
+      return;
+    }
     // One cell, like the device (/api/pages).
     const place = {col: candidate.col, row: candidate.row, span_w: 1, span_h: 1};
     // In the layout window it stays there until "Speichern" (layout-window.js).
@@ -501,9 +593,14 @@
     grid.addEventListener('dragstart', event => {
       const tile = event.target.closest?.('.tile.page-field-tile');
       if (!tile || dragSource?.kind !== 'grid-tile' || dragSource.index !== Number(tile.dataset.index)) return;
+      // The layout window's parked Settings tile: out of its field in its
+      // own size (layoutSettingsOut).
+      const settings = tile.dataset.type === '7';
+      const own = settings ? getTilesData('folder0')?.[Number(tile.dataset.index)] : null;
       // The grab point from where it is drawn: its stored place lies elsewhere.
-      dragSource = {...dragSource, kind: 'page-slot', folder: Number(tile.dataset.navigateTarget || 0),
-        layout: {col: 0, row: 0, span_w: 1, span_h: 1}, grabCellCol: 0, grabCellRow: 0,
+      dragSource = {...dragSource, kind: 'page-slot', folder: Number(tile.dataset.navigateTarget || 0), settings,
+        layout: {col: 0, row: 0, span_w: Number(own?.span_w) || 1, span_h: Number(own?.span_h) || 1},
+        grabCellCol: 0, grabCellRow: 0,
         dropOffset: getDragGrabOffset(tile.getBoundingClientRect(), event.clientX, event.clientY),
         baseLayouts: null, pageTarget: null};
     });

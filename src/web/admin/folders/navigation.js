@@ -221,6 +221,16 @@
       }
       return true;
     }
+    // A known folder whose page is not loaded yet: its tab takes the name
+    // and icon at once, its page loads (fresh) when it is opened. Loading it
+    // here held the tab back until the panel had built the page.
+    if ((name !== null || icon !== null) && !folderTabLoadPromises[folderNum] &&
+        document.querySelector('.folder-tab-btn[data-folder-id="' + folderNum + '"]')) {
+      updateFolderTabUi(folderNum, name || '', icon || '');
+      ensureNavigateTargetOption(folderNum, formatFolderLabel(name, folderNum));
+      forgetFolderTabSessionFragment(folderNum);
+      return true;
+    }
     if (folderTabLoadPromises[folderNum]) {
       return folderTabLoadPromises[folderNum];
     }

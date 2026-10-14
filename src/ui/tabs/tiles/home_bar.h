@@ -37,6 +37,13 @@ const lv_font_t* head_font();
 const lv_font_t* time_font();
 // HH:MM in the panel's time format; dashes until the clock is set.
 void format_time(char* out, size_t size);
+// Home's title and icon in its head (the head bar tab, user 2026-10-13): its
+// own, else `fallback` ("Home" in the panel's language) and the house.
+const char* home_title(const char* fallback);
+const char* home_icon();
+// The width of the tap areas beside the dots that turn one page, in the
+// head and in the pages' overview: two head circles (one was hard to hit).
+int step_zone_width();
 
 // The page dots (user 2026-10-12, mockup build/design-mockups/pages): their
 // size, the active one's width and the gap; the active one in the text
@@ -64,12 +71,8 @@ void cancel_press();
 // The pages changed: the grid's bar again, with its new dots, gear or X.
 void rebuild(lv_obj_t* grid, uint16_t folder_id);
 // The folder's grid became visible: a page's line is at rest on its own dot,
-// wherever it came from (lead() moved it on the page when it was left).
+// wherever it came from.
 void shown(lv_obj_t* grid, uint16_t folder_id, uint16_t previous_folder_id);
-// A page turn: the shown grid's line goes over from page `from` to `to` in
-// `duration` ms before the new page shows (user 2026-10-12: started after
-// the new page, the dots trailed behind it). False without dots.
-bool lead(lv_obj_t* grid, int from, int to, uint32_t duration);
 // Any dot row's line (the pages' overview's own): from page `from` to `to`
 // in `duration` ms, at rest on `to` without one.
 void glide(lv_obj_t* dots, int from, int to, uint32_t duration);

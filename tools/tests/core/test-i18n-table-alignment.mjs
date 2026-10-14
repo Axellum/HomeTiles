@@ -85,12 +85,19 @@ fields.forEach((field, index) => {
 // Known texts at known fields, around the former Polish shift and at the end.
 const expected = {
   settings_head_gear: ['"Zahnrad oben im Kopf"', '"Gear in the head"', null, '"Zębatka w nagłówku"'],
+  head_bar_heading: ['"Kopfleiste"', '"Head bar"', `"Barre d'en-tête"`, '"Pasek nagłówka"'],
+  head_bar_gear: ['"Zahnrad für Settings"', '"Gear for Settings"', '"Engrenage pour les réglages"', '"Zębatka do ustawień"'],
+  head_bar_clock: ['"Uhr"', '"Clock"', '"Horloge"', '"Zegar"'],
+  head_bar_overview: ['"Seitenübersicht"', '"Page overview"', '"Aperçu des pages"', '"Przegląd stron"'],
+  head_bar_home_title: ['"Home-Titel"', '"Home title"', `"Titre de l'accueil"`, '"Tytuł strony głównej"'],
+  head_bar_home_auto_hint: ['"Name in der Sprache des Panels"', `"Name in the panel's language"`, '"Nom dans la langue du panneau"',
+    '"Nazwa w języku panelu"'],
   edge_left: ['"Links"', '"Left"', null, '"Lewo"'],
   edge_bottom: ['"Unten"', '"Bottom"', null, '"Dół"'],
   factory_pin_label: [null, '"Factory PIN"', null, '"PIN fabryczny"'],
   local_camera_status_error: [null, '"Camera error"', null, '"Błąd kamery"'],
   local_camera_stream_mode: [null, '"Mode"', null, '"Tryb"'],
-  swipe_gestures_heading: ['"Wischgesten"', '"Swipe gestures"', '"Gestes de balayage"', '"Gesty przesunięcia"'],
+  swipe_gestures_heading: ['"Wischen vom Rand"', '"Edge swipes"', '"Balayages depuis le bord"', '"Przesunięcia od krawędzi"'],
   screensaver_no_sd: ['"Keine microSD-Karte eingesteckt."', '"No microSD card inserted."', '"Aucune carte microSD insérée."', '"Brak karty microSD."'],
   tile_fill: ['"Ausfüllen"', '"Fill"', '"Remplir"', '"Wypełnij"'],
 };

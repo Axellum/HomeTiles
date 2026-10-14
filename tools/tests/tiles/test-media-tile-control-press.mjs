@@ -54,6 +54,7 @@ struct Config{bool tile_borders=true;bool icon_discs=true;uint8_t icon_glow=icon
 ${surfaceStyleHost(root)}
 constexpr int GRID_CELL_H=CELL_H,GRID_GAP=GAP;
 #include "src/types/climate/layout.h"
+#include "src/tiles/runtime/tile_press.h"
 ${read('src/tiles/runtime/tile_icon_disc.h').replace(/^#.*$/gm, '')}
 #include "src/tiles/config/tile_tint.h"
 namespace tile_icon_source {

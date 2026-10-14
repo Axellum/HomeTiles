@@ -11,9 +11,11 @@
 #include "src/ui/tabs/settings/tab_settings.h"
 #include "src/tiles/config/tile_config.h"
 #include "src/tiles/config/tile_geometry.h"
+#include "src/tiles/icons/mdi_icons.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
 #include "src/ui/shared/theme_schedule.h"
+#include "src/ui/shared/ui_theme.h"
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/core/config/swipe_gestures.h"
 #include "src/ui/screensaver/image_screensaver.h"
@@ -313,6 +315,11 @@ void WebAdminServer::handleSaveMQTT() {
       }
     }
     cfg.settings_tile_hidden = hide_tile;
+    // Parked in the layout the panel shows (user 2026-10-13: each layout
+    // decides; the layout window sets the others).
+    const uint8_t shown_layout_bit = static_cast<uint8_t>(1u << static_cast<uint8_t>(grid_layout::active()));
+    cfg.settings_parked = hide_tile ? static_cast<uint8_t>(cfg.settings_parked | shown_layout_bit)
+                                    : static_cast<uint8_t>(cfg.settings_parked & ~shown_layout_bit);
     // Hidden Settings must always retain an on-device recovery path.
     cfg.settings_swipe_enabled = hide_tile || enable_swipe;
     new_pin = "";
@@ -621,9 +628,10 @@ void WebAdminServer::handleStatus() {
 }
 
 // The same code as the page's <html lang>, so the page compares like with
-// like, and the time and date format "Auto" shows (the previews' clocks
-// follow a change made on the panel). A poll, so it does not count as Web
-// Admin activity.
+// like, the time and date format "Auto" shows (the previews' clocks follow a
+// change made on the panel) and the design, stored and shown (user
+// 2026-10-14: one chosen on the panel did not reach the page). A poll, so
+// it does not count as Web Admin activity.
 void WebAdminServer::handleLanguage() {
   const DeviceConfig& cfg = configManager.getConfig();
   String json = "{\"language\":\"";
@@ -632,7 +640,9 @@ void WebAdminServer::handleLanguage() {
   json += String(clock_tile::resolve_time_format(clock_tile::TIME_FORMAT_AUTO, cfg.global_time_format, cfg.language));
   json += ",\"date_format\":";
   json += String(clock_tile::resolve_date_format(clock_tile::DATE_FORMAT_AUTO, cfg.global_date_format, cfg.language));
-  json += "}";
+  json += ",\"theme\":";
+  json += String(cfg.theme);
+  json += ui_theme::theme_light() ? ",\"theme_shown\":1}" : ",\"theme_shown\":0}";
   server.send(200, "application/json", json);
 }
 
@@ -775,6 +785,51 @@ void WebAdminServer::handleSaveHeadGear() {
   tiles_request_reload_all();
   server.send(200, "application/json", enabled ? "{\"success\":true,\"enabled\":true}"
                                                : "{\"success\":true,\"enabled\":false}");
+}
+
+// The head bar's time and the pages' overview on its dots (the head bar
+// tab, user 2026-10-13): part=clock|overview, enabled=0|1. Only the heads
+// change: every prepared grid gets its head again at once (like a page
+// change); rebuilding every grid took the panel a while (user 2026-10-14).
+void WebAdminServer::handleSaveHeadSwitch() {
+  webAdminMarkActivity();
+  const String part = server.arg("part");
+  const String value = server.arg("enabled");
+  const bool enabled = value == "1" || value == "true" || value == "on";
+  bool saved = false;
+  if (part == "clock") {
+    saved = configManager.saveHeadClock(enabled);
+  } else if (part == "overview") {
+    saved = configManager.saveHeadOverview(enabled);
+  } else {
+    sendJsonError(server, 400, "Unknown head part");
+    return;
+  }
+  if (!saved) {
+    sendJsonError(server, 500, "Could not save the head bar");
+    return;
+  }
+  tiles_rebuild_heads(!powerManager.isInSleep());
+  server.send(200, "application/json", enabled ? "{\"success\":true,\"enabled\":true}"
+                                               : "{\"success\":true,\"enabled\":false}");
+}
+
+// Home's own title and icon in its head (the head bar tab, user
+// 2026-10-13): title= and icon=, empty = "Home" in the panel's language and
+// the house; one line. Only the heads change, at once (the pages' overview
+// names Home when it opens).
+void WebAdminServer::handleSaveHomeHead() {
+  webAdminMarkActivity();
+  String title = server.arg("title");
+  title.replace("\r", " ");
+  title.replace("\n", " ");
+  title.trim();
+  if (!configManager.saveHomeHead(title, normalizeMdiIconName(server.arg("icon")))) {
+    sendJsonError(server, 500, "Could not save the home head");
+    return;
+  }
+  tiles_rebuild_heads(!powerManager.isInSleep());
+  server.send(200, "application/json", "{\"success\":true}");
 }
 
 // The theme (ui_theme.h, 0 dark, 1 light, 2 automatic): stored, then the UI

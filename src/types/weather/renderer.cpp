@@ -11,7 +11,6 @@
 #include "src/types/types_registry.h"
 #include "src/network/bridge/ha_bridge_config.h"
 #include "src/ui/popups/weather/weather_popup.h"
-#include "src/ui/popups/popup_shell.h"
 #include "src/devices/device_select.h"
 #include <Arduino.h>
 #include <string.h>
@@ -368,6 +367,5 @@ lv_obj_t* render_weather_tile(lv_obj_t* parent, int col, int row, const Tile& ti
         data);
   }
 
-  if (grid_type != GridType::SCREENSAVER) register_popup_background(card);
   return card;
 }

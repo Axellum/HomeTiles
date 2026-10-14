@@ -26,6 +26,8 @@ namespace {
 
 constexpr int kMaxPictures = static_cast<int>(tile_layouts::kMaxPages) + 1;
 constexpr int kColumns = 3;
+// Untouched this long it closes by itself (user 2026-10-13).
+constexpr uint32_t kIdleCloseMs = 10000;
 
 // The overview's fixed rules (user 2026-10-12: one set of rules for every
 // panel, from the firmware's own values; mockup
@@ -106,8 +108,14 @@ struct State {
   // Its own dot row and the page it marks (a swipe turns the page under it).
   lv_obj_t* card_dots = nullptr;
   int current = -1;
+  // Closes it once the screen has not been touched for kIdleCloseMs.
+  lv_timer_t* idle = nullptr;
 };
 State g_state;
+
+void close_when_idle(lv_timer_t*) {
+  if (lv_display_get_inactive_time(nullptr) >= kIdleCloseMs) close();
+}
 
 void forget_dots(lv_event_t* event) {
   if (lv_event_get_target(event) == g_state.dots) g_state.dots = nullptr;
@@ -168,6 +176,13 @@ void on_picture(lv_event_t* event) {
 // Any lift beside the pictures closes it (user 2026-10-13: a tap that moved
 // a little did not close it at once).
 void on_close(lv_event_t*) { close(); }
+
+// Beside its dots a tap turns one page to that side and it stays open, its
+// line gliding along (user 2026-10-14, like the head's).
+void on_step(lv_event_t* event) {
+  const int to = g_state.current + static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
+  if (to >= 0 && to < g_state.count) uiManager.showPage(to);
+}
 
 // The page whose cell lies under a point, or -1.
 int cell_at(const lv_point_t& point) {
@@ -250,6 +265,8 @@ void follow(uint16_t folder_id) {
 }
 
 void close() {
+  if (g_state.idle) lv_timer_delete(g_state.idle);
+  g_state.idle = nullptr;
   if (g_state.catcher) lv_obj_delete(g_state.catcher);
   g_state.catcher = nullptr;
   for (lv_obj_t*& cell : g_state.cells) cell = nullptr;
@@ -333,6 +350,18 @@ void open(lv_obj_t* dots) {
   // A tap on them closes it again, like on the head's (user 2026-10-12).
   tappable(card_dots, on_close, nullptr, LV_EVENT_RELEASED);
   lv_obj_set_ext_click_area(card_dots, geo.pad);
+  // Beside them as wide as the head's (home_bar::step_zone_width) within
+  // the card, the head row's height: a tap turns one page.
+  const int dots_x = (grid_layout::screen_w() - dots_w) / 2 - card_x;
+  for (const int step : {-1, 1}) {
+    const int x = step < 0 ? LV_MAX(0, dots_x - home_bar::step_zone_width()) : dots_x + dots_w;
+    const int w = step < 0 ? dots_x - x : LV_MIN(home_bar::step_zone_width(), card_w - x);
+    if (w <= 0) continue;
+    lv_obj_t* zone = plain(card);
+    lv_obj_set_size(zone, w, head.disc);
+    lv_obj_set_pos(zone, x, 0);
+    tappable(zone, on_step, reinterpret_cast<void*>(static_cast<intptr_t>(step)), LV_EVENT_CLICKED);
+  }
 
   const i18n::Strings& tr = i18n::strings(configManager.getConfig().language);
   const lv_color_t pressed = lv_color_hex(tone_color::pressed_card(ui_theme::popup_card()));
@@ -365,12 +394,13 @@ void open(lv_obj_t* dots) {
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_obj_set_size(name, geo.pic_w, line);
     lv_obj_set_pos(name, geo.cell_pad, geo.cell_pad + geo.pic_h + geo.text_gap);
-    lv_label_set_text(name, i == 0 || !folder || !folder->name[0] ? tr.home : folder->name);
+    lv_label_set_text(name, i == 0 ? home_bar::home_title(tr.home) : !folder || !folder->name[0] ? tr.home : folder->name);
   }
 
   g_state.count = count;
   g_state.card_dots = card_dots;
   g_state.current = current;
+  g_state.idle = lv_timer_create(close_when_idle, 500, nullptr);
   // The head's own dots hide under the card's.
   g_state.dots = dots;
   if (dots) {

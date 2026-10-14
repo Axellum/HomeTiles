@@ -151,6 +151,7 @@
     tile.dataset.spanW = String(snapshot.span_w || 1);
     tile.dataset.spanH = String(snapshot.span_h || 1);
     tile.innerHTML = '';
+    tile.style.removeProperty('--tile-border-tint');
     if (!hidden) {
       tile.style.background = 'transparent';
       const icon = document.createElement('i');
@@ -162,6 +163,9 @@
       ? tileBackgroundCss(getTileTypeMeta('7'), true,
           getTileTypeMeta('7').defaultBg || '#2A2A2A')
       : snapshot.color;
+    // Its frame line from its card like every tile's (grid-preview.js): it
+    // showed the bright fallback line in its field (user 2026-10-14).
+    if (typeof applyFrameLine === 'function') applyFrameLine(tile);
     // The Settings PIN shows its lock here too (previewTileLocked); without
     // an icon the lock is the icon.
     const locked = typeof previewTileLocked === 'function' && previewTileLocked('7', tile);

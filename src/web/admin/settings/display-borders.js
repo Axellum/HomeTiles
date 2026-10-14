@@ -27,6 +27,29 @@
     }
   }
 
+// The head bar's time and the pages' overview on its dots (Global tab
+// "Kopfleiste", every grid page's copy kept in step), saved at once.
+async function saveHeadSwitch(part, enabled) {
+  const show = value => {
+    document.querySelectorAll('.head-bar-' + part).forEach(box => { box.checked = value; });
+    if (part === 'clock') {
+      document.querySelectorAll('.head-bar-preview .head-time').forEach(time => time.classList.toggle('is-off', !value));
+    }
+  };
+  show(!!enabled);
+  try {
+    const response = await fetch('/api/display/head', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'part=' + encodeURIComponent(part) + '&enabled=' + (enabled ? '1' : '0')
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+  } catch (error) {
+    show(!enabled);
+    showNotification(t('networkErrorSave'), false);
+  }
+}
+
 // The gear in Home's head with a bar layout (a Settings tile option): saved
 // at once, the preview's head follows.
 async function saveHeadGear(enabled) {
@@ -47,6 +70,67 @@ async function saveHeadGear(enabled) {
     showNotification(t('networkErrorSave'), false);
   }
 }
+
+// Home's own title and icon in its head (the head bar tab, user 2026-10-13):
+// Auto is "Home" in the panel's language and the house, stored empty. Every
+// grid page's copy and Home's head previews follow; the title is saved after
+// a short pause, an icon at once.
+let homeHeadSaveTimer = 0;
+function homeHeadState(tab) {
+  const autoTitle = document.getElementById(tab + '_head_tile_title_auto')?.dataset.autoTitle || '';
+  const typed = String(document.getElementById(tab + '_head_tile_title')?.value || '').replace(/\s+/g, ' ').trim();
+  const title = typed === autoTitle ? '' : typed;
+  const icon = normalizeMdiIconName(String(document.getElementById(tab + '_head_tile_icon')?.value || ''));
+  return {title, icon, shownTitle: title || autoTitle, shownIcon: icon || 'home'};
+}
+function showHomeHead(state, tab) {
+  document.querySelectorAll('textarea.home-head-title').forEach(field => {
+    if (field.id !== tab + '_head_tile_title' && field.value !== state.shownTitle) field.value = state.shownTitle;
+  });
+  document.querySelectorAll('input.home-head-icon').forEach(field => {
+    if (field.value !== state.icon) field.value = state.icon;
+  });
+  document.querySelectorAll('.head-bar-preview.home-head').forEach(head => {
+    const title = head.querySelector('.head-title');
+    if (title) title.textContent = state.shownTitle;
+    const icon = head.querySelector('.head-disc > i');
+    if (icon) icon.className = 'mdi mdi-' + state.shownIcon;
+  });
+}
+async function saveHomeHead(state) {
+  try {
+    const response = await fetch('/api/display/home-head', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'title=' + encodeURIComponent(state.title) + '&icon=' + encodeURIComponent(state.icon)
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+  } catch (error) {
+    showNotification(t('networkErrorSave'), false);
+  }
+}
+document.addEventListener('input', event => {
+  const field = event.target;
+  const title = field?.classList?.contains('home-head-title');
+  if (!title && !field?.classList?.contains('home-head-icon')) return;
+  // One line: a pasted line break becomes a space.
+  if (title && field.value.includes('\n')) field.value = field.value.replace(/\s*\n\s*/g, ' ');
+  const tab = field.id.replace(/_head_tile_(title|icon)$/, '');
+  const state = homeHeadState(tab);
+  showHomeHead(state, tab);
+  clearTimeout(homeHeadSaveTimer);
+  homeHeadSaveTimer = setTimeout(() => saveHomeHead(state), title ? 600 : 0);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target?.classList?.contains('home-head-title')) event.preventDefault();
+});
+// An emptied title shows Auto's name again when the field is left.
+document.addEventListener('change', event => {
+  const field = event.target;
+  if (!field?.classList?.contains('home-head-title')) return;
+  const shown = homeHeadState(field.id.replace(/_head_tile_title$/, '')).shownTitle;
+  if (field.value !== shown) field.value = shown;
+});
 
 // A layout (grid_layout.h) is read at boot: the layout window restarts the
 // panel after choosing one.
@@ -93,6 +177,7 @@ function currentIconGlow() {
 // field shows the saved choice.
 let themeSaveSequence = 0;
 let themeChosen = null;
+let themeSaveBusy = 0;
 // The preview follows the theme at once: the roles (--pv-*) switch with
 // html[data-panel-theme], and what the script computes from them (circles,
 // tints, readable icons, bars, the head circle) is computed again.
@@ -142,6 +227,7 @@ async function saveTheme(value) {
   showThemeChoice(theme);
   if (theme !== '2') applyPanelThemePreview(theme);
   const sequence = ++themeSaveSequence;
+  ++themeSaveBusy;
   try {
     const response = await fetch('/api/display/theme', {
       method: 'POST',
@@ -159,7 +245,23 @@ async function saveTheme(value) {
     showThemeChoice(previous);
     if (previousShown !== shownPanelTheme()) applyPanelThemePreview(previousShown);
     showNotification(t('networkErrorSave'), false);
+  } finally {
+    --themeSaveBusy;
   }
+}
+// A design chosen on the panel (Settings > Display, the setup) or Automatic
+// turning at dusk (user 2026-10-14: the page kept the old one): the poll
+// (localization.js) brings the stored choice and the shown look, the fields
+// and the previews follow. Not while this page saves one itself.
+function applyPanelThemeFromDevice(stored, shown) {
+  const theme = String(stored);
+  if (themeSaveBusy || !['0', '1', '2'].includes(theme)) return;
+  if (document.querySelector('.global-theme [data-theme].active')?.dataset.theme !== theme) {
+    themeChosen = theme;
+    showThemeChoice(theme);
+  }
+  const look = String(shown) === '1' ? '1' : '0';
+  if (look !== shownPanelTheme()) applyPanelThemePreview(look);
 }
 function syncGlobalDisplayControls(tabEl) {
   if (themeChosen !== null) showThemeChoice(themeChosen, tabEl);

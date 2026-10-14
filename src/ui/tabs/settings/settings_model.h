@@ -54,6 +54,10 @@ void rotation_selected(uint8_t index);
 // bar layout landscape or upright where the panel can show both; a layout
 // pick restarts the panel and the setup resumes at its first step.
 uint8_t theme_index();
+// Settings > Display (user 2026-10-14): Dark, Light or Automatic (light by
+// day, theme_schedule.h) as stored, like the Web Admin's Design; the setup's
+// two choices give 0 or 1.
+uint8_t theme_choice();
 void theme_selected(uint8_t index);
 bool layout_choice();
 uint8_t layout_index();

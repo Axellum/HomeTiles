@@ -11,8 +11,8 @@
 // dot. A tap on a picture shows that page, a tap on its dots or beside it
 // closes it; a sideways swipe over it turns the page and it stays open,
 // marking the new one (ui_manager.cpp, user 2026-10-13: swiping turns,
-// tapping decides). No dimming and no animation (both cost whole-screen
-// redraws); the popups' cached card shadow.
+// tapping decides); untouched for 10 s it closes by itself. No dimming and no
+// animation (both cost whole-screen redraws); the popups' cached card shadow.
 namespace page_preview {
 
 // Opens over the head of the shown grid; `dots` (the head's dot row) hides

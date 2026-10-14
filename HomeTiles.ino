@@ -785,6 +785,9 @@ void setup() {
   // classic one while the stored layout cannot be shown yet. Before anything
   // builds or measures tiles.
   grid_layout::apply(configManager.getConfig().layout);
+  // Settings parked or shown in this layout (user 2026-10-13: each layout
+  // decides), before the tiles load: Home's grid follows it.
+  configManager.applySettingsParking(static_cast<uint8_t>(grid_layout::active()));
   // The UI theme of this boot (ui_theme.h), before anything builds or colors
   // the UI.
   ui_theme::set(theme_schedule::at_boot(configManager.getConfig().theme));

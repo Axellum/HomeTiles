@@ -58,6 +58,10 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.tile_borders == b.tile_borders &&
          a.layout == b.layout &&
          a.head_gear == b.head_gear &&
+         a.head_clock == b.head_clock &&
+         a.head_overview == b.head_overview &&
+         strcmp(a.head_title, b.head_title) == 0 &&
+         strcmp(a.head_icon, b.head_icon) == 0 &&
          a.theme == b.theme &&
          a.theme_auto_last == b.theme_auto_last &&
          a.display_rotated_180 == b.display_rotated_180 &&
@@ -76,6 +80,7 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.ethernet_enabled == b.ethernet_enabled &&
          a.settings_pin_enabled == b.settings_pin_enabled &&
          a.settings_tile_hidden == b.settings_tile_hidden &&
+         a.settings_parked == b.settings_parked &&
          a.settings_swipe_enabled == b.settings_swipe_enabled &&
          a.settings_reveal_edge == b.settings_reveal_edge &&
          a.home_swipe_edge == b.home_swipe_edge &&
@@ -96,7 +101,8 @@ static bool persisted_config_equal(const DeviceConfig& a,
          a.settings_tile_snapshot.col == b.settings_tile_snapshot.col &&
          a.settings_tile_snapshot.row == b.settings_tile_snapshot.row &&
          a.settings_tile_snapshot.span_w == b.settings_tile_snapshot.span_w &&
-         a.settings_tile_snapshot.span_h == b.settings_tile_snapshot.span_h;
+         a.settings_tile_snapshot.span_h == b.settings_tile_snapshot.span_h &&
+         a.settings_tile_snapshot.view_id == b.settings_tile_snapshot.view_id;
 }
 #endif
 
@@ -233,6 +239,8 @@ ConfigManager::ConfigManager() {
   config.tile_borders = true;
   config.layout = 0;
   config.head_gear = false;
+  config.head_clock = true;
+  config.head_overview = true;
   config.theme = 0;
   config.theme_auto_last = 0;
   config.display_rotated_180 = false;
@@ -254,6 +262,7 @@ ConfigManager::ConfigManager() {
   config.wifi_static_enabled = false;
   config.settings_pin_enabled = false;
   config.settings_tile_hidden = false;
+  config.settings_parked = 0;
   // New panels (user 2026-10-11): Settings from the top, Home from the
   // bottom (swipe_gestures.h).
   config.settings_swipe_enabled = true;
@@ -375,6 +384,12 @@ bool ConfigManager::load() {
   // places, which only the layout window sets up.
   config.layout = prefs.getUChar("layout", 0);
   config.head_gear = prefs.getBool("head_gear", false);
+  config.head_clock = prefs.getBool("head_clock", true);
+  config.head_overview = prefs.getBool("head_overview", true);
+  config.head_title[0] = '\0';
+  config.head_icon[0] = '\0';
+  if (prefs.isKey("head_title")) prefs.getString("head_title", config.head_title, sizeof(config.head_title));
+  if (prefs.isKey("head_icon")) prefs.getString("head_icon", config.head_icon, sizeof(config.head_icon));
   if (config.layout > 2) config.layout = 0;
   config.theme = prefs.getUChar("theme", 0);
   if (config.theme > 2) config.theme = 0;
@@ -514,6 +529,13 @@ bool ConfigManager::load() {
       stored_title.startsWith(stored_snapshot.title)) {
     stored_title.toCharArray(stored_snapshot.title, sizeof(stored_snapshot.title));
   }
+  // Settings parked per layout (user 2026-10-13: each layout decides). A
+  // panel from before parked it in every layout or in none. The parked
+  // tile's ID keeps its places in the layouts.
+  config.settings_parked = prefs.isKey("set_parked")
+                               ? static_cast<uint8_t>(prefs.getUChar("set_parked", 0) & kSettingsParkedAll)
+                               : (config.settings_tile_hidden ? kSettingsParkedAll : 0);
+  stored_snapshot.view_id = stored_snapshot.valid ? prefs.getUShort("set_view", 0) : 0;
 
   apply_device_capability_limits(config);
   boot_static_enabled = config.wifi_static_enabled;
@@ -676,6 +698,10 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
   prefs.putBool("tile_border", normalized.tile_borders);
   prefs.putUChar("layout", normalized.layout);
   prefs.putBool("head_gear", normalized.head_gear);
+  prefs.putBool("head_clock", normalized.head_clock);
+  prefs.putBool("head_overview", normalized.head_overview);
+  prefs.putString("head_title", normalized.head_title);
+  prefs.putString("head_icon", normalized.head_icon);
   prefs.putUChar("theme", normalized.theme);
   prefs.putUChar("theme_al", normalized.theme_auto_last);
   prefs.putBool("eth_mode", normalized.ethernet_enabled);
@@ -710,6 +736,8 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
       ? normalized.settings_tile_snapshot.title : "";
   const bool snapshot_title_written =
       prefs.putString("set_title", snapshot_title) == strlen(snapshot_title);
+  prefs.putUChar("set_parked", normalized.settings_parked & kSettingsParkedAll);
+  prefs.putUShort("set_view", normalized.settings_tile_snapshot.valid ? normalized.settings_tile_snapshot.view_id : 0);
 
   uint16_t sleep_minutes = (normalized.auto_sleep_seconds + 59) / 60;
   if (sleep_minutes == 0) {
@@ -873,18 +901,63 @@ bool ConfigManager::saveScreensaverTimeout(bool enabled, uint16_t seconds) {
   return true;
 }
 
-bool ConfigManager::saveHeadGear(bool enabled) {
-  if (config.head_gear == enabled) return true;
+// One switch of the head bar (gear, time, overview): stored at once.
+static bool saveHeadSwitch(bool& field, const char* key, bool enabled) {
+  if (field == enabled) return true;
   Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
   BatchedNvsWrite::Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) {
-    Serial.println("ConfigManager: Failed to open head gear preferences");
+    Serial.printf("ConfigManager: Failed to open preferences for %s\n", key);
     return false;
   }
-  const bool written = prefs.putBool("head_gear", enabled) == sizeof(uint8_t);
+  const bool written = prefs.putBool(key, enabled) == sizeof(uint8_t);
   const bool committed = BatchedNvsWrite::finish(prefs);
   if (!written || !committed) return false;
-  config.head_gear = enabled;
+  field = enabled;
+  return true;
+}
+
+void ConfigManager::applySettingsParking(uint8_t layout) {
+  config.settings_tile_hidden = layout < 3 && ((config.settings_parked >> layout) & 1);
+  // Parked: the swipe reaches Settings (swipe_gestures.h).
+  if (config.settings_tile_hidden) config.settings_swipe_enabled = true;
+  swipe_gestures::normalize(config);
+}
+
+bool ConfigManager::saveHeadGear(bool enabled) { return saveHeadSwitch(config.head_gear, "head_gear", enabled); }
+
+bool ConfigManager::saveHeadClock(bool enabled) { return saveHeadSwitch(config.head_clock, "head_clock", enabled); }
+
+bool ConfigManager::saveHeadOverview(bool enabled) {
+  return saveHeadSwitch(config.head_overview, "head_overview", enabled);
+}
+
+// At most size - 1 bytes, never cutting a UTF-8 character.
+static void copy_utf8(const String& src, char* dst, size_t size) {
+  size_t length = src.length() < size - 1 ? src.length() : size - 1;
+  while (length > 0 && length < src.length() && (static_cast<uint8_t>(src[length]) & 0xC0) == 0x80) --length;
+  memcpy(dst, src.c_str(), length);
+  dst[length] = '\0';
+}
+
+bool ConfigManager::saveHomeHead(const String& title, const String& icon) {
+  char new_title[sizeof(config.head_title)];
+  char new_icon[sizeof(config.head_icon)];
+  copy_utf8(title, new_title, sizeof(new_title));
+  copy_utf8(icon, new_icon, sizeof(new_icon));
+  if (strcmp(new_title, config.head_title) == 0 && strcmp(new_icon, config.head_icon) == 0) return true;
+  Device::ScopedStorageWrite storage_write(BatchedNvsWrite::kNeedsDisplayGuard);
+  BatchedNvsWrite::Preferences prefs;
+  if (!prefs.begin(PREF_NAMESPACE, false)) {
+    Serial.println("ConfigManager: Failed to open preferences for the home head");
+    return false;
+  }
+  const bool written = prefs.putString("head_title", new_title) == strlen(new_title) &&
+                       prefs.putString("head_icon", new_icon) == strlen(new_icon);
+  const bool committed = BatchedNvsWrite::finish(prefs);
+  if (!written || !committed) return false;
+  memcpy(config.head_title, new_title, sizeof(new_title));
+  memcpy(config.head_icon, new_icon, sizeof(new_icon));
   return true;
 }
 
@@ -1086,6 +1159,8 @@ void ConfigManager::clear() {
   config.tile_borders = true;
   config.layout = 0;
   config.head_gear = false;
+  config.head_clock = true;
+  config.head_overview = true;
   config.theme = 0;
   config.theme_auto_last = 0;
   config.display_rotated_180 = false;
@@ -1097,6 +1172,7 @@ void ConfigManager::clear() {
   config.status_date_font_size = 24;
   config.settings_pin_enabled = false;
   config.settings_tile_hidden = false;
+  config.settings_parked = 0;
   // New panels (user 2026-10-11): Settings from the top, Home from the
   // bottom (swipe_gestures.h).
   config.settings_swipe_enabled = true;

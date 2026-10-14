@@ -49,6 +49,12 @@
     return entity && entity.value && typeof entityPickerName === 'function' ? entityPickerName(entity) : '';
   }
 
+  // The name Auto puts in: the entity's, or a fixed one (Home's head title:
+  // "Home" in the panel's language, data-auto-title).
+  function tileAutoTitle(tab) {
+    return document.getElementById(tab + '_tile_title_auto')?.dataset.autoTitle || tileEntityName(tab);
+  }
+
   // Auto lights while the title is the entity's name: choosing an entity or
   // the switch puts the name in, typing turns it off. The title stays a plain
   // stored title, so nothing new is saved.
@@ -56,7 +62,7 @@
     const button = document.getElementById(tab + '_tile_title_auto');
     const title = document.getElementById(tab + '_tile_title');
     if (!button || !title) return;
-    const name = tileEntityName(tab);
+    const name = tileAutoTitle(tab);
     const on = !!name && title.value === normalizeTileTitle(name);
     button.classList.toggle('on', on);
     button.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -68,6 +74,9 @@
   // The icon the tile shows without a choice of its own: its entity's icon,
   // else the icon its preview draws (type defaults such as a folder).
   function tileAutomaticIcon(tab) {
+    // A fixed one (Home's head: the house, data-auto-icon).
+    const fixed = document.getElementById(tab + '_tile_icon')?.dataset.autoIcon;
+    if (fixed) return fixed;
     const entity = document.querySelector('#' + tab + '_tile_entity_slot input[data-entity-picker]');
     const entry = entity && entity.value && typeof entityPickerEntryFor === 'function'
       ? entityPickerEntryFor(entity, entity.value) : null;
@@ -169,9 +178,11 @@
       value + '"><span class="entity-picker-icon"><i class="mdi mdi-' + escapeHtml(icon) + '"></i></span>' +
       '<span class="entity-picker-text"><span class="entity-picker-name">' + escapeHtml(name) + '</span>' +
       '<span class="entity-picker-context">' + escapeHtml(hint) + '</span></span></button>';
-    let html = open.query ? '' : '<div class="icon-picker-choices">' +
-      choice('', tileAutomaticIcon(open.tab), t('iconPickerAuto'), t('iconPickerAutoHint')) +
-      choice('none', 'cancel', t('iconPickerNone'), t('iconPickerNoneHint')) + '</div>';
+    // Home's head always shows its circle: no "No icon" there.
+    const none = document.getElementById(open.tab + '_tile_icon')?.dataset.autoIcon
+      ? '' : choice('none', 'cancel', t('iconPickerNone'), t('iconPickerNoneHint'));
+    let html = open.query ? '' : '<div class="icon-picker-choices' + (none ? '' : ' single') + '">' +
+      choice('', tileAutomaticIcon(open.tab), t('iconPickerAuto'), t('iconPickerAutoHint')) + none + '</div>';
     if (open.state === 'loading') {
       html += '<div class="entity-picker-loading"><div></div><div></div><div></div></div>';
     } else if (open.state === 'failed') {
@@ -321,7 +332,7 @@
       // Off: the entity's name comes back like typed (preview, draft, save).
       const tab = tileHeadTab(auto);
       const title = document.getElementById(tab + '_tile_title');
-      const name = tileEntityName(tab);
+      const name = tileAutoTitle(tab);
       if (title && name && !auto.classList.contains('on')) {
         title.value = normalizeTileTitle(name);
         title.dispatchEvent(new Event('input', { bubbles: true }));

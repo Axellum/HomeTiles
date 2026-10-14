@@ -413,6 +413,14 @@
     }
     // The automatic icon of the head follows what the preview draws.
     if (typeof renderTileIconButton === 'function') renderTileIconButton(tab);
+    // A folder's tab and its page's head follow its tile's title and icon
+    // while typing (the panel names the folder after its tile; user
+    // 2026-10-14: they waited for the save, a folder not opened yet even for
+    // its page from the panel).
+    if (type === '4' && typeof updateFolderTabUi === 'function') {
+      const folder = Number(document.getElementById(prefix + '_navigate_target')?.value || tileElem.dataset.navigateTarget || 0);
+      if (folder > 0) updateFolderTabUi(folder, title.replace(/\s*\n\s*/g, ' '), iconInput?.value || '');
+    }
     } finally {
       globalThis.hometilesPreviewSurface = surfaceSaved;
     }

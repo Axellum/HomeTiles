@@ -18,8 +18,8 @@ assert.match(fallback, /\.tile:not\(\.empty\):not\(\.sensor-compact\):is\(\.acti
   'the selection colours the border like the ring (#26a69a)');
 assert.match(fallback, /\.tile:not\(\.empty\):not\(\.sensor-compact\):hover:not\(\.active\):not\(\[data-selected="1"\]\) \{\s*border:3px dashed rgba\(38,166,154,0\.6\);/,
   'hover: the dashed ring on the border');
-assert.match(fallback, /body\.tile-resize-active \.tile:not\(\.empty\):not\(\.sensor-compact\):hover:not\(\.active\):not\(\[data-selected="1"\]\) \{\s*border-color:transparent;/,
-  'no hover ring while resizing');
+assert.match(fallback, /body\.tile-resize-active \.tile:not\(\.empty\):not\(\.sensor-compact\):hover:not\(\.active\):not\(\[data-selected="1"\]\),\s*body\.tile-hover-stale \.tile:not\(\.empty\):not\(\.sensor-compact\):hover:not\(\.active\):not\(\[data-selected="1"\]\) \{\s*border-color:transparent;/,
+  'no hover ring while resizing, nor where a drag started (Chrome keeps :hover there)');
 // Half tiles keep their own ring inside (no border to colour).
 assert.match(css, /\.tile\.sensor-compact:not\(\.empty\)::after \{ inset:0; \}/);
 // The fallback comes after the rules it overrides.

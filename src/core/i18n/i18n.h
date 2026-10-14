@@ -23,7 +23,6 @@ struct Strings {
   const char* admin_panel_title;
   const char* admin_tile_hint;
   const char* admin_delete_folder_tab;
-  const char* admin_tile_settings;
   const char* admin_type;
   const char* admin_title;
   const char* admin_tile_title_placeholder;
@@ -220,8 +219,6 @@ struct Strings {
   const char* screensaver_tile_shadow;
   const char* tile_fractional_type_hint;
   const char* screensaver_tile_border;
-  // Web Admin: global display settings row below the grid preview.
-  const char* global_settings_heading;
   // The gesture menu in the Global tab (swipe_gestures.h).
   const char* swipe_gestures_heading;
   // The theme field (ui_theme.h) and its choices; a tile's own Design field
@@ -456,6 +453,17 @@ struct Strings {
   const char* settings_pin_not_configured;
   // With a bar layout: the gear in Home's head opens Settings too.
   const char* settings_head_gear;
+  // The settings panel's head bar tab (user 2026-10-13): its name, the
+  // gear (the same setting as settings_head_gear), the time and the pages'
+  // overview on a tap on the dots.
+  const char* head_bar_heading;
+  const char* head_bar_gear;
+  const char* head_bar_clock;
+  const char* head_bar_overview;
+  // Home's own title in its head and the hint of its Auto switch ("Home" in
+  // the panel's language).
+  const char* head_bar_home_title;
+  const char* head_bar_home_auto_hint;
   const char* edge_left;
   const char* edge_right;
   const char* edge_top;

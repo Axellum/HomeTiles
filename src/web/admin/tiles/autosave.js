@@ -204,6 +204,12 @@
         if (!isLatestSaveRequest(tab, tileIndex, requestId)) return;
         if (data.success) {
           if (!silent) showNotification(t('tileSaved'));
+          // A new tile's stable ID from the panel: its places are kept by it
+          // (the layout window looked a new folder's up without it).
+          if (data.view_id !== undefined && tilesData[tab] && tilesData[tab][tileIndex] &&
+              Number(tilesData[tab][tileIndex].type || 0) !== 0) {
+            tilesData[tab][tileIndex].view_id = Number(data.view_id) || 0;
+          }
           const currentDraft = drafts[tab] && drafts[tab][tileIndex];
           if (currentDraft && currentDraft._dirty && Number(currentDraft._rev || 0) !== draftRev) {
             queueSaveAfterFlight(tab, tileIndex, true);

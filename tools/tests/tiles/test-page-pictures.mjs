@@ -42,6 +42,11 @@ assert.match(slice(tiles, 'static void release_cache_entry(', '\n}\n'),
 const invalidation = slice(tiles, 'static void process_folder_cache_invalidation() {', '\n}\n');
 assert.match(invalidation, /reset_cache_entry\(entry\);\s*\}\s*\/\/[^\n]*\n\s*forget_page_picture\(g_folder_only_invalidations\[n\]\);/);
 assert.match(invalidation, /reset_cache_entry\(entry\);\s*\}\s*\}\s*forget_page_pictures\(\);\s*\}\s*$/);
+// A prepared folder an edit dropped is built again while the panel rests,
+// after the editing paused (user 2026-10-14: the way back to Home built it,
+// 412 ms).
+assert.match(invalidation, /forget_page_picture\(g_folder_only_invalidations\[n\]\);\s*rewind_navigation_preload\(g_folder_only_invalidations\[n\]\);/);
+assert.match(tiles, /static void rewind_navigation_preload\(uint16_t folder_id\) \{\s*const size_t priority = navigation_preload_priority\(folder_id\);\s*if \(priority >= g_navigation_preload_target_count\) return;\s*if \(priority < g_navigation_preload_cursor\) g_navigation_preload_cursor = priority;\s*g_navigation_preload_not_before_ms = millis\(\) \+ kNavigationPreloadAfterEditMs;/);
 
 // While the panel rests: one page a second from storage, never during a
 // touch, a folder switch, an open overview or Web Admin work.

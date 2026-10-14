@@ -412,7 +412,10 @@
     const selectedIsEmpty =
       String(document.getElementById(tab + '_tile_type')?.value ?? '0') === '0';
     grid.querySelectorAll(':scope > .tile[data-index]').forEach(el => {
-      if (el === freeEl || el.style.display === 'none') return;
+      // A page's tile stands in its field: its stored place takes no room
+      // (page-fields.js; user 2026-10-13: the pages' old places blocked the
+      // free slot, only half cells were left).
+      if (el === freeEl || el.style.display === 'none' || el.classList.contains('page-field-tile')) return;
       if (Number(el.dataset.type || 0) === 0 &&
           (el.dataset.selected !== '1' || selectedIsEmpty)) return;
       const layout = getTileElementLayout(tab, parseInt(el.dataset.index, 10));

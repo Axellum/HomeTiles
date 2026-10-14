@@ -5103,6 +5103,7 @@ lv_obj_t* render_tile(lv_obj_t* parent, int col, int row, const Tile& tile, uint
     // options per tile or global).
     tile_icon_disc::apply_tile_options(tile_obj, 0, true);
     disable_pressed_recolor(tile_obj);
+    tile_press::apply(tile_obj);
     if (!tileBorderEnabled(tile)) ui_surface_style::disable_tile_border(tile_obj);
     // "Transparent" (tileTransparent): no card and no line; a press still
     // shows, as the theme's pressed card.

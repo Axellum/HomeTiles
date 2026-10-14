@@ -78,6 +78,8 @@ public:
   void handleSaveHardwareIo();
   void handleSaveTileBorders();
   void handleSaveHeadGear();
+  void handleSaveHeadSwitch();
+  void handleSaveHomeHead();
   void handleGestures();
   void handleSaveTheme();
   void handleLocalCamera();

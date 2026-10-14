@@ -49,6 +49,7 @@ ${fn('src/tiles/config/tile_config.cpp','unpackGeometry')}
 ${fn('src/tiles/runtime/tile_renderer_shared.h','apply_fractional_tile_geometry')}
 ${fn('src/tiles/runtime/tile_renderer.cpp','set_tile_grid_cell')}
 #include "src/types/climate/layout.h"
+#include "src/tiles/runtime/tile_press.h"
 ${strip(read('src/tiles/runtime/tile_icon_disc.h'))}
 ${strip(read('src/tiles/runtime/compact_sensor_layout.h'))}
 int main(){

@@ -33,6 +33,7 @@
 #include "src/ui/tabs/settings/settings_model.h"
 #include "src/ui/tabs/settings/settings_screen.h"
 #include "src/ui/shared/ui_theme.h"
+#include "src/ui/shared/theme_schedule.h"
 
 // The Settings tab: what its pages show and do (settings_model.h, drawn by
 // settings_screen.cpp) on the real configuration, and the sketch's calls into
@@ -1057,9 +1058,18 @@ bool setup_first() {
 
 uint8_t theme_index() { return ui_theme::theme_light() ? 1 : 0; }
 
+uint8_t theme_choice() {
+  const uint8_t theme = configManager.getConfig().theme;
+  return theme > theme_schedule::kAutomatic ? 0 : theme;
+}
+
 void theme_selected(uint8_t index) {
-  // The stored theme: 0 dark, 1 light (ui_theme.h).
-  if (!configManager.saveTheme(index ? 1 : 0)) return;
+  // The stored theme: 0 dark, 1 light, 2 automatic (ui_theme.h).
+  const uint8_t theme = index > theme_schedule::kAutomatic ? 0 : index;
+  if (!configManager.saveTheme(theme)) return;
+  // A boot before the clock is set starts with what Automatic shows now
+  // (like the Web Admin's Design).
+  if (theme == theme_schedule::kAutomatic) configManager.saveThemeAutoLast(theme_schedule::effective(theme));
   uiManager.requestThemeChange();
 }
 

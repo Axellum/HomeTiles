@@ -294,6 +294,14 @@ assert.match(readRepoFile('src/ui/screensaver/image_screensaver.cpp'),
 
 const loop = readRepoFile('HomeTiles.ino');
 assert.equal((loop.match(/camera_picture::service\(\);/g) || []).length, 2, 'awake and asleep (drops the camera pictures)');
+// Under an open tile popup no picture is decoded (user 2026-10-14: the
+// Weather popup turned slower with a camera tile on Home, every picture
+// redrew the popup over it); the newest one shows when it closes.
+{
+  const service = picture.slice(picture.indexOf('void service() {'));
+  assert.match(service, /for \(PictureTile\* tile : g_tiles\) follow_corners\(\*tile\);[\s\S]{0,400}if \(popup_shell_active\(\)\) return;\s*\/\/ One decode per call/,
+    'No decode under an open popup');
+}
 
 const mqtt = readRepoFile('src/network/mqtt/mqtt_handlers.cpp');
 assert.match(mqtt, /for \(const String& topic : g_tile_picture_topics\) networkManager\.mqttEnqueueSubscribe\(topic\.c_str\(\)\);/,

@@ -8,7 +8,8 @@
   // ones. Nothing else reaches the panel while the window is open: the
   // editor's own saves stay in the window. The bar layouts' page fields
   // beside Home's area (page-fields.js, user 2026-10-13) are kept like the
-  // places and stored with them.
+  // places and stored with them, and so is every layout's Settings field:
+  // Settings is parked per layout (user 2026-10-13: each layout decides).
   const LAYOUT_KEYS = ['classic', 'bar', 'portrait'];
   let layoutWindow = null;
   const layoutWindowFetch = window.fetch.bind(window);
@@ -47,9 +48,15 @@
   // Preview px per screen px (web_admin_styles.cpp), the same for every layout.
   function layoutScale() { return layoutRootPx('--radius-preview-scale') || 1; }
   // The pages, then the screensaver (its two rows at the bottom of each
-  // screen, three upright, screensaver_places.h).
+  // screen, three upright, screensaver_places.h). Every folder takes part,
+  // also one whose page is not loaded yet: its tiles' data is enough until
+  // its tab is shown (mountLayoutTab loads it then; user 2026-10-13: opening
+  // loaded every folder's page one after the other, slower with each one).
   function layoutTabs() {
     const tabs = tileTabs.filter(tab => document.getElementById('tab-tiles-' + tab));
+    for (const tab of Object.values(tabByFolder)) {
+      if (tab && !tabs.includes(tab)) tabs.push(tab);
+    }
     return [...tabs.filter(tab => !isScreensaverTileTab(tab)), ...tabs.filter(isScreensaverTileTab)];
   }
   function layoutSize(key) { return LAYOUTS[key].cols + ' × ' + String(LAYOUTS[key].rows).replace('.', ','); }
@@ -150,7 +157,7 @@
     (layoutWindow.data.classic?.[layoutFolderId(tab)] || []).forEach(([slot, view, col, row, w, h]) => {
       classic[slot] = {view, col, row, span_w: w, span_h: h};
     });
-    return layoutClone(layoutWindow.pages[tab] || []).map((tile, index) => {
+    const tiles = layoutClone(layoutWindow.pages[tab] || []).map((tile, index) => {
       if (!layoutUsed(tile)) return tile;
       delete tile.layout_hidden;
       const p = classic[index];
@@ -161,6 +168,15 @@
       }
       return tile;
     });
+    // The Settings tile parked off Home in the layout the panel shows takes
+    // part with its kept ID and classic place (/api/layouts settings.tile):
+    // its places in the other layouts stay.
+    const parked = layoutWindow.settingsTile;
+    if (layoutFolderId(tab) === '0' && parked && !tiles.some(tile => layoutUsed(tile) && Number(tile.type) === 7)) {
+      const free = tiles.findIndex(tile => !layoutUsed(tile));
+      if (free >= 0) tiles[free] = layoutClone(parked);
+    }
+    return tiles;
   }
 
   // Every tile on its own spot of the window's area: tiles that need a place
@@ -295,8 +311,8 @@
         }
       });
     }
-    return layoutSettle(key, L.bar ? tiles.map(tile => (layoutUsed(tile) && layoutBarHidden(tile, tab)
-      ? layoutBarTile(tile) : tile)) : tiles);
+    return layoutSettle(key, layoutParkSettings(tab, L.bar ? tiles.map(tile => (layoutUsed(tile) &&
+      layoutBarHidden(tile, tab) ? layoutBarTile(tile) : tile)) : tiles, !!layoutWindow.settingsParked?.[key]));
   }
 
   // The window's start: the layout's saved places; a layout never set up is
@@ -314,11 +330,11 @@
           tile._unplaced = true;
         }
       });
-      return layoutSettle(key, tiles);
+      return layoutSettle(key, layoutParkSettings(tab, tiles, !!layoutWindow.savedSettingsParked?.[key]));
     }
     const places = layoutWindow.data.places?.[key]?.[layoutFolderId(tab)];
     if (!places) return takeoverTiles(tab, key, 'classic');
-    return layoutSettle(key, layoutBase(tab).map(tile => {
+    return layoutSettle(key, layoutParkSettings(tab, layoutBase(tab).map(tile => {
       if (!layoutUsed(tile)) return tile;
       if (layoutBarHidden(tile, tab)) return layoutBarTile(tile);
       const p = places[tile.view_id];
@@ -329,7 +345,7 @@
         tile._unplaced = true;
       }
       return tile;
-    }));
+    }), !!layoutWindow.savedSettingsParked?.[key]));
   }
 
   // Every tile's place on every page, to tell unsaved changes.
@@ -346,7 +362,8 @@
     if (!layoutWindow) return false;
     const work = key === layoutWindow.key ? getTilesData : (layoutWindow.work[key] ? tab => layoutWindow.work[key][tab] : null);
     return (!!work && layoutSignature(work) !== layoutSavedSig(key)) || layoutClockDirty(key) ||
-      (!!LAYOUTS[key]?.bar && layoutPagesDirty());
+      (!!LAYOUTS[key]?.bar && layoutPagesDirty()) ||
+      !!layoutWindow.settingsParked?.[key] !== !!layoutWindow.savedSettingsParked?.[key];
   }
 
   // --- The page fields --------------------------------------------------------
@@ -369,9 +386,64 @@
   function layoutPagesDirty() {
     return !!layoutWindow && JSON.stringify(layoutWindow.pageSlots) !== JSON.stringify(layoutWindow.savedPageSlots);
   }
-  // The fields show on Home in a bar layout (page-fields.js pageFieldsShown).
+  // The page fields show on Home in a bar layout (page-fields.js
+  // pageSlotsShown), the Settings field in every layout (pageFieldsShown).
   function layoutWindowShowsPages() {
     return !!layoutWindow && !!LAYOUTS[layoutWindow.key].bar && layoutWindow.tab === layoutHomeTab();
+  }
+  function layoutWindowShowsFields() {
+    return !!layoutWindow && layoutWindow.tab === layoutHomeTab();
+  }
+
+  // --- The Settings field -----------------------------------------------------
+
+  // Where Settings is parked, as stored (user 2026-10-13: each layout
+  // decides; /api/layouts settings.parked, bit by bit in LAYOUT_KEYS order).
+  function layoutSettingsParkedFrom(data) {
+    const parked = data?.settings?.parked || [];
+    return Object.fromEntries(LAYOUT_KEYS.map((key, i) => [key, !!parked[i]]));
+  }
+  // The shown layout's choice in the window (page-fields.js).
+  function layoutWindowSettingsParked() {
+    return !!layoutWindow?.settingsParked?.[layoutWindow.key];
+  }
+  // Home's Settings tile parked (in its field, no place) or not.
+  function layoutParkSettings(tab, tiles, parked) {
+    if (layoutFolderId(tab) !== '0') return tiles;
+    tiles.forEach(tile => {
+      if (!layoutUsed(tile) || Number(tile.type) !== 7) return;
+      if (parked) tile.layout_hidden = true;
+      else delete tile.layout_hidden;
+    });
+    return tiles;
+  }
+  function layoutSettingsIndex() {
+    return (getTilesData(layoutHomeTab()) || []).findIndex(tile => layoutUsed(tile) && Number(tile.type) === 7);
+  }
+  // Dropped on its field (page-fields.js pageFieldDrag): parked in this
+  // layout until "Speichern".
+  function layoutSettingsIn() {
+    const home = layoutHomeTab();
+    const index = layoutSettingsIndex();
+    if (!layoutWindow || index < 0) return;
+    const tiles = getTilesData(home);
+    tiles[index] = {...tiles[index], layout_hidden: true};
+    renderTileFromData(home, index, tiles[index], sensorMetaCache);
+    layoutWindow.settingsParked[layoutWindow.key] = true;
+    layoutPagesChanged();
+  }
+  // Out of its field onto the window's area (page-fields.js dropPageOnGrid).
+  function layoutSettingsOut(place) {
+    const home = layoutHomeTab();
+    const index = layoutSettingsIndex();
+    if (!layoutWindow || index < 0) return;
+    const tiles = getTilesData(home);
+    const tile = {...tiles[index], col: place.col, row: place.row, span_w: place.span_w, span_h: place.span_h};
+    delete tile.layout_hidden;
+    tiles[index] = tile;
+    renderTileFromData(home, index, tile, sensorMetaCache);
+    layoutWindow.settingsParked[layoutWindow.key] = false;
+    layoutPagesChanged();
   }
 
   // A bar layout shown again (its unsaved places or its stored ones) follows
@@ -616,13 +688,23 @@
     home.grid.querySelectorAll(':scope > .setup-storage-label, :scope > .setup-flag, :scope > .setup-trash')
       .forEach(node => node.remove());
     home.grid.classList.remove('setup-grid', 'setup-head', 'setup-no-head');
-    home.grid.removeAttribute('style');
+    // Back as the page had it (its fields' room): nothing behind the window
+    // changes size (user 2026-10-13).
+    if (home.style) home.grid.setAttribute('style', home.style);
+    else home.grid.removeAttribute('style');
+    home.grid.classList.toggle('has-page-fields', home.fields);
     home.placeholder.replaceWith(home.grid);
     layoutWindow.home = null;
   }
 
   async function mountLayoutTab(tab) {
     unmountLayoutGrid();
+    // A folder whose page is not loaded yet: now (its tiles stay the
+    // window's, layoutTabs).
+    if (!document.getElementById('tab-tiles-' + tab) && getFolderIdForTab(tab) !== undefined) {
+      try { await ensureFolderTabUi(getFolderIdForTab(tab)); } catch (error) {}
+      if (!layoutWindow) return;
+    }
     layoutWindow.tab = tab;
     layoutWindow.screen = null;
     await switchTab('tab-tiles-' + tab);
@@ -635,7 +717,7 @@
     const placeholder = document.createElement('div');
     placeholder.style.cssText = `width:${grid.offsetWidth}px;height:${grid.offsetHeight}px;flex:none;`;
     grid.replaceWith(placeholder);
-    layoutWindow.home = {grid, placeholder};
+    layoutWindow.home = {grid, placeholder, style: grid.getAttribute('style'), fields: grid.classList.contains('has-page-fields')};
     // First in the tab, so the editor's "#tab-tiles-x .tile-grid" still finds this grid.
     host.insertBefore(backdrop, host.firstChild);
     backdrop.querySelector('.setup-stage').appendChild(grid);
@@ -910,10 +992,13 @@
       const places = folders[layoutFolderId(tab)] = {};
       getTilesData(tab).forEach(tile => {
         if (!layoutUsed(tile) || !tile.view_id || (key !== 'classic' && layoutBarHidden(tile, tab))) return;
+        // Parked in this layout: in its field, no place.
+        if (Number(tile.type) === 7 && tile.layout_hidden) return;
         places[tile.view_id] = [tile.col, tile.row, tile.span_w, tile.span_h];
       });
     }
-    const body = {layout: key, folders};
+    const settingsParked = !!layoutWindow.settingsParked?.[key];
+    const body = {layout: key, folders, settings_parked: settingsParked};
     // The page row with a bar layout's places, in one go (user 2026-10-12).
     const pagesChanged = !!LAYOUTS[key].bar && layoutPagesDirty();
     if (pagesChanged) {
@@ -944,6 +1029,11 @@
     }
     if (!layoutWindow) return false;
     if (key === ACTIVE_LAYOUT) layoutWindow.changed = true;
+    // The panel's own layout: Settings left Home or came back at once.
+    if (key === ACTIVE_LAYOUT && settingsParked !== !!layoutWindow.savedSettingsParked?.[key]) {
+      layoutWindow.settingsActiveChanged = true;
+    }
+    if (layoutWindow.savedSettingsParked) layoutWindow.savedSettingsParked[key] = settingsParked;
     if (pagesChanged) {
       // The other bar layout's unsaved places follow the new pages first
       // (a folder back from them takes the spot the panel gave it).
@@ -1006,14 +1096,12 @@
 
   async function openLayoutWindow() {
     if (layoutWindow) return;
-    // Every folder's page with its tiles, and the stored places.
-    for (const folderId of Object.keys(tabByFolder).map(Number).filter(id => id > 0)) {
-      try { await ensureFolderTabUi(folderId); } catch (error) {}
-    }
+    // Every folder's tiles side by side, and the stored places; a folder's
+    // page loads when its tab is shown.
     initTileTabs();
     let data = null;
     try {
-      for (const tab of tileTabs.filter(tab => !isScreensaverTileTab(tab))) await fetchTileGridData(tab);
+      await Promise.all(layoutTabs().filter(tab => !isScreensaverTileTab(tab)).map(tab => fetchTileGridData(tab)));
       const response = await layoutWindowFetch('/api/layouts', {cache: 'no-store'});
       data = await response.json();
       if (!response.ok || !data?.success) throw new Error('layouts');
@@ -1044,7 +1132,13 @@
       home: null,
       pageSlots: [],
       savedPageSlots: [],
-      pageUnlock: false
+      pageUnlock: false,
+      // Settings parked per layout: the window's choice and the stored one,
+      // and the tile parked off Home in the panel's layout (layoutBase).
+      settingsParked: layoutSettingsParkedFrom(data),
+      savedSettingsParked: layoutSettingsParkedFrom(data),
+      settingsTile: data?.settings?.tile ? {...data.settings.tile, type: 7} : null,
+      settingsActiveChanged: false
     };
     // The page row as stored; a folder gone meanwhile left its place free.
     layoutWindow.pageSlots = layoutPageSlotsFrom(data).map(id => id && layoutHomeFolderIndex(id) >= 0 ? id : 0);
@@ -1079,11 +1173,13 @@
       `<svg class="setup-arrows" viewBox="0 0 44 ${arrowHeight}" width="44" height="${arrowHeight}" aria-hidden="true">` +
       `${arrows}</svg><div class="setup-targets">${targets.map(layoutButton).join('')}</div>`;
     const tabButtons = tabs.map(tab => {
-      const host = document.getElementById('tab-tiles-' + tab);
+      // A folder not loaded yet has its name and icon on its page button.
+      const host = document.getElementById('tab-tiles-' + tab) ||
+        document.querySelector(`.folder-tab-btn[data-tab-id="${tab}"]`);
       const home = layoutFolderId(tab) === '0';
       const saver = isScreensaverTileTab(tab);
-      const name = home ? t('home') : saver ? t('importScreensaver') : host.dataset.folderName || tab;
-      const icon = home ? 'home' : saver ? 'monitor' : host.dataset.folderIcon || 'folder';
+      const name = home ? t('home') : saver ? t('importScreensaver') : host?.dataset.folderName || tab;
+      const icon = home ? 'home' : saver ? 'monitor' : host?.dataset.folderIcon || 'folder';
       return `<button type="button" class="tab-btn setup-tab" data-tab="${tab}"><i class="mdi mdi-${escapeHtml(icon)}"></i> ` +
         `${escapeHtml(name)}<span class="setup-badge" hidden></span></button>`;
     }).join('');
@@ -1162,6 +1258,15 @@
       showLayoutTiles(tab, getTilesData(tab));
     }
     if (pageSlots) syncPageHeads();
+    // Settings parked or back in the panel's layout: the editor's parking
+    // checkbox and slot follow (settings/access.js).
+    if (state.settingsActiveChanged) {
+      const parked = !!state.savedSettingsParked[ACTIVE_LAYOUT];
+      const box = settingsAccessElement('settings_tile_hidden');
+      if (box) box.checked = parked;
+      settingsAccessCommittedState = readSettingsAccessState();
+      await reconcileSettingsTileUi(parked, state.settingsTile);
+    }
     // The tile the page had selected before, with its settings beside the
     // preview (the window's own selections are forgotten).
     const selection = state.selection;
