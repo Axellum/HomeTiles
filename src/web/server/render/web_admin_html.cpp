@@ -27,6 +27,7 @@
 #include "src/core/i18n/i18n.h"
 #include "src/devices/device.h"
 #include "src/types/clock/clock_format.h"
+#include "src/types/clock/web_html.h"
 #include "src/types/binary_sensor/renderer.h"
 #include "src/tiles/icons/mdi_icons.h"
 #include "src/tiles/runtime/tile_icon_disc.h"
@@ -1319,9 +1320,10 @@ static void appendTileTabHTML(
     html += R"html(</option><option value="1">24 h</option><option value="2">12 h</option></select></label>
 <label>)html";
     html += tr.date_format_label;
-    html += R"html(<select id="screensaverDateFormat"><option value="0">)html";
-    html += tr.format_auto_localization;
-    html += R"html(</option><option value="1">DD.MM.YYYY</option><option value="2">MM/DD/YYYY</option><option value="3">YYYY/MM/DD</option></select></label>
+    html += R"html(<select id="screensaverDateFormat">)html";
+    // The clock tile's formats (21/08/2026, 21.08., 21 August, ...).
+    append_clock_date_format_options(html, configManager.getConfig().language);
+    html += R"html(</select></label>
 </div>
 </div>
 </div>

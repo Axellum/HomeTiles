@@ -45,13 +45,15 @@ Tile clock_tile_default() {
   Tile tile;
   tile.type = TILE_CLOCK;
   // The analog face with the time and date (the clock flags) beside it: the
-  // 12 h time, the short weekday and the day with its month, "03:28 PM" over
-  // "Wed, 14 October" (user 2026-10-14: the full weekday and year ran out of
-  // the 2x1 tile on the square and upright panels).
+  // time in the panel's own format like the head bar (Auto: 24 h or 12 h by
+  // the language), the short weekday and the day with its month, "15:28"
+  // over "Mi., 14. Oktober" (user 2026-10-14: the full weekday and year ran
+  // out of the 2x1 tile on the square and upright panels; Auto like the
+  // head).
   tile.sensor_decimals = 3;
   tile.key_code = kClockTimeSize;
   tile.key_modifier = kClockDateSize;
-  tile.sensor_gauge_min = clock_tile::TIME_FORMAT_12H;
+  tile.sensor_gauge_min = clock_tile::TIME_FORMAT_AUTO;
   clock_tile::TileDateOptions options;
   options.style = clock_tile::STYLE_ANALOG;
   options.weekday = clock_tile::WEEKDAY_SHORT;

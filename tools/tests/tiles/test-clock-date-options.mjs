@@ -193,6 +193,12 @@ assert.match(html, /<option value="4">DD\/MM\/YYYY<\/option>/);
 assert.match(html, /clock_tile::format_date_pattern\(pattern, sizeof\(pattern\), clock_tile::DATE_FORMAT_D_MONTH, language\);/);
 assert.match(html, /clock_tile::format_date_pattern\(pattern, sizeof\(pattern\), clock_tile::DATE_FORMAT_D_MONTH_YEAR, language\);/);
 assert.doesNotMatch(html, /21, 7, 2026/, 'No fixed example date in the list');
+// One list for the clock tile and the screensaver clock (user 2026-10-14:
+// the screensaver only offered DD.MM.YYYY, MM/DD/YYYY and YYYY/MM/DD).
+assert.match(html, /_clock_date_format">\)html";\s*append_clock_date_format_options\(html, language\);/);
+const adminHtml = read('src/web/server/render/web_admin_html.cpp');
+assert.match(adminHtml, /<select id="screensaverDateFormat">\)html";[\s\S]{0,120}append_clock_date_format_options\(html, configManager\.getConfig\(\)\.language\);/);
+assert.doesNotMatch(adminHtml, /<option value="3">YYYY\/MM\/DD<\/option><\/select>/, 'No own short list for the screensaver');
 assert.match(read('src/types/clock/web_scripts.cpp'), /const CLOCK_I18N = Object\.freeze\(/);
 // The editor refreshes on the new fields.
 const editor = read('src/web/admin/tiles/editor.js');

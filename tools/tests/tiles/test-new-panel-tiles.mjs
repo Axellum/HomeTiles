@@ -117,10 +117,10 @@ assert.match(park, /configManager\.save\(\*cfg\) &&\s*tileConfig\.setSettingsTil
 assert.match(read('src/web/server/handlers/web_admin_handlers.cpp'),
   /if \(hide_tile && settings_tile_present\) \{\s*TileConfig::snapshotSettingsTile\(settings_tile, cfg\.settings_tile_snapshot\);/);
 assert.match(fn('clock_tile_default'), /tile\.sensor_decimals = 3;/);
-// "03:28 PM" over "Wed, 14 October": the 12 h time, the short weekday and
-// the day with its month fit the 2x1 tile beside the face on every panel
-// (user 2026-10-14).
-assert.match(fn('clock_tile_default'), /tile\.sensor_gauge_min = clock_tile::TIME_FORMAT_12H;/);
+// The time in the panel's own format like the head bar (Auto), the short
+// weekday and the day with its month fit the 2x1 tile beside the face on
+// every panel (user 2026-10-14).
+assert.match(fn('clock_tile_default'), /tile\.sensor_gauge_min = clock_tile::TIME_FORMAT_AUTO;/);
 assert.match(fn('clock_tile_default'),
   /options\.style = clock_tile::STYLE_ANALOG;\s*options\.weekday = clock_tile::WEEKDAY_SHORT;\s*options\.date_format = clock_tile::DATE_FORMAT_D_MONTH;/);
 assert.match(fn('make_transparent'), /tile\.bg_color = TILE_BG_COLOR_EXPLICIT;\s*tile\.sensor_display_mode = 1;/);

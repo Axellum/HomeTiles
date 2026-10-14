@@ -37,7 +37,7 @@ const english = ['Step %d of %d', 'Basic settings', 'Connect to WiFi', 'Add to H
   'Next', 'Finish', 'Later', 'Other network', 'Set up with your phone', 'Install HomeTiles',
   'In Home Assistant, if not done yet', 'Pair this panel', 'Add it in Home Assistant',
   'Settings › Devices & services › Discovered', 'Back to the pairing', 'Install the Bridge first', 'Pairing code',
-  'Paired with Home Assistant', 'Connect WiFi first', 'Scan it to add your tiles.', 'Set a Web Admin password there.',
+  'Paired with Home Assistant', 'Connect WiFi first', "Open this address in your computer's browser to add your tiles.", 'Set a Web Admin password there.',
   'Set a Web Admin password there, so only you can change the panel.', 'Leave the setup?',
   'You can finish it later in %s › System › %s.', 'Leave'];
 const struct = header.slice(header.indexOf('struct Strings {'), header.indexOf('\n};', header.indexOf('struct Strings {')));

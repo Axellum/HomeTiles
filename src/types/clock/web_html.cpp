@@ -4,6 +4,24 @@
 #include "src/core/i18n/i18n.h"
 #include "src/types/clock/clock_format.h"
 
+void append_clock_date_format_options(String& html, const char* language) {
+  const auto& tr = i18n::strings(language);
+  html += R"html(<option value="0">)html";
+  html += tr.format_auto_localization;
+  html += R"html(</option><option value="1">DD.MM.YYYY</option><option value="2">MM/DD/YYYY</option>)html"
+          R"html(<option value="3">YYYY/MM/DD</option><option value="4">DD/MM/YYYY</option>)html"
+          R"html(<option value="5">DD.MM.</option><option value="6">)html";
+  // The month formats as patterns like the others, in the panel's
+  // language's order ("DD. MMMM", "DD MMMM YYYY"; issue #13).
+  char pattern[32];
+  clock_tile::format_date_pattern(pattern, sizeof(pattern), clock_tile::DATE_FORMAT_D_MONTH, language);
+  html += pattern;
+  html += R"html(</option><option value="7">)html";
+  clock_tile::format_date_pattern(pattern, sizeof(pattern), clock_tile::DATE_FORMAT_D_MONTH_YEAR, language);
+  html += pattern;
+  html += "</option>";
+}
+
 void append_clock_fields_html(String& html, const String& tab_id) {
   const char* language = configManager.getConfig().language;
   const auto& tr = i18n::strings(language);
@@ -155,26 +173,9 @@ void append_clock_fields_html(String& html, const String& tab_id) {
   html += R"html(</label>
               <select id=")html";
   html += tab_id;
-  html += R"html(_clock_date_format">
-                <option value="0">)html";
-  html += tr.format_auto_localization;
-  html += R"html(</option>
-                <option value="1">DD.MM.YYYY</option>
-                <option value="2">MM/DD/YYYY</option>
-                <option value="3">YYYY/MM/DD</option>
-                <option value="4">DD/MM/YYYY</option>
-                <option value="5">DD.MM.</option>
-                <option value="6">)html";
-  // The month formats as patterns like the others, in the panel's
-  // language's order ("DD. MMMM", "DD MMMM YYYY"; issue #13).
-  char pattern[32];
-  clock_tile::format_date_pattern(pattern, sizeof(pattern), clock_tile::DATE_FORMAT_D_MONTH, language);
-  html += pattern;
-  html += R"html(</option>
-                <option value="7">)html";
-  clock_tile::format_date_pattern(pattern, sizeof(pattern), clock_tile::DATE_FORMAT_D_MONTH_YEAR, language);
-  html += pattern;
-  html += R"html(</option>
+  html += R"html(_clock_date_format">)html";
+  append_clock_date_format_options(html, language);
+  html += R"html(
               </select>
               <label>)html";
   html += tr.clock_weekday_label;
