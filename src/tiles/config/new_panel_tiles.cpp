@@ -18,8 +18,12 @@ namespace new_panel_tiles {
 namespace {
 
 constexpr const char* kLightsIcon = "lightbulb-group";
-// Home Assistant's climate icon.
+// Home Assistant's climate and scene icons.
 constexpr const char* kClimateIcon = "thermostat";
+constexpr const char* kScenesIcon = "palette";
+// "Scenes" brings a little color to the first page (user 2026-10-14): its
+// icon in purple, the tile filled with it (tile_icon_colors.h record).
+constexpr const char* kScenesColors = "v2\nAB47BC\nfill 20";
 // The clock's own sizes (the face picks the sizes of its lines itself), for a
 // change to the digital clock.
 constexpr uint8_t kClockTimeSize = 40;
@@ -132,14 +136,17 @@ bool seed() {
   const auto& tr = i18n::strings(configManager.getConfig().language);
   uint16_t lights = 0;
   uint16_t climate = 0;
+  uint16_t scenes = 0;
   if (!tileConfig.createFolder(TileConfig::rootFolderId(), tr.new_panel_lights, kLightsIcon, lights) ||
-      !tileConfig.createFolder(TileConfig::rootFolderId(), tr.new_panel_climate, kClimateIcon, climate)) {
+      !tileConfig.createFolder(TileConfig::rootFolderId(), tr.new_panel_climate, kClimateIcon, climate) ||
+      !tileConfig.createFolder(TileConfig::rootFolderId(), tr.new_panel_scenes, kScenesIcon, scenes)) {
     Serial.println("[NewPanel] Creating the folders failed");
     return false;
   }
-  Tile tiles[kSlotCount] = {clock_tile_default(), folder_tile(lights, tr.new_panel_lights, kLightsIcon),
-                            folder_tile(climate, tr.new_panel_climate, kClimateIcon),
-                            welcome_tile(tr.new_panel_welcome)};
+  Tile tiles[kSlotCount] = {clock_tile_default(), folder_tile(scenes, tr.new_panel_scenes, kScenesIcon),
+                            welcome_tile(tr.new_panel_welcome), folder_tile(lights, tr.new_panel_lights, kLightsIcon),
+                            folder_tile(climate, tr.new_panel_climate, kClimateIcon)};
+  tiles[kScenes].icon_colors = kScenesColors;
   size_t index[kSlotCount] = {};
   int slot = 0;
   for (size_t i = 0; i < TILES_PER_GRID && slot < kSlotCount; ++i) {
@@ -152,18 +159,23 @@ bool seed() {
   // places.
   if (slot != kSlotCount || !tileConfig.saveFolderGridClassic(TileConfig::rootFolderId(), *grid)) return false;
   // Places in both head bar layouts where the panel can show both, so the
-  // setup's layout choice (landscape / upright) finds them.
+  // setup's layout choice (landscape / upright) finds them; the pages need
+  // none there.
   const Layout kBarLayouts[] = {Layout::kBar, Layout::kPortrait};
   for (const Layout each : kBarLayouts) {
     const grid_layout::Shown shown = grid_layout::layout_grid(each);
     Place at[kSlotCount];
     if (!grid_layout::switchable(each) || !places(shown.cols, shown.rows, at)) continue;
-    for (int i = 0; i < kSlotCount; ++i) {
+    for (int i = 0; i < kFirstPage; ++i) {
       const uint16_t view_id = grid->tiles[index[i]].view_id;
       if (!view_id) return false;
       tile_layouts::set(each, TileConfig::rootFolderId(), view_id, {at[i].col, at[i].row, at[i].span_w, at[i].span_h});
     }
   }
+  // Lights and Climate are the head's pages (user 2026-10-14: swiping shows
+  // them); the classic layout keeps them as folders.
+  const uint16_t pages[] = {lights, climate};
+  tile_layouts::set_pages(pages, sizeof(pages) / sizeof(pages[0]));
   // The gear in the head opens Settings.
   if (!tile_layouts::commit() || !configManager.saveHeadGear(true) ||
       !configManager.saveLayout(static_cast<uint8_t>(layout))) {
@@ -190,6 +202,7 @@ void follow_language(const char* from, const char* to) {
     if (tile.type == TILE_FOLDER) {
       const char* name = tile.title == before.new_panel_lights    ? after.new_panel_lights
                          : tile.title == before.new_panel_climate ? after.new_panel_climate
+                         : tile.title == before.new_panel_scenes  ? after.new_panel_scenes
                                                                    : nullptr;
       if (!name) continue;
       const uint16_t folder_id = getNavigateTargetId(tile);

@@ -805,10 +805,12 @@ struct Strings {
   const char* alignment_bottom;
   // Tile color: no card at all (Clock and Text, black stored).
   const char* tile_color_mode_transparent;
-  // A new panel's first page (new_panel_tiles.h): two folders and the
-  // welcome text.
+  // A new panel's first page (new_panel_tiles.h): three folders and the
+  // welcome text with the hint to swipe, two lines that fit a Text tile's 31
+  // bytes (tile_config.cpp SCENE_MAX).
   const char* new_panel_lights;
   const char* new_panel_climate;
+  const char* new_panel_scenes;
   const char* new_panel_welcome;
   // The setup's first step: the head bar layout landscape or upright (a new
   // panel's first setup only).

@@ -47,19 +47,23 @@ if (output !== null) {
   for (const line of lines) {
     const [cols, rows, ok, ...v] = line.trim().split(' ').map(Number);
     assert.equal(ok, 1, `${cols} x ${rows}`);
-    const places = [0, 1, 2, 3].map(i => v.slice(i * 4, i * 4 + 4));
+    const places = [0, 1, 2, 3, 4].map(i => v.slice(i * 4, i * 4 + 4));
     assert.deepEqual(places[0], [0, 0, 2, 1], 'the clock 2 x 1 top left');
-    assert.deepEqual(places[3], [0, 1, 2, 1], 'the welcome text 2 x 1 below it');
-    assert.deepEqual(places[1], [2, 0, 1, 1], 'Lights right of the clock');
-    assert.deepEqual(places[2], [2, 1, 1, 1], 'Climate below Lights');
+    assert.deepEqual(places[1], [2, 0, 1, 1], 'Scenes right of the clock');
+    assert.deepEqual(places[2], [0, 1, 2, 1], 'the welcome text 2 x 1 below the clock');
+    assert.deepEqual(places[3], [2, 1, 1, 1], 'Lights below Scenes (classic only)');
+    assert.deepEqual(places[4], [2, 2, 1, 1], 'Climate below Lights (classic only)');
     for (const [c, r, w, h] of places) assert.ok(c + w <= cols && r + h <= rows, `${cols} x ${rows}: inside`);
-    for (let a = 0; a < 4; a++) {
-      for (let b = a + 1; b < 4; b++) {
+    for (let a = 0; a < 5; a++) {
+      for (let b = a + 1; b < 5; b++) {
         const [p, q] = [places[a], places[b]];
         assert.ok(!(p[0] < q[0] + q[2] && q[0] < p[0] + p[2] && p[1] < q[1] + q[3] && q[1] < p[1] + p[3]), `${cols} x ${rows}: ${a} and ${b} apart`);
       }
     }
-    for (const [c, r, w, h] of places) {
+    // The classic grids (the first six) hold every tile, the head bar
+    // layouts the Home tiles before the pages (kFirstPage).
+    const classic = lines.indexOf(line) < 6;
+    for (const [c, r, w, h] of classic ? places : places.slice(0, 3)) {
       assert.ok(!(c + w > cols - 1 && r + h > rows - 1), `${cols} x ${rows}: the Settings corner stays free`);
     }
   }
@@ -73,6 +77,16 @@ const fn = name => cppFunctionDefinitions(seed).find(f => f.name === name).sourc
 assert.match(fn('seed'), /if \(tile\.type != TILE_SETTINGS\) return false;/);
 assert.match(fn('seed'), /tileConfig\.createFolder\(TileConfig::rootFolderId\(\), tr\.new_panel_lights, kLightsIcon, lights\)/);
 assert.match(fn('seed'), /tileConfig\.createFolder\(TileConfig::rootFolderId\(\), tr\.new_panel_climate, kClimateIcon, climate\)/);
+assert.match(fn('seed'), /tileConfig\.createFolder\(TileConfig::rootFolderId\(\), tr\.new_panel_scenes, kScenesIcon, scenes\)/);
+// "Scenes" beside the clock, filled with its purple icon (user 2026-10-14:
+// "ein bisschen mit Farbe").
+assert.match(fn('seed'), /tiles\[kScenes\]\.icon_colors = kScenesColors;/);
+assert.match(seed, /kScenesIcon = "palette";/);
+assert.match(seed, /kScenesColors = "v2\\nAB47BC\\nfill 20";/);
+// Lights and Climate are the head's pages (user 2026-10-14: the welcome text
+// tells to swipe), so the head bar layouts give them no place.
+assert.match(fn('seed'), /for \(int i = 0; i < kFirstPage; \+\+i\) \{/);
+assert.match(fn('seed'), /const uint16_t pages\[\] = \{lights, climate\};\s*tile_layouts::set_pages\(pages, sizeof\(pages\) \/ sizeof\(pages\[0\]\)\);[\s\S]*?tile_layouts::commit\(\)/);
 assert.match(fn('seed'), /const Layout layout = grid_layout::native_portrait\(\) \? Layout::kPortrait : Layout::kBar;/);
 // Places in both head bar layouts, so the setup's landscape / upright
 // choice finds them.
@@ -123,14 +137,23 @@ assert.match(sketch, /tileConfig\.load\(\);[\s\S]{0,300}if \(new_panel\) new_pan
 // The setup's language renames only the untouched defaults.
 const follow = fn('follow_language');
 assert.match(follow, /tile\.title == before\.new_panel_lights\s*\? after\.new_panel_lights/);
+assert.match(follow, /tile\.title == before\.new_panel_scenes\s*\? after\.new_panel_scenes/);
 assert.match(follow, /tile\.scene_alias == before\.new_panel_welcome/);
 assert.match(read('src/ui/tabs/settings/tab_settings.cpp'),
   /if \(list == LocaleList::Language && setup_step\(\) >= 0\) \{\s*new_panel_tiles::follow_language\(language_before, cfg\.language\);/);
 
-// The names in every language.
+// The names in every language. The welcome text is stored in the Text tile's
+// scene_alias (tile_config.cpp SCENE_MAX with its terminator): longer text
+// came back cut after a restart.
 const i18n = read('src/core/i18n/i18n.cpp');
-for (const words of [['Licht', 'Klima', 'Willkommen bei HomeTiles!'], ['Lights', 'Climate', 'Welcome to HomeTiles!'],
-  ['Lumières', 'Climat', String.raw`Bienvenue sur HomeTiles\u00A0!`], ['Światła', 'Klimat', 'Witaj w HomeTiles!']]) {
+const sceneMax = Number(/static constexpr size_t SCENE_MAX\s*=\s*(\d+);/.exec(read('src/tiles/config/tile_config.cpp'))[1]);
+for (const words of [['Licht', 'Klima', 'Szenen', String.raw`Hallo!\nZum Blättern wischen`],
+  ['Lights', 'Climate', 'Scenes', String.raw`Welcome!\nSwipe to change pages`],
+  ['Lumières', 'Climat', 'Scènes', String.raw`Bienvenue\u00A0!\nGlissez\u00A0: pages`],
+  ['Światła', 'Klimat', 'Sceny', String.raw`Witaj!\nPrzesuń: inne strony`]]) {
   assert.ok(i18n.includes(words.map(w => `    "${w}"`).join(',\n')), words.join(' '));
+  const welcome = JSON.parse(`"${words[3]}"`);
+  assert.equal(welcome.split('\n').length, 2, `${words[3]}: two lines`);
+  assert.ok(Buffer.byteLength(welcome, 'utf8') <= sceneMax - 1, `${words[3]}: fits the Text tile's ${sceneMax - 1} bytes`);
 }
-console.log('New panel: head bar layout, parked Settings, analog clock, two folders and a welcome text');
+console.log('New panel: head bar layout, parked Settings, analog clock, Scenes, two pages and a welcome text');
