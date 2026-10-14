@@ -10,7 +10,10 @@ export async function startDocsBrowser(executable, directory) {
     "--no-default-browser-check", "--disable-background-networking", "--remote-debugging-port=0",
     `--user-data-dir=${directory}`, "--window-size=1280,960", "about:blank"];
   if (process.getuid?.() === 0) args.unshift("--no-sandbox");
-  const child = spawn(executable, args, { windowsHide: true, stdio: "ignore" });
+  const child = spawn(executable, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+  // The browser's own last messages go into a failure (a page it never loads).
+  let browserLog = "";
+  child.stderr.on("data", chunk => { browserLog = (browserLog + chunk).slice(-4000); });
   let socket;
   try {
     let port;
@@ -43,7 +46,7 @@ export async function startDocsBrowser(executable, directory) {
       const id = ++sequence;
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Browser call ${method} got no answer in 30 s`));
+        reject(new Error(`Browser call ${method} got no answer in 30 s\n${browserLog}`));
       }, 30000);
       pending.set(id, {
         resolve: value => { clearTimeout(timer); resolve(value); },
