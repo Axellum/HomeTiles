@@ -21,9 +21,11 @@
 //     hides the pill; nothing is paused or stored, Home Assistant can open the
 //     camera again.
 // With the head bar layout (grid_layout::head_bar()) the pill would cover the
-// head and the first tile row: a red circle with the webcam icon takes its
-// place, exactly in the middle of the head (home_bar::create_camera_circle,
-// user 2026-10-08); a tap ends the stream the same way.
+// head and the first tile row: a circle with the webcam icon in every head
+// takes its place (home_bar.cpp, user 2026-10-08), part of the head like the
+// time, so popups lie over it (user 2026-10-14); a tap ends the stream the
+// same way. Here only the stripe; the heads are built again when the circle
+// comes or goes.
 // The stripe and fillets lie above the pill. The stripe lies above every
 // screen, popup and the screensaver. The pill belongs to the tile grids: it
 // hides on the Settings tab and while a popup, the PIN pad or the screensaver
@@ -51,6 +53,7 @@
 #include "src/ui/shared/ui_surface_style.h"
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/tabs/tiles/home_bar.h"
+#include "src/ui/tabs/tiles/tab_tiles_unified.h"
 #include "src/ui/ui_manager.h"
 #include "src/video/local_camera/local_camera.h"
 
@@ -61,7 +64,7 @@ namespace detail {
 // indicator for long.
 constexpr uint32_t kPollMs = 100;
 // A darker red than the Material 600 tone: calmer on the dark UI.
-constexpr uint32_t kRed = 0xC62828;
+constexpr uint32_t kRed = home_bar::kCameraRed;
 // Stripe: the profile's own grid margin minus one pixel (V2 3 px), a thin
 // line at the screen's top edge in every layout. The grid's margin became a
 // whole grid gap in b300 and made the stripe 15 px thick (user 2026-10-11:
@@ -110,8 +113,8 @@ struct Objects {
   int radius = -1;
   int fillet = 0;
   bool border = false;
-  bool head = false;       // The head bar's circle instead of the pill.
-  int8_t light = -1;       // The theme the circle is colored for (refresh()).
+  bool head = false;         // The heads' circle instead of the pill.
+  bool head_circle = false;  // The heads were built with the circle.
   bool visible = false;    // Stripe shown.
   bool with_pill = false;  // Pill, fillets and border shown as well.
 };
@@ -263,12 +266,8 @@ inline void create(Objects& ui) {
   ui.wing_width = wing_width;
 
   if (grid_layout::head_bar()) {
-    // The circle in the middle of the head, under the same stripe.
+    // The stripe only; the heads hold the circle.
     ui.head = true;
-    ui.pill = home_bar::create_camera_circle(lv_layer_top(), kRed);
-    disable_pressed_button_animation(ui.pill);
-    lv_obj_add_flag(ui.pill, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_IGNORE_LAYOUT | LV_OBJ_FLAG_HIDDEN));
-    lv_obj_add_event_cb(ui.pill, onPillClicked, LV_EVENT_CLICKED, nullptr);
     ui.bar = createStripePart(pill_x, pill_width);
     ui.left = createStripePart(pill_x - wing_width, wing_width);
     setFadeGradient(ui.left, lv_color_hex(kRed), LV_OPA_TRANSP, LV_OPA_COVER, 0, kFadeStop);
@@ -416,19 +415,17 @@ inline void refresh(Objects& ui) {
   const local_camera::IndicatorStyle style = local_camera::indicatorStyle();
   const bool visible =
       style != local_camera::IndicatorStyle::None && local_camera::indicatorActive();
-  if (!ui.pill) {
+  if (!ui.bar) {
     if (!visible) return;
     create(ui);
   }
   setVisible(ui, visible, style == local_camera::IndicatorStyle::Pill && pillAllowed());
-  if (!visible) return;
-  // The head's circle follows the theme like a tile icon.
-  const int8_t light = ui_theme::theme_light() ? 1 : 0;
-  if (ui.head && ui.light != light) {
-    ui.light = light;
-    home_bar::color_camera_circle(ui.pill, kRed);
+  const bool circle = ui.head && visible && style == local_camera::IndicatorStyle::Pill;
+  if (circle != ui.head_circle) {
+    ui.head_circle = circle;
+    tiles_rebuild_heads(false);
   }
-  if (ui.head) home_bar::place_camera_circle(ui.pill);
+  if (!visible) return;
   updateShape(ui);
   keepOnTop(ui);
 }
@@ -437,7 +434,7 @@ inline void refresh(Objects& ui) {
 inline void refreshGuarded() {
   static bool busy = false;
   Objects& ui = objects();
-  if (busy || !ui.pill || !ui.visible) return;
+  if (busy || !ui.bar || !ui.visible) return;
   busy = true;
   refresh(ui);
   busy = false;
@@ -479,7 +476,7 @@ inline void refreshNow() {
 // only the pieces above those controls. LVGL task only.
 inline void invalidateVisible() {
   detail::Objects& ui = detail::objects();
-  if (!ui.pill || !ui.visible) return;
+  if (!ui.bar || !ui.visible) return;
   for (lv_obj_t* part : {ui.bar, ui.left, ui.right}) lv_obj_invalidate(part);
   if (!ui.with_pill) return;
   for (lv_obj_t* part : {ui.pill, ui.frame_clip, ui.fillet_left, ui.fillet_right}) {

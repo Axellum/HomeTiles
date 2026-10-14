@@ -79,18 +79,9 @@ void glide(lv_obj_t* dots, int from, int to, uint32_t duration);
 // The head's dot row (its press is its own, home_bar.cpp).
 bool is_dots(const lv_obj_t* obj);
 
-// The camera's circle (camera_indicator.h, user 2026-10-08): with the head
-// bar it takes the place of the camera pill. The page circle's size on the
-// head's centre line, in the middle of the screen, with the webcam icon in
-// `color`: a button on `parent`, the caller adds its tap and shows it.
-lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color);
-// With pages the circle sits before the time instead (user 2026-10-12);
-// called whenever the indicator refreshes (the time moves with the gear).
-void place_camera_circle(lv_obj_t* circle);
-// Colors the circle (user 2026-10-11: the full red circle was too loud): the
-// page circle's grey (page_circle_tone) with the icon readable in `color`.
-// Called again when the theme changes.
-void color_camera_circle(lv_obj_t* circle, uint32_t color);
+// The built-in camera's red (camera_indicator.h): its stripe and the icon of
+// the head's camera circle.
+constexpr uint32_t kCameraRed = 0xC62828;
 
 // True for the bar's object among a grid's children: it is neither a tile
 // nor an empty cell placeholder.

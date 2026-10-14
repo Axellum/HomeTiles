@@ -21,6 +21,7 @@
 #include "src/ui/shared/ui_theme.h"
 #include "src/ui/shared/tabular_digits.h"
 #include "src/ui/shared/touch_rules.h"
+#include "src/video/local_camera/local_camera.h"
 
 // grid_layout.h sizes the bar's grid with the head's frame; it must be the
 // popups' (and the Settings head's).
@@ -445,6 +446,8 @@ bool is_button(const lv_obj_t* obj) {
   return false;
 }
 
+static void add_camera_circle(lv_obj_t* bar, const Geometry& g, bool gear_hidden);
+
 void build(lv_obj_t* grid, uint16_t folder_id) {
   if (!grid || !grid_layout::head_bar()) return;
   const bool home = folder_id == 0;  // the root folder (TileConfig)
@@ -530,6 +533,7 @@ void build(lv_obj_t* grid, uint16_t folder_id) {
   // stays empty.
   if (!config.head_clock) lv_obj_add_flag(time_label, LV_OBJ_FLAG_HIDDEN);
   if (!g_time_timer) g_time_timer = lv_timer_create(time_tick, 5000, nullptr);
+  add_camera_circle(bar, g, gear_hidden);
 
   // The dots in the middle of the head, Home's first.
   int title_end = g.title_x + (gear_hidden ? g.title_w_alone : g.title_w);
@@ -661,49 +665,34 @@ void glide(lv_obj_t* dots, int from, int to, uint32_t duration) {
 
 bool is_dots(const lv_obj_t* obj) { return obj && lv_obj_get_user_data(const_cast<lv_obj_t*>(obj)) == &g_dots_marker; }
 
-// With pages the dots hold the middle: the camera circle sits before the
-// time (user 2026-10-12), which moves right on Home and its pages without
-// the gear.
-static int camera_circle_x() {
-  const Geometry g = geometry();
+// The built-in camera's circle while it streams (camera_indicator.h): part
+// of the head like the time, so a popup lies over it like over the rest of
+// the head. The page circle's size on the head's centre line, in the middle
+// of the screen; with pages the dots hold the middle and it sits before the
+// time (user 2026-10-12). The page circle's grey with the webcam icon in the
+// camera's red (user 2026-10-11: "Grauer Kreis"). A tap ends the stream.
+static void camera_circle_event(lv_event_t*) { local_camera::endStream(); }
+static void add_camera_circle(lv_obj_t* bar, const Geometry& g, bool gear_hidden) {
+  if (local_camera::indicatorStyle() != local_camera::IndicatorStyle::Pill ||
+      !local_camera::indicatorActive())
+    return;
   uint16_t pages[tile_layouts::kMaxPages];
-  if (!tile_layouts::pages(pages)) return (grid_layout::screen_w() - g.disc) / 2;
-  const bool gear_hidden = tile_layouts::page_number(tileConfig.getActiveFolderId()) >= 0 &&
-                           !configManager.getConfig().head_gear;
-  return (gear_hidden ? g.time_x_alone : g.time_x) - g.disc / 5 - g.disc;
-}
-
-void place_camera_circle(lv_obj_t* circle) {
-  if (!circle) return;
-  const Geometry g = geometry();
-  lv_obj_set_pos(circle, camera_circle_x(), g.center_y - g.disc / 2);
-}
-
-lv_obj_t* create_camera_circle(lv_obj_t* parent, uint32_t color) {
-  const Geometry g = geometry();
-  lv_obj_t* circle = lv_button_create(parent);
+  const int x = tile_layouts::pages(pages) ? (gear_hidden ? g.time_x_alone : g.time_x) - g.disc / 5 - g.disc
+                                           : (grid_layout::screen_w() - g.disc) / 2;
+  lv_obj_t* circle = lv_button_create(bar);
   lv_obj_remove_style_all(circle);
   lv_obj_remove_flag(circle, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_pos(circle, camera_circle_x(), g.center_y - g.disc / 2);
+  lv_obj_set_pos(circle, x, g.center_y - g.disc / 2);
   lv_obj_set_size(circle, g.disc, g.disc);
   lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_opa(circle, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(circle, lv_color_hex(page_circle_tone().disc), 0);
   lv_obj_t* icon = lv_label_create(circle);
   lv_label_set_text(icon, getMdiChar("webcam").c_str());
   if (FONT_MDI_ICONS) lv_obj_set_style_text_font(icon, FONT_MDI_ICONS, 0);
+  lv_obj_set_style_text_color(icon, lv_color_hex(settings_style::tone(head_base(), kCameraRed).icon), 0);
   lv_obj_center(icon);
-  color_camera_circle(circle, color);
-  return circle;
-}
-
-void color_camera_circle(lv_obj_t* circle, uint32_t color) {
-  if (!circle) return;
-  // The page circle's grey beside it, the icon readable in `color` on the
-  // head's base (user 2026-10-11: "Grauer Kreis").
-  lv_obj_set_style_bg_color(circle, lv_color_hex(page_circle_tone().disc), 0);
-  if (lv_obj_t* icon = lv_obj_get_child(circle, 0)) {
-    lv_obj_set_style_text_color(icon, lv_color_hex(settings_style::tone(head_base(), color).icon), 0);
-  }
+  lv_obj_add_event_cb(circle, camera_circle_event, LV_EVENT_CLICKED, nullptr);
 }
 
 }  // namespace home_bar

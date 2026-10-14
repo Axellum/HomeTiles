@@ -85,7 +85,7 @@ assert.match(indicator, /ui_surface_style::apply_radius\(ui\.pill, tile_layout::
 assert.match(indicator, /compact_sensor_layout::apply_content\(ui\.card, ui\.icon, ui\.title, ui\.hint, pill_width\);/);
 assert.match(indicator, /getMdiChar\("webcam"\)/);
 // Darker red, and a stronger icon disc than on tiles (red background).
-assert.match(indicator, /constexpr uint32_t kRed = 0xC62828;/);
+assert.match(read('src/ui/tabs/tiles/home_bar.h'), /constexpr uint32_t kCameraRed = 0xC62828;/);
 assert.match(indicator, /constexpr lv_opa_t kDiscOpa = 64;/);
 assert.match(indicator, /lv_obj_set_style_bg_opa\(disc, kDiscOpa, 0\);/);
 // The popups' card shadow (popup_layout::apply_card_shadow), the pill too.
@@ -171,39 +171,42 @@ assert.ok(pillBranch.indexOf('ui.pill = lv_button_create') < pillBranch.indexOf(
   'The stripe is created above the pill');
 
 // The head bar layout (user 2026-10-08): the pill would cover the head and
-// the first tile row; a red circle with the webcam icon exactly in the middle
-// of the head takes its place, under the same stripe, and a tap ends the
-// stream the same way.
+// the first tile row; a circle with the webcam icon in every head takes its
+// place, part of the head like the time so popups lie over it (user
+// 2026-10-14: on the top layer it stood above popups and their shadow), under
+// the same stripe, and a tap ends the stream the same way.
 const headBranch = indicator.slice(indicator.indexOf('  if (grid_layout::head_bar()) {'), indicator.indexOf('  // Pill first:'));
-assert.match(headBranch, /ui\.head = true;\s*ui\.pill = home_bar::create_camera_circle\(lv_layer_top\(\), kRed\);/);
-assert.match(headBranch, /lv_obj_add_event_cb\(ui\.pill, onPillClicked, LV_EVENT_CLICKED, nullptr\);/);
-assert.ok(headBranch.indexOf('create_camera_circle') < headBranch.indexOf('ui.bar = createStripePart'), 'The stripe above the circle');
+assert.match(headBranch, /ui\.head = true;\s*ui\.bar = createStripePart\(pill_x, pill_width\);/);
+assert.doesNotMatch(headBranch, /ui\.pill =/, 'No circle on the top layer');
 assert.match(headBranch, /return;\s*\}\s*$/, 'No pill parts with the circle');
 assert.match(indicator, /if \(ui\.head\) return;  \/\/ The circle has no fillets or border\./);
 assert.match(indicator, /if \(with_pill && !ui\.head\) \{/, 'No pill texts on the circle');
+// The heads are built again when the circle comes or goes.
+assert.match(indicator, /const bool circle = ui\.head && visible && style == local_camera::IndicatorStyle::Pill;\s*if \(circle != ui\.head_circle\) \{\s*ui\.head_circle = circle;\s*tiles_rebuild_heads\(false\);/);
 const bar = read('src/ui/tabs/tiles/home_bar.cpp');
-const circle = bar.slice(bar.indexOf('lv_obj_t* create_camera_circle('));
-assert.match(circle, /lv_obj_set_pos\(circle, camera_circle_x\(\), g\.center_y - g\.disc \/ 2\);\s*lv_obj_set_size\(circle, g\.disc, g\.disc\);/,
-  'The page circle\'s size on the head\'s centre line');
+const circle = bar.slice(bar.indexOf('static void add_camera_circle(lv_obj_t* bar, const Geometry& g, bool gear_hidden) {'));
+assert.match(bar, /if \(!g_time_timer\) g_time_timer = lv_timer_create\(time_tick, 5000, nullptr\);\s*add_camera_circle\(bar, g, gear_hidden\);/,
+  'Every head builds it');
+assert.match(circle, /if \(local_camera::indicatorStyle\(\) != local_camera::IndicatorStyle::Pill \|\|\s*!local_camera::indicatorActive\(\)\)\s*return;/);
+assert.match(circle, /lv_obj_t\* circle = lv_button_create\(bar\);/, 'A child of the head');
 // In the middle of the screen; with pages the dots hold the middle and the
-// circle sits before the time (user 2026-10-12), placed again on every
-// refresh because the time moves with the gear.
-const circleX = bar.slice(bar.indexOf('static int camera_circle_x()'), bar.indexOf('void place_camera_circle('));
-assert.match(circleX, /if \(!tile_layouts::pages\(pages\)\) return \(grid_layout::screen_w\(\) - g\.disc\) \/ 2;/);
-assert.match(circleX, /return \(gear_hidden \? g\.time_x_alone : g\.time_x\) - g\.disc \/ 5 - g\.disc;/);
-assert.match(indicator, /if \(ui\.head\) home_bar::place_camera_circle\(ui\.pill\);/);
+// circle sits before the time (user 2026-10-12).
+assert.match(circle, /const int x = tile_layouts::pages\(pages\) \? \(gear_hidden \? g\.time_x_alone : g\.time_x\) - g\.disc \/ 5 - g\.disc\s*: \(grid_layout::screen_w\(\) - g\.disc\) \/ 2;/);
+assert.match(circle, /lv_obj_set_pos\(circle, x, g\.center_y - g\.disc \/ 2\);\s*lv_obj_set_size\(circle, g\.disc, g\.disc\);/,
+  'The page circle\'s size on the head\'s centre line');
 assert.match(circle, /lv_label_set_text\(icon, getMdiChar\("webcam"\)\.c_str\(\)\);/);
 // The page circle's grey with the red icon (user 2026-10-11: the full red
 // circle was too loud, "Grauer Kreis"): one tone for the Home circle and the
-// camera circle, colored again when the theme changes.
-assert.match(circle, /lv_obj_center\(icon\);\s*color_camera_circle\(circle, color\);\s*return circle;/);
+// camera circle; the heads are built again when the theme changes.
 assert.match(circle, /lv_obj_set_style_bg_color\(circle, lv_color_hex\(page_circle_tone\(\)\.disc\), 0\);/);
-assert.match(circle, /lv_obj_set_style_text_color\(icon, lv_color_hex\(settings_style::tone\(head_base\(\), color\)\.icon\), 0\);/);
+assert.match(circle, /lv_obj_set_style_text_color\(icon, lv_color_hex\(settings_style::tone\(head_base\(\), kCameraRed\)\.icon\), 0\);/);
 assert.ok(bar.includes('settings_style::Tone page_circle_tone() { return settings_style::tone(head_base(), settings_style::kGearColor); }') &&
   bar.includes('const settings_style::Tone tone = page_circle_tone();'), 'Home and camera circle share one tone');
 assert.doesNotMatch(circle, /lv_color_white\(\)/, 'No white icon on a red circle any more');
-assert.match(indicator, /if \(ui\.head && ui\.light != light\) \{\s*ui\.light = light;\s*home_bar::color_camera_circle\(ui\.pill, kRed\);/);
-assert.match(read('src/ui/tabs/tiles/home_bar.h'), /lv_obj_t\* create_camera_circle\(lv_obj_t\* parent, uint32_t color\);/);
+assert.match(circle, /lv_obj_add_event_cb\(circle, camera_circle_event, LV_EVENT_CLICKED, nullptr\);/);
+assert.match(bar, /static void camera_circle_event\(lv_event_t\*\) \{ local_camera::endStream\(\); \}/);
+assert.match(read('src/ui/tabs/tiles/home_bar.h'), /constexpr uint32_t kCameraRed = 0xC62828;/);
+assert.match(indicator, /constexpr uint32_t kRed = home_bar::kCameraRed;/);
 assert.match(indicator, /constexpr uint32_t kPollMs = 100;/);
 assert.match(indicator, /if \(started \|\| !local_camera::supported\(\)\) return;/,
   'Devices without a camera never create the timer');
@@ -256,7 +259,9 @@ assert.doesNotMatch(service, /endedViewerActive|g_ended_seen_ms/);
 // tile grids and hides on Settings and under every open top-layer overlay.
 assert.match(indicator, /lv_obj_add_event_cb\(lv_layer_top\(\), detail::onTopLayerChanged, LV_EVENT_CHILD_CREATED, nullptr\);/);
 assert.match(indicator, /lv_obj_add_event_cb\(lv_layer_top\(\), detail::onTopLayerChanged, LV_EVENT_CHILD_CHANGED, nullptr\);/);
-assert.match(indicator, /if \(busy \|\| !ui\.pill \|\| !ui\.visible\) return;\s*busy = true;\s*refresh\(ui\);\s*busy = false;/);
+// The stripe exists in both layouts (the head bar has no pill).
+assert.match(indicator, /if \(busy \|\| !ui\.bar \|\| !ui\.visible\) return;\s*busy = true;\s*refresh\(ui\);\s*busy = false;/);
+assert.match(indicator, /if \(!ui\.bar\) \{\s*if \(!visible\) return;\s*create\(ui\);\s*\}/);
 assert.match(indicator, /inline void poll\(lv_timer_t\*\) \{ refresh\(objects\(\)\); \}/);
 // Tab switches set the pill before the switch is drawn (b27 hid it one poll
 // later, visibly over the Settings page), and the partial Settings refresh
