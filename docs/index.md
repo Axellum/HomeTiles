@@ -6,57 +6,76 @@ title: HomeTiles
 
 HomeTiles is free, open-source firmware that turns a supported touch display into a Home Assistant control panel. Use tiles to switch lights, adjust heating, control music, and see sensor or energy data at a glance.
 
-<figure class="ht-screenshot">
-<img src="images/8in-home-new.png" alt="HomeTiles dashboard" width="1308" height="828" loading="lazy">
-<figcaption>HomeTiles dashboard</figcaption>
+<div class="ht-hero-switch">
+<input type="radio" name="ht-hero" id="ht-hero-dark" checked>
+<input type="radio" name="ht-hero" id="ht-hero-light">
+<input type="radio" name="ht-hero" id="ht-hero-upright">
+<div class="ht-hero-tabs">
+<label for="ht-hero-dark">Dark</label>
+<label for="ht-hero-light">Light</label>
+<label for="ht-hero-upright">Upright</label>
+</div>
+<figure class="ht-screenshot ht-hero-shot ht-hero-dark">
+<img src="images/v09-home.png" alt="HomeTiles Home page with status chips, clock, weather, lights, music, a camera and folders" width="1280" height="800">
+<figcaption>HomeTiles on a 10-inch display</figcaption>
 </figure>
-
-## Get started
-
-1. [Flash the firmware](installer.md) using the online flasher. Choose your exact device and installation mode.
-2. [Connect Home Assistant](home-assistant-setup.md) through the MQTT broker and HomeTiles Bridge.
-3. [Configure your dashboard](web-admin.md) in the display's Web Admin panel.
-4. [Use the display](device-ui.md) to control devices and view their data.
-
-## Features
-
-- **Controls:** lights, switches, covers, heating, fans, locks, alarm panels, media, numbers, selections and date/time values.
-- **Sensors & energy:** live values, state history, energy statistics and weather.
-- **Dashboard:** arrange tiles and folders in half steps with a live browser preview; open views from Home Assistant.
-- **Colors:** icon circles, tile colors from the icon, and rules that color tiles by an entity's state.
-- **Screensaver:** display a clock, photos and sensor tiles.
-- **Local hardware:** use supported GPIO outputs, relays and temperature sensors.
-- **Security:** an optional Web Admin password and encrypted commands to Home Assistant.
-- **Updates:** install firmware from the display or your browser.
-- **Camera:** live video on ESP32-P4 displays; supported displays share their built-in camera with Home Assistant.
-
-<figure class="ht-screenshot">
-<img src="images/readme-popups-12.png" alt="Popups for lights, climate, fan, cover, media, weather, sensor history, energy, lock, PIN, alarm panel and camera" width="1962" height="1485" loading="lazy">
-<figcaption>Popups</figcaption>
+<figure class="ht-screenshot ht-hero-shot ht-hero-light">
+<img src="images/v09-home-light.png" alt="The same Home page in the light theme" width="1280" height="800" loading="lazy">
+<figcaption>The light theme</figcaption>
 </figure>
-
-<figure class="ht-screenshot">
-<img src="images/gallery-tiles.png" alt="Tiles for weather, media, alarm panel, lock, lights, fan, climate, sensors, folders and scenes" width="1904" height="708" loading="lazy">
-<figcaption>Tiles</figcaption>
+<figure class="ht-screenshot ht-hero-shot ht-hero-upright">
+<img src="images/v09-upright.png" alt="The Home page on a display mounted upright" width="800" height="1280" loading="lazy">
+<figcaption>Mounted upright</figcaption>
 </figure>
+</div>
 
-<figure class="ht-screenshot">
-<img src="images/8in-screensaver.png" alt="Clock and sensor screensaver" width="1308" height="828" loading="lazy">
-<figcaption>Screensaver with clock and sensor tiles</figcaption>
-</figure>
+## Get Started { #get-started }
 
-[All tile types](tiles.md) and [screensaver configuration](screensaver.md).
+<div class="ht-start-grid">
+<a class="ht-start-card" href="installer/#browser-installer"><span class="ht-start-num">1</span><strong>Flash the firmware</strong><span>From your browser</span></a>
+<a class="ht-start-card" href="installer/#install-the-bridge"><span class="ht-start-num">2</span><strong>Install the Bridge</strong><span>In Home Assistant</span></a>
+<a class="ht-start-card" href="installer/#set-up-the-display"><span class="ht-start-num">3</span><strong>Set up the display</strong><span>It guides you and pairs</span></a>
+<a class="ht-start-card" href="installer/#add-your-tiles"><span class="ht-start-num">4</span><strong>Add your tiles</strong><span>In the Web Admin</span></a>
+</div>
 
-## Demo
+<a id="features"></a>
 
-This video shows an older version. The current release is faster and looks better; a new demo video will follow soon.
+## What It Looks Like { #what-it-looks-like }
 
 <figure class="ht-screenshot">
-<video class="ht-demo" controls playsinline preload="metadata" poster="images/hometiles-demo-poster.jpg" aria-label="HomeTiles device demo">
-<source src="videos/hometiles-demo.mp4" type="video/mp4">
-</video>
-<figcaption>HomeTiles device demo</figcaption>
+<img src="images/v09-tiles.png" alt="Tiles for weather, lights, a fan, sensors, a vacuum, a lock, a coffee machine and status chips" width="1280" height="440" loading="lazy">
+<figcaption>Tiles for your devices</figcaption>
 </figure>
+
+<figure class="ht-screenshot">
+<img src="images/v09-popups.png" alt="Popups for a light, climate, weather, sensor history, a lock and media" width="1248" height="824" loading="lazy">
+<figcaption>A tap opens the details</figcaption>
+</figure>
+
+<figure class="ht-screenshot">
+<img src="images/v09-overview.png" alt="Page overview with pictures of Home, Lights, Climate and House" width="1280" height="800" loading="lazy">
+<figcaption>Pages you swipe through</figcaption>
+</figure>
+
+<figure class="ht-screenshot">
+<img src="images/v09-screensaver.png" alt="Screensaver with a mountain photo, the time and date, and sensor tiles" width="1280" height="800" loading="lazy">
+<figcaption>The screensaver</figcaption>
+</figure>
+
+<div class="ht-type-shots" markdown>
+<figure class="ht-screenshot">
+<img style="width:340px" src="images/v09-home-light.png" alt="Home page in the light theme" width="1280" height="800" loading="lazy">
+<figcaption>Light theme</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img style="width:136px" src="images/v09-upright.png" alt="Upright Home page" width="800" height="1280" loading="lazy">
+<figcaption>Upright</figcaption>
+</figure>
+<figure class="ht-screenshot">
+<img style="width:215px" src="images/v09-4b.png" alt="Home page on a 4-inch square display" width="720" height="720" loading="lazy">
+<figcaption>4-inch square</figcaption>
+</figure>
+</div>
 
 ## Device Support
 
@@ -126,7 +145,7 @@ Match the exact hardware revision before flashing. [Open online flasher](install
 
 <div class="ht-device-note" id="device-note-13" popover="auto" role="dialog" aria-labelledby="device-note-13-title"><div class="ht-device-note-title" id="device-note-13-title">Guition JC1060P470C V2</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Basic operation is confirmed. v0.6.8 includes the orientation correction; full release and OTA confirmation remain pending.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/issues/27">Issue #27</a></p></div>
 
-<div class="ht-device-note" id="device-note-14" popover="auto" role="dialog" aria-labelledby="device-note-14-title"><div class="ht-device-note-title" id="device-note-14-title">Guition ESP32-4848S040C_I</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer. Camera tiles are unavailable; a brief black screen while saving is expected.</p></div>
+<div class="ht-device-note" id="device-note-14" popover="auto" role="dialog" aria-labelledby="device-note-14-title"><div class="ht-device-note-title" id="device-note-14-title">Guition ESP32-4848S040C_I</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>Hardware-tested by the maintainer. Camera tiles show about 4 frames per second; a brief black screen while saving is expected.</p></div>
 
 <div class="ht-device-note" id="device-note-15" popover="auto" role="dialog" aria-labelledby="device-note-15-title"><div class="ht-device-note-title" id="device-note-15-title">Waveshare LCD-4 Rev 4.0 (S3)</div><button type="button" class="ht-device-note-close" aria-label="Close support details">×</button><p>First released in v0.6.10. Display, backlight, touch, Wi-Fi, Web Admin, MQTT and Web OTA are contributor-tested. Rev 4.0 only; Camera tiles and SD access are unavailable.</p><p class="ht-device-note-links"><a href="https://github.com/GalusPeres/HomeTiles/pull/35">PR #35</a></p></div>
 
@@ -136,19 +155,6 @@ Match the exact hardware revision before flashing. [Open online flasher](install
 
 <script src="javascripts/device-status.js?v=3" defer></script>
 
-## New In v0.8.0
-
-- **Locks, alarm panels and fans:** new [Lock, Alarm Panel and Fan tiles](tiles.md#fan) with their own popups and code entry.
-- **Security:** an optional [Web Admin password](web-admin.md#web-admin-password) and [encrypted commands](bridge.md#encrypted-commands), paired by comparing a six-digit number.
-- **Redesigned Switch tile:** a dimmer or switch bar across the tile, also for Cover and Climate, and half-height layouts for almost every tile.
-- **French and Polish:** two new languages, with their letters on the keyboard.
-- **New boards:** Guition JC8012P4A1 V3 and Waveshare 7B with ESP32-P4 v3.x.
-- **Before updating:** install Bridge **v0.8.0** through HACS and restart Home Assistant, then **export your dashboard**. Read the [update and downgrade guidance](updating.md).
-
-[Read the v0.8.0 release notes](releases/v0.8.0.md)
-
-## How It Works
-
-The display exchanges states and commands with an MQTT broker. [HomeTiles Bridge](bridge.md) connects the broker to Home Assistant, publishes entity data and executes commands from the display.
+**New in v0.9.0:** a direct connection without MQTT, pages, an upright mode and a light theme. [Release notes](releases/v0.9.0.md)
 
 Firmware and Bridge are MIT-licensed. [Support HomeTiles](https://buymeacoffee.com/galusperes).

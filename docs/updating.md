@@ -1,14 +1,14 @@
 # Firmware Updates
 
-Normal updates keep your Wi-Fi, MQTT settings and dashboard. Keep the display powered until installation finishes, then check the version under **Settings → System**.
+Normal updates keep your Wi-Fi, the connection to Home Assistant and your dashboard. Keep the display powered until installation finishes, then check the version under **Settings → System**.
 
 ## On-device updater { #1-on-device-updater-recommended }
 
-Open **Settings → System**, tap **Check for updates**, and install the offered version. The display restarts when finished; Web Admin and MQTT reconnect automatically.
+Open **Settings → System**, tap **Update**, and install the offered version. The display restarts when finished; Web Admin and the connection to Home Assistant come back automatically.
 
 <figure class="ht-screenshot">
-<img src="../images/8in-system-popup.png" alt="System popup with the update check" width="1272" height="792" loading="lazy">
-<figcaption>System information and firmware update</figcaption>
+<img src="../images/v09-settings-3.png" alt="System page with the firmware version and Update" width="1280" height="800" loading="lazy">
+<figcaption>Settings → System with Update</figcaption>
 </figure>
 
 ## Web Admin upload { #2-web-admin-ota-upload }
@@ -20,7 +20,7 @@ Use this method for a local test build or when downloading directly on the displ
 3. Choose the file and start the upload. The screen may go black during installation; wait for the display to restart.
 
 <figure class="ht-screenshot">
-<img src="../images/web-admin-firmware.png" alt="Firmware section in the web admin" width="1350" height="385" loading="lazy">
+<img src="../images/v09-webadmin-firmware.png" alt="Firmware update under Settings, System in the Web Admin" width="1018" height="226" loading="lazy">
 <figcaption>Firmware update in the Web Admin</figcaption>
 </figure>
 

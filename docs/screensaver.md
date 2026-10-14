@@ -3,7 +3,7 @@
 Create a separate layout with a clock, tiles, and an optional image slideshow or a picture from Home Assistant in the Web Admin's **Screensaver** tab.
 
 <figure class="ht-screenshot">
-<img src="../images/8in-screensaver.png" alt="Screensaver on the Waveshare 8 inch display" width="1308" height="828" loading="lazy">
+<img src="../images/v09-screensaver.png" alt="Screensaver with a mountain photo, the time and date, and sensor tiles" width="1280" height="800" loading="lazy">
 <figcaption>Screensaver with clock and sensor tiles</figcaption>
 </figure>
 
@@ -15,7 +15,7 @@ Create a separate layout with a clock, tiles, and an optional image slideshow or
 - Tap free background space to return to the dashboard.
 
 <figure class="ht-screenshot">
-<img src="../images/8in-display-popup.png" alt="Display settings with screensaver timeout" width="1272" height="792" loading="lazy">
+<img src="../images/v09-settings-0.png" alt="Display settings with screensaver start and brightness" width="1280" height="800" loading="lazy">
 <figcaption>Display and screensaver settings</figcaption>
 </figure>
 
@@ -44,7 +44,7 @@ If an image stays black, re-export it at the display's native size with these se
 In the Web Admin's **Screensaver** tab, click the background.
 
 <figure class="ht-screenshot">
-<img src="../images/web-admin-screensaver.png" alt="Screensaver editor in the web admin" width="1450" height="895" loading="lazy">
+<img src="../images/v09-webadmin-screensaver.png" alt="Screensaver tab in the Web Admin with clock and tiles" width="1450" height="1212" loading="lazy">
 <figcaption>Screensaver editor</figcaption>
 </figure>
 
@@ -68,6 +68,11 @@ Instead of the slideshow, the screensaver can show the picture of a Home Assista
 1. Connect the panel to the Bridge directly (pairing on the panel); panels on MQTT keep the slideshow.
 2. Release the entity in the Bridge options under **Images (screensaver)**. A camera released under **Cameras** works too.
 3. In the **Screensaver** tab, click the background, set **Type** to **Picture from Home Assistant**, keep **Use images** on, and choose the entity.
+
+<figure class="ht-screenshot ht-editor-detail">
+<img src="../images/v09-webadmin-screensaver-picture.png" alt="Slideshow tab with Type set to Picture from Home Assistant" width="473" height="435" loading="lazy">
+<figcaption>Type: Picture from Home Assistant</figcaption>
+</figure>
 
 A new picture of an image entity appears at once. A camera sends a new still image at the interval set under **Refresh (s)**, 3 to 60 seconds, and only while the screensaver is visible. **Scaling** sets how the picture uses the screen:
 
