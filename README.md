@@ -14,7 +14,7 @@ Lights, climate, sensors, energy, weather, cameras and more on a 4 to 10.1 inch 
 <a href="https://buymeacoffee.com/galusperes"><img src="docs/images/readme-nav-coffee.png" alt="Buy Me a Coffee" height="42"></a>
 <a href="LICENSE"><img src="docs/images/readme-nav-license.png" alt="MIT License" height="42"></a>
 <br>
-<img src="docs/images/readme-hero-v090.png" alt="HomeTiles Home page on a 10.1 inch display" width="100%"><br>
+<img src="docs/images/readme-hero-v090.png" alt="HomeTiles Home page on a 10.1 inch display, and in the light theme on a display mounted upright" width="100%"><br>
 Every tile opens a popup with its controls and history.
 
 </div>
@@ -23,7 +23,7 @@ Every tile opens a popup with its controls and history.
 
 ### Popups
 
-<img src="docs/images/v09-popups.png" alt="Popups for a light, climate, weather, sensor history, a lock and media" width="100%">
+<img src="docs/images/readme-popups-v090.png" alt="Popups for a light, climate and weather in the dark theme, and for sensor history, a lock and media in the light theme" width="100%">
 
 ### Tiles
 
