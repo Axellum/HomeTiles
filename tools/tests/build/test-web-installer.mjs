@@ -728,9 +728,11 @@ assert.match(installerDocs, /class="ht-installer-form"/);
 assert.match(installerDocs, /id="installer-firmware-source"/);
 assert.match(installerDocs, /Local HomeTiles \.bin file/);
 assert.match(installerDocs, /id="installer-firmware-file"[^>]*type="file"/);
-assert.match(installerDocs, /<label id="installer-device-label" class="ht-installer-section-heading" for="installer-device">2\. Device<\/label>/);
-for (const label of ["1. Firmware", "3. Flash mode", "4. Confirm", "5. Connect and flash"]) {
-  assert.match(installerDocs, new RegExp(label.replace(".", "\\.")));
+// The flasher sits in the installation's first step card (user 2026-10-14):
+// plain names, the card numbers the step.
+assert.match(installerDocs, /<label id="installer-device-label" class="ht-installer-section-heading" for="installer-device">Device<\/label>/);
+for (const label of ["Firmware", "Mode", "Check", "Flash"]) {
+  assert.match(installerDocs, new RegExp(`class="ht-installer-section-heading"[^>]*>${label}<`));
 }
 assert.match(installerDocs, /<strong>Update<\/strong>/);
 assert.match(installerDocs, /<strong>First install \/ factory reset<\/strong>/);
@@ -748,23 +750,30 @@ assert.doesNotMatch(installerDocs, /<strong>Factory\s*\//);
 assert.doesNotMatch(installerDocs, /Lokaler|Veröffentlichung|Gerät auswählen|gültigen Werte/);
 assert.match(installerDocs, /Select the exact model printed on the device or rear label/);
 assert.doesNotMatch(installerDocs, /Choose the right mode|\| Mode \| Use it for \| Local data \|/);
-for (const heading of ["Browser installer", "Manual flashing", "Troubleshooting"]) {
-  assert.ok(installerDocs.includes(`## ${heading}`), `Missing installer section ${heading}.`);
+// One installation page: four step cards, the flasher in the first.
+for (const [id, heading] of [["browser-installer", "Flash the firmware"], ["install-the-bridge", "Install the Bridge"],
+  ["set-up-the-display", "Set up the display"], ["add-your-tiles", "Add your tiles"]]) {
+  assert.ok(installerDocs.includes(`## ${heading} { #${id} }`), `Missing installation step ${heading}.`);
 }
-assert.match(installerDocs, /Device list\]\(index\.md#device-support\)/);
-assert.match(installerDocs, /write-flash --erase-all 0x0/);
-assert.match(installerDocs, /chip-id/);
-assert.match(installerDocs, /7B and 10\.1 `_rev3` images and the Guition JC8012P4A1 V3 image are for v3\.1 and newer, including v3\.2/);
-assert.doesNotMatch(installerDocs, /exact v3\.1 only|v3\.2 or newer are not supported/);
+assert.match(installerDocs, /\[exact device\]\(index\.md#device-support\)/);
+// Manual flashing and its problems moved to the Advanced setup page.
+const advancedDocs = read("docs/advanced-setup.md");
+for (const heading of ["Manual Flashing { #manual-flashing }", "Flashing Problems { #flashing-problems }"]) {
+  assert.ok(advancedDocs.includes(`## ${heading}`), `Missing advanced section ${heading}.`);
+}
+assert.match(advancedDocs, /write-flash --erase-all 0x0/);
+assert.match(advancedDocs, /chip-id/);
+assert.match(advancedDocs, /7B and 10\.1 `_rev3` images and the Guition JC8012P4A1 V3 image are for v3\.1 and newer, including v3\.2/);
+assert.doesNotMatch(advancedDocs, /exact v3\.1 only|v3\.2 or newer are not supported/);
 assert.doesNotMatch(installerDocs, /Local test before publication|Update safety and partition details/);
 assert.doesNotMatch(installerDocs, /manual flashing guide\]\(flashing\.md\)/);
 
 const overviewDocs = read("docs/index.md");
-assert.match(overviewDocs, /\[Flash the firmware\]\(installer\.md\)/);
+assert.match(overviewDocs, /href="installer\/#browser-installer"/);
 assert.match(overviewDocs, /\[Open online flasher\]\(installer\.md#browser-installer\)/);
 assert.match(overviewDocs, /### ESP32-P4/);
 assert.match(overviewDocs, /### ESP32-S3/);
-assert.match(read("docs/home-assistant-setup.md"), /\(installer\.md(?:#browser-installer)?\)/);
+assert.match(read("docs/home-assistant-setup.md"), /\(installer\.md#install-the-bridge\)\{data-docs-redirect=""\}/);
 assert.doesNotMatch(read("docs/home-assistant-setup.md"), /\(flashing\.md(?:#[^)]*)?\)/);
 
 const updatingDocs = read("docs/updating.md");
@@ -788,7 +797,7 @@ assert.match(installerStylesOnly, /\.ht-installer-log-panel pre\s*\{[\s\S]*?max-
 
 const docsNavigation = read("mkdocs.yml");
 assert.equal(
-  [...docsNavigation.matchAll(/^\s+- Flash firmware:\s*installer\.md\s*$/gm)].length,
+  [...docsNavigation.matchAll(/^\s+- Installation:\s*installer\.md\s*$/gm)].length,
   1,
   "The sidebar must contain one clear flashing entry.",
 );
