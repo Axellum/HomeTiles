@@ -55,7 +55,14 @@ Build the dashboard in the browser; the Web Admin preview matches the display.
 - **[Entity picker](https://galusperes.github.io/web-admin/#creating-a-tile):** searches every entity like Home Assistant, with Recent and Favorites on top.
 - **[Clock](https://galusperes.github.io/tiles/#clock) and [Camera](https://galusperes.github.io/tiles/#camera) tiles:** analog and wall clocks, camera tiles that show the picture, and cameras in full screen.
 
-Before updating, update HomeTiles Bridge to **v0.9.0** and [export your dashboard](https://galusperes.github.io/updating/). [All changes](docs/releases/v0.9.0.md)
+## Updating from v0.8.0
+
+1. Update HomeTiles Bridge to v0.9.0 and [export your dashboard](https://galusperes.github.io/updating/), then update the display.
+2. **No MQTT broker needed:** on the display, tap **Pair** under **Settings → System → Security**. Home Assistant shows **Connect the panel**; select **Submit** and compare the number. [More](https://galusperes.github.io/advanced-setup/#moving-from-mqtt-to-the-direct-link)
+3. **Every entity in the picker:** on the display, tap **Allow** next to **Web Admin password** under **Settings → System → Security**, then set the password in the Web Admin under **Settings → System** within two minutes. [More](https://galusperes.github.io/advanced-setup/#choosing-entities)
+4. **New layout:** your tiles stay in the classic layout. In the Web Admin, open **Global → Change layout**, place the tiles for the head bar layout and select **Switch**. [More](https://galusperes.github.io/web-admin/#layouts)
+
+[All changes](docs/releases/v0.9.0.md)
 
 ## Get started
 
