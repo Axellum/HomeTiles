@@ -13,9 +13,11 @@ Lights, climate, sensors, energy, weather, cameras and more on a 4 to 10.1 inch 
 <a href="https://github.com/GalusPeres/HomeTiles/releases/latest"><img src="docs/images/readme-nav-release-v090.png" alt="Latest release" height="42"></a>
 <a href="https://buymeacoffee.com/galusperes"><img src="docs/images/readme-nav-coffee.png" alt="Buy Me a Coffee" height="42"></a>
 <a href="LICENSE"><img src="docs/images/readme-nav-license.png" alt="MIT License" height="42"></a>
-<br>
-<img src="docs/images/readme-hero-v090.png" alt="HomeTiles Home page on a 10.1 inch display, and in the light theme on a display mounted upright" width="100%"><br>
-Every tile opens a popup with its controls and history.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-hero-v090-dark.png">
+  <img src="docs/images/readme-hero-v090-light.png" alt="HomeTiles Home page on a 10.1 inch display, and in the light theme on a display mounted upright. Every tile opens a popup with its controls and history." width="100%">
+</picture>
 
 </div>
 
@@ -36,6 +38,15 @@ Build the dashboard in the browser; the Web Admin preview matches the display.
 <img src="docs/images/v09-webadmin-home.png" alt="Web Admin with the live preview of the Home page and its page fields" width="100%">
 
 ## New in v0.9.0
+
+<p align="center">
+<img src="docs/images/v09-overview.png" alt="Page overview" width="48%">
+<img src="docs/images/v09-settings-0.png" alt="Settings on the display" width="48%"><br>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-caption-v09-row1-dark.svg">
+  <img src="docs/images/readme-caption-v09-row1-light.svg" alt="Page overview · Settings on the display" width="97%">
+</picture>
+</p>
 
 - **[Direct link to Home Assistant](https://galusperes.github.io/installer/#set-up-the-display):** press Pair on the display and add it in Home Assistant. No MQTT broker needed; existing MQTT setups keep working.
 - **[Head bar and pages](https://galusperes.github.io/device-ui/#head-bar-and-pages):** fewer, larger tiles under a head with title, time and gear, up to five folders as pages beside Home, and an [upright layout](https://galusperes.github.io/device-ui/#layouts) for ESP32-P4 displays.
