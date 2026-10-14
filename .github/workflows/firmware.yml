@@ -25,7 +25,7 @@ concurrency:
 
 env:
   ARDUINO_CORE_VERSION: "3.3.7"
-  ARDUINO_CACHE_KEY: arduino-esp32-3.3.7-libs-v4-lvgl-9.6.0
+  ARDUINO_CACHE_KEY: arduino-esp32-3.3.7-libs-v5-lvgl-9.6.0
 
 jobs:
   toolchain:
@@ -93,14 +93,17 @@ jobs:
           retry 5 arduino-cli core update-index
           retry 12 arduino-cli core install "esp32:esp32@${ARDUINO_CORE_VERSION}"
           retry 5 arduino-cli lib update-index
-          retry 5 arduino-cli lib install "ArduinoJson@7.4.3"
-          retry 5 arduino-cli lib install "DallasTemperature@4.0.6"
-          retry 5 arduino-cli lib install "GFX Library for Arduino@1.6.5"
-          retry 5 arduino-cli lib install "lvgl@9.6.0"
-          retry 5 arduino-cli lib install "M5GFX@0.2.25"
-          retry 5 arduino-cli lib install "M5Unified@0.2.14"
-          retry 5 arduino-cli lib install "OneWire@2.3.8"
-          retry 5 arduino-cli lib install "PubSubClient@2.8"
+          # --no-deps: a library's dependencies would be installed in their
+          # newest version over the pinned ones (M5Unified pulled M5GFX
+          # 0.2.32 instead of 0.2.25, the Tab5 image no longer fit).
+          retry 5 arduino-cli lib install --no-deps "ArduinoJson@7.4.3"
+          retry 5 arduino-cli lib install --no-deps "DallasTemperature@4.0.6"
+          retry 5 arduino-cli lib install --no-deps "GFX Library for Arduino@1.6.5"
+          retry 5 arduino-cli lib install --no-deps "lvgl@9.6.0"
+          retry 5 arduino-cli lib install --no-deps "M5GFX@0.2.25"
+          retry 5 arduino-cli lib install --no-deps "M5Unified@0.2.14"
+          retry 5 arduino-cli lib install --no-deps "OneWire@2.3.8"
+          retry 5 arduino-cli lib install --no-deps "PubSubClient@2.8"
 
   build:
     name: Build ${{ matrix.label }}
