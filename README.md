@@ -35,7 +35,7 @@ Lights, climate, sensors, energy, weather, cameras and more on a 4 to 10.1 inch 
 
 Build the dashboard in the browser; the Web Admin preview matches the display.
 
-<img src="docs/images/v09-webadmin-home.png" alt="Web Admin with the live preview of the Home page and its page fields" width="100%">
+<img src="docs/images/readme-webadmin-v090.png" alt="Web Admin with the live preview of the Home page, its page fields and the tile settings" width="100%">
 
 ## New in v0.9.0
 
