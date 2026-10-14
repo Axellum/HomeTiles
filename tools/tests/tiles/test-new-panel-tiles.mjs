@@ -1,10 +1,11 @@
 // A brand-new panel's first page (user 2026-10-12: "das Standardlayout ist
 // immer noch das klassische und Settings unten"): it starts in the head bar
 // layout with the gear in the head and the Settings tile parked, a
-// transparent analog clock with the time, weekday and date beside the face,
-// the folders "Lights" and "Climate" and a transparent "Welcome to
-// HomeTiles!", in the panel's language, arranged as the user did it in the
-// Web Admin ("bitte als Standard am Anfang so einrichten"); a language change
+// transparent analog clock with the time, short weekday and day with its
+// month beside the face, the folders "Lights" and "Climate" and a
+// transparent "Welcome to HomeTiles!", in the panel's language, arranged as
+// the user did it in the Web Admin ("bitte als Standard am Anfang so
+// einrichten"); a language change
 // during the setup renames the defaults nobody changed.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -102,7 +103,12 @@ assert.match(park, /configManager\.save\(\*cfg\) &&\s*tileConfig\.setSettingsTil
 assert.match(read('src/web/server/handlers/web_admin_handlers.cpp'),
   /if \(hide_tile && settings_tile_present\) \{\s*TileConfig::snapshotSettingsTile\(settings_tile, cfg\.settings_tile_snapshot\);/);
 assert.match(fn('clock_tile_default'), /tile\.sensor_decimals = 3;/);
-assert.match(fn('clock_tile_default'), /options\.style = clock_tile::STYLE_ANALOG;\s*options\.weekday = clock_tile::WEEKDAY_LONG;/);
+// "03:28 PM" over "Wed, 14 October": the 12 h time, the short weekday and
+// the day with its month fit the 2x1 tile beside the face on every panel
+// (user 2026-10-14).
+assert.match(fn('clock_tile_default'), /tile\.sensor_gauge_min = clock_tile::TIME_FORMAT_12H;/);
+assert.match(fn('clock_tile_default'),
+  /options\.style = clock_tile::STYLE_ANALOG;\s*options\.weekday = clock_tile::WEEKDAY_SHORT;\s*options\.date_format = clock_tile::DATE_FORMAT_D_MONTH;/);
 assert.match(fn('make_transparent'), /tile\.bg_color = TILE_BG_COLOR_EXPLICIT;\s*tile\.sensor_display_mode = 1;/);
 assert.match(fn('welcome_tile'), /tile\.scene_alias = text;/);
 assert.match(fn('folder_tile'), /setNavigateTargetId\(tile, folder_id\);/);

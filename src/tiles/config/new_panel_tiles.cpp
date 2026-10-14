@@ -40,15 +40,18 @@ void make_transparent(Tile& tile) {
 Tile clock_tile_default() {
   Tile tile;
   tile.type = TILE_CLOCK;
-  // The analog face with the time and date (the clock flags) beside it, the
-  // weekday in full.
+  // The analog face with the time and date (the clock flags) beside it: the
+  // 12 h time, the short weekday and the day with its month, "03:28 PM" over
+  // "Wed, 14 October" (user 2026-10-14: the full weekday and year ran out of
+  // the 2x1 tile on the square and upright panels).
   tile.sensor_decimals = 3;
   tile.key_code = kClockTimeSize;
   tile.key_modifier = kClockDateSize;
-  tile.sensor_gauge_min = clock_tile::TIME_FORMAT_AUTO;
+  tile.sensor_gauge_min = clock_tile::TIME_FORMAT_12H;
   clock_tile::TileDateOptions options;
   options.style = clock_tile::STYLE_ANALOG;
-  options.weekday = clock_tile::WEEKDAY_LONG;
+  options.weekday = clock_tile::WEEKDAY_SHORT;
+  options.date_format = clock_tile::DATE_FORMAT_D_MONTH;
   tile.sensor_gauge_max = clock_tile::pack_date_options(options);
   make_transparent(tile);
   return tile;
