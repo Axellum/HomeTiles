@@ -2606,7 +2606,8 @@ async function saveGestureEdge(select) {
       // "From cover": the color each shown media card sampled from its cover.
       mediaCoverColors: payload.media_cover_colors || payload.mediaCoverColors || {},
       units: Object.assign({}, payload.units || {}, payload.energy_units || {}),
-      icons: payload.icons || {},
+      // Energy sources the configuration gives no icon: the device's by category.
+      icons: Object.assign({}, payload.energy_icons || {}, payload.icons || {}),
       names: payload.names || {},
       // Scene alias -> entity, so scene tiles resolve the entity icon like the
       // device. A grid refresh normalizes the already normalized cache again,

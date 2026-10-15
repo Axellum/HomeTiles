@@ -172,4 +172,8 @@ private:
 
 extern HaBridgeConfig haBridgeConfig;
 
+// The icon of an Energy dashboard source: its category's (costs: currency).
+// The Bridge's energy search gives its rows the same icons.
+const char* energySourceIcon(const String& category, const String& id, const String& unit);
+
 #endif // HA_BRIDGE_CONFIG_H

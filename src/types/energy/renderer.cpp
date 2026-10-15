@@ -101,7 +101,7 @@ lv_obj_t* render_energy_tile(lv_obj_t* parent,
   bool icon_disabled = isMdiIconDisabled(icon_name);
   icon_name = normalizeMdiIconName(icon_name);
   if (!icon_disabled && !icon_name.length() && tile.sensor_entity.length()) {
-    icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
+    icon_name = normalizeMdiIconName(energy_source_icon(tile.sensor_entity));
   }
   if (icon_name.length() > 0 && FONT_MDI_ICONS != nullptr) {
     String iconChar = getMdiChar(icon_name);

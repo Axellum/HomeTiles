@@ -134,6 +134,7 @@ lv_obj_t* render_sensor_tile(lv_obj_t* parent, int col, int row, const Tile& til
 }
 ${strip(read('src/ui/popups/energy/energy_popup.h'))}
 void show_energy_popup(const EnergyPopupInit&){}void energy_request_period(const char*,bool){}
+String energy_source_icon(const String& id){return haBridgeConfig.findEntityIcon(id);}
 ${strip(read('src/types/energy/renderer.cpp')).replaceAll('is_disabled_token','energy_is_disabled_token')}
 void check_energy_layout() {
  for(float width:{1.f,1.5f,2.f}) for(float height:{.5f,1.f}) {

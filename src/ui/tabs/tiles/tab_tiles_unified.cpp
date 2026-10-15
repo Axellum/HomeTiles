@@ -2776,6 +2776,8 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
             icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(scene_entity));
           }
         }
+      } else if (tile.type == TILE_ENERGY) {
+        icon_name = normalizeMdiIconName(energy_source_icon(tile.sensor_entity));
       } else if (tile.sensor_entity.length()) {
         icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(tile.sensor_entity));
       }

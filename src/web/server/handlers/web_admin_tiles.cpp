@@ -1281,6 +1281,21 @@ void WebAdminServer::handleGetSensorValues() {
     appendJsonEscaped(json, unit);
     json += '"';
   }
+  // The device's icons of sources the configuration names no icon for.
+  json += "},\"energy_icons\":{";
+  bool first_energy_icon = true;
+  for (const auto& id : energy_ids) {
+    if (haBridgeConfig.findEntityIcon(id).length()) continue;
+    String icon = energy_source_icon(id);
+    if (!icon.length()) continue;
+    if (!first_energy_icon) json += ',';
+    first_energy_icon = false;
+    json += '"';
+    appendJsonEscaped(json, id);
+    json += "\":\"";
+    appendJsonEscaped(json, icon);
+    json += '"';
+  }
   json += "}";
   // Scene tiles store an alias; the device resolves its entity (and the
   // entity's icon) through the bridge scene list. The preview needs the same
@@ -1416,7 +1431,7 @@ void WebAdminServer::handleGetEntityOptions() {
       String suffix = "(" + unit + ")";
       suffix.toLowerCase();
       if (unit.length() && !lower_name.endsWith(suffix)) name += " (" + unit + ")";
-      appendEntry(id, name, haBridgeConfig.findEntityIcon(id), String(), first);
+      appendEntry(id, name, energy_source_icon(id), String(), first);
     }
   }
   json += "],\"scenes\":[";

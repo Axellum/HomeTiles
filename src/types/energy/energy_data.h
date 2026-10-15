@@ -34,6 +34,11 @@ bool energy_find_entry(const String& id, const char* period, EnergyEntryData& ou
 // IDs need not exist as normal HA entities and can therefore be absent from
 // the general HaBridgeConfig unit index.
 String energy_find_cached_unit(const String& id);
+// The automatic icon of an Energy source: the Bridge configuration's, else its
+// category's from the received Energy responses. The configuration names only
+// the categories released under Energy Dashboard; the responses name every
+// source the panel asked for.
+String energy_source_icon(const String& id);
 // Append all IDs from previously received Energy responses. The WebUI can
 // then offer its sources even when a bridge configuration response temporarily
 // omits the Energy block.

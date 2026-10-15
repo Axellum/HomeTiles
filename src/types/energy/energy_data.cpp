@@ -177,18 +177,6 @@ float apply_energy_sign(float value, int8_t sign) {
   return value;
 }
 
-const char* icon_for_energy(const EnergyEntryData& entry) {
-  if (entry.is_cost) return "currency-eur";
-  String cat = entry.category;
-  cat.toLowerCase();
-  if (cat == "solar") return "solar-power";
-  if (cat == "grid") return "transmission-tower";
-  if (cat == "battery") return "battery-charging";
-  if (cat == "gas") return "fire";
-  if (cat == "water" || cat == "device_water") return "water";
-  return "lightning-bolt";
-}
-
 void queue_energy_tile_update_for_entry(const EnergyEntryData& entry) {
   if (!entry.id.length()) return;
 
@@ -296,7 +284,17 @@ void parse_energy_response(const char* payload) {
     parsed.push_back(entry);
   }
 
+  // A source without an icon so far gets its category's from this response:
+  // tiles that drew none redraw their icons.
+  bool new_icon = false;
+  for (const auto& entry : parsed) {
+    if (!energy_source_icon(entry.id).length()) {
+      new_icon = true;
+      break;
+    }
+  }
   cache_for_period(period) = parsed;
+  if (new_icon) tiles_request_icon_refresh();
   queue_energy_popup_refresh(period);
   // Timing of one response: since its request was sent, and the parse itself.
   const uint32_t now = millis();
@@ -412,6 +410,21 @@ bool energy_find_entry(const String& id, const char* period, EnergyEntryData& ou
 
 String energy_find_cached_unit(const String& id) {
   return cached_unit_for_entry(id);
+}
+
+String energy_source_icon(const String& id) {
+  String icon = haBridgeConfig.findEntityIcon(id);
+  if (icon.length() || !id.length()) return icon;
+  const std::vector<EnergyEntryData>* caches[] = {
+      &g_day_entries, &g_week_entries, &g_month_entries};
+  for (const auto* cache : caches) {
+    for (const auto& entry : *cache) {
+      if (entry.id.equalsIgnoreCase(id)) {
+        return String(energySourceIcon(entry.category, entry.id, entry.unit));
+      }
+    }
+  }
+  return String();
 }
 
 void energy_append_cached_entity_ids(std::vector<String>& ids) {

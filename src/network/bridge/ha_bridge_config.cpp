@@ -1146,7 +1146,7 @@ static bool extractStringField(const String& object, const char* key, String& ou
   return out.length() > 0;
 }
 
-static const char* energyIconForCategory(const String& category, const String& id, const String& unit) {
+const char* energySourceIcon(const String& category, const String& id, const String& unit) {
   String cat = category;
   cat.trim();
   cat.toLowerCase();
@@ -1228,7 +1228,7 @@ static void parseEnergySection(const String& body,
 
       String category;
       extractStringField(object, "category", category);
-      icon_updates.push_back({id, energyIconForCategory(category, id, unit)});
+      icon_updates.push_back({id, energySourceIcon(category, id, unit)});
     }
 
     obj_start = segment.indexOf('{', obj_end + 1);
