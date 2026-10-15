@@ -313,7 +313,7 @@ ${inlineScriptSafe(readAdminDeliverySource())}
           document.querySelector('.folder-tab-btn[data-folder-id="1"] .tab-label').textContent === 'Licht',
           'A loaded page\\'s head and tab follow');
   }
-  check(parseFloat(getComputedStyle(grid).getPropertyValue('--fields-box-h')) > 0 &&
+  check(parseFloat(getComputedStyle(grid, '::after').height) > 0 &&
         getComputedStyle(grid, '::after').backgroundColor === 'rgb(0, 0, 0)', 'The fields lie on a black box like the screen');
 
   // The Settings tile parks in its field, like a tile dropped there.

@@ -261,23 +261,31 @@
     if (!shown) {
       grid.style.removeProperty('--fields-right');
       grid.style.removeProperty('--fields-bottom');
+      grid.style.removeProperty('--grid-border');
       return;
     }
     const places = pageFieldPlaces(grid);
     grid.style.setProperty('--fields-right', places.right + 'px');
     grid.style.setProperty('--fields-bottom', places.bottom + 'px');
     // The fields' box (admin.css .has-page-fields::after), from the grid's
-    // padding box corner; under the screen as wide as it.
+    // padding box corner; under the screen as wide as it, never past the
+    // grid's border edges. Both boxes take the border as drawn (0.8 px at 125 %
+    // Windows scaling) and the grid's fractional size (clientWidth/-Height
+    // are rounded): a box a fraction of a pixel past the grid gave the
+    // preview scroll bars (Tab5, user 2026-10-15).
     const style = getComputedStyle(grid);
     const padLeft = parseFloat(style.paddingLeft) || 0, padTop = parseFloat(style.paddingTop) || 0;
+    const border = parseFloat(style.borderLeftWidth) || 0;
+    grid.style.setProperty('--grid-border', border + 'px');
     const box = places.box;
-    const boxLeft = box.x === null ? -1 : padLeft + box.x;
+    const boxLeft = box.x === null ? -border : padLeft + box.x;
     const boxTop = padTop + box.y;
-    const boxWidth = box.w === null ? grid.clientWidth + 2 - (parseFloat(style.getPropertyValue('--fields-right')) || 0) : box.w;
+    const toEdgeW = 'calc(100% + ' + (border - boxLeft) + 'px)';
+    const toEdgeH = 'calc(100% + ' + (border - boxTop) + 'px)';
     grid.style.setProperty('--fields-box-l', boxLeft + 'px');
     grid.style.setProperty('--fields-box-t', boxTop + 'px');
-    grid.style.setProperty('--fields-box-w', boxWidth + 'px');
-    grid.style.setProperty('--fields-box-h', (box.h === null ? grid.clientHeight + 1 - boxTop : box.h) + 'px');
+    grid.style.setProperty('--fields-box-w', box.w === null ? toEdgeW : 'min(' + box.w + 'px, ' + toEdgeW + ')');
+    grid.style.setProperty('--fields-box-h', box.h === null ? toEdgeH : 'min(' + box.h + 'px, ' + toEdgeH + ')');
     const slots = pageSlotList();
     grid.querySelectorAll(':scope > .page-field:not(.settings-field)').forEach(field => {
       const slot = Number(field.dataset.slot);

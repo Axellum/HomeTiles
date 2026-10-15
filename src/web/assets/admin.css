@@ -3030,14 +3030,17 @@
   padding-right:calc(var(--preview-pad-right, var(--preview-pad)) + var(--fields-right, 0px));
   padding-bottom:calc(var(--preview-pad-bottom, var(--preview-pad)) + var(--fields-bottom, 0px));
 }
+/* Out to the grid's border edge as drawn (--grid-border, page-fields.js:
+   0.8 px at 125 % Windows scaling); a fixed 1 px reached past the grid and
+   gave the preview scroll bars. */
 .tile-grid.has-page-fields::before {
   content:"";
   position:absolute;
   z-index:-1;
-  left:-1px;
-  top:-1px;
-  right:calc(var(--fields-right, 0px) - 1px);
-  bottom:calc(var(--fields-bottom, 0px) - 1px);
+  left:calc(-1 * var(--grid-border, 1px));
+  top:calc(-1 * var(--grid-border, 1px));
+  right:calc(var(--fields-right, 0px) - var(--grid-border, 1px));
+  bottom:calc(var(--fields-bottom, 0px) - var(--grid-border, 1px));
   background:var(--pv-screen, #000000);
   border:1px solid var(--line);
   border-radius:inherit;
