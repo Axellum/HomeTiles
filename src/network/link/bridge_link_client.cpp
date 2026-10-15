@@ -241,7 +241,7 @@ bool BridgeLinkClient::connect(const char* device_id, const char* base,
   pair_mode_ = !session;
   connected_ = true;
   state_ = kConnected;
-  last_rx_ms_ = last_tx_ms_ = millis();
+  last_rx_ms_ = last_tx_ms_ = last_ping_ms_ = millis();
   tx_since_rx_ = pings_since_rx_ = 0;
   return true;
 }
@@ -458,7 +458,14 @@ bool BridgeLinkClient::loop() {
     fail(kTimeout);
     return false;
   }
-  if (!streaming_ && static_cast<uint32_t>(now - last_tx_ms_) >= kPingIdleMs) {
+  // Keepalive both ways, like MQTT: a ping once nothing was sent or nothing
+  // came back for kPingIdleMs, at most one per kPingIdleMs. The Bridge's pong
+  // keeps the receive side alive while the panel publishes into a quiet Home
+  // Assistant.
+  if (!streaming_ && static_cast<uint32_t>(now - last_ping_ms_) >= kPingIdleMs &&
+      (static_cast<uint32_t>(now - last_tx_ms_) >= kPingIdleMs ||
+       static_cast<uint32_t>(now - last_rx_ms_) >= kPingIdleMs)) {
+    last_ping_ms_ = now;
     if (!sendFrame(kPing, nullptr, 0)) return false;
   }
 

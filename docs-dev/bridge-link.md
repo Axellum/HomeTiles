@@ -198,8 +198,8 @@ backoff (6 to 96 seconds).
 
 ## Keepalive and limits
 
-The panel sends ping when it has sent nothing for 15 seconds; the Bridge
-answers pong. Either side closes the connection after 45 seconds without any
+The panel sends ping when it has sent nothing or received nothing for 15
+seconds, at most one ping per 15 seconds; the Bridge answers pong. Either side closes the connection after 45 seconds without any
 received frame. The handshake must finish within 10 seconds.
 
 The Bridge listens on TCP port 8140 (8141–8147 when that is taken) on all
