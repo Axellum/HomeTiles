@@ -673,7 +673,14 @@ static const Strings kStringsDe = {
     "%u Ordner haben in diesem Layout keinen Platz. Bitte zuerst unter „%s“ einrichten.",
     "Seiten haben keine PIN.",
     "Seiten",
-    "Der Ordner enthält noch Kacheln. Löschen geht über „Löschen“."};
+    "Der Ordner enthält noch Kacheln. Löschen geht über „Löschen“.",
+    "Audio",
+    "Lautstärke und Mikrofon",
+    "Lautstärke",
+    "Mikrofon-Empfindlichkeit",
+    "Mikrofon an",
+    "Mikrofon aus",
+    "Spielt MP3 und 16-Bit-WAV, gestreamt über HTTP oder HTTPS.\nMikrofon: 16 kHz mono an Home Assistant Assist."};
 
 static const Strings kStringsEn = {
     "en",
@@ -1341,7 +1348,14 @@ static const Strings kStringsEn = {
     "%u folders have no place in this layout. Please set them up under “%s” first.",
     "Pages have no PIN.",
     "Pages",
-    "The folder still contains tiles. Remove it with “Delete”."};
+    "The folder still contains tiles. Remove it with “Delete”.",
+    "Audio",
+    "Volume and microphone",
+    "Volume",
+    "Mic sensitivity",
+    "Microphone on",
+    "Microphone off",
+    "Plays MP3 and 16-bit WAV, streamed over HTTP or HTTPS.\nMicrophone: 16 kHz mono to Home Assistant Assist."};
 
 static const Strings kStringsFr = {
     "fr",
@@ -2009,7 +2023,14 @@ static const Strings kStringsFr = {
     "%u dossiers n'ont pas de place dans cette disposition. Placez-les d'abord sous «\u00A0%s\u00A0».",
     "Les pages n'ont pas de code PIN.",
     "Pages",
-    "Le dossier contient encore des tuiles. Supprimez-le avec «\u00A0Supprimer\u00A0»."};
+    "Le dossier contient encore des tuiles. Supprimez-le avec «\u00A0Supprimer\u00A0».",
+    "Audio",
+    "Volume et microphone",
+    "Volume",
+    "Sensibilité du micro",
+    "Microphone activé",
+    "Microphone coupé",
+    "Lit le MP3 et le WAV 16 bits, diffusés en HTTP ou HTTPS.\nMicrophone : 16 kHz mono vers Home Assistant Assist."};
 
 static const LocaleProfile kLocaleDe = {
     "de",
@@ -3043,7 +3064,15 @@ static const Strings kStringsPl = {
     "Foldery bez miejsca w tym układzie: %u. Najpierw ustaw je w „%s”.",
     "Strony nie mają kodu PIN.",
     "Strony",
-    "Folder nadal zawiera kafelki. Usuń go przyciskiem „Usuń”."};
+    "Folder nadal zawiera kafelki. Usuń go przyciskiem „Usuń”.",
+    "Audio",
+    "Głośność i mikrofon",
+    "Głośność",
+    "Czułość mikrofonu",
+    "Mikrofon włączony",
+    "Mikrofon wyłączony",
+    "Odtwarza MP3 i 16-bitowy WAV przesyłane przez HTTP lub HTTPS.\nMikrofon: 16 kHz mono do Home Assistant Assist.",
+};
 
 static const LocaleProfile kLocalePl = {
     "pl",
