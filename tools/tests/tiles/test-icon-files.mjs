@@ -73,6 +73,15 @@ assert.equal(tableCrcs.size, SIZES.length, 'each size has its own descriptor tab
 // The core list names real icons, once each, and covers the firmware's own names.
 assert.equal(new Set(core).size, core.length, 'core icons are listed once');
 for (const name of core) assert.ok(names.has(name), `core icon ${name} is an MDI icon`);
+// Names the firmware builds at runtime ("wifi-strength-%u%s": the WiFi row of
+// Settings showed the unknown icon without the file) and HA's usual entity
+// icons are built in.
+for (const name of [
+  'wifi-strength-1', 'wifi-strength-2', 'wifi-strength-3', 'wifi-strength-4', 'wifi-strength-4-lock',
+  'door-open', 'window-open', 'motion-sensor', 'thermometer', 'water-percent', 'battery-50', 'lightbulb',
+]) {
+  assert.ok(core.includes(name), `core icon ${name}`);
+}
 const missing = [...firmwareIconNames(names)].filter((name) => !core.includes(name));
 assert.deepEqual(missing, [],
   'icon names of the firmware sources are missing in tools/icons/core-icons.txt; ' +
