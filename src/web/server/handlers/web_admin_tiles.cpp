@@ -1457,13 +1457,19 @@ void WebAdminServer::handleGetMdiIcons() {
 
 // The picker searches through the Bridge (network/bridge/entity_search.h):
 // POST q and list starts a search ("bridge":false without a paired Bridge
-// that searches: the picker keeps its own list), GET id polls the answer.
+// that searches: the picker keeps its own list; "list":false for a list this
+// Bridge does not search yet, like "energy" before level 3), GET id polls the
+// answer.
 void WebAdminServer::handleStartEntitySearch() {
   webAdminMarkActivity();
   const uint32_t offset = static_cast<uint32_t>(strtoul(server.arg("o").c_str(), nullptr, 10));
   const uint32_t id = entity_search::start(server.arg("q"), server.arg("list"), offset);
   String json = "{\"success\":true,\"bridge\":";
-  json += id ? "true,\"id\":" + String(id) : String("false");
+  if (id) {
+    json += "true,\"id\":" + String(id);
+  } else {
+    json += entity_search::available() ? "true,\"list\":false" : "false";
+  }
   json += "}";
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", json);

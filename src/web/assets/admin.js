@@ -2897,7 +2897,8 @@ async function saveGestureEdge(select) {
   ];
   // Lists the Bridge searches (entity_search.py LIST_DOMAINS).
   const ENTITY_REMOTE_LISTS = new Set(['sensors', 'binary_sensors', 'numbers', 'selects', 'datetimes',
-    'weathers', 'switches', 'media', 'climates', 'covers', 'cameras', 'images', 'locks', 'alarm_panels', 'fans']);
+    'weathers', 'switches', 'media', 'climates', 'covers', 'cameras', 'images', 'locks', 'alarm_panels', 'fans',
+    'energy']);
   const ENTITY_REMOTE_DELAY_MS = 250;
   const ENTITY_REMOTE_POLL_MS = 120;
   const ENTITY_REMOTE_TIMEOUT_MS = 5000;
@@ -3112,6 +3113,9 @@ async function saveGestureEdge(select) {
       entityRemoteSupported = false;
       return null;
     }
+    // A list this Bridge does not search yet (energy below search level 3):
+    // the panel's own list stays, the other lists keep searching.
+    if (started.list === false) return null;
     const deadline = Date.now() + ENTITY_REMOTE_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, ENTITY_REMOTE_POLL_MS));

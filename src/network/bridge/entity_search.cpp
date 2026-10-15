@@ -80,6 +80,8 @@ bool knownList(const String& list) {
   for (const ListTile& entry : kListTiles) {
     if (list == entry.list) return true;
   }
+  // The Energy dashboard's sources, no Home Assistant domain (Bridge level 3).
+  if (list == "energy") return haBridgeConfig.supportsEnergySearch();
   // The screensaver picture: an image or a camera (no tile type).
   return list == "images";
 }

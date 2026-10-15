@@ -43,8 +43,10 @@ assert.match(search, /g_answer\.received = 0;\s*g_answer\.full = false;\s*g_answ
 // declarations; nothing it serves can change the next declaration (the loop
 // of b232-b235: a reported entity came back released, was dropped from the
 // next report, removed by the Bridge and reported again).
-assert.equal((search.match(/haBridgeConfig\./g) || []).length, 3,
-  'only the two capability checks and the own sensor slots read the Bridge configuration');
+assert.equal((search.match(/haBridgeConfig\./g) || []).length, 4,
+  'only the three capability checks and the own sensor slots read the Bridge configuration');
+assert.match(search, /if \(list == "energy"\) return haBridgeConfig\.supportsEnergySearch\(\);/,
+  'the Energy dashboard sources only from a Bridge that searches them (level 3)');
 assert.match(search, /for \(const String& slot : haBridgeConfig\.get\(\)\.sensor_slots\) declaration\.add\("sensors", slot\.c_str\(\)\);/,
   'the sensor slots are declared: applyJson clears a slot whose sensor the Bridge stops sending');
 assert.match(search, /bool declares\(\) \{\s*return command_channel::state\(\) == command_channel::PairingState::Active &&\s*haBridgeConfig\.supportsEntityDeclarations\(\);/);
@@ -87,15 +89,16 @@ const config = read('src/network/bridge/ha_bridge_config.cpp');
 assert.match(config, /entity_search_ = digit \? static_cast<uint8_t>\(json\[at\] - '0'\) : 0;/,
   'the Bridge announces its level in its configuration');
 const configHeader = read('src/network/bridge/ha_bridge_config.h');
-assert.match(configHeader, /bool supportsEntitySearch\(\) const \{ return entity_search_ >= 1; \}\s*bool supportsEntityDeclarations\(\) const \{ return entity_search_ >= 2; \}/,
-  'Bridge v0.9.0b11/b12 (level 1) search but get no declarations');
+assert.match(configHeader, /bool supportsEntitySearch\(\) const \{ return entity_search_ >= 1; \}\s*bool supportsEntityDeclarations\(\) const \{ return entity_search_ >= 2; \}\s*bool supportsEnergySearch\(\) const \{ return entity_search_ >= 3; \}/,
+  'Bridge v0.9.0b11/b12 (level 1) search but get no declarations; level 3 also searches energy');
 
 // ---- Web Admin endpoints ----
 const admin = read('src/web/server/web_admin.cpp');
 assert.match(admin, /"\/api\/entity_search", HTTP_POST,\s*guarded\(\[this\]\(\) \{ this->handleStartEntitySearch\(\); \}\)\);/);
 assert.match(admin, /"\/api\/entity_search", HTTP_GET,\s*guarded\(\[this\]\(\) \{ this->handleGetEntitySearch\(\); \}\)\);/);
 const tiles = read('src/web/server/handlers/web_admin_tiles.cpp');
-assert.match(tiles, /json \+= id \? "true,\\"id\\":" \+ String\(id\) : String\("false"\);/, 'no Bridge search: the picker keeps its list');
+assert.match(tiles, /if \(id\) \{\s*json \+= "true,\\"id\\":" \+ String\(id\);\s*\} else \{\s*json \+= entity_search::available\(\) \? "true,\\"list\\":false" : "false";/,
+  'no Bridge search: the picker keeps its list; a list the Bridge does not search keeps the others searching');
 assert.match(tiles, /if \(!entity_search::result\(id, answer\)\) \{\s*server\.send\(200, "application\/json", "\{\\"success\\":true,\\"ready\\":false\}"\);/);
 
 // ---- First Web Admin password only after a tap on the display ----

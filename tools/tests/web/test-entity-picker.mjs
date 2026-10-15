@@ -290,6 +290,7 @@ const remotePage = `<!doctype html><html lang="de"><head><style>${read('src/web/
 <div class="tile-settings" style="width:420px">
 <div class="type-fields show"><label for="r_switch_entity_picker">Schalter</label><input type="hidden" id="r_switch_entity" data-entity-picker="switches"></div>
 <div class="tile-entity-slot" id="r_tile_entity_slot"><label for="r_sensor_entity_picker">Sensor</label><input type="hidden" id="r_sensor_entity" data-entity-picker="sensors"></div>
+<div class="type-fields show"><label for="r_energy_entity_picker">Energie-Quelle</label><input type="hidden" id="r_energy_entity" data-entity-picker="energy"></div>
 </div><div id="web_auth_section"></div><pre id="result"></pre><script>
 const loaded=[];const nativeListen=document.addEventListener.bind(document);
 document.addEventListener=(name,fn,...args)=>{if(name==='DOMContentLoaded')loaded.push(fn);else nativeListen(name,fn,...args);};
@@ -299,19 +300,23 @@ const CLIMATE_I18N={},BINARY_SENSOR_I18N={},GRID_COLS=7,GRID_ROWS=5,TILES_PER_GR
 const TILE_TYPE_REGISTRY={0:{}};
 const TILE_TABS=[],TAB_BY_FOLDER={},FOLDER_BY_TAB={},SCREENSAVER_FOLDER_ID=65535,SCREENSAVER_TILE_DEFAULT_OPACITY=0,SCREENSAVER_TILE_DEFAULT_COLOR='#000000',MEDIA_TILE_TYPE=15,MEDIA_TILE_MIN_SPAN=2,MEDIA_TILE_MAX_SPAN=3;
 const OPTIONS={success:true,sensors:[{v:'sensor.kitchen',t:'Temperatur Küche'}],
-  switches:[{v:'light.tab5_display_brightness',t:'Display'}]};
-const searches=[];let bridge=true;
+  switches:[{v:'light.tab5_display_brightness',t:'Display'}],energy:[]};
+const searches=[];let bridge=true,energySearch=false;
 const ANSWERS={
   'switches|':{full:false,more:false,r:[{v:'light.desk',t:'Schreibtisch',i:'mdi:desk-lamp',a:'EG Büro',d:'Schreibtischlampe'}]},
   'switches|desk':{full:true,more:true,r:[{v:'light.desk',t:'Schreibtisch',i:'mdi:desk-lamp',a:'EG Büro',d:'Schreibtischlampe'}]},
   'switches|desk|1':{full:true,more:false,r:[{v:'light.desk_2',t:'Schreibtisch 2 Licht',a:'EG Büro',d:'Schreibtisch 2'}]},
-  'sensors|sensor.kitchen':{full:false,more:false,r:[{v:'sensor.kitchen',t:'Temperatur Küche',i:'mdi:thermometer',a:'OG Küche',d:'Heizung'}]}
+  'sensors|sensor.kitchen':{full:false,more:false,r:[{v:'sensor.kitchen',t:'Temperatur Küche',i:'mdi:thermometer',a:'OG Küche',d:'Heizung'}]},
+  'energy|':{full:true,more:false,r:[{v:'battery_total',t:'Batterie gesamt (kWh)'},{v:'sensor.pv',t:'PV Dach (kWh)',i:'mdi:solar-power'}]}
 };
 let shown=false;document.getElementById('web_auth_section').scrollIntoView=()=>{shown=true;};
 window.fetch=async(url,init)=>{
   url=String(url);
   if(url==='/api/entity_search'&&init?.method==='POST'){
-    const body=new URLSearchParams(init.body);searches.push(body.get('list')+'|'+body.get('q')+(body.get('o')?'|'+body.get('o'):''));
+    const body=new URLSearchParams(init.body);
+    // A Bridge below search level 3 does not search the energy list.
+    if(bridge&&body.get('list')==='energy'&&!energySearch)return {ok:true,json:async()=>({success:true,bridge:true,list:false})};
+    searches.push(body.get('list')+'|'+body.get('q')+(body.get('o')?'|'+body.get('o'):''));
     return {ok:true,json:async()=>bridge?{success:true,bridge:true,id:searches.length}:{success:true,bridge:false}};
   }
   if(url.startsWith('/api/entity_search?id=')){
@@ -379,6 +384,25 @@ ${inlineScriptSafe(readAdminDeliverySource())}
  tab('all').click();
  document.querySelector('.entity-picker-password').click();
  check(shown&&!document.querySelector('.entity-picker-popover.open'),'Set password opens the section');
+ // Energy sources (the Energy dashboard's, no entities) come from the Bridge's
+ // search too, also on a panel without own ones (no Energy tile yet). An older
+ // Bridge does not search them: the own list stays, the other lists search on.
+ let energyRows=()=>[...document.querySelectorAll('.entity-picker-popover .entity-picker-item')];
+ $('r_energy_entity_picker').click();await wait(400);
+ const none=document.querySelector('.entity-picker-popover .entity-picker-state');
+ check(!energyRows().length&&none&&none.textContent.includes(${JSON.stringify(de.labels[6])}),'Older Bridge: the own (empty) energy list');
+ $('r_energy_entity_picker').click();await wait(50);
+ const switchSearches=searches.filter(s=>s.startsWith('switches|')).length;
+ $('r_switch_entity_picker').click();await wait(400);
+ check(searches.filter(s=>s.startsWith('switches|')).length===switchSearches+1,'The other lists still search the Bridge');
+ $('r_switch_entity_picker').click();await wait(50);
+ energySearch=true;
+ $('r_energy_entity_picker').click();await wait(400);
+ rows=energyRows();
+ check(searches.includes('energy|')&&rows.length===2&&rows[0].textContent.includes('Batterie gesamt (kWh)'),
+   'Energy sources from the Bridge: '+rows.map(r=>r.textContent).join(' | '));
+ rows.find(r=>r.textContent.includes('PV Dach')).click();
+ check($('r_energy_entity').value==='sensor.pv','An energy source is chosen');
  // Without a Bridge search the panel's own list stays.
  bridge=false;
  const before=searches.length;
