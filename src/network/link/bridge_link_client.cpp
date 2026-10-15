@@ -115,6 +115,8 @@ bool BridgeLinkClient::sendBuilt(uint8_t type, size_t payload_length) {
     return false;
   }
   last_tx_ms_ = millis();
+  ++tx_since_rx_;
+  if (type == kPing) ++pings_since_rx_;
   return true;
 }
 
@@ -240,6 +242,7 @@ bool BridgeLinkClient::connect(const char* device_id, const char* base,
   connected_ = true;
   state_ = kConnected;
   last_rx_ms_ = last_tx_ms_ = millis();
+  tx_since_rx_ = pings_since_rx_ = 0;
   return true;
 }
 
@@ -447,7 +450,11 @@ bool BridgeLinkClient::loop() {
   if (!connected()) return false;
   const uint32_t now = millis();
   if (static_cast<uint32_t>(now - last_rx_ms_) >= kIdleTimeoutMs) {
-    Serial.println("[Link] No data from the Bridge for 45 s; reconnecting");
+    Serial.printf("[Link] No data from the Bridge for 45 s (sent %lu frames, %lu pings since; "
+                  "%d bytes waiting, %u header bytes); reconnecting\n",
+                  static_cast<unsigned long>(tx_since_rx_),
+                  static_cast<unsigned long>(pings_since_rx_), client_->available(),
+                  static_cast<unsigned>(rx_header_have_));
     fail(kTimeout);
     return false;
   }
@@ -492,6 +499,7 @@ bool BridgeLinkClient::loop() {
     rx_body_need_ = 0;
     rx_body_have_ = 0;
     last_rx_ms_ = millis();
+    tx_since_rx_ = pings_since_rx_ = 0;
     ++frames;
     if (!handleFrame(body_length)) return false;
   }

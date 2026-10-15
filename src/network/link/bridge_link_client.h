@@ -117,6 +117,10 @@ class BridgeLinkClient {
 
   uint32_t last_rx_ms_ = 0;
   uint32_t last_tx_ms_ = 0;
+  // Frames and pings sent since the last frame from the Bridge, reported
+  // with the idle timeout (did the panel ask, or did nothing come back?).
+  uint32_t tx_since_rx_ = 0;
+  uint32_t pings_since_rx_ = 0;
   bool last_retained_ = false;
 
   // Streamed publish (beginPublish/write/endPublish).
