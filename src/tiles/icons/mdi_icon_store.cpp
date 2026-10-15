@@ -2,18 +2,39 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include <esp_heap_caps.h>
 
+#include <algorithm>
+
+#include "src/core/firmware/firmware_version.h"
+#include "src/devices/device.h"
 #include "src/tiles/icons/mdi_icon_cache.h"
 #include "src/tiles/icons/mdi_icons.h"
 
 namespace mdi_icon_store {
 namespace {
 
+constexpr const char* kDownloadNvsNamespace = "icon_dl";
+constexpr uint8_t kMaxDownloadAttempts = 3;
+constexpr size_t kWriteSliceBytes = 16 * 1024;
+constexpr size_t kVerifyChunkBytes = 4 * 1024;
+
 State g_state = State::Missing;
 File g_file;
 char g_path[32] = "";
+char g_part_path[40] = "";
 char g_release_name[32] = "";
+
+// The file being written.
+File g_part;
+uint32_t g_write_total = 0;
+uint32_t g_written = 0;
+uint32_t g_write_crc = 0;
+uint8_t g_write_header[mdi_icon_cache::kHeaderBytes] = {};
+String g_write_error;
+
+const mdi_icon_font_data_t& font_data() { return *MDI_ICON_LOADER->data; }
 
 // Runs on the LVGL thread when a glyph is drawn the first time.
 bool read_bitmap(void*, uint32_t offset, uint8_t* out, uint32_t len) {
@@ -24,12 +45,27 @@ bool read_bitmap(void*, uint32_t offset, uint8_t* out, uint32_t len) {
 
 const mdi_icon_cache::Source kFileSource = {read_bitmap, nullptr};
 
+// The bitmaps' CRC of a written file, read back from flash.
+bool file_bitmap_crc(const char* path, uint32_t& crc_out) {
+  File f = LittleFS.open(path, "r");
+  if (!f || !f.seek(mdi_icon_cache::kHeaderBytes)) return false;
+  uint8_t* buf = static_cast<uint8_t*>(heap_caps_malloc(kVerifyChunkBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!buf) return false;
+  uint32_t crc = 0;
+  size_t n = 0;
+  while ((n = f.read(buf, kVerifyChunkBytes)) > 0) crc = mdi_icon_cache::crc32(crc, buf, n);
+  heap_caps_free(buf);
+  crc_out = crc;
+  return true;
+}
+
 }  // namespace
 
 void begin() {
   mdi_icon_loader_t* loader = MDI_ICON_LOADER;
   const mdi_icon_font_data_t& data = *loader->data;
   snprintf(g_path, sizeof(g_path), "/_mdi_icons_%u.bin", static_cast<unsigned>(data.px));
+  snprintf(g_part_path, sizeof(g_part_path), "%s.part", g_path);
   snprintf(g_release_name, sizeof(g_release_name), "hometiles-icons-%u.bin", static_cast<unsigned>(data.px));
 
   // One block for the whole runtime, allocated before the UI so it never
@@ -74,5 +110,121 @@ State state() { return g_state; }
 const char* file_path() { return g_path; }
 
 const char* release_file_name() { return g_release_name; }
+
+uint32_t file_bytes() { return mdi_icon_cache::kHeaderBytes + font_data().bitmap_bytes; }
+
+bool begin_write(uint32_t total, String& error) {
+  if (total != file_bytes()) {
+    error = String("icon file has ") + total + " bytes, expected " + file_bytes();
+    return false;
+  }
+  // The font shows the built-in icons until the restart.
+  mdi_icon_cache::set_source(MDI_ICON_LOADER, nullptr);
+  if (g_file) g_file.close();
+  g_state = State::Missing;
+  LittleFS.remove(g_path);
+  LittleFS.remove(g_part_path);
+  g_part = LittleFS.open(g_part_path, "w");
+  if (!g_part) {
+    error = "cannot create the icon file";
+    return false;
+  }
+  g_write_total = total;
+  g_written = 0;
+  g_write_crc = 0;
+  g_write_error = "";
+  return true;
+}
+
+bool write(const uint8_t* data, size_t len) {
+  if (!g_part || g_write_error.length()) return false;
+  if (g_written + len > g_write_total) {
+    g_write_error = "icon file too long";
+    return false;
+  }
+  size_t body = 0;
+  if (g_written < mdi_icon_cache::kHeaderBytes) {
+    const size_t n = std::min<size_t>(len, mdi_icon_cache::kHeaderBytes - g_written);
+    memcpy(g_write_header + g_written, data, n);
+    body = n;
+    if (g_written + n == mdi_icon_cache::kHeaderBytes) {
+      const mdi_icon_cache::HeaderCheck check =
+          mdi_icon_cache::check_header(g_write_header, sizeof(g_write_header), g_write_total, font_data());
+      if (check != mdi_icon_cache::HeaderCheck::Ok) {
+        g_write_error = String("icon file not usable: ") + mdi_icon_cache::header_check_text(check);
+        return false;
+      }
+    }
+  }
+  if (len > body) g_write_crc = mdi_icon_cache::crc32(g_write_crc, data + body, len - body);
+  // Short slices with a pause keep the network driver's reception going.
+  for (size_t done = 0; done < len;) {
+    const size_t slice = std::min(len - done, kWriteSliceBytes);
+    if (g_part.write(data + done, slice) != slice) {
+      g_write_error = "LittleFS write failed";
+      return false;
+    }
+    done += slice;
+    delay(2);
+  }
+  g_written += len;
+  return true;
+}
+
+bool finish_write(String& error) {
+  if (!g_part) {
+    error = "no icon file being written";
+    return false;
+  }
+  g_part.close();
+  uint32_t written_crc = 0;
+  if (g_write_error.length()) {
+    error = g_write_error;
+  } else if (g_written != g_write_total) {
+    error = "icon file incomplete";
+  } else if (g_write_crc != mdi_icon_cache::header_bitmap_crc(g_write_header)) {
+    error = "icon file damaged in transfer";
+  } else if (!file_bitmap_crc(g_part_path, written_crc) || written_crc != g_write_crc) {
+    error = "icon file damaged on flash";
+  } else if (!LittleFS.rename(g_part_path, g_path)) {
+    error = "cannot rename the icon file";
+  } else {
+    Serial.printf("[Icons] Icon file %s written: %u bytes, CRC ok\n", g_path,
+                  static_cast<unsigned>(g_written));
+    return true;
+  }
+  LittleFS.remove(g_part_path);
+  return false;
+}
+
+bool download_due() {
+  if (g_state == State::Ready) return false;
+  Preferences prefs;
+  if (!prefs.begin(kDownloadNvsNamespace, true)) return true;
+  const String version = prefs.getString("ver", "");
+  const uint8_t attempts = prefs.getUChar("att", 0);
+  prefs.end();
+  return version != FW_VERSION || attempts < kMaxDownloadAttempts;
+}
+
+void note_download_attempt() {
+  Device::ScopedStorageWrite storage_write;
+  Preferences prefs;
+  if (!prefs.begin(kDownloadNvsNamespace, false)) return;
+  const uint8_t attempts = prefs.getString("ver", "") == FW_VERSION ? prefs.getUChar("att", 0) : 0;
+  prefs.putString("ver", FW_VERSION);
+  prefs.putUChar("att", attempts + 1);
+  prefs.end();
+  Serial.printf("[Icons] Download attempt %u of %u for %s\n", static_cast<unsigned>(attempts + 1),
+                static_cast<unsigned>(kMaxDownloadAttempts), FW_VERSION);
+}
+
+void clear_download_attempts() {
+  Device::ScopedStorageWrite storage_write;
+  Preferences prefs;
+  if (!prefs.begin(kDownloadNvsNamespace, false)) return;
+  prefs.clear();
+  prefs.end();
+}
 
 }  // namespace mdi_icon_store

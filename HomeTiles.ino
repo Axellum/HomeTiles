@@ -60,6 +60,7 @@
 #include "src/types/media/update_service.h"
 #include "src/tiles/icons/mdi_icons.h"      // MDI Icon Mapping
 #include "src/tiles/icons/mdi_icon_store.h"
+#include "src/ui/tabs/settings/setup_screen.h"
 
 // MDI icon font (48px, 4bpp), defined in src/fonts/mdi_icons_48.c.
 LV_FONT_DECLARE(mdi_icons_48);
@@ -540,6 +541,72 @@ static void apply_fw_install() {
   // The image is staged before Update.begin(), or the failed update has been
   // aborted, so a restart still boots the unchanged active firmware.
   Serial.println("[Update] Safe restart after failed install");
+  BoardHAL::prepareForRestart();
+  delay(500);
+  BoardHAL::restart();
+}
+
+static bool icon_download_checked = false;
+
+struct IconFileWrite {
+  bool started = false;
+  String error;
+};
+
+// Runs after the whole file is in PSRAM and the last HTTPS connection ended.
+static bool write_icon_file(const uint8_t* data, size_t len, void* raw) {
+  auto* w = static_cast<IconFileWrite*>(raw);
+  if (!w->started) {
+    Device::storageWriteBegin();
+    w->started = true;
+    if (!mdi_icon_store::begin_write(mdi_icon_store::file_bytes(), w->error)) return false;
+  }
+  return mdi_icon_store::write(data, len);
+}
+
+static void icon_download_progress(size_t, size_t) {
+  displayManager.resetActivityTimer();
+  delay(1);
+}
+
+// A panel without a valid icon file for its firmware (after an update from a
+// version with built-in icons, or a reset LittleFS) fetches the file of its
+// own release. Same preparation as a GitHub firmware install: suspended
+// display, paused MQTT, stopped Web Admin. It restarts either way, also to
+// leave ESP-Hosted clean after a failed large HTTPS transfer.
+static void apply_icon_download() {
+  Serial.printf("[Icons] Fetching %s of %s\n", mdi_icon_store::release_file_name(), FW_VERSION);
+  mdi_icon_store::note_download_attempt();
+  displayManager.setInputEnabled(false);
+  lv_refr_now(displayManager.getDisplay());
+  BoardHAL::displayPowerSaveOn();
+  displayManager.setBufferLines(8);
+  networkManager.prepareMqttForOta();
+  if (webAdminServer.isRunning()) webAdminServer.stop();
+  log_memory_status("before-icon-download");
+  delay(20);
+
+  IconFileWrite file_write;
+  String err;
+  bool ok = GithubUpdate::downloadReleaseFile(FW_VERSION, mdi_icon_store::release_file_name(),
+                                              mdi_icon_store::file_bytes(), write_icon_file,
+                                              &file_write, icon_download_progress, err);
+  if (file_write.started) {
+    String finish_err;
+    if (!mdi_icon_store::finish_write(finish_err) && ok) {
+      ok = false;
+      err = finish_err;
+    }
+    if (!ok && file_write.error.length()) err = file_write.error;
+    if (ok) mdi_icon_store::clear_download_attempts();
+    Device::storageWriteEnd();
+  }
+  if (ok) {
+    Serial.println("[Icons] Icon file installed - restarting");
+  } else {
+    Serial.printf("[Icons] Icon download failed: %s - restarting\n", err.c_str());
+  }
+  camera_transport::planned_restart();
   BoardHAL::prepareForRestart();
   delay(500);
   BoardHAL::restart();
@@ -1138,6 +1205,14 @@ void loop() {
         request_fw_install(retry_tag.c_str());
       }
     }
+  }
+
+  // Fetch a missing icon file once per boot after Wi-Fi settled; a pending
+  // firmware install and the first-start setup go first.
+  if (!icon_download_checked && millis() > 20000 && networkManager.isNetworkConnected() &&
+      !fw_install_pending && !setup_screen::shown()) {
+    icon_download_checked = true;
+    if (mdi_icon_store::download_due()) apply_icon_download();
   }
 
   if (fw_check_pending) {

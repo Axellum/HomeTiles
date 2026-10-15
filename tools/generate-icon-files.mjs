@@ -31,7 +31,8 @@
 // firmware sources and the Bridge integration.
 //
 // Usage:
-//   node tools/generate-icon-files.mjs [--out <dir>]
+//   node tools/generate-icon-files.mjs [--out <dir>] [--files-only]
+//     --files-only: only the icon files, for release assets
 //   node tools/generate-icon-files.mjs --update-core --ha <tag> [--bridge <path>]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -474,6 +475,7 @@ async function main() {
   }
   const out = path.resolve(argument('--out') || path.join(root, 'build', 'icons'));
   fs.mkdirSync(out, {recursive: true});
+  const filesOnly = process.argv.includes('--files-only');
   const core = readCoreList();
   const names = iconNameTable();
   for (const px of SIZES) {
@@ -484,10 +486,10 @@ async function main() {
     fs.writeFileSync(target, file);
     const {header} = readIconFile(file);
     const coreIds = coreGlyphIds(font, core, names);
-    fs.writeFileSync(fontOutputPath(px), compiledFontSource(source, font, px, coreIds));
+    if (!filesOnly) fs.writeFileSync(fontOutputPath(px), compiledFontSource(source, font, px, coreIds));
     console.log(`${target}: ${file.length} bytes, ${header.glyphs} glyphs, ` +
-      `table CRC ${header.tableCrc.toString(16).padStart(8, '0')}; ` +
-      `${path.relative(root, fontOutputPath(px))}: ${coreIds.length} core icons`);
+      `table CRC ${header.tableCrc.toString(16).padStart(8, '0')}` +
+      (filesOnly ? '' : `; ${path.relative(root, fontOutputPath(px))}: ${coreIds.length} core icons`));
   }
 }
 

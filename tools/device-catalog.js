@@ -125,10 +125,14 @@ function releaseAssetNames(version) {
   ]).sort();
 }
 
+// The MDI icon files (tools/generate-icon-files.mjs) a panel fetches from the
+// release of its own version after an update; one per icon size.
+const iconFileNames = ['hometiles-icons-32.bin', 'hometiles-icons-40.bin', 'hometiles-icons-48.bin'];
+
 function verifyReleaseAssets(directory, version) {
   const actual = fs.readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.bin')).map((entry) => entry.name).sort();
-  const expected = releaseAssetNames(version);
+  const expected = [...releaseAssetNames(version), ...iconFileNames].sort();
   assert(JSON.stringify(actual) === JSON.stringify(expected),
     `release asset set mismatch; missing: ${expected.filter((name) => !actual.includes(name)).join(', ') || '(none)'}; unexpected: ${actual.filter((name) => !expected.includes(name)).join(', ') || '(none)'}`);
 }
@@ -151,4 +155,4 @@ if (require.main === module) {
 }
 
 module.exports = { profiles, releaseProfiles, validateCatalog, getBuildProfile, getReleaseProfile,
-  installerProfiles, releaseFileVersion, releaseAssetNames, verifyReleaseAssets };
+  installerProfiles, releaseFileVersion, releaseAssetNames, iconFileNames, verifyReleaseAssets };

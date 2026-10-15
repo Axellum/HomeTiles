@@ -603,6 +603,11 @@ jobs:
           path: build/release-assets
           merge-multiple: true
 
+      - name: Add the icon files
+        shell: bash
+        run: |
+          node tools/generate-icon-files.mjs --files-only --out build/release-assets
+
       - name: Verify release assets
         shell: bash
         run: |
