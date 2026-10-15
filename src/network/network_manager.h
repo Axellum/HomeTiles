@@ -172,6 +172,9 @@ public:
   // follows switchToLink()/leaveLink() at once; the worker moves its client
   // on its next pass, after the queued messages have left.
   bool linkConfigured() const { return link_configured_; }
+  // Log name of the way to Home Assistant: "Link" on the direct link, "MQTT"
+  // otherwise. A panel on the link never logs MQTT.
+  const char* bridgeLogName() const { return link_configured_ ? "Link" : "MQTT"; }
   // Loop task: use the direct link to this Bridge from now on, without a restart.
   void switchToLink(const char* host, uint16_t port);
   // Loop task: stop using the link (pairing removed); MQTT again if it is set

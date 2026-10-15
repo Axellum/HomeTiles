@@ -55,8 +55,6 @@ using OpResolver = tflite::MicroMutableOpResolver<kOpCount>;
 // invocation, so the arena gets this much on top of the manifest size.
 constexpr int kMaxResourceVariables = 8;
 constexpr size_t kVariableArenaBytes = 8 * 1024;
-// The arena goes to internal RAM only when this much stays free beside it.
-constexpr size_t kInternalReserveBytes = 96 * 1024;
 // Invocation cost is logged once per start, at most this often.
 constexpr uint32_t kTimingLogIntervalMs = 10u * 60u * 1000u;
 constexpr uint32_t kErrorLogIntervalMs = 10000;
@@ -98,7 +96,6 @@ struct Engine::Impl {
   const tflite::Model* model = nullptr;
   uint8_t* arena = nullptr;
   size_t arena_size = 0;
-  bool arena_internal = false;
   tflite::MicroInterpreter* interpreter = nullptr;
   alignas(tflite::MicroInterpreter) uint8_t interpreter_storage[sizeof(tflite::MicroInterpreter)];
   TfLiteTensor* input = nullptr;
@@ -206,16 +203,10 @@ bool Engine::begin(const ModelSpec& spec) {
 
   if (ok) {
     impl->arena_size = (spec.tensor_arena_size + kVariableArenaBytes + 15u) & ~static_cast<size_t>(15u);
-    if (heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) >=
-        impl->arena_size + kInternalReserveBytes) {
-      impl->arena = static_cast<uint8_t*>(
-          heap_caps_aligned_alloc(16, impl->arena_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-      impl->arena_internal = impl->arena != nullptr;
-    }
-    if (!impl->arena) {
-      impl->arena = static_cast<uint8_t*>(
-          heap_caps_aligned_alloc(16, impl->arena_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    }
+    // Always PSRAM: an inference takes about 1.4 ms of every 30 ms there, and
+    // the internal RAM stays with Wi-Fi, the link and the popups.
+    impl->arena = static_cast<uint8_t*>(
+        heap_caps_aligned_alloc(16, impl->arena_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     ok = impl->arena != nullptr;
     if (!ok) Serial.printf("%s %s: tensor arena unavailable\n", kLogPrefix, spec.id);
   }
@@ -229,10 +220,9 @@ bool Engine::begin(const ModelSpec& spec) {
   }
   impl->detector.configure(spec.probability_cutoff, spec.sliding_window_size);
   impl->detector.reset(kWarmupInvocations);
-  Serial.printf("%s %s ready: %d feature rows per invocation, arena %u bytes (%s), cutoff %u/255, "
+  Serial.printf("%s %s ready: %d feature rows per invocation, arena %u bytes (PSRAM), cutoff %u/255, "
                 "window %u\n",
                 kLogPrefix, spec.id, impl->stride, static_cast<unsigned>(impl->arena_size),
-                impl->arena_internal ? "internal" : "PSRAM",
                 static_cast<unsigned>(impl->detector.cutoff()),
                 static_cast<unsigned>(impl->detector.window()));
   return true;

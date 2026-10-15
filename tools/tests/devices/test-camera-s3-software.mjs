@@ -61,6 +61,6 @@ assert.match(popup, /if \(g_camera_popup->full\) \{\s*camera_stream_process_ui\(
 // A saved tile is declared to the Bridge even without MQTT routes: a new
 // camera tile was "unknown_camera" until a restart (S3 b325).
 const tileSave = read('src/web/server/handlers/web_admin_tiles.cpp');
-assert.match(tileSave, /MQTT routes unchanged \(no rebuild for style\/layout\)"\);\s*\}[\s\S]{0,300}?entity_search::scheduleTilesReport\(\);/);
+assert.match(tileSave, /Bridge routes unchanged \(no rebuild for style\/layout\)"\);\s*\}[\s\S]{0,300}?entity_search::scheduleTilesReport\(\);/);
 
 console.log('Camera on the S3: software decode, LVGL frames, whole-screen full screen');

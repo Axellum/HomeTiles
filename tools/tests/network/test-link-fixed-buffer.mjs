@@ -18,6 +18,6 @@ assert.match(network, /void HomeTilesNetworkManager::serviceBufferHousekeeping\(
 const resize = network.slice(network.indexOf('bool HomeTilesNetworkManager::setMqttBufferSize('));
 assert.match(resize, /if \(before == size \|\| !mqtt_client\.resizableBuffer\(\)\) \{\s*mqtt_buffer_size = before;\s*return true;\s*\}/,
   'a fixed buffer returns before the log line');
-assert.ok(resize.indexOf('resizableBuffer()') < resize.indexOf('[MQTT] Buffer: %u -> %u bytes'));
+assert.ok(resize.indexOf('resizableBuffer()') < resize.indexOf('[%s] Buffer: %u -> %u bytes'));
 
 console.log('Link fixed buffer: no resize attempts, no repeated buffer log');

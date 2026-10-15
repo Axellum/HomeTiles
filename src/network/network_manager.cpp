@@ -161,10 +161,10 @@ static void initMqttDmaReserve() {
       MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
   if (g_mqtt_dma_reserve) {
     g_mqtt_dma_reserve_held = true;
-    Serial.printf("[MQTT] DMA reserve allocated: %u KB\n",
+    Serial.printf("[%s] DMA reserve allocated: %u KB\n", networkManager.bridgeLogName(),
                   static_cast<unsigned>(kMqttDmaReserveBytes / 1024));
   } else {
-    Serial.println("[MQTT] WARNING: Could not allocate DMA reserve");
+    Serial.printf("[%s] WARNING: Could not allocate DMA reserve\n", networkManager.bridgeLogName());
   }
 #endif
 }
@@ -176,7 +176,7 @@ static void releaseMqttDmaReserve(const char* reason) {
   heap_caps_free(g_mqtt_dma_reserve);
   g_mqtt_dma_reserve = nullptr;
   g_mqtt_dma_reserve_rearm_since = 0;
-  Serial.printf("[MQTT] DMA reserve released (%s), largest=%u KB\n",
+  Serial.printf("[%s] DMA reserve released (%s), largest=%u KB\n", networkManager.bridgeLogName(),
                 reason ? reason : "?",
                 static_cast<unsigned>(
                     heap_caps_get_largest_free_block(
@@ -227,7 +227,7 @@ static size_t serviceMqttDmaHeadroom(uint32_t now_ms) {
           g_mqtt_dma_reserve_held = true;
           largest = heap_caps_get_largest_free_block(
               MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-          Serial.printf("[MQTT] DMA reserve allocated again, largest=%u KB\n",
+          Serial.printf("[%s] DMA reserve allocated again, largest=%u KB\n", networkManager.bridgeLogName(),
                         static_cast<unsigned>(largest / 1024));
         }
         g_mqtt_dma_reserve_rearm_since = 0;
@@ -330,7 +330,7 @@ static bool enqueueOutboundCmd(MqttCmdKind kind,
   MqttOutboundCmd* cmd = mqttAllocOutbound(
       kind, topic, payload, payload_len, retain, large_buffer_hold_ms);
   if (!cmd) {
-    Serial.println("[MQTT] Outbound allocation failed -> command dropped");
+    Serial.printf("[%s] Outbound allocation failed -> command dropped\n", networkManager.bridgeLogName());
     return false;
   }
   const BaseType_t queued = priority
@@ -339,7 +339,7 @@ static bool enqueueOutboundCmd(MqttCmdKind kind,
   if (queued != pdTRUE) {
     heap_caps_free(cmd);
     ++g_mqtt_outbound_dropped;
-    Serial.printf("[MQTT] Outbound %s queue full -> dropped (#%u)\n",
+    Serial.printf("[%s] Outbound %s queue full -> dropped (#%u)\n", networkManager.bridgeLogName(),
                   kind != MqttCmdKind::PUBLISH
                       ? "Control"
                       : (large_publish ? "Large-Publish" : "Publish"),
@@ -726,7 +726,7 @@ void HomeTilesNetworkManager::init() {
     mqtt_client.setClient(net_client);
     if (link_configured_) {
       mqtt_client.setServer(link_host_, link_port_);
-      Serial.printf("[Link] Direct Bridge link to %s:%u; MQTT is not used\n",
+      Serial.printf("[Link] Direct Bridge link to %s:%u\n",
                     link_host_, static_cast<unsigned>(link_port_));
     } else {
       mqtt_client.setServer(cfg.mqtt_host, cfg.mqtt_port);
@@ -734,7 +734,7 @@ void HomeTilesNetworkManager::init() {
     setMqttBufferSize(mqttNormalBufferSize(), "init");
     installMessageCallback();
   } else {
-    Serial.println("MQTT: No configuration available - skipping connection");
+    Serial.println("[Network] No connection to Home Assistant set up; not connecting");
   }
 
   Serial.println("✓ Network Manager initialized");
@@ -978,7 +978,7 @@ void HomeTilesNetworkManager::connectMqtt() {
   }
 
   if (!configManager.isConfigured()) {
-    Serial.println("MQTT: No configuration available");
+    Serial.println("[Network] Not configured yet; not connecting");
     return;
   }
 
@@ -1020,10 +1020,10 @@ void HomeTilesNetworkManager::connectMqtt() {
     Serial.printf("[Link] Connected to the Bridge%s\n",
                   link_pair_mode_flag ? " in pair mode" : "");
   } else {
-    Serial.println("✓ MQTT connected");
+    Serial.println("[MQTT] Connected to the broker");
   }
   mqtt_connected_at = millis();
-  logNetworkHeap("after-MQTT-connect");
+  logNetworkHeap("after-connect");
   finishMqttConnect(stat_topic);
 }
 
@@ -1039,7 +1039,7 @@ bool HomeTilesNetworkManager::connectMqttBroker(const char* stat_topic) {
     snprintf(client_id, sizeof(client_id), "Tab5_LVGL-%012llX", mac);
   }
 
-  Serial.printf("MQTT: Connecting to %s:%u as %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
+  Serial.printf("[MQTT] Connecting to %s:%u as %s\n", cfg.mqtt_host, cfg.mqtt_port, client_id);
 
   if (cfg.mqtt_user && cfg.mqtt_user[0]) {
     return mqtt_client.mqtt().connect(client_id, cfg.mqtt_user, cfg.mqtt_pass,
@@ -1190,24 +1190,24 @@ void HomeTilesNetworkManager::finishMqttConnect(const char* stat_topic) {
   }
   if (!bridge_apply_topic_.isEmpty()) {
     if (mqtt_client.subscribe(bridge_apply_topic_.c_str())) {
-      Serial.printf("[MQTT] Listening for bridge config on %s\n",
+      Serial.printf("[%s] Listening for bridge config on %s\n", networkManager.bridgeLogName(),
                     bridge_apply_topic_.c_str());
     } else {
-      Serial.printf("[MQTT] ERROR subscribing to bridge config on %s\n",
+      Serial.printf("[%s] ERROR subscribing to bridge config on %s\n", networkManager.bridgeLogName(),
                     bridge_apply_topic_.c_str());
     }
   }
   if (!history_response_topic_.isEmpty()) {
     mqtt_client.subscribe(history_response_topic_.c_str());
-    Serial.printf("[MQTT] Listening for history responses on %s\n", history_response_topic_.c_str());
+    Serial.printf("[%s] Listening for history responses on %s\n", networkManager.bridgeLogName(), history_response_topic_.c_str());
   }
   if (!energy_response_topic_.isEmpty()) {
     mqtt_client.subscribe(energy_response_topic_.c_str());
-    Serial.printf("[MQTT] Listening for energy responses on %s\n", energy_response_topic_.c_str());
+    Serial.printf("[%s] Listening for energy responses on %s\n", networkManager.bridgeLogName(), energy_response_topic_.c_str());
   }
   if (!bridge_icons_topic_.isEmpty()) {
     mqtt_client.subscribe(bridge_icons_topic_.c_str());
-    Serial.printf("[MQTT] Listening for icon updates on %s\n", bridge_icons_topic_.c_str());
+    Serial.printf("[%s] Listening for icon updates on %s\n", networkManager.bridgeLogName(), bridge_icons_topic_.c_str());
   }
 
   // Discard stale interactive commands after an ordinary disconnect.
@@ -1216,7 +1216,7 @@ void HomeTilesNetworkManager::finishMqttConnect(const char* stat_topic) {
   // topics subscribed above.
   if (mqtt_preserve_outbound_on_connect) {
     mqtt_preserve_outbound_on_connect = false;
-    Serial.println("[MQTT] DMA recovery: pending requests preserved");
+    Serial.printf("[%s] DMA recovery: pending requests preserved\n", networkManager.bridgeLogName());
   } else {
     purgeOutboundQueue();
   }
@@ -1247,7 +1247,7 @@ void HomeTilesNetworkManager::beginMqttWorker() {
     g_mqtt_publish_queue =
         xQueueCreate(kMqttPublishQueueDepth, sizeof(MqttOutboundCmd*));
     if (!g_mqtt_publish_queue) {
-      Serial.println("[MQTT] Could not create outbound publish queue");
+      Serial.printf("[%s] Could not create outbound publish queue\n", networkManager.bridgeLogName());
     }
   }
   if (!g_mqtt_large_publish_queue) {
@@ -1262,13 +1262,13 @@ void HomeTilesNetworkManager::beginMqttWorker() {
     g_mqtt_control_queue =
         xQueueCreate(kMqttControlQueueDepth, sizeof(MqttOutboundCmd*));
     if (!g_mqtt_control_queue) {
-      Serial.println("[MQTT] Could not create outbound control queue");
+      Serial.printf("[%s] Could not create outbound control queue\n", networkManager.bridgeLogName());
     }
   }
   if (!g_stream_done) {
     g_stream_done = xSemaphoreCreateBinary();
     if (!g_stream_done) {
-      Serial.println("[MQTT] Could not create stream-publish semaphore");
+      Serial.printf("[%s] Could not create stream-publish semaphore\n", networkManager.bridgeLogName());
     }
   }
   initMqttDmaReserve();
@@ -1308,7 +1308,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
         mqtt_client.publish(stat_topic, "0", true);
       }
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect for reconfiguration");
+      Serial.printf("[%s] Disconnect for reconfiguration\n", networkManager.bridgeLogName());
     }
     purgeOutboundQueue();
     mqtt_post_connect_pending = false;
@@ -1333,9 +1333,9 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
       installMessageCallback();
       mqtt_retry_at = 0;  // Connect immediately on the next iteration.
       mqtt_connect_failures = 0;  // Fresh transport, fresh backoff.
-      Serial.println("[MQTT] Reconfigure: new settings applied");
+      Serial.printf("[%s] Reconfigure: new settings applied\n", networkManager.bridgeLogName());
     } else {
-      Serial.println("[MQTT] Reconfigure: no host configured, remaining disconnected");
+      Serial.printf("[%s] Reconfigure: no host configured, remaining disconnected\n", networkManager.bridgeLogName());
     }
     return;
   }
@@ -1385,7 +1385,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
     mqtt_large_until = 0;
     if (mqtt_client.connected()) {
       mqtt_client.disconnect();
-      Serial.println("[OTA] MQTT disconnected for OTA");
+      Serial.printf("[OTA] %s disconnected for OTA\n", networkManager.bridgeLogName());
     }
     setMqttBufferSize(kMqttBufferOta, "ota");
     // This reserve protects MQTT publishes only. While OTA suspends the
@@ -1407,7 +1407,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (mqtt_disconnect_requested) {
     if (mqtt_client.connected()) {
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect requested (hotspot mode)");
+      Serial.printf("[%s] Disconnect requested (hotspot mode)\n", networkManager.bridgeLogName());
     }
     purgeOutboundQueue();
     mqtt_post_connect_pending = false;
@@ -1434,7 +1434,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   if (hold_until != 0 && (int32_t)(now_ms - hold_until) < 0) {
     if (mqtt_client.connected()) {
       mqtt_client.disconnect();
-      Serial.println("[MQTT] Disconnect during reconnect quiet period");
+      Serial.printf("[%s] Disconnect during reconnect quiet period\n", networkManager.bridgeLogName());
     }
     if (mqtt_connected_flag) mqtt_connected_flag = false;
     mqtt_post_connect_pending = false;
@@ -1451,7 +1451,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
     link_pair_mode_flag = false;
     if (mqtt_connected_flag) {
       mqtt_connected_flag = false;
-      Serial.println("[MQTT] Connection lost");
+      Serial.printf("[%s] Connection lost\n", networkManager.bridgeLogName());
     }
     if ((int32_t)(now_ms - mqtt_retry_at) >= 0) {
       connectMqtt();
@@ -1473,7 +1473,7 @@ void HomeTilesNetworkManager::serviceMqttWorker() {
   mqtt_buffer_size = mqtt_client.getBufferSize();
   mqtt_receive_buffer_floor = mqtt_client.getReceiveBufferSize();
   if (!mqtt_client.connected()) {
-    Serial.printf("[MQTT] Connection lost in loop, state=%d\n",
+    Serial.printf("[%s] Connection lost in loop, state=%d\n", networkManager.bridgeLogName(),
                   mqtt_client.state());
     mqtt_connected_flag = false;
     link_pair_mode_flag = false;
@@ -1503,7 +1503,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
     if ((uint32_t)(now_ms - g_mqtt_last_tx_guard_log_ms) >= 2000) {
       g_mqtt_last_tx_guard_log_ms = now_ms;
-      Serial.printf("[MQTT] %s waiting: DMA largest only %u KB\n",
+      Serial.printf("[%s] %s waiting: DMA largest only %u KB\n", networkManager.bridgeLogName(),
                     lane,
                     static_cast<unsigned>(largest / 1024));
     }
@@ -1533,7 +1533,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
           ok = mqtt_client.unsubscribe(cmd->topic);
         }
         if (!ok) {
-          Serial.printf("[MQTT] Worker: %s '%s' failed\n",
+          Serial.printf("[%s] Worker: %s '%s' failed\n", networkManager.bridgeLogName(),
                         verb, cmd->topic);
         }
         heap_caps_free(cmd);
@@ -1583,7 +1583,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
       const bool ok = mqtt_client.publish(
           cmd->topic, cmd->payload, cmd->payload_len, cmd->retain);
       if (!ok) {
-        Serial.printf("[MQTT] Worker: publish '%s' failed\n", cmd->topic);
+        Serial.printf("[%s] Worker: publish '%s' failed\n", networkManager.bridgeLogName(), cmd->topic);
       }
       heap_caps_free(cmd);
 
@@ -1683,7 +1683,7 @@ void HomeTilesNetworkManager::drainOutboundQueues(uint8_t max_commands) {
     const bool ok = mqtt_client.publish(
         cmd->topic, cmd->payload, cmd->payload_len, cmd->retain);
     if (!ok) {
-      Serial.printf("[MQTT] Worker: publish '%s' failed\n", cmd->topic);
+      Serial.printf("[%s] Worker: publish '%s' failed\n", networkManager.bridgeLogName(), cmd->topic);
     }
     heap_caps_free(cmd);
 
@@ -1847,7 +1847,7 @@ void HomeTilesNetworkManager::failPendingStreamPublish(const char* reason) {
   if (g_stream_done) xSemaphoreGive(g_stream_done);
   const uint32_t now_ms = millis();
   if (streamLogDue(now_ms)) {
-    Serial.printf("[MQTT] Stream publish failed: %s (sent=%u failed=%u)\n",
+    Serial.printf("[%s] Stream publish failed: %s (sent=%u failed=%u)\n", networkManager.bridgeLogName(),
                   reason ? reason : "?",
                   static_cast<unsigned>(g_stream_sent_count),
                   static_cast<unsigned>(g_stream_failed_count));
@@ -1976,7 +1976,7 @@ void HomeTilesNetworkManager::disconnectMqtt() {
     delay(5);
   }
   if (mqtt_disconnect_requested) {
-    Serial.println("[MQTT] WARNING: Worker did not acknowledge disconnect request");
+    Serial.printf("[%s] WARNING: Worker did not acknowledge disconnect request\n", networkManager.bridgeLogName());
   }
 }
 
@@ -1989,7 +1989,7 @@ void HomeTilesNetworkManager::requestMqttReconfigure() {
     delay(5);
   }
   if (mqtt_reconfig_requested) {
-    Serial.println("[MQTT] WARNING: Worker did not acknowledge reconfigure request");
+    Serial.printf("[%s] WARNING: Worker did not acknowledge reconfigure request\n", networkManager.bridgeLogName());
   }
 }
 
@@ -2004,7 +2004,7 @@ void HomeTilesNetworkManager::prepareMqttForOta() {
     delay(5);
   }
   if (mqtt_ota_prep_requested) {
-    Serial.println("[OTA] WARNING: MQTT worker did not acknowledge OTA preparation");
+    Serial.println("[OTA] WARNING: Network worker did not acknowledge OTA preparation");
   }
 }
 
@@ -2016,7 +2016,7 @@ void HomeTilesNetworkManager::deferMqttReconnect(uint32_t hold_ms) {
   mqtt_post_connect_ready_at = 0;
   mqtt_large_until = 0;
   purgeOutboundQueue();
-  Serial.printf("[MQTT] Reconnect paused for %u ms\n",
+  Serial.printf("[%s] Reconnect paused for %u ms\n", networkManager.bridgeLogName(),
                 static_cast<unsigned>(hold_ms));
 }
 
@@ -2037,7 +2037,7 @@ bool HomeTilesNetworkManager::setMqttBufferSize(uint16_t size, const char* reaso
   }
 
   if (!mqtt_client.setBufferSize(size)) {
-    Serial.printf("[MQTT] Buffer resize failed: %u -> %u bytes (%s)\n",
+    Serial.printf("[%s] Buffer resize failed: %u -> %u bytes (%s)\n", networkManager.bridgeLogName(),
                   static_cast<unsigned>(before),
                   static_cast<unsigned>(size),
                   reason ? reason : "?");
@@ -2045,7 +2045,7 @@ bool HomeTilesNetworkManager::setMqttBufferSize(uint16_t size, const char* reaso
   }
 
   mqtt_buffer_size = mqtt_client.getBufferSize();
-  Serial.printf("[MQTT] Buffer: %u -> %u bytes (%s, %s)\n",
+  Serial.printf("[%s] Buffer: %u -> %u bytes (%s, %s)\n", networkManager.bridgeLogName(),
                 static_cast<unsigned>(before),
                 static_cast<unsigned>(mqtt_buffer_size),
                 reason ? reason : "?",
@@ -2105,7 +2105,7 @@ void HomeTilesNetworkManager::publishBridgeConfig() {
   const char* publish_payload = is_signed ? signed_payload : payload.c_str();
   const size_t packet_estimate = strlen(publish_payload) + topic.length() + 16;
   if (packet_estimate > kMqttBufferLarge) {
-    Serial.printf("[Network] Bridge config too large for MQTT buffer: %u > %u bytes\n",
+    Serial.printf("[Network] Bridge config too large for the send buffer: %u > %u bytes\n",
                   static_cast<unsigned>(packet_estimate),
                   static_cast<unsigned>(kMqttBufferLarge));
   }

@@ -884,7 +884,7 @@ static void sync_external_temp_entity(bool publish_mqtt) {
 #if TAB5_HAS_ONEWIRE_DS18X20
   static bool reported_pin = false;
   if (!reported_pin && g_external_pin != 0xFF) {
-    Serial.printf("[OneWire] MQTT publish to %s (GPIO %u)\n",
+    Serial.printf("[OneWire] Publish to %s (GPIO %u)\n",
                   topic.c_str(),
                   static_cast<unsigned>(g_external_pin));
     reported_pin = true;
@@ -1727,12 +1727,12 @@ static char* mqttScratchBuffer(char*& slot, size_t bytes, const char* name) {
     where = "internal";
   }
   if (!slot) {
-    Serial.printf("[MQTT] Scratch buffer alloc failed: %s %u bytes\n",
+    Serial.printf("[%s] Scratch buffer alloc failed: %s %u bytes\n", networkManager.bridgeLogName(),
                   name ? name : "?",
                   static_cast<unsigned>(bytes));
     return nullptr;
   }
-  Serial.printf("[MQTT] Scratch buffer %s: %u bytes in %s\n",
+  Serial.printf("[%s] Scratch buffer %s: %u bytes in %s\n", networkManager.bridgeLogName(),
                 name ? name : "?",
                 static_cast<unsigned>(bytes),
                 where);
@@ -1791,7 +1791,7 @@ static QueueHandle_t mqttInboundQueue() {
   if (!g_mqtt_inbound_queue) {
     g_mqtt_inbound_queue = xQueueCreate(kMqttInboundQueueDepth, sizeof(MqttInboundMsg*));
     if (!g_mqtt_inbound_queue) {
-      Serial.println("[MQTT] Could not create inbound queue");
+      Serial.printf("[%s] Could not create inbound queue\n", networkManager.bridgeLogName());
     }
   }
   return g_mqtt_inbound_queue;
@@ -1912,7 +1912,7 @@ void mqtt_process_inbound_queue(uint8_t max_msgs) {
   }
   const uint32_t drain_ms = millis() - drain_started;
   if (drain_ms >= kSlowDrainMs) {
-    Serial.printf("[MqttInbound] Drained %u messages in %u ms; slowest %u ms: %s\n",
+    Serial.printf("[Inbound] Drained %u messages in %u ms; slowest %u ms: %s\n",
                   static_cast<unsigned>(drained), static_cast<unsigned>(drain_ms),
                   static_cast<unsigned>(slowest_ms), slowest_topic);
   }
@@ -1926,7 +1926,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
   // processing -- which now runs later, on the loop drainer.
   uint32_t entry_since_tick = millis() - g_lvgl_tick_last_ms;
   if (entry_since_tick >= 50) {
-    Serial.printf("[Bridge] mqttCallback entry: %ums since last LVGL tick service\n",
+    Serial.printf("[Bridge] Message callback entry: %ums since last LVGL tick service\n",
                   (unsigned)entry_since_tick);
   }
 
@@ -1952,7 +1952,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
   }
   if (!msg) {
     g_inbound_dropped = true;
-    Serial.printf("[MQTT] Inbound allocation/queue unavailable; dropped '%s'\n",
+    Serial.printf("[%s] Inbound allocation/queue unavailable; dropped '%s'\n", networkManager.bridgeLogName(),
                   topic ? topic : "?");
     return;
   }
@@ -1967,7 +1967,7 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
     const uint32_t drop_now_ms = millis();
     if (last_drop_log_ms == 0 || (uint32_t)(drop_now_ms - last_drop_log_ms) >= 5000) {
       last_drop_log_ms = drop_now_ms;
-      Serial.printf("[MQTT] Inbound queue full -> message dropped (latest: %s)\n",
+      Serial.printf("[%s] Inbound queue full -> message dropped (latest: %s)\n", networkManager.bridgeLogName(),
                     topic ? topic : "?");
     }
   }
@@ -1980,7 +1980,7 @@ void mqttStreamCallback(const char* topic, uint8_t* data, size_t length) {
   QueueHandle_t q = mqttInboundQueue();
   const size_t topic_len = topic ? strnlen(topic, 256) : 0;
   if (!q || !data || topic_len == 0 || topic_len >= 256 || !strstr(topic, "/image/")) {
-    Serial.printf("[MQTT] Streamed message dropped (%u bytes): %s\n",
+    Serial.printf("[%s] Streamed message dropped (%u bytes): %s\n", networkManager.bridgeLogName(),
                   static_cast<unsigned>(length), topic ? topic : "?");
     if (data) heap_caps_free(data);
     return;
@@ -1989,7 +1989,7 @@ void mqttStreamCallback(const char* topic, uint8_t* data, size_t length) {
       heap_caps_malloc(sizeof(MqttInboundMsg) + topic_len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (!block) {
     heap_caps_free(data);
-    Serial.printf("[MQTT] Inbound allocation unavailable; dropped '%s'\n", topic);
+    Serial.printf("[%s] Inbound allocation unavailable; dropped '%s'\n", networkManager.bridgeLogName(), topic);
     return;
   }
   MqttInboundMsg* msg = reinterpret_cast<MqttInboundMsg*>(block);
@@ -2001,7 +2001,7 @@ void mqttStreamCallback(const char* topic, uint8_t* data, size_t length) {
   g_last_inbound_ms = millis();
   if (xQueueSend(q, &msg, pdMS_TO_TICKS(50)) != pdTRUE) {
     mqttFreeInbound(msg);
-    Serial.printf("[MQTT] Inbound queue full -> streamed message dropped: %s\n", topic);
+    Serial.printf("[%s] Inbound queue full -> streamed message dropped: %s\n", networkManager.bridgeLogName(), topic);
   }
 }
 
@@ -2067,7 +2067,7 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
         // bridge/apply, so replying here creates an apply/announce feedback loop.
         // Refresh dynamic topics after a quiet window and coalesce repeated reloads.
         mqttRequestDynamicSlotsReload();
-        Serial.println("[Bridge] mqttReloadDynamicSlots scheduled after quiet period");
+        Serial.println("[Bridge] Dynamic subscriptions scheduled after the quiet period");
       }
       if (icons_changed) {
         tiles_request_icon_refresh();
@@ -2214,38 +2214,34 @@ static void processMqttMessage(char* topic, uint8_t* payload, unsigned int lengt
     return;
   }
 
-  Serial.printf("MQTT: Unhandled topic %s\n", topic);
+  Serial.printf("[%s] Unhandled topic %s\n", networkManager.bridgeLogName(), topic);
 }
 
 // ========== Subscribe to topics ==========
 void mqttSubscribeTopics() {
-  networkManager.mqttEnqueueSubscribe((mqttTopics.deviceBase() + "/stat/value").c_str());
+  unsigned queued = 0;
+  if (networkManager.mqttEnqueueSubscribe((mqttTopics.deviceBase() + "/stat/value").c_str())) {
+    ++queued;
+  }
   for (const auto& route : kRoutes) {
     const char* tpc = mqttTopics.topic(route.key);
     if (!tpc || !*tpc) continue;
-    if (networkManager.mqttEnqueueSubscribe(tpc)) {
-      Serial.printf("MQTT: subscribe queued %s\n", tpc);
-    }
+    if (networkManager.mqttEnqueueSubscribe(tpc)) ++queued;
   }
   // Explicit, capability-gated subscription: profiles without the built-in
   // camera never subscribe to {base}/cmnd/local_camera.
   if (const char* camera_topic = local_camera::commandTopic()) {
-    if (networkManager.mqttEnqueueSubscribe(camera_topic)) {
-      Serial.printf("MQTT: subscribe queued %s\n", camera_topic);
-    }
+    if (networkManager.mqttEnqueueSubscribe(camera_topic)) ++queued;
   }
   // Same for {base}/cmnd/audio on profiles without a speaker.
   if (const char* audio_topic = speaker::commandTopic()) {
-    if (networkManager.mqttEnqueueSubscribe(audio_topic)) {
-      Serial.printf("MQTT: subscribe queued %s\n", audio_topic);
-    }
+    if (networkManager.mqttEnqueueSubscribe(audio_topic)) ++queued;
   }
   // And {base}/cmnd/assist (microphone capture for Home Assistant Assist).
   if (const char* assist_topic = speaker::assistCommandTopic()) {
-    if (networkManager.mqttEnqueueSubscribe(assist_topic)) {
-      Serial.printf("MQTT: subscribe queued %s\n", assist_topic);
-    }
+    if (networkManager.mqttEnqueueSubscribe(assist_topic)) ++queued;
   }
+  Serial.printf("[%s] %u fixed subscriptions queued\n", networkManager.bridgeLogName(), queued);
 
   // After MQTT reconnects, the broker has no subscriptions for this session.
   // Subscribe to every existing route once without first queueing pointless
@@ -2334,12 +2330,12 @@ void mqttPublishScene(const char* scene_name) {
   if (entity.length() && !ha_control::supportsSceneTile(entity.c_str())) return;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Scene command skipped (MQTT offline): %s\n", scene_name);
+    Serial.printf("Scene command skipped (offline): %s\n", scene_name);
     return;
   }
 
   bool queued = networkManager.mqttEnqueuePublish(mqttTopics.topic(TopicKey::SCENE_CMND), scene_name, false);
-  Serial.printf("Scene command -> MQTT '%s' (%s)\n", scene_name, queued ? "queued" : "queue-full");
+  Serial.printf("Scene command -> '%s' (%s)\n", scene_name, queued ? "queued" : "queue-full");
 }
 
 // ========== Publish light/switch command ==========
@@ -2349,7 +2345,7 @@ void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
   if (!ha_control::supportsSwitchTile(entity_id)) return;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Switch command skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Switch command skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2369,14 +2365,14 @@ void mqttPublishSwitchCommand(const char* entity_id, const char* state) {
   char payload[256];
   snprintf(payload, sizeof(payload), "{\"entity_id\":\"%s\",\"state\":\"%s\"}", entity_id, action);
   bool queued = networkManager.mqttEnqueuePublish(topic, payload, false);
-  Serial.printf("Switch command -> MQTT '%s' (%s)\n", topic, queued ? "queued" : "queue-full");
+  Serial.printf("Switch command -> '%s' (%s)\n", topic, queued ? "queued" : "queue-full");
 }
 
 void mqttPublishMediaCommand(const char* entity_id, const char* command) {
   if (!entity_id || !*entity_id) return;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Media command skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Media command skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2390,7 +2386,7 @@ void mqttPublishMediaCommand(const char* entity_id, const char* command) {
   char payload[256];
   snprintf(payload, sizeof(payload), "{\"entity_id\":\"%s\",\"command\":\"%s\"}", entity_id, action);
   bool queued = networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Media command -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Media command -> '%s' (%s, priority)\n",
                 topic, queued ? "queued" : "queue-full");
 }
 
@@ -2399,7 +2395,7 @@ void mqttPublishMediaSeek(const char* entity_id, float position_seconds) {
   if (position_seconds < 0.0f) position_seconds = 0.0f;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Media seek skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Media seek skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2416,7 +2412,7 @@ void mqttPublishMediaSeek(const char* entity_id, float position_seconds) {
            entity_id,
            position_seconds);
   bool queued = networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Media seek -> MQTT '%s' %.1fs (%s, priority)\n",
+  Serial.printf("Media seek -> '%s' %.1fs (%s, priority)\n",
                 topic,
                 position_seconds,
                 queued ? "queued" : "queue-full");
@@ -2428,7 +2424,7 @@ void mqttPublishMediaVolume(const char* entity_id, float volume_level) {
   if (volume_level > 1.0f) volume_level = 1.0f;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Media volume skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Media volume skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2445,7 +2441,7 @@ void mqttPublishMediaVolume(const char* entity_id, float volume_level) {
            entity_id,
            volume_level);
   bool queued = networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Media volume -> MQTT '%s' %.0f%% (%s, priority)\n",
+  Serial.printf("Media volume -> '%s' %.0f%% (%s, priority)\n",
                 topic, volume_level * 100.0f,
                 queued ? "queued" : "queue-full");
 }
@@ -2454,7 +2450,7 @@ void mqttPublishMediaMute(const char* entity_id, bool muted) {
   if (!entity_id || !*entity_id) return;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Media mute skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Media mute skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2471,7 +2467,7 @@ void mqttPublishMediaMute(const char* entity_id, bool muted) {
            entity_id,
            muted ? "true" : "false");
   bool queued = networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Media mute -> MQTT '%s' %s (%s, priority)\n",
+  Serial.printf("Media mute -> '%s' %s (%s, priority)\n",
                 topic, muted ? "on" : "off",
                 queued ? "queued" : "queue-full");
 }
@@ -2483,7 +2479,7 @@ void mqttPublishClimateTemperature(const char* entity_id,
                                    float target_high) {
   if (!entity_id || !*entity_id) return;
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Climate temperature skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Climate temperature skipped (offline): %s\n", entity_id);
     return;
   }
   const char* topic = mqttTopics.topic(TopicKey::CLIMATE_CMND);
@@ -2503,14 +2499,14 @@ void mqttPublishClimateTemperature(const char* entity_id,
   }
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Climate temperature -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Climate temperature -> '%s' (%s, priority)\n",
                 topic, queued ? "queued" : "queue-full");
 }
 
 void mqttPublishClimateHumidity(const char* entity_id, float humidity) {
   if (!entity_id || !*entity_id) return;
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Climate humidity skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Climate humidity skipped (offline): %s\n", entity_id);
     return;
   }
   const char* topic = mqttTopics.topic(TopicKey::CLIMATE_CMND);
@@ -2523,14 +2519,14 @@ void mqttPublishClimateHumidity(const char* entity_id, float humidity) {
            entity_id, humidity);
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Climate humidity -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Climate humidity -> '%s' (%s, priority)\n",
                 topic, queued ? "queued" : "queue-full");
 }
 
 void mqttPublishClimateHvacMode(const char* entity_id, const char* hvac_mode) {
   if (!entity_id || !*entity_id || !hvac_mode || !*hvac_mode) return;
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Climate mode skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Climate mode skipped (offline): %s\n", entity_id);
     return;
   }
   const char* topic = mqttTopics.topic(TopicKey::CLIMATE_CMND);
@@ -2543,7 +2539,7 @@ void mqttPublishClimateHvacMode(const char* entity_id, const char* hvac_mode) {
            entity_id, hvac_mode);
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Climate mode -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Climate mode -> '%s' (%s, priority)\n",
                 topic, queued ? "queued" : "queue-full");
 }
 
@@ -2551,7 +2547,7 @@ void mqttPublishClimatePresetMode(
     const char* entity_id, const char* preset_mode) {
   if (!entity_id || !*entity_id || !preset_mode || !*preset_mode) return;
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Climate preset skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Climate preset skipped (offline): %s\n", entity_id);
     return;
   }
   const char* topic = mqttTopics.topic(TopicKey::CLIMATE_CMND);
@@ -2564,7 +2560,7 @@ void mqttPublishClimatePresetMode(
            entity_id, preset_mode);
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Climate preset -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Climate preset -> '%s' (%s, priority)\n",
                 topic, queued ? "queued" : "queue-full");
 }
 
@@ -2579,7 +2575,7 @@ static void mqtt_publish_climate_option(
     return;
   }
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Climate %s skipped (MQTT offline): %s\n",
+    Serial.printf("Climate %s skipped (offline): %s\n",
                   log_name, entity_id);
     return;
   }
@@ -2592,7 +2588,7 @@ static void mqtt_publish_climate_option(
            entity_id, command, field, value);
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Climate %s -> MQTT '%s' (%s, priority)\n",
+  Serial.printf("Climate %s -> '%s' (%s, priority)\n",
                 log_name, topic, queued ? "queued" : "queue-full");
 }
 
@@ -2636,7 +2632,7 @@ void mqttPublishCoverCommand(const char* entity_id,
     return;
   }
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Cover command skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Cover command skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2669,7 +2665,7 @@ void mqttPublishCoverCommand(const char* entity_id,
   }
   const bool queued =
       networkManager.mqttEnqueuePublishPriority(topic, payload, false);
-  Serial.printf("Cover command -> MQTT '%s' command=%s (%s, priority)\n",
+  Serial.printf("Cover command -> '%s' command=%s (%s, priority)\n",
                 topic, command, queued ? "queued" : "queue-full");
 }
 
@@ -2683,7 +2679,7 @@ void mqttPublishLightCommand(const char* entity_id,
   if (handle_local_light_command(entity_id, state, brightness_pct)) return;
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Light command skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("Light command skipped (offline): %s\n", entity_id);
     return;
   }
 
@@ -2730,7 +2726,7 @@ void mqttPublishLightCommand(const char* entity_id,
   payload += "}";
 
   bool queued = networkManager.mqttEnqueuePublish(topic, payload.c_str(), false);
-  Serial.printf("Light command -> MQTT '%s' (%s)\n", topic, queued ? "queued" : "queue-full");
+  Serial.printf("Light command -> '%s' (%s)\n", topic, queued ? "queued" : "queue-full");
 }
 
 void mqttPublishHistoryRequest(const char* entity_id,
@@ -2783,7 +2779,7 @@ void mqttPublishHistoryRequest(const char* entity_id,
     // before the request was even sent.
     bool ok = networkManager.mqttEnqueuePublishWithLargeBuffer(
         history_topic, payload.c_str(), false, 20000, true);
-    Serial.printf("History request -> MQTT '%s' (%s, priority)\n",
+    Serial.printf("History request -> '%s' (%s, priority)\n",
                   history_topic, ok ? "queued" : "queue-full");
     if (ok) {
       mark_pending_history_request(entity_id, millis(), hours, period_minutes, points);
@@ -2800,7 +2796,7 @@ void mqttPublishHistoryRequest(const char* entity_id,
   }
 
   if (!mqtt_online) {
-    Serial.printf("History request skipped (MQTT offline): %s\n", entity_id);
+    Serial.printf("History request skipped (offline): %s\n", entity_id);
   } else if (!history_topic || !*history_topic) {
     Serial.printf("History request skipped (no topic): %s\n", entity_id);
   }
@@ -2847,7 +2843,7 @@ static void mqttPublishDiscreteHistoryRequest(const char* entity_id,
 
   const bool queued = networkManager.mqttEnqueuePublishWithLargeBuffer(
       history_topic, payload.c_str(), false, 20000, true);
-  Serial.printf("[%s] Request -> MQTT '%s' (%s, priority)\n", log_tag,
+  Serial.printf("[%s] Request -> '%s' (%s, priority)\n", log_tag,
                 history_topic, queued ? "queued" : "queue-full");
   if (queued) {
     mark_pending_discrete_history_request(entity_id, kind, hours);
@@ -2885,7 +2881,7 @@ void mqttPublishWeatherRequest(const char* entity_id) {
   payload += "\"}";
 
   bool queued = networkManager.mqttEnqueuePublish(weather_topic, payload.c_str(), false);
-  Serial.printf("Weather request -> MQTT '%s' (%s)\n", weather_topic, queued ? "queued" : "queue-full");
+  Serial.printf("Weather request -> '%s' (%s)\n", weather_topic, queued ? "queued" : "queue-full");
 }
 
 bool mqttPublishEnergyRequest(const char* period) {
@@ -2895,7 +2891,7 @@ bool mqttPublishEnergyRequest(const char* period) {
   }
 
   if (!networkManager.isMqttConnected()) {
-    Serial.printf("Energy request skipped (MQTT offline): %s\n", p);
+    Serial.printf("Energy request skipped (offline): %s\n", p);
     return false;
   }
 
@@ -2914,7 +2910,7 @@ bool mqttPublishEnergyRequest(const char* period) {
   // from the loop task or bypassing P4 SDIO guard intervals.
   bool queued = networkManager.mqttEnqueuePublishWithLargeBuffer(
       energy_topic, payload.c_str(), false, 12000, true);
-  Serial.printf("Energy request -> MQTT '%s' period=%s (%s, priority)\n",
+  Serial.printf("Energy request -> '%s' period=%s (%s, priority)\n",
                 energy_topic,
                 p,
                 queued ? "queued" : "queue-full");
@@ -3007,14 +3003,11 @@ void mqttReloadDynamicSlots(bool subscribe_all) {
     }
     for (const auto& topic : new_topics) {
       if (!subscribe_all && topicListContains(old_topics, topic)) continue;
-      if (networkManager.mqttEnqueueSubscribe(topic.c_str())) {
-        ++subscribe_count;
-        Serial.printf("MQTT: subscribe queued %s\n", topic.c_str());
-      }
+      if (networkManager.mqttEnqueueSubscribe(topic.c_str())) ++subscribe_count;
       lvglServiceDuringBlockingWork();
     }
   }
-  Serial.printf("[Bridge] mqttReloadDynamicSlots: -%u +%u Topics in %u ms%s\n",
+  Serial.printf("[Bridge] Dynamic subscriptions: -%u +%u topics in %u ms%s\n",
                 static_cast<unsigned>(unsubscribe_count),
                 static_cast<unsigned>(subscribe_count),
                 static_cast<unsigned>(millis() - t_control0),
@@ -3046,7 +3039,7 @@ void mqttServiceDynamicSlotsReload() {
   g_dynamic_slots_reload_requested = false;
   uint32_t t_slots0 = millis();
   mqttReloadDynamicSlots();
-  Serial.printf("[Bridge] deferred mqttReloadDynamicSlots: %u ms\n",
+  Serial.printf("[Bridge] Deferred dynamic subscriptions: %u ms\n",
                 (unsigned)(millis() - t_slots0));
 }
 
@@ -3064,7 +3057,7 @@ void mqttServicePostConnect() {
     command_channel::onMqttConnected();
     return;
   }
-  Serial.println("[MQTT] Post-connect: subscriptions/discovery/settings (loop task)");
+  Serial.printf("[%s] Post-connect: subscriptions/discovery/settings (loop task)\n", networkManager.bridgeLogName());
   viewNavigationConnected();
   mqttSubscribeTopics();
   mqttPublishDiscovery();

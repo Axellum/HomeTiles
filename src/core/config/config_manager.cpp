@@ -565,8 +565,11 @@ bool ConfigManager::load() {
 
   Serial.println("✓ ConfigManager: Configuration loaded");
   Serial.printf("  WiFi SSID: %s\n", config.wifi_ssid);
-  Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
-  Serial.printf("  MQTT User: %s\n", config.mqtt_user);
+  // A panel on the direct link keeps no broker: nothing to show then.
+  if (config.mqtt_host[0]) {
+    Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
+    Serial.printf("  MQTT User: %s\n", config.mqtt_user);
+  }
 
   return true;
 }
@@ -766,7 +769,7 @@ bool ConfigManager::save(const DeviceConfig& cfg) {
 
   Serial.println("✓ ConfigManager: Configuration saved");
   Serial.printf("  WiFi SSID: %s\n", config.wifi_ssid);
-  Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
+  if (config.mqtt_host[0]) Serial.printf("  MQTT Host: %s:%u\n", config.mqtt_host, config.mqtt_port);
 
   return true;
 }

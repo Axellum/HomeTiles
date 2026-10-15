@@ -36,7 +36,7 @@ assert.doesNotMatch(light, /esp_timer|backtrace|WiFi/, 'no timer, backtraces or 
 const drain = cppFunctionDefinitions(read('src/network/mqtt/mqtt_handlers.cpp'))
   .find(f => f.name === 'mqtt_process_inbound_queue').source;
 assert.match(drain, /constexpr uint32_t kSlowDrainMs = 300;/);
-assert.match(drain, /\[MqttInbound\] Drained %u messages in %u ms; slowest %u ms: %s\\n",\s*static_cast<unsigned>\(drained\)/);
+assert.match(drain, /\[Inbound\] Drained %u messages in %u ms; slowest %u ms: %s\\n",\s*static_cast<unsigned>\(drained\)/);
 assert.match(source, /args\.dispatch_method = ESP_TIMER_TASK;/, 'the check runs outside the loop task');
 assert.match(source, /esp_backtrace_print_all_tasks\(kBacktraceDepth\)/, 'task backtraces name the blocking call');
 assert.match(source, /constexpr uint8_t kMaxBacktraces = 3;/, 'backtraces are bounded per boot');

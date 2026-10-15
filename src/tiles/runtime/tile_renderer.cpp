@@ -3486,14 +3486,14 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   JRESULT rc = jd_prepare(&jd, media_cover_jpeg_input, work, 4096, &ctx);
   if (rc != JDR_OK || jd.width == 0 || jd.height == 0 ||
       jd.width > UINT16_MAX || jd.height > UINT16_MAX) {
-    Serial.printf("[MediaCover] MQTT JPEG prepare failed: %d\n", static_cast<int>(rc));
+    Serial.printf("[MediaCover] JPEG prepare failed: %d\n", static_cast<int>(rc));
     free(work);
     return nullptr;
   }
 
   const size_t full_pixels = static_cast<size_t>(jd.width) * jd.height;
   if (full_pixels == 0 || full_pixels > (512U * 512U)) {
-    Serial.printf("[MediaCover] MQTT JPEG too large: %ux%u\n",
+    Serial.printf("[MediaCover] JPEG too large: %ux%u\n",
                   static_cast<unsigned>(jd.width),
                   static_cast<unsigned>(jd.height));
     free(work);
@@ -3514,7 +3514,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   rc = jd_decomp(&jd, media_cover_jpeg_output, 0);
   free(work);
   if (rc != JDR_OK) {
-    Serial.printf("[MediaCover] MQTT JPEG decode failed: %d\n", static_cast<int>(rc));
+    Serial.printf("[MediaCover] JPEG decode failed: %d\n", static_cast<int>(rc));
     free(full);
     return nullptr;
   }
@@ -3573,7 +3573,7 @@ static lv_image_dsc_t* make_media_cover_decoded_jpeg_dsc(const uint8_t* data, si
   dsc->data_size = final_bytes;
   dsc->data = reinterpret_cast<const uint8_t*>(final_pixels);
 
-  Serial.printf("[MediaCover] MQTT JPEG decoded: %ux%u -> %ux%u, %u bytes\n",
+  Serial.printf("[MediaCover] JPEG decoded: %ux%u -> %ux%u, %u bytes\n",
                 static_cast<unsigned>(ctx.w),
                 static_cast<unsigned>(ctx.h),
                 static_cast<unsigned>(dst_w),
@@ -3663,13 +3663,13 @@ static lv_image_dsc_t* make_media_cover_dsc_from_bytes(const uint8_t* data, size
   if (is_media_cover_png(data, len)) {
     lv_image_dsc_t* dsc = make_media_cover_raw_dsc(data, len);
     if (dsc) {
-      Serial.printf("[MediaCover] MQTT PNG passed to LVGL decoder: %ux%u\n",
+      Serial.printf("[MediaCover] PNG passed to LVGL decoder: %ux%u\n",
                     static_cast<unsigned>(dsc->header.w),
                     static_cast<unsigned>(dsc->header.h));
     }
     return dsc;
   }
-  Serial.printf("[MediaCover] Unknown MQTT image format: %02X %02X %02X %02X\n",
+  Serial.printf("[MediaCover] Unknown image format: %02X %02X %02X %02X\n",
                 data[0], data[1], data[2], data[3]);
   return nullptr;
 }
@@ -3696,7 +3696,7 @@ static lv_image_dsc_t* make_media_cover_dsc_from_base64(const String& encoded) {
     return nullptr;
   }
 
-  Serial.printf("[MediaCover] MQTT Cover Base64: encoded=%u decoded=%d bytes magic=%02X %02X %02X %02X\n",
+  Serial.printf("[MediaCover] Cover Base64: encoded=%u decoded=%d bytes magic=%02X %02X %02X %02X\n",
                 static_cast<unsigned>(encoded.length()),
                 decoded_len,
                 decoded[0], decoded[1], decoded[2], decoded[3]);

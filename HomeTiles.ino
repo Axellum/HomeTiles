@@ -427,7 +427,7 @@ static GithubUpdate::CheckResult perform_fw_check() {
 
   // Keep MQTT connected. Disconnecting it does not help the synchronous HTTPS
   // handshake and creates a retained subscribe/state burst afterwards.
-  Serial.println("[Update] Check: MQTT stays connected");
+  Serial.printf("[Update] Check: %s stays connected\n", networkManager.bridgeLogName());
 #if defined(DEVICE_ESP32_S3_RGB_480)
   const bool s3_rgb_network_active = networkTransport.isConnected();
 #endif
@@ -1077,7 +1077,7 @@ void setup() {
   log_memory_status("after-ui-build");
   Serial.flush();
 
-  Serial.println("[Setup] MQTT Topics...");
+  Serial.println("[Setup] Topics...");
   Serial.flush();
   TopicSettings ts;
   if (has_config) {
@@ -1086,7 +1086,7 @@ void setup() {
     ts.ha_prefix = dcfg.ha_prefix;
   }
   mqttTopics.begin(ts);
-  Serial.println("[Setup] MQTT Topics OK");
+  Serial.println("[Setup] Topics OK");
   // Built-in camera opt-in (exact camera profiles only). The sensor probe
   // runs on its own worker and needs the touch-owned I2C bus from Device init.
   local_camera::begin();
@@ -1112,7 +1112,7 @@ void setup() {
     log_memory_status("after-network-init");
     Serial.flush();
 
-    Serial.println("[Setup] MQTT-Worker...");
+    Serial.println("[Setup] Network worker...");
     Serial.flush();
     networkManager.beginMqttWorker();
     const BaseType_t mqtt_worker_core = (ARDUINO_RUNNING_CORE == 0) ? 1 : 0;
@@ -1120,14 +1120,14 @@ void setup() {
                                         nullptr, tskIDLE_PRIORITY,
                                         &g_mqtt_worker_handle, mqtt_worker_core,
                                         MALLOC_CAP_SPIRAM) == pdPASS) {
-      Serial.printf("[Setup] MQTT worker started on core %d\n", (int)mqtt_worker_core);
+      Serial.printf("[Setup] Network worker started on core %d\n", (int)mqtt_worker_core);
     } else {
       // Do not silently fall back to the loop task. Sharing the MQTT client would
       // reintroduce the race this single-owner design prevents; fail explicitly.
       g_mqtt_worker_handle = nullptr;
-      Serial.println("[Setup] ERROR: MQTT worker could not be started -- MQTT remains offline!");
+      Serial.println("[Setup] ERROR: Network worker could not be started -- Home Assistant stays offline!");
     }
-    log_memory_status("after-mqtt-worker");
+    log_memory_status("after-network-worker");
     Serial.flush();
   } else {
     Serial.println("[Setup] Skipping network (no configuration)");
@@ -1598,7 +1598,7 @@ void loop() {
     }
     if (!logged_mqtt_connected && networkManager.isMqttConnected()) {
       logged_mqtt_connected = true;
-      log_memory_status("mqtt-connected");
+      log_memory_status("bridge-connected");
     }
   }
 

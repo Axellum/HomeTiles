@@ -924,9 +924,9 @@ void WebAdminServer::handleSaveTiles() {
       // the separate screensaver grid so its media entity subscribes to both
       // state and state_fast.
       mqttRequestDynamicSlotsReload(5000);
-      Serial.println("[WebAdmin] MQTT routes marked for deferred rebuild");
+      Serial.println("[WebAdmin] Bridge routes marked for deferred rebuild");
     } else if (!screensaver_grid) {
-      Serial.println("[WebAdmin] MQTT routes unchanged (no rebuild for style/layout)");
+      Serial.println("[WebAdmin] Bridge routes unchanged (no rebuild for style/layout)");
     }
     // The Bridge serves a tile's entity once the panel declares it, also one
     // without MQTT routes (a camera tile: "unknown_camera" until a restart,

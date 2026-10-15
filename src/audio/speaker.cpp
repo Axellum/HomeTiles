@@ -1074,7 +1074,7 @@ bool handleWakeDetection(const char* word, const String& topic, uint32_t mask, u
       !networkManager.mqttEnqueuePublish(topic.c_str(), reinterpret_cast<const uint8_t*>(payload),
                                          length, false)) {
     if (logDue(&g_wake_log_ms, 10000)) {
-      Serial.printf("%s Wake word %s detected but not sent (MQTT unavailable)\n", kLogPrefix, word);
+      Serial.printf("%s Wake word %s detected but not sent (not connected)\n", kLogPrefix, word);
     }
     return true;
   }
