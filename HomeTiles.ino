@@ -19,6 +19,7 @@
 #include "src/core/power/power_manager.h"
 #include "src/core/config/config_manager.h"
 #include "src/core/diagnostics/crash_log.h"
+#include "src/core/diagnostics/icon_file_probe.h"
 #include "src/core/diagnostics/loop_stall.h"
 #include "src/core/diagnostics/text_fit_probe.h"
 #include "src/core/firmware/firmware_version.h"
@@ -1098,6 +1099,7 @@ void loop() {
   lv_tick_inc(now - g_lvgl_tick_last_ms);
   g_lvgl_tick_last_ms = now;
   loop_stall::enter(loop_stall::Step::Top);
+  icon_file_probe::step();
 
   if (hotspot_mode_change_pending) {
     hotspot_mode_change_pending = false;
