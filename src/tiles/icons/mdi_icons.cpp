@@ -7550,9 +7550,13 @@ uint32_t getMdiCodepoint(const String& iconName) {
     return codepoint;
   }
 
-  // Fall back to the question-mark icon.
   // Serial.printf("[MDI] Icon '%s' not found, using fallback\n", searchName.c_str());
-  return 0xF02D8;
+  return mdiUnknownIconCodepoint();
+}
+
+uint32_t mdiUnknownIconCodepoint() {
+  static const int32_t index = findIconIndex("hexagon");
+  return index >= 0 ? pgm_read_dword(&iconMap[index].codepoint) : 0;
 }
 
 // Return the UTF-8 icon text for lv_label_set_text.

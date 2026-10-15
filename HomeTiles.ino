@@ -19,7 +19,6 @@
 #include "src/core/power/power_manager.h"
 #include "src/core/config/config_manager.h"
 #include "src/core/diagnostics/crash_log.h"
-#include "src/core/diagnostics/icon_file_probe.h"
 #include "src/core/diagnostics/loop_stall.h"
 #include "src/core/diagnostics/text_fit_probe.h"
 #include "src/core/firmware/firmware_version.h"
@@ -60,6 +59,7 @@
 #include "src/tiles/runtime/tile_update_service.h"
 #include "src/types/media/update_service.h"
 #include "src/tiles/icons/mdi_icons.h"      // MDI Icon Mapping
+#include "src/tiles/icons/mdi_icon_store.h"
 
 // MDI icon font (48px, 4bpp), defined in src/fonts/mdi_icons_48.c.
 LV_FONT_DECLARE(mdi_icons_48);
@@ -718,6 +718,8 @@ void setup() {
     while(1) delay(1000);
   }
   Serial.println("[Setup] LittleFS OK");
+  // Icon bitmaps beyond the built-in ones come from LittleFS; before the UI.
+  mdi_icon_store::begin();
   log_memory_status("after-littlefs");
   Serial.flush();
 
@@ -1099,7 +1101,6 @@ void loop() {
   lv_tick_inc(now - g_lvgl_tick_last_ms);
   g_lvgl_tick_last_ms = now;
   loop_stall::enter(loop_stall::Step::Top);
-  icon_file_probe::step();
 
   if (hotspot_mode_change_pending) {
     hotspot_mode_change_pending = false;

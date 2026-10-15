@@ -104,10 +104,12 @@ grid
 group
 hail
 head
+hexagon
 history
 home
 home-analytics
 home-outline
+icon-name
 image
 import
 ip

@@ -5,8 +5,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  SIZES, HEADER_BYTES, buildIconFile, crc32, firmwareIconNames, fontSourcePath, glyphBytes,
-  glyphIdOf, iconNameTable, parseMdiFont, readCoreList, readIconFile, tableBytes,
+  SIZES, HEADER_BYTES, buildIconFile, compiledFontSource, coreGlyphIds, crc32, firmwareIconNames,
+  fontOutputPath, fontSourcePath, glyphBytes, glyphIdOf, iconNameTable, parseMdiFont, readCoreList,
+  readIconFile, tableBytes,
 } from '../../generate-icon-files.mjs';
 
 // CRC32 check value of the zlib/ESP ROM variant.
@@ -18,7 +19,13 @@ const tableCrcs = new Set();
 const summary = [];
 
 for (const px of SIZES) {
-  const font = parseMdiFont(fs.readFileSync(fontSourcePath(px), 'utf8'), `mdi_icons_${px}`);
+  const source = fs.readFileSync(fontSourcePath(px), 'utf8');
+  const font = parseMdiFont(source, `mdi_icons_${px}`);
+
+  // The compiled font is the current output of the generator.
+  const compiled = fs.readFileSync(fontOutputPath(px), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(compiled, compiledFontSource(source, font, px, coreGlyphIds(font, core, names)),
+    `src/fonts/mdi_icons_${px}.c is out of date; run node tools/generate-icon-files.mjs`);
   assert.equal(font.bpp, 4, `${px}: 4 bpp`);
   assert.equal(font.bitmapFormat, 1, `${px}: compressed bitmaps`);
   assert.equal(font.glyphs.length, 7448, `${px}: glyph count`);
