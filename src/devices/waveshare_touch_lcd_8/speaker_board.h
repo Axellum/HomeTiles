@@ -1,0 +1,34 @@
+#pragma once
+
+// Speaker and microphone wiring of the Waveshare ESP32-P4-WIFI6-Touch-LCD-8,
+// from Waveshare's BSP for this board family (waveshareteam/
+// Waveshare-ESP32-components, bsp/esp32_p4_wifi6_touch_lcd_x):
+// ES8311 codec at I2C 0x18 (ES8311_CODEC_DEFAULT_ADDR) on the shared touch
+// bus (I2C0, SDA 7, SCL 8), power amplifier enabled by BSP_POWER_AMP_IO
+// (GPIO53, pa_reverted = false: active high). The ES7210 microphone ADC sits
+// at I2C 0x40 (ES7210_CODEC_DEFAULT_ADDR) on the same bus, shares MCLK, BCLK
+// and LRCK, and its SDOUT reaches the P4 on BSP_I2S_DSIN (GPIO11). The same
+// pins as the 7B.
+
+#include <driver/gpio.h>
+#include <driver/i2c_master.h>
+
+namespace speaker_board {
+
+constexpr gpio_num_t kI2sMclk = GPIO_NUM_13;
+constexpr gpio_num_t kI2sBclk = GPIO_NUM_12;
+constexpr gpio_num_t kI2sLrck = GPIO_NUM_10;
+// Codec DSDIN: data from the P4 to the codec.
+constexpr gpio_num_t kI2sDout = GPIO_NUM_9;
+// ES7210 SDOUT: data from the microphone ADC to the P4.
+constexpr gpio_num_t kI2sDin = GPIO_NUM_11;
+constexpr gpio_num_t kAmpEnable = GPIO_NUM_53;
+constexpr bool kAmpActiveHigh = true;
+constexpr uint8_t kCodecAddress = 0x18;
+// ES7210 7-bit address; 0 on a speaker board without a microphone ADC.
+constexpr uint8_t kMicAddress = 0x40;
+
+// The touch-owned I2C bus; nullptr before Device init opened it.
+i2c_master_bus_handle_t bus();
+
+}  // namespace speaker_board

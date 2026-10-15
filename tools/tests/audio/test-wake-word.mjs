@@ -286,6 +286,9 @@ console.log(compileAndRun('wake_detector', detectorProgram));
 
 // --- Vendored microfrontend on a 1 kHz tone ---------------------------------
 const frontendDir = path.join(root, 'src/audio/wakeword/microfrontend');
+// bits.h takes _BitScanReverse when _MSC_VER is set (clang on Windows) and
+// expects the caller to have its intrinsics declared.
+const hostFlags = process.platform === 'win32' ? ['-include', 'intrin.h'] : [];
 const objects = [];
 for (const file of fs.readdirSync(frontendDir).sort()) {
   const ext = path.extname(file);
@@ -293,7 +296,7 @@ for (const file of fs.readdirSync(frontendDir).sort()) {
   const object = path.join(out, `mf_${path.basename(file, ext)}.o`);
   const compiler = ext === '.c' ? cc : cxx;
   const std = ext === '.c' ? '-std=c11' : '-std=c++17';
-  const build = spawnSync(compiler, [std, '-O1', '-Wall', '-c', path.join(frontendDir, file),
+  const build = spawnSync(compiler, [std, '-O1', '-Wall', ...hostFlags, '-c', path.join(frontendDir, file),
                                      '-o', object], {encoding: 'utf8'});
   assert.equal(build.status, 0, `${file} did not compile:\n${build.stdout}${build.stderr}`);
   objects.push(object);
@@ -428,8 +431,10 @@ int main() {
   const cpp = path.join(out, 'wake_frontend.cpp');
   const exe = path.join(out, process.platform === 'win32' ? 'wake_frontend.exe' : 'wake_frontend');
   fs.writeFileSync(cpp, frontendProgram);
+  // The Windows C runtime declares M_PI only on request.
+  const mathFlags = process.platform === 'win32' ? ['-D_USE_MATH_DEFINES'] : ['-lm'];
   const build = spawnSync(cxx, ['-std=c++17', '-Wall', '-Wextra', '-Werror', '-I', root, cpp,
-                                ...objects, '-o', exe, '-lm'], {encoding: 'utf8'});
+                                ...objects, '-o', exe, ...mathFlags], {encoding: 'utf8'});
   assert.equal(build.status, 0, `wake_frontend did not compile:\n${build.stdout}${build.stderr}`);
   console.log(run(exe));
 }
