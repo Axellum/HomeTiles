@@ -34,9 +34,20 @@ const parse = definition('src/types/energy/energy_data.cpp', 'parse_energy_respo
 assert.match(parse, /if \(!energy_source_icon\(entry\.id\)\.length\(\)\) \{\s*new_icon = true;[\s\S]*?cache_for_period\(period\) = parsed;\s*if \(new_icon\) tiles_request_icon_refresh\(\);/,
   'A source without an icon so far redraws the tile icons once its response is cached');
 
-// Web Admin: the energy list and the previews' icon map.
+// Web Admin: the energy list and the previews' icon map. The panel's own
+// list (the picker's Favorites) holds the released categories and its own
+// Energy tiles' sources, never every source a response named (user
+// 2026-10-15: without a password and with nothing released the Favorites
+// offered all 21 sources, under ids instead of names).
 const tiles = read('src/web/server/handlers/web_admin_tiles.cpp');
-assert.match(tiles, /appendEntry\(id, name, energy_source_icon\(id\), String\(\), first\);/);
+const ownList = tiles.slice(tiles.indexOf('json += ",\\"energy\\":[";'), tiles.indexOf('json += "],\\"scenes\\":[";'));
+assert.match(ownList, /auto energy_ids = parseSensorList\(ha\.energy_text\);\s*energy_append_tile_entity_ids\(energy_ids\);/);
+assert.doesNotMatch(ownList, /energy_append_cached_entity_ids/, 'No source just because a response named it');
+assert.match(ownList, /String name = energy_source_name\(id\);\s*if \(!name\.length\(\)\) name = humanizeIdentifier\(id, true\);/);
+assert.match(ownList, /appendEntry\(id, name, energy_source_icon\(id\), String\(\), first\);/);
+const tileIds = definition('src/types/energy/energy_data.cpp', 'energy_append_tile_entity_ids');
+assert.match(tileIds, /for \(const FolderEntry& folder : tileConfig\.getFolders\(\)\)[\s\S]*if \(slots\[i\]\.type == TILE_ENERGY\) append_unique\(ids, slots\[i\]\.entity\);/);
+assert.match(tileIds, /screensaverConfig\.tileGrid\(\)[\s\S]*if \(screensaver\.tiles\[i\]\.type == TILE_ENERGY\)/);
 assert.match(tiles, /json \+= "\},\\"energy_icons\\":\{";[\s\S]*?if \(haBridgeConfig\.findEntityIcon\(id\)\.length\(\)\) continue;\s*String icon = energy_source_icon\(id\);/);
 const normalize = new Function(`${extractFunction('normalizeSensorMetaPayload')}; return normalizeSensorMetaPayload;`)();
 const meta = normalize({values: {}, icons: {'sensor.pv': 'mdi:solar-panel'},
@@ -72,26 +83,35 @@ class String : public std::string {
     return true;
   }
 };
-struct EnergyEntryData { String id, unit, category; };
+struct EnergyEntryData { String id, unit, category, name; };
 std::vector<EnergyEntryData> g_day_entries, g_week_entries, g_month_entries;
 struct FakeBridgeConfig {
-  std::map<std::string, String> icons;
+  std::map<std::string, String> icons, names;
   String findEntityIcon(const String& id) const { auto it = icons.find(id); return it == icons.end() ? String() : it->second; }
+  String findSensorName(const String& id) const { auto it = names.find(id); return it == names.end() ? String() : it->second; }
 } haBridgeConfig;
 ${definition('src/network/bridge/ha_bridge_config.cpp', 'energySourceIcon')}
+${definition('src/types/energy/energy_data.cpp', 'cached_entry')}
 ${definition('src/types/energy/energy_data.cpp', 'energy_source_icon')}
+${definition('src/types/energy/energy_data.cpp', 'energy_source_name')}
 int failures = 0;
 void expect(const String& got, const char* want, const char* what) {
   if (got != want) { std::printf("FAIL %s: got '%s', want '%s'\n", what, got.c_str(), want); ++failures; }
 }
 int main() {
   expect(energy_source_icon("sensor.battery_in"), "", "No configuration icon and no response: none");
-  g_day_entries.push_back({"sensor.Battery_In", "kWh", "battery"});
-  g_day_entries.push_back({"solar_total", "kWh", "solar"});
-  g_day_entries.push_back({"grid_total_cost", "", "grid"});
-  g_day_entries.push_back({"sensor.grid_price", "EUR", "grid"});
-  g_day_entries.push_back({"sensor.heat_pump", "kWh", "device"});
-  g_week_entries.push_back({"sensor.gas", "m3", " Gas "});
+  expect(energy_source_name("sensor.bwwp_energie"), "", "No configuration name and no response: none");
+  g_day_entries.push_back({"sensor.Battery_In", "kWh", "battery", "In Batterie"});
+  g_day_entries.push_back({"solar_total", "kWh", "solar", "PV gesamt"});
+  g_day_entries.push_back({"grid_total_cost", "", "grid", ""});
+  g_day_entries.push_back({"sensor.grid_price", "EUR", "grid", ""});
+  g_day_entries.push_back({"sensor.heat_pump", "kWh", "device", ""});
+  g_day_entries.push_back({"sensor.bwwp_energie", "kWh", "device", "Brauchwasser WP"});
+  g_week_entries.push_back({"sensor.gas", "m3", " Gas ", ""});
+  expect(energy_source_name("sensor.bwwp_energie"), "Brauchwasser WP", "The response's name");
+  expect(energy_source_name("SOLAR_TOTAL"), "PV gesamt", "Totals by their name, id case ignored");
+  haBridgeConfig.names["sensor.bwwp_energie"] = "Warmwasser";
+  expect(energy_source_name("sensor.bwwp_energie"), "Warmwasser", "The configuration's name wins");
   expect(energy_source_icon("sensor.battery_in"), "battery-charging", "Battery source from the response, id case ignored");
   expect(energy_source_icon("solar_total"), "solar-power", "The Bridge's totals by their category");
   expect(energy_source_icon("grid_total_cost"), "currency-eur", "Costs by their id");

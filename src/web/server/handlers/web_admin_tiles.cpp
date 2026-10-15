@@ -1413,15 +1413,18 @@ void WebAdminServer::handleGetEntityOptions() {
   appendLocalIds(switch_ids, HardwareIoType::Relay);
   appendList("switches", switch_ids);
 
-  // Energy names carry their unit, as in the Energy form; skip it when the
-  // name already ends with "(unit)".
+  // The panel's own energy sources: the released categories and its Energy
+  // tiles' sources (the picker's Favorites; the Bridge finds the others).
+  // Names carry their unit, as in the Energy form; skip it when the name
+  // already ends with "(unit)".
   json += ",\"energy\":[";
   {
     auto energy_ids = parseSensorList(ha.energy_text);
-    energy_append_cached_entity_ids(energy_ids);
+    energy_append_tile_entity_ids(energy_ids);
     bool first = true;
     for (const auto& id : energy_ids) {
-      String name = entityName(id);
+      String name = energy_source_name(id);
+      if (!name.length()) name = humanizeIdentifier(id, true);
       String unit = haBridgeConfig.findSensorUnit(id);
       if (!unit.length()) unit = energy_find_cached_unit(id);
       unit.trim();

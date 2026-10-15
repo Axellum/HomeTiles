@@ -58,13 +58,15 @@ assert.match(handlers, /void WebAdminServer::handleLanguage\(\) \{\s*const Devic
 // a change made on the panel.
 assert.match(handlers, /json \+= "\\",\\"time_format\\":";\s*json \+= String\(clock_tile::resolve_time_format\(clock_tile::TIME_FORMAT_AUTO, cfg\.global_time_format, cfg\.language\)\);/);
 assert.match(handlers, /json \+= ",\\"date_format\\":";\s*json \+= String\(clock_tile::resolve_date_format\(clock_tile::DATE_FORMAT_AUTO, cfg\.global_date_format, cfg\.language\)\);/);
+assert.match(handlers, /json \+= web_admin_auth::enabled\(\) \? ",\\"web_auth\\":1\}" : ",\\"web_auth\\":0\}";/,
+  'the poll carries the Web Admin password state');
 
 // --- Browser behavior --------------------------------------------------------------------------
 const functions = ['settingsTabActive', 'updateSettingsScrollbarWidth', 'runSettingsPageWork',
-  'showSettingsPage', 'openSettingsPage', 'adminEditsPending', 'applyPanelClockFormats', 'checkDeviceLanguage']
+  'showSettingsPage', 'openSettingsPage', 'adminEditsPending', 'applyPanelClockFormats', 'pageWebAuth', 'checkDeviceLanguage']
   .map(name => extractDeliveredFunction(name))
   // location.reload() cannot be replaced in the browser; count it instead.
-  .map(source => source.replace('location.reload()', 'window.reloads++'))
+  .map(source => source.replaceAll('location.reload()', 'window.reloads++'))
   .join('\n');
 
 const harness = `<!doctype html><html lang="de"><body>
@@ -85,6 +87,7 @@ const harness = `<!doctype html><html lang="de"><body>
     <div class="settings-foot-set" data-settings-foot="io"></div>
   </div>
 </div>
+<a class="brand-link brand-security is-on" id="web_auth_badge"></a>
 <pre id="result">running</pre>
 <script>
 window.reloads = 0;
@@ -96,8 +99,9 @@ const APP_LOCALE = 'de';
 function loadFileManager() { fileLoads++; fileManagerLoaded = true; }
 function initHardwareIo() { ioInits++; }
 function switchTab(name) { tabs.push(name); }
-let deviceLanguage = 'de';
-window.fetch = async url => ({ok: true, json: async () => ({language: deviceLanguage})});
+let deviceLanguage = 'de', deviceAuth = 1, deviceStatus = 200;
+window.fetch = async url => ({ok: deviceStatus === 200, status: deviceStatus,
+  json: async () => ({language: deviceLanguage, web_auth: deviceAuth})});
 ${inlineScriptSafe(functions)}
 (async () => {
   const check = (value, message) => { if (!value) throw new Error(message); };
@@ -140,6 +144,28 @@ ${inlineScriptSafe(functions)}
     autoSaveTimers = {};
     await checkDeviceLanguage();
     check(window.reloads === 1, 'a language changed on the display reloads the page');
+
+    // The Web Admin password removed or set on the panel (user 2026-10-15:
+    // the header kept "Password set" until a reload).
+    deviceLanguage = 'de';
+    await checkDeviceLanguage();
+    check(window.reloads === 1, 'the same password state keeps the page');
+    deviceAuth = 0;
+    autoSaveTimers = {tile: 1};
+    await checkDeviceLanguage();
+    check(window.reloads === 1, 'no reload while a tile still saves');
+    autoSaveTimers = {};
+    await checkDeviceLanguage();
+    check(window.reloads === 2, 'a password removed on the panel reloads the page');
+    document.getElementById('web_auth_badge').classList.replace('is-on', 'is-off');
+    await checkDeviceLanguage();
+    check(window.reloads === 2, 'the page without a password stays');
+    deviceStatus = 401;
+    await checkDeviceLanguage();
+    check(window.reloads === 3, 'a password set on the panel reloads into the login');
+    document.getElementById('web_auth_badge').classList.replace('is-off', 'is-on');
+    await checkDeviceLanguage();
+    check(window.reloads === 3, 'a signed-in page whose session ended waits for the next poll');
     document.body.dataset.result = 'pass';
     document.getElementById('result').textContent = 'pass';
   } catch (error) {

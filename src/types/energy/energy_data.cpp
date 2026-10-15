@@ -13,6 +13,7 @@
 #include "src/tiles/config/tile_config.h"
 #include "src/tiles/runtime/tile_renderer.h"
 #include "src/ui/popups/energy/energy_popup.h"
+#include "src/ui/screensaver/screensaver_config.h"
 #include "src/ui/tabs/tiles/tab_tiles_unified.h"
 
 namespace {
@@ -412,35 +413,63 @@ String energy_find_cached_unit(const String& id) {
   return cached_unit_for_entry(id);
 }
 
-String energy_source_icon(const String& id) {
-  String icon = haBridgeConfig.findEntityIcon(id);
-  if (icon.length() || !id.length()) return icon;
+namespace {
+
+// The source in any received Energy response, nullptr without one.
+const EnergyEntryData* cached_entry(const String& id) {
+  if (!id.length()) return nullptr;
   const std::vector<EnergyEntryData>* caches[] = {
       &g_day_entries, &g_week_entries, &g_month_entries};
   for (const auto* cache : caches) {
     for (const auto& entry : *cache) {
-      if (entry.id.equalsIgnoreCase(id)) {
-        return String(energySourceIcon(entry.category, entry.id, entry.unit));
-      }
+      if (entry.id.equalsIgnoreCase(id)) return &entry;
     }
   }
-  return String();
+  return nullptr;
+}
+
+void append_unique(std::vector<String>& ids, const char* id) {
+  if (!id || !*id) return;
+  for (const auto& known : ids) {
+    if (known.equalsIgnoreCase(id)) return;
+  }
+  ids.push_back(String(id));
+}
+
+}  // namespace
+
+String energy_source_icon(const String& id) {
+  String icon = haBridgeConfig.findEntityIcon(id);
+  if (icon.length()) return icon;
+  const EnergyEntryData* entry = cached_entry(id);
+  return entry ? String(energySourceIcon(entry->category, entry->id, entry->unit)) : String();
+}
+
+String energy_source_name(const String& id) {
+  String name = haBridgeConfig.findSensorName(id);
+  if (name.length()) return name;
+  const EnergyEntryData* entry = cached_entry(id);
+  return entry ? entry->name : String();
+}
+
+void energy_append_tile_entity_ids(std::vector<String>& ids) {
+  FolderEntitySlotView slots[TILES_PER_GRID];
+  for (const FolderEntry& folder : tileConfig.getFolders()) {
+    if (!tileConfig.getFolderEntitiesCached(folder.id, slots, TILES_PER_GRID)) continue;
+    for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+      if (slots[i].type == TILE_ENERGY) append_unique(ids, slots[i].entity);
+    }
+  }
+  const TileGridConfig& screensaver = screensaverConfig.tileGrid();
+  for (size_t i = 0; i < TILES_PER_GRID; ++i) {
+    if (screensaver.tiles[i].type == TILE_ENERGY) append_unique(ids, screensaver.tiles[i].sensor_entity.c_str());
+  }
 }
 
 void energy_append_cached_entity_ids(std::vector<String>& ids) {
   const std::vector<EnergyEntryData>* caches[] = {
       &g_day_entries, &g_week_entries, &g_month_entries};
   for (const auto* cache : caches) {
-    for (const auto& entry : *cache) {
-      if (!entry.id.length()) continue;
-      bool exists = false;
-      for (const auto& id : ids) {
-        if (id.equalsIgnoreCase(entry.id)) {
-          exists = true;
-          break;
-        }
-      }
-      if (!exists) ids.push_back(entry.id);
-    }
+    for (const auto& entry : *cache) append_unique(ids, entry.id.c_str());
   }
 }

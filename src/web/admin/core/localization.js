@@ -25,17 +25,29 @@ function t(key) {
     return busy(autoSaveTimers) || busy(saveInFlightByTile) || busy(queuedSaveByTile);
   }
 
+  // The page's Web Admin password state (the header badge), null without it.
+  function pageWebAuth() {
+    const badge = document.getElementById('web_auth_badge');
+    return badge ? badge.classList.contains('is-on') : null;
+  }
+
   async function checkDeviceLanguage() {
     if (document.hidden) return;
     try {
       const response = await fetch('/api/language', {cache: 'no-store'});
+      // A password set on the panel: this page now needs the login.
+      if (response.status === 401 && pageWebAuth() === false && !adminEditsPending()) location.reload();
       if (!response.ok) return;
       const data = await response.json();
       applyPanelClockFormats(Number(data?.time_format), Number(data?.date_format));
       if (typeof applyPanelThemeFromDevice === 'function') applyPanelThemeFromDevice(data?.theme, data?.theme_shown);
       const device = String(data?.language || '').toLowerCase();
       const page = String(document.documentElement.lang || APP_LOCALE).toLowerCase();
-      if (device && device !== page && !adminEditsPending()) location.reload();
+      // The language or the password changed on the panel (user 2026-10-15:
+      // a password removed there showed only after a reload).
+      const auth = data?.web_auth === undefined ? null : Number(data.web_auth) === 1;
+      const authChanged = auth !== null && pageWebAuth() !== null && auth !== pageWebAuth();
+      if (((device && device !== page) || authChanged) && !adminEditsPending()) location.reload();
     } catch (error) {
       // Offline or signed out: the next poll tries again.
     }

@@ -642,7 +642,10 @@ void WebAdminServer::handleLanguage() {
   json += String(clock_tile::resolve_date_format(clock_tile::DATE_FORMAT_AUTO, cfg.global_date_format, cfg.language));
   json += ",\"theme\":";
   json += String(cfg.theme);
-  json += ui_theme::theme_light() ? ",\"theme_shown\":1}" : ",\"theme_shown\":0}";
+  json += ui_theme::theme_light() ? ",\"theme_shown\":1" : ",\"theme_shown\":0";
+  // The Web Admin password, also when removed on the panel: the open page
+  // reloads into the new state (its header badge and hidden secrets).
+  json += web_admin_auth::enabled() ? ",\"web_auth\":1}" : ",\"web_auth\":0}";
   server.send(200, "application/json", json);
 }
 

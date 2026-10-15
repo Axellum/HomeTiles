@@ -10,7 +10,7 @@ import {runDomHarness} from '../../lib/headless-dom.mjs';
 
 const handlers = readRepoFile('src/web/server/handlers/web_admin_handlers.cpp');
 const language = handlers.slice(handlers.indexOf('void WebAdminServer::handleLanguage() {'));
-assert.match(language, /json \+= ",\\"theme\\":";\s*json \+= String\(cfg\.theme\);\s*json \+= ui_theme::theme_light\(\) \? ",\\"theme_shown\\":1\}" : ",\\"theme_shown\\":0\}";/,
+assert.match(language, /json \+= ",\\"theme\\":";\s*json \+= String\(cfg\.theme\);\s*json \+= ui_theme::theme_light\(\) \? ",\\"theme_shown\\":1" : ",\\"theme_shown\\":0";/,
   'The poll answers with the stored design and the shown look');
 assert.match(readRepoFile('src/web/admin/core/localization.js'),
   /applyPanelClockFormats\(Number\(data\?\.time_format\), Number\(data\?\.date_format\)\);\s*if \(typeof applyPanelThemeFromDevice === 'function'\) applyPanelThemeFromDevice\(data\?\.theme, data\?\.theme_shown\);/);
