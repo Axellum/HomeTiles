@@ -2770,8 +2770,8 @@ static void tiles_refresh_icons_for_grid(GridType grid_type) {
             tile, states ? states[i] : BinarySensorState{}, &dynamic_icon);
         if (widgets) widgets[i].dynamic_icon = dynamic_icon;
       } else if (tile.type == TILE_SCENE) {
-        if (tile.scene_alias.length()) {
-          String scene_entity = haBridgeConfig.findSceneEntity(tile.scene_alias);
+        if (sceneTarget(tile).length()) {
+          String scene_entity = haBridgeConfig.findSceneEntity(sceneTarget(tile));
           if (scene_entity.length()) {
             icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(scene_entity));
           }

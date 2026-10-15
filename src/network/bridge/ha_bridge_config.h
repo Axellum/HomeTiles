@@ -95,11 +95,13 @@ public:
   // The live Bridge configuration announced "entity_search"
   // (network/bridge/entity_search.h): 1 = the picker searches through the
   // Bridge, 2 = also entity declarations, 3 = also the Energy dashboard's
-  // sources (picker list "energy"). Not stored: 0 until the Bridge's
-  // configuration arrived after a start.
+  // sources (picker list "energy"), 4 = also scenes, scripts and buttons
+  // (picker list "scenes", run by their entity id). Not stored: 0 until the
+  // Bridge's configuration arrived after a start.
   bool supportsEntitySearch() const { return entity_search_ >= 1; }
   bool supportsEntityDeclarations() const { return entity_search_ >= 2; }
   bool supportsEnergySearch() const { return entity_search_ >= 3; }
+  bool supportsSceneSearch() const { return entity_search_ >= 4; }
   // The live Bridge configuration announced "push": 1. Such a Bridge sends
   // name, unit and icon changes by itself, so the panel's periodic refresh is
   // only a slow safety net. Not stored: 0 until the configuration arrived.

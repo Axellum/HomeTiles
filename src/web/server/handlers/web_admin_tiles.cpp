@@ -526,7 +526,8 @@ void WebAdminServer::handleGetTiles() {
     out += ",\"image_slideshow_sec\":";
     out += String(tile.image_slideshow_sec);
     out += ",\"scene_alias\":\"";
-    appendJsonEscaped(out, tile.scene_alias);
+    // A Scene tile shows its target here (alias or entity id, sceneTarget).
+    appendJsonEscaped(out, tile.type == TILE_SCENE ? sceneTarget(tile) : tile.scene_alias);
     out += "\",\"key_macro\":\"";
     appendJsonEscaped(out, tile.key_macro);
     out += "\",\"key_code\":";

@@ -2582,6 +2582,14 @@ async function saveGestureEdge(select) {
   const SELECTED_TILE_STORAGE_KEY = 'selectedAdminTile';
   let selectedTileByTab = {};
 
+  // The entity a Scene tile runs (sceneTarget on the panel): its stored
+  // scene, script or button id, or the entity of a Bridge alias.
+  function sceneEntityOf(value, sceneEntities = sensorMetaCache.sceneEntities) {
+    if (!value) return '';
+    if (/^(scene|script|button|input_button)\./.test(value)) return value;
+    return sceneEntities?.[value] || '';
+  }
+
   function normalizeSensorMetaPayload(payload) {
     if (!payload || typeof payload !== 'object') {
       return { values: {}, units: {}, icons: {}, names: {}, sceneEntities: {}, loaded: false };
@@ -2911,7 +2919,7 @@ async function saveGestureEdge(select) {
   // Lists the Bridge searches (entity_search.py LIST_DOMAINS).
   const ENTITY_REMOTE_LISTS = new Set(['sensors', 'binary_sensors', 'numbers', 'selects', 'datetimes',
     'weathers', 'switches', 'media', 'climates', 'covers', 'cameras', 'images', 'locks', 'alarm_panels', 'fans',
-    'energy']);
+    'energy', 'scenes']);
   const ENTITY_REMOTE_DELAY_MS = 250;
   const ENTITY_REMOTE_POLL_MS = 120;
   const ENTITY_REMOTE_TIMEOUT_MS = 5000;
@@ -3012,7 +3020,7 @@ async function saveGestureEdge(select) {
     if (ENTITY_REMOTE_LISTS.has(list) && entityRemoteInfo.has(value)) return entityRemoteInfo.get(value);
     const known = entityOptionsCache ? entityPickerEntries(entityOptionsCache, list).find(entry => entry.value === value) : null;
     if (known) return known;
-    const entity = list === 'scenes' ? (sensorMetaCache.sceneEntities?.[value] || value) : value;
+    const entity = list === 'scenes' ? (sceneEntityOf(value) || value) : value;
     return {
       value,
       name: sensorMetaCache.names?.[entity] || titleFromEntity(value) || value,
@@ -7781,7 +7789,7 @@ async function saveGestureEdge(select) {
     if (deviceKind) iconEntity = document.getElementById(prefix + '_' + deviceKind + '_entity')?.value || '';
     if (type === '2') {
       const alias = document.getElementById(prefix + '_scene_alias')?.value || '';
-      iconEntity = sensorMetaCache.sceneEntities?.[alias] || '';
+      iconEntity = sceneEntityOf(alias);
     }
     const rawIcon = iconInput ? iconInput.value : '';
     let iconName = resolveIconName(
@@ -10435,7 +10443,7 @@ async function saveGestureEdge(select) {
                           previewKind === 'climate' || previewKind === 'cover' ||
                           previewKind === 'device' || previewKind === 'camera')
         ? (tile.sensor_entity || '')
-        : (typeValue === '2' ? (sensorMeta?.sceneEntities?.[tile.scene_alias] || '') : '');
+        : (typeValue === '2' ? sceneEntityOf(tile.scene_alias, sensorMeta?.sceneEntities) : '');
       const rawIcon = tile.icon_name || '';
       let iconName = resolveIconName(
         rawIcon,

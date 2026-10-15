@@ -890,7 +890,7 @@
                           previewKind === 'climate' || previewKind === 'cover' ||
                           previewKind === 'device' || previewKind === 'camera')
         ? (tile.sensor_entity || '')
-        : (typeValue === '2' ? (sensorMeta?.sceneEntities?.[tile.scene_alias] || '') : '');
+        : (typeValue === '2' ? sceneEntityOf(tile.scene_alias, sensorMeta?.sceneEntities) : '');
       const rawIcon = tile.icon_name || '';
       let iconName = resolveIconName(
         rawIcon,

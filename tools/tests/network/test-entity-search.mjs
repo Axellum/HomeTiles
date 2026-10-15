@@ -43,8 +43,10 @@ assert.match(search, /g_answer\.received = 0;\s*g_answer\.full = false;\s*g_answ
 // declarations; nothing it serves can change the next declaration (the loop
 // of b232-b235: a reported entity came back released, was dropped from the
 // next report, removed by the Bridge and reported again).
-assert.equal((search.match(/haBridgeConfig\./g) || []).length, 4,
-  'only the three capability checks and the own sensor slots read the Bridge configuration');
+assert.equal((search.match(/haBridgeConfig\./g) || []).length, 5,
+  'only the four capability checks and the own sensor slots read the Bridge configuration');
+assert.match(search, /if \(list == "scenes"\) return haBridgeConfig\.supportsSceneSearch\(\);/,
+  'scenes, scripts and buttons only from a Bridge that searches them (level 4)');
 assert.match(search, /if \(list == "energy"\) return haBridgeConfig\.supportsEnergySearch\(\);/,
   'the Energy dashboard sources only from a Bridge that searches them (level 3)');
 assert.match(search, /for \(const String& slot : haBridgeConfig\.get\(\)\.sensor_slots\) declaration\.add\("sensors", slot\.c_str\(\)\);/,
@@ -56,7 +58,8 @@ const collect = search.slice(search.indexOf('entity_declaration::Declaration col
 assert.match(collect, /declaration\.add\(listOfTile\(slots\[i\]\.type, slots\[i\]\.entity\), slots\[i\]\.entity\);/, 'every folder tile');
 // A Camera tile showing an image entity's picture (types/camera/picture.h):
 // the Bridge's cameras list holds cameras only.
-assert.match(search, /const char\* listOfTile\(TileType type, const char\* entity\) \{\s*if \(type == TILE_CAMERA && entity && strncmp\(entity, "image\.", 6\) == 0\) return "images";\s*return listOfType\(type\);/);
+// A Scene tile declares its scene, script or button id, never an alias.
+assert.match(search, /const char\* listOfTile\(TileType type, const char\* entity\) \{\s*if \(type == TILE_CAMERA && entity && strncmp\(entity, "image\.", 6\) == 0\) return "images";[\s\S]{0,200}?if \(type == TILE_SCENE && !\(entity && sceneTargetIsEntityId\(String\(entity\)\)\)\) return nullptr;\s*return listOfType\(type\);/);
 assert.match(collect, /declaration\.add\(listOfSource\(slots\[i\]\.rule_entity\), slots\[i\]\.rule_entity\);/,
   'icon color sources too');
 assert.match(collect, /screensaverConfig\.tileGrid\(\)[\s\S]*declaration\.add\(listOfTile\(tile\.type, tile\.sensor_entity\.c_str\(\)\), tile\.sensor_entity\.c_str\(\)\);[\s\S]*tileIconSourceEntity\(tile\.type, tile\.icon_colors\)/,

@@ -12,6 +12,7 @@
 #include "src/ui/shared/ui_theme.h"
 #include "src/tiles/config/tile_icon_colors.h"
 #include "src/types/tile_type_policy.h"
+#include "src/types/scene/scene_target.h"
 
 // The stored grid: the profile's columns and rows. Tile positions, the
 // slots per grid and their validation keep it whatever the panel shows.
@@ -199,6 +200,26 @@ struct Tile {
         key_modifier(0),
         image_slideshow_sec(10) {}
 };
+
+// What a Scene tile runs: the entity id in sensor_entity (long ids keep the
+// entity sidecar like every entity tile), else the Bridge alias of a tile
+// from before the entity picker searched scenes. A stray entity of another
+// type in sensor_entity never counts.
+static inline const String& sceneTarget(const Tile& tile) {
+  return sceneTargetIsEntityId(tile.sensor_entity) ? tile.sensor_entity : tile.scene_alias;
+}
+
+// Stores the Scene picker's value: an entity id in sensor_entity, an alias in
+// scene_alias, the other field cleared.
+static inline void setSceneTarget(Tile& tile, const String& value) {
+  if (sceneTargetIsEntityId(value)) {
+    tile.sensor_entity = value;
+    tile.scene_alias = "";
+  } else {
+    tile.sensor_entity = "";
+    tile.scene_alias = value;
+  }
+}
 
 // Everything a tile shows, all fields but its cell (col, row): equal tiles
 // can move to another cell without being rebuilt (tiles_show_active_layout_now).

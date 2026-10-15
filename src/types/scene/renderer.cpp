@@ -286,8 +286,8 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
     String icon_name = tile.icon_name;
     bool icon_disabled = isMdiIconDisabled(icon_name);
     icon_name = normalizeMdiIconName(icon_name);
-    if (!icon_disabled && !icon_name.length() && tile.scene_alias.length()) {
-      String scene_entity = haBridgeConfig.findSceneEntity(tile.scene_alias);
+    if (!icon_disabled && !icon_name.length() && sceneTarget(tile).length()) {
+      String scene_entity = haBridgeConfig.findSceneEntity(sceneTarget(tile));
       if (scene_entity.length()) {
         icon_name = normalizeMdiIconName(haBridgeConfig.findEntityIcon(scene_entity));
       }
@@ -361,8 +361,8 @@ lv_obj_set_style_bg_grad_dir(btn, LV_GRAD_DIR_NONE, LV_PART_MAIN | LV_STATE_PRES
   if (compact) compact_sensor_layout::apply(btn, icon_lbl, title_lbl, nullptr, tile);
 
   // Event handler for scene activation.
-  if (scene_cb && tile.scene_alias.length()) {
-    SceneEventData* event_data = new SceneEventData{tile.scene_alias, scene_cb};
+  if (scene_cb && sceneTarget(tile).length()) {
+    SceneEventData* event_data = new SceneEventData{sceneTarget(tile), scene_cb};
 
     lv_obj_add_event_cb(
         btn,

@@ -12,6 +12,7 @@
 #include "src/network/network_manager.h"
 #include "src/network/secure/command_channel.h"
 #include "src/tiles/config/tile_config.h"
+#include "src/types/scene/scene_target.h"
 #include "src/ui/screensaver/screensaver_config.h"
 #include "src/web/server/auth/web_admin_auth.h"
 
@@ -58,7 +59,7 @@ const ListTile kListTiles[] = {
     {"selects", TILE_SELECT},   {"datetimes", TILE_DATETIME},           {"weathers", TILE_WEATHER},
     {"switches", TILE_SWITCH},  {"media", TILE_MEDIA},                  {"climates", TILE_CLIMATE},
     {"covers", TILE_COVER},     {"cameras", TILE_CAMERA},               {"locks", TILE_LOCK},
-    {"alarm_panels", TILE_ALARM}, {"fans", TILE_FAN},
+    {"alarm_panels", TILE_ALARM}, {"fans", TILE_FAN},          {"scenes", TILE_SCENE},
 };
 
 const char* listOfType(TileType type) {
@@ -73,10 +74,15 @@ const char* listOfType(TileType type) {
 // holds cameras only, its "images" list both.
 const char* listOfTile(TileType type, const char* entity) {
   if (type == TILE_CAMERA && entity && strncmp(entity, "image.", 6) == 0) return "images";
+  // A Scene tile declares the scene, script or button id it stores; an alias
+  // is a Bridge release already (sceneTarget).
+  if (type == TILE_SCENE && !(entity && sceneTargetIsEntityId(String(entity)))) return nullptr;
   return listOfType(type);
 }
 
 bool knownList(const String& list) {
+  // Scenes, scripts and buttons: a Bridge on level 4 (ha_bridge_config.h).
+  if (list == "scenes") return haBridgeConfig.supportsSceneSearch();
   for (const ListTile& entry : kListTiles) {
     if (list == entry.list) return true;
   }

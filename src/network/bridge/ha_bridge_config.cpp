@@ -14,6 +14,7 @@
 #include "src/io/hardware_io.h"
 #include "src/video/local_camera/local_camera.h"
 #include "src/audio/speaker.h"
+#include "src/types/scene/scene_target.h"
 #include <vector>
 
 static const char* PREF_NAMESPACE = "tab5_config";
@@ -309,6 +310,8 @@ String HaBridgeConfig::findEntityIcon(const char* entity_id) const {
 }
 
 String HaBridgeConfig::findSceneEntity(const String& alias) const {
+  // A Scene tile that stores the entity id names its entity itself.
+  if (sceneTargetIsEntityId(alias)) return alias;
   return lookupKeyValue(data.scene_alias_text, alias);
 }
 

@@ -100,7 +100,7 @@
     if (deviceKind) iconEntity = document.getElementById(prefix + '_' + deviceKind + '_entity')?.value || '';
     if (type === '2') {
       const alias = document.getElementById(prefix + '_scene_alias')?.value || '';
-      iconEntity = sensorMetaCache.sceneEntities?.[alias] || '';
+      iconEntity = sceneEntityOf(alias);
     }
     const rawIcon = iconInput ? iconInput.value : '';
     let iconName = resolveIconName(

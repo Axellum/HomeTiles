@@ -723,8 +723,8 @@ static void appendTileTabHTML(
       }
       // Scene tiles without an icon use their scene entity's icon, as on the device.
       if (tile.type == TILE_SCENE && !iconName.length() &&
-          !isMdiIconDisabled(tile.icon_name) && tile.scene_alias.length()) {
-        const String scene_entity = haBridgeConfig.findSceneEntity(tile.scene_alias);
+          !isMdiIconDisabled(tile.icon_name) && sceneTarget(tile).length()) {
+        const String scene_entity = haBridgeConfig.findSceneEntity(sceneTarget(tile));
         if (scene_entity.length()) {
           iconName = normalizeMdiIconName(haBridgeConfig.findEntityIcon(scene_entity));
         }

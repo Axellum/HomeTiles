@@ -21,7 +21,7 @@
   // Lists the Bridge searches (entity_search.py LIST_DOMAINS).
   const ENTITY_REMOTE_LISTS = new Set(['sensors', 'binary_sensors', 'numbers', 'selects', 'datetimes',
     'weathers', 'switches', 'media', 'climates', 'covers', 'cameras', 'images', 'locks', 'alarm_panels', 'fans',
-    'energy']);
+    'energy', 'scenes']);
   const ENTITY_REMOTE_DELAY_MS = 250;
   const ENTITY_REMOTE_POLL_MS = 120;
   const ENTITY_REMOTE_TIMEOUT_MS = 5000;
@@ -122,7 +122,7 @@
     if (ENTITY_REMOTE_LISTS.has(list) && entityRemoteInfo.has(value)) return entityRemoteInfo.get(value);
     const known = entityOptionsCache ? entityPickerEntries(entityOptionsCache, list).find(entry => entry.value === value) : null;
     if (known) return known;
-    const entity = list === 'scenes' ? (sensorMetaCache.sceneEntities?.[value] || value) : value;
+    const entity = list === 'scenes' ? (sceneEntityOf(value) || value) : value;
     return {
       value,
       name: sensorMetaCache.names?.[entity] || titleFromEntity(value) || value,

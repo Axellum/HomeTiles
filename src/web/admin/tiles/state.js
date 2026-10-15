@@ -24,6 +24,14 @@
   const SELECTED_TILE_STORAGE_KEY = 'selectedAdminTile';
   let selectedTileByTab = {};
 
+  // The entity a Scene tile runs (sceneTarget on the panel): its stored
+  // scene, script or button id, or the entity of a Bridge alias.
+  function sceneEntityOf(value, sceneEntities = sensorMetaCache.sceneEntities) {
+    if (!value) return '';
+    if (/^(scene|script|button|input_button)\./.test(value)) return value;
+    return sceneEntities?.[value] || '';
+  }
+
   function normalizeSensorMetaPayload(payload) {
     if (!payload || typeof payload !== 'object') {
       return { values: {}, units: {}, icons: {}, names: {}, sceneEntities: {}, loaded: false };
