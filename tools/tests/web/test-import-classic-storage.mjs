@@ -13,7 +13,8 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-const COLS = 4, ROWS = 4, COUNT = COLS * ROWS;
+// A folder's list: the classic cells plus the storage's entries (grid_slots.h).
+const COLS = 4, ROWS = 4, COUNT = Math.min(COLS * ROWS * 2, 64);
 const empty = () => ({type: 0, title: '', icon_name: '', bg_color: 0, col: 0, row: 0, span_w: 1, span_h: 1});
 
 function makePanel() {
@@ -62,7 +63,7 @@ function loadImport(panel) {
   const context = vm.createContext({
     console: {error() {}, warn() {}, log() {}},
     URL, FormData, Blob: class {}, Promise, setTimeout: () => 0,
-    GRID_COLS: COLS, GRID_ROWS: ROWS, MEDIA_TILE_TYPE: 15, MEDIA_TILE_MIN_SPAN: 2, MEDIA_TILE_MAX_SPAN: 4,
+    GRID_COLS: COLS, GRID_ROWS: ROWS, TILES_PER_GRID: COUNT, MEDIA_TILE_TYPE: 15, MEDIA_TILE_MIN_SPAN: 2, MEDIA_TILE_MAX_SPAN: 4,
     LAYOUTS: {classic: {screenW: 800, screenH: 480}, bar: {available: true}, portrait: {available: false}},
     SCREENSAVER_FOLDER_ID: 65535, tabByFolder: {0: 'folder0'}, currentTileTab: 'folder0',
     firstAllowedGridRow: () => 0,

@@ -158,6 +158,8 @@ Last reviewed: 2026-10-12
 
 ## Layouts (`feature/layouts`, unreleased, b294)
 
+- Folder list (b479, user 2026-10-16): a folder holds its classic cells plus as many storage entries (`grid_slots.h`, max 64 for the 64-bit switch/binary sensor update masks: 4B/S3 32, Tab5 56, 35-cell boards 64), so tiles in a layout's storage (and the Back tile) never take a free cell's entry (4B 3x3 head bar: 8 shown + 7 stored + Back filled all 16). Tile records and 4-tile blocks unchanged, files only longer; a file from before (exactly one entry per cell) reads with the rest empty; V6/NVS migrations keep the old size; folders off the task stacks (`makeTileGridScratch`). Layout window: a storage over its entries blocks Save (`layoutStorageFull`). HW pending.
+
 - Three layouts (`grid_layout.h`): classic (profile grid, places in PackedTileV7), head bar landscape (1280x800 6x4, 1280x720/1024x600 5x3, 800x480 4x3, square 3x3), head bar upright (prepared: 4x6.5, 3x6, 3x5.5). NVS `layout` read at boot (OTA keeps it); a bar layout without places starts classic.
 - Places: `/_tile_grids/layouts.json` by folder + view_id (`tile_layouts.cpp`); screensaver = folder 0xFFFE keyed slot+1 (`screensaver_places.*`: the layout's grid, no head, two rows at the bottom, three upright); its clock per layout in the screensaver config (`clock_layouts`, classic on top), edited in the layout window. No place = `layout_hidden` (not drawn, no room).
 - Layout window (`tiles/layout-window.js`): screen top left, storage only right/below; X always deletes after a question; tiles never shrink; red blocks Speichern/Umstellen; screensaver tab without picture, with that layout's clock (saved with its places, b288). Export marks classic storage tiles.

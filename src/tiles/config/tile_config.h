@@ -2,11 +2,13 @@
 #define TILE_CONFIG_H
 
 #include <Arduino.h>
+#include <memory>
 #include <vector>
 
 #include "src/devices/device.h"
 #include "src/tiles/config/tile_geometry.h"
 #include "src/tiles/config/grid_layout.h"
+#include "src/tiles/config/grid_slots.h"
 #include "src/core/config/pin_access.h"
 #include "src/core/config/tile_color.h"
 #include "src/ui/shared/ui_theme.h"
@@ -14,11 +16,15 @@
 #include "src/types/tile_type_policy.h"
 #include "src/types/scene/scene_target.h"
 
-// The stored grid: the profile's columns and rows. Tile positions, the
-// slots per grid and their validation keep it whatever the panel shows.
+// The stored grid: the profile's columns and rows. Tile positions and their
+// validation keep it whatever the panel shows.
 static constexpr uint8_t GRID_COLS = Device::kGridCols;
 static constexpr uint8_t GRID_ROWS = Device::kGridRows;
-static constexpr size_t TILES_PER_GRID = GRID_COLS * GRID_ROWS;
+// The classic grid's cells.
+static constexpr size_t GRID_CELLS = static_cast<size_t>(GRID_COLS) * GRID_ROWS;
+// A folder's tile list: one entry per cell plus entries for the layouts'
+// storage, so tiles kept there never take a free cell's entry (grid_slots.h).
+static constexpr size_t TILES_PER_GRID = grid_slots::capacity(GRID_CELLS);
 
 static constexpr int GRID_GAP = Device::kGridGap;
 static constexpr int GRID_PAD = Device::kGridPad;
@@ -735,6 +741,14 @@ struct TileGridConfig {
 // firmware: PSRAM first, internal RAM as fallback. Aborts when neither has
 // room, because the caller cannot run without its grid.
 TileGridConfig* allocateTileGridStorage(const char* name);
+
+// A short-lived grid on the heap, PSRAM first: a whole folder no longer fits
+// on a task stack (64 tiles are about 16 KB). Empty when nothing had room.
+struct TileGridScratchDeleter {
+  void operator()(TileGridConfig* grid) const;
+};
+using TileGridScratch = std::unique_ptr<TileGridConfig, TileGridScratchDeleter>;
+TileGridScratch makeTileGridScratch();
 
 static constexpr uint32_t TILE_BG_COLOR_RGB_MASK = 0x00FFFFFFu;
 static constexpr uint32_t TILE_BG_COLOR_EXPLICIT = 0x01000000u;

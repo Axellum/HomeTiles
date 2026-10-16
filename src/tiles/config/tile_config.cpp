@@ -246,6 +246,12 @@ static constexpr size_t TILES_PER_QUARTER = 4;
 static constexpr size_t QUARTERS_PER_GRID =
     (TILES_PER_GRID + TILES_PER_QUARTER - 1) / TILES_PER_QUARTER;
 static_assert(QUARTERS_PER_GRID > 0, "Grid must contain at least one tile");
+// Grids written before the storage entries held one entry per classic cell:
+// the V7 reader takes such a file as it is (the rest empty), and the V6 and
+// NVS migrations only ever find that many.
+static constexpr size_t LEGACY_QUARTERS_PER_GRID =
+    (GRID_CELLS + TILES_PER_QUARTER - 1) / TILES_PER_QUARTER;
+static_assert(LEGACY_QUARTERS_PER_GRID <= QUARTERS_PER_GRID, "The list holds at least the cells");
 
 static constexpr size_t quarterGridIndex(size_t quarter, size_t tile_index) {
   return quarter * TILES_PER_QUARTER + tile_index;
@@ -348,6 +354,23 @@ TileGridConfig* allocateTileGridStorage(const char* name) {
     abort();
   }
   return new (memory) TileGridConfig();
+}
+
+void TileGridScratchDeleter::operator()(TileGridConfig* grid) const {
+  if (!grid) return;
+  grid->~TileGridConfig();
+  heap_caps_free(grid);
+}
+
+TileGridScratch makeTileGridScratch() {
+  void* memory = heap_caps_malloc(sizeof(TileGridConfig), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!memory) memory = heap_caps_malloc(sizeof(TileGridConfig), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!memory) {
+    Serial.printf("[TileConfig] ERROR: No room for a %u byte grid\n",
+                  static_cast<unsigned>(sizeof(TileGridConfig)));
+    return TileGridScratch();
+  }
+  return TileGridScratch(new (memory) TileGridConfig());
 }
 
 TileGridConfig& TileConfig::activeGrid() const {
@@ -810,18 +833,28 @@ static bool readPackedGridFileV7(const String& filePath, PackedQuarterGridV7* pa
   // per grid, now ~half that with just the one open() lookup.
   File f = storageFS().open(filePath, FILE_READ);
   if (!f) return false;
-  const size_t expected = count * sizeof(PackedQuarterGridV7);
-  if (static_cast<size_t>(f.size()) < expected) {
+  // A file from before the storage entries holds only the classic cells: it
+  // reads as it is and the rest of the list stays empty (grid_slots.h).
+  const size_t quarters = grid_slots::readableQuarters(
+      static_cast<size_t>(f.size()), sizeof(PackedQuarterGridV7), count,
+      count == QUARTERS_PER_GRID ? LEGACY_QUARTERS_PER_GRID : count);
+  if (quarters == 0) {
     f.close();
     return false;
   }
+  const size_t expected = quarters * sizeof(PackedQuarterGridV7);
   size_t read = f.read(reinterpret_cast<uint8_t*>(packed), expected);
   f.close();
   if (read != expected) return false;
-  for (size_t q = 0; q < count; ++q) {
+  for (size_t q = 0; q < quarters; ++q) {
     if (packed[q].version != 7 || packed[q].quarter_index != static_cast<uint8_t>(q)) {
       return false;
     }
+  }
+  for (size_t q = quarters; q < count; ++q) {
+    memset(&packed[q], 0, sizeof(packed[q]));
+    packed[q].version = 7;
+    packed[q].quarter_index = static_cast<uint8_t>(q);
   }
   return true;
 }
@@ -1978,8 +2011,9 @@ static void mark_occupied(bool occupied[GRID_ROWS][GRID_COLS], float col, float 
 static void initGridDefaults(TileGridConfig& grid) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     grid.tiles[i] = Tile();
-    grid.tiles[i].col = i % GRID_COLS;
-    grid.tiles[i].row = i / GRID_COLS;
+    const size_t cell = grid_slots::defaultCell(i, GRID_CELLS);
+    grid.tiles[i].col = cell % GRID_COLS;
+    grid.tiles[i].row = cell / GRID_COLS;
     grid.tiles[i].span_w = 1;
     grid.tiles[i].span_h = 1;
   }
@@ -2519,12 +2553,12 @@ bool TileConfig::loadGrid(const char* prefix, TileGridConfig& grid) {
 
   // Try file-based storage first
   {
-    PackedQuarterGridV6 packed_sd[QUARTERS_PER_GRID]{};
-    if (readGridSd(prefix, packed_sd, QUARTERS_PER_GRID)) {
-      for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+    PackedQuarterGridV6 packed_sd[LEGACY_QUARTERS_PER_GRID]{};
+    if (readGridSd(prefix, packed_sd, LEGACY_QUARTERS_PER_GRID)) {
+      for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
         for (size_t i = 0; i < TILES_PER_QUARTER; ++i) {
           size_t grid_idx = quarterGridIndex(q, i);
-          if (grid_idx >= TILES_PER_GRID) {
+          if (grid_idx >= GRID_CELLS) {
             continue;
           }
           unpackTileV6(packed_sd[q].tiles[i], grid.tiles[grid_idx]);
@@ -2538,9 +2572,9 @@ bool TileConfig::loadGrid(const char* prefix, TileGridConfig& grid) {
   }
 
   // Try V6 split format first (four quarter blobs)
-  char quarter_keys[QUARTERS_PER_GRID][16];
+  char quarter_keys[LEGACY_QUARTERS_PER_GRID][16];
   bool have_quarter_keys = true;
-  for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+  for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
     if (!buildQuarterBlobKey(prefix, static_cast<uint8_t>(q), quarter_keys[q], sizeof(quarter_keys[q]))) {
       have_quarter_keys = false;
       break;
@@ -2550,10 +2584,10 @@ bool TileConfig::loadGrid(const char* prefix, TileGridConfig& grid) {
   if (have_quarter_keys) {
     Preferences prefs;
     if (prefs.begin(PREF_NAMESPACE, true)) {
-      PackedQuarterGridV6 packed[QUARTERS_PER_GRID]{};
+      PackedQuarterGridV6 packed[LEGACY_QUARTERS_PER_GRID]{};
       bool ok = true;
 
-      for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+      for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
         size_t len = prefs.getBytesLength(quarter_keys[q]);
         if (len < sizeof(PackedQuarterGridV6)) {
           ok = false;
@@ -2569,10 +2603,10 @@ bool TileConfig::loadGrid(const char* prefix, TileGridConfig& grid) {
       }
 
       if (ok) {
-        for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+        for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
           for (size_t i = 0; i < TILES_PER_QUARTER; ++i) {
             size_t grid_idx = quarterGridIndex(q, i);
-            if (grid_idx >= TILES_PER_GRID) {
+            if (grid_idx >= GRID_CELLS) {
               continue;
             }
             unpackTileV6(packed[q].tiles[i], grid.tiles[grid_idx]);
@@ -2712,20 +2746,20 @@ bool TileConfig::saveGrid(const char* prefix, const TileGridConfig& grid) {
 
   Serial.printf("[TileConfig] Saving grid '%s' (storage, %u x %u bytes)\n",
                 prefix,
-                static_cast<unsigned>(QUARTERS_PER_GRID),
+                static_cast<unsigned>(LEGACY_QUARTERS_PER_GRID),
                 static_cast<unsigned>(sizeof(PackedQuarterGridV6)));
 
   auto packed_storage =
-      allocPackedGridScratch<PackedQuarterGridV6>(QUARTERS_PER_GRID, "Legacy-Save");
+      allocPackedGridScratch<PackedQuarterGridV6>(LEGACY_QUARTERS_PER_GRID, "Legacy-Save");
   PackedQuarterGridV6* packed = packed_storage.get();
   if (!packed) return false;
   ScopedStorageWriteDisplayGuard storage_write_guard;
-  for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+  for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
     packed[q].version = PACKED_GRID_VERSION;
     packed[q].quarter_index = static_cast<uint8_t>(q);
     for (size_t i = 0; i < TILES_PER_QUARTER; ++i) {
       size_t grid_idx = quarterGridIndex(q, i);
-      if (grid_idx >= TILES_PER_GRID) {
+      if (grid_idx >= GRID_CELLS) {
         packed[q].tiles[i] = PackedTileV6{};
         continue;
       }
@@ -2740,14 +2774,14 @@ bool TileConfig::saveGrid(const char* prefix, const TileGridConfig& grid) {
     }
   }
 
-  if (!writeGridSd(prefix, packed, QUARTERS_PER_GRID)) {
+  if (!writeGridSd(prefix, packed, LEGACY_QUARTERS_PER_GRID)) {
     Serial.printf("[TileConfig] Error saving grid '%s' (storage write failed)\n", prefix);
     return false;
   }
 
   Serial.printf("[TileConfig] Grid '%s' saved (storage, %u x %u bytes)\n",
                 prefix,
-                static_cast<unsigned>(QUARTERS_PER_GRID),
+                static_cast<unsigned>(LEGACY_QUARTERS_PER_GRID),
                 static_cast<unsigned>(sizeof(PackedQuarterGridV6)));
   return true;
 }
@@ -2915,7 +2949,9 @@ bool TileConfig::loadFolderGridEntitiesOnly(uint16_t folder_id, TileEntitySlot* 
     // Legacy/older grid version: fall back to the full loader. Rare in
     // practice (grids migrate to v7 on first save) -- correctness over
     // speed for this edge case.
-    TileGridConfig full;
+    TileGridScratch scratch = makeTileGridScratch();
+    if (!scratch) return false;
+    TileGridConfig& full = *scratch;
     if (!loadGrid(folder_id, full)) return false;
     for (size_t i = 0; i < TILES_PER_GRID; ++i) {
       out[i].type = full.tiles[i].type;
@@ -3070,9 +3106,11 @@ bool TileConfig::getFolderEntitiesCached(uint16_t folder_id, FolderEntitySlotVie
   const uint32_t gen_now = folder_entity_cache_gen_;
   FolderEntityCacheEntry* e = findFolderEntityCacheEntry(folder_id);
   if (!e || e->built_gen != gen_now) {
-    TileEntitySlot slots[TILES_PER_GRID];
-    if (!loadFolderGridEntitiesOnly(folder_id, slots, TILES_PER_GRID)) return false;
-    e = storeFolderEntityCache(folder_id, slots, gen_now);
+    // On the heap: a list's slots no longer fit the loop task's stack.
+    std::unique_ptr<TileEntitySlot[]> slots(new (std::nothrow) TileEntitySlot[TILES_PER_GRID]);
+    if (!slots) return false;
+    if (!loadFolderGridEntitiesOnly(folder_id, slots.get(), TILES_PER_GRID)) return false;
+    e = storeFolderEntityCache(folder_id, slots.get(), gen_now);
     if (!e) return false;
   }
 
@@ -3687,7 +3725,9 @@ bool TileConfig::getSettingsTile(Tile& out) {
   // The visible Home grid is the stored one: no flash read, which took about
   // 350 ms on the V2 before a Settings parking move could show (user
   // 2026-10-02, "[WebAdmin] Settings tile ... parse=").
-  TileGridConfig grid{};
+  TileGridScratch scratch = makeTileGridScratch();
+  if (!scratch) return false;
+  TileGridConfig& grid = *scratch;
   if (active_folder_id == kRootFolderId) {
     grid = activeGrid();
   } else if (!loadGrid(kRootFolderId, grid, false)) {
@@ -3715,12 +3755,14 @@ void TileConfig::snapshotSettingsTile(const Tile& tile, SettingsTileSnapshot& ou
 }
 
 int TileConfig::settingsTileIndex() {
-  TileGridConfig loaded{};
-  const TileGridConfig* grid = &loaded;
+  const TileGridConfig* grid = nullptr;
+  TileGridScratch loaded;
   if (active_folder_id == kRootFolderId) {
     grid = &activeGrid();
-  } else if (!loadGrid(kRootFolderId, loaded, false)) {
-    return -1;
+  } else {
+    loaded = makeTileGridScratch();
+    if (!loaded || !loadGrid(kRootFolderId, *loaded, false)) return -1;
+    grid = loaded.get();
   }
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     if (grid->tiles[i].type == TILE_SETTINGS) return static_cast<int>(i);
@@ -3738,7 +3780,9 @@ bool TileConfig::previewSettingsTileVisible(bool visible, float target_col,
 
 SettingsTileVisibilityResult TileConfig::setSettingsTileVisible(
     bool visible, float target_col, float target_row) {
-  TileGridConfig grid{};
+  TileGridScratch scratch = makeTileGridScratch();
+  if (!scratch) return SettingsTileVisibilityResult::StorageError;
+  TileGridConfig& grid = *scratch;
   if (!loadGrid(kRootFolderId, grid, false)) {
     return SettingsTileVisibilityResult::StorageError;
   }
@@ -3778,7 +3822,9 @@ SettingsTileVisibilityResult TileConfig::validateSettingsTileVisible(
     bool visible, float target_col, float target_row) {
   // Checked against the visible Home grid, which is the stored one (see
   // getSettingsTile): no flash read before the move shows.
-  TileGridConfig grid{};
+  TileGridScratch scratch = makeTileGridScratch();
+  if (!scratch) return SettingsTileVisibilityResult::StorageError;
+  TileGridConfig& grid = *scratch;
   if (active_folder_id == kRootFolderId) {
     grid = activeGrid();
   } else if (!loadGrid(kRootFolderId, grid, false)) {
@@ -4127,18 +4173,18 @@ bool TileConfig::loadGrid(uint16_t folder_id, TileGridConfig& grid,
   } else {
     packed_v7_storage.reset();
     auto packed_v6_storage =
-        allocPackedGridScratch<PackedQuarterGridV6>(QUARTERS_PER_GRID, "Grid-Load-v6");
+        allocPackedGridScratch<PackedQuarterGridV6>(LEGACY_QUARTERS_PER_GRID, "Grid-Load-v6");
     PackedQuarterGridV6* packed_v6 = packed_v6_storage.get();
     if (!packed_v6) return false;
-    if (readGridSdV6(folder_id, packed_v6, QUARTERS_PER_GRID) ||
+    if (readGridSdV6(folder_id, packed_v6, LEGACY_QUARTERS_PER_GRID) ||
         (folder_id == kRootFolderId && storageReady() &&
-         readPackedGridFileV6(tileGridFileLegacy("tab0"), packed_v6, QUARTERS_PER_GRID))) {
+         readPackedGridFileV6(tileGridFileLegacy("tab0"), packed_v6, LEGACY_QUARTERS_PER_GRID))) {
       ok = true;
       needs_migration_save = true;
-      for (size_t q = 0; q < QUARTERS_PER_GRID; ++q) {
+      for (size_t q = 0; q < LEGACY_QUARTERS_PER_GRID; ++q) {
         for (size_t i = 0; i < TILES_PER_QUARTER; ++i) {
           size_t grid_idx = quarterGridIndex(q, i);
-          if (grid_idx >= TILES_PER_GRID) {
+          if (grid_idx >= GRID_CELLS) {
             continue;
           }
           unpackTileV6(packed_v6[q].tiles[i], grid.tiles[grid_idx]);

@@ -1626,7 +1626,10 @@ bool buildAdminFolderTabFragments(uint16_t folder_id, String& button_html, Strin
     navigateOptionsHtml += "</option>\n";
   }
 
-  TileGridConfig grid{};
+  // On the heap: a whole folder no longer fits on the task stack.
+  TileGridScratch scratch = makeTileGridScratch();
+  if (!scratch) return false;
+  TileGridConfig& grid = *scratch;
   tileConfig.loadFolderGrid(folder_id, grid);
   tab_id = "folder" + String(folder_id);
   button_html = buildFolderTabButtonHtml(*folder);
@@ -2490,7 +2493,10 @@ onclick="switchTab('tab-network')">
   // on first use via /api/folders/tab, avoiding synchronous all-folder reads.
   for (const auto& entry : folders) {
     if (entry.id != 0) continue;
-    TileGridConfig grid{};
+    // On the heap: a whole folder no longer fits on the task stack.
+    TileGridScratch scratch = makeTileGridScratch();
+    if (!scratch) continue;
+    TileGridConfig& grid = *scratch;
     tileConfig.loadFolderGrid(entry.id, grid);
     appendTileTabHTML(html, entry.id, entry, grid, formatSensorValue,
                       navigateOptionsHtml);

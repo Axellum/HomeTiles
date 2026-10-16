@@ -238,7 +238,7 @@
 
   function captureLayoutSnapshot(tab) {
     const tiles = getTilesData(tab);
-    const count = Math.max(Array.isArray(tiles) ? tiles.length : 0, GRID_COLS * GRID_ROWS);
+    const count = Math.max(Array.isArray(tiles) ? tiles.length : 0, TILES_PER_GRID);
     const snapshot = [];
     for (let i = 0; i < count; i++) {
       const layout = getTileElementLayout(tab, i) || getTileLayoutFromData(tab, i);

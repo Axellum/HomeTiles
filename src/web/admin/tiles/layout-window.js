@@ -586,6 +586,10 @@
     return getTilesData(tab).filter(tile => layoutShown(tile) && !layoutRed(tile, layoutWindow.key) &&
       !layoutInside(tile, layoutWindow.key)).length;
   }
+  // A folder's list holds one entry per classic cell plus the storage's
+  // entries (grid_slots.h). With no more tiles than that in a layout's
+  // storage, a free cell on its screen always takes a new tile.
+  function layoutStorageMax() { return Math.max(0, TILES_PER_GRID - GRID_COLS * GRID_ROWS); }
 
   function markLayoutRed(tab) {
     if (!layoutWindow || layoutWindow.tab !== tab) return;
@@ -626,11 +630,13 @@
   function refreshLayoutStatus() {
     const dialog = document.querySelector('.setup-dialog');
     if (!dialog || !layoutWindow) return;
-    let total = 0, parked = 0;
+    let total = 0, parked = 0, storageFull = null;
     for (const tab of layoutTabs()) {
       const count = redCount(tab);
       total += count;
-      parked += parkedCount(tab);
+      const stored = parkedCount(tab);
+      parked += stored;
+      if (stored > layoutStorageMax() && (!storageFull || stored > storageFull)) storageFull = stored;
       const badge = dialog.querySelector(`.setup-tab[data-tab="${tab}"] .setup-badge`);
       if (badge) {
         badge.textContent = count || '';
@@ -659,7 +665,9 @@
     layoutWindow.missingFolders = missing;
     // Red (a folder without a place, a tile half over the edge) is to be
     // solved first: nothing is stored or switched before (user 2026-10-08).
-    layoutWindow.blocked = total > 0;
+    // So is a storage with more tiles than entries (user 2026-10-16): a free
+    // cell could then take no new tile.
+    layoutWindow.blocked = total > 0 || storageFull !== null;
     const L = LAYOUTS[layoutWindow.key];
     const apply = dialog.querySelector('.setup-apply');
     apply.disabled = layoutWindow.blocked || !L.switchable;
@@ -673,8 +681,12 @@
     if (settingsMissing) notes.push(['missing', 'cog-outline', t('layoutSettingsMissing')]);
     if (tiles) notes.push(['missing', 'alert-circle-outline',
       tiles === 1 ? t('layoutTileMissing') : tf('layoutTilesMissing', {n: tiles})]);
-    if (parked) notes.push(['parked', 'tray-arrow-down',
-      parked === 1 ? t('layoutParkedTile') : tf('layoutParkedTiles', {n: parked})]);
+    if (storageFull !== null) {
+      notes.push(['missing', 'tray-arrow-down', tf('layoutStorageFull', {n: storageFull, max: layoutStorageMax()})]);
+    } else if (parked) {
+      notes.push(['parked', 'tray-arrow-down',
+        parked === 1 ? t('layoutParkedTile') : tf('layoutParkedTiles', {n: parked})]);
+    }
     if (!notes.length) notes.push(['ok', 'check-circle-outline', t('layoutAllFit')]);
     dialog.querySelector('.setup-status').innerHTML = notes.map(([kind, icon, text]) =>
       `<span class="setup-status-item is-${kind}"><i class="mdi mdi-${icon}"></i><span>${layoutRichText(text)}</span></span>`).join('');

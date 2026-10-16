@@ -212,13 +212,16 @@
   }
 
   function buildEmptyImportTile(index) {
+    // Entries behind the classic cells start over at the first cell, like the
+    // firmware's defaults (grid_slots.h): every place lies on the grid.
+    const cell = index % (GRID_COLS * GRID_ROWS);
     return {
       type: 0,
       title: '',
       icon_name: '',
       bg_color: 0,
-      col: index % GRID_COLS,
-      row: Math.floor(index / GRID_COLS),
+      col: cell % GRID_COLS,
+      row: Math.floor(cell / GRID_COLS),
       span_w: 1,
       span_h: 1
     };
@@ -291,7 +294,7 @@
   // conflict, as the server would refuse it (tile_geometry::supported,
   // placementOverlaps).
   function planImportGrid(sourceTiles, systemType, targetSystem, tab) {
-    const tileCount = GRID_COLS * GRID_ROWS;
+    const tileCount = TILES_PER_GRID;
     const occupied = Array.from({ length: GRID_ROWS * 2 }, () => Array(GRID_COLS * 2).fill(false));
     const cells = (layout, mark) => {
       for (let y = layout.row * 2; y < (layout.row + layout.span_h) * 2; y++) {
@@ -377,7 +380,7 @@
 
   async function applyImportGrid(folderId, currentTiles, plan, systemType, folderName, sourceToTarget = null,
                                  sourceFolderId = null) {
-    const tileCount = GRID_COLS * GRID_ROWS;
+    const tileCount = TILES_PER_GRID;
     const systemIndex = currentTiles.findIndex(tile => importTileType(tile) === systemType);
     const post = async (index, tile) => {
       try {
@@ -468,7 +471,7 @@
   }
 
   function prepareScreensaverTilesForImport(sourceTiles, sourceLayout) {
-    const tileCount = GRID_COLS * GRID_ROWS;
+    const tileCount = TILES_PER_GRID;
     const sourceCols = Number(sourceLayout?.grid_cols || 0);
     const sourceRows = Number(sourceLayout?.grid_rows || 0);
     const sameLayout = sourceCols === GRID_COLS && sourceRows === GRID_ROWS;
@@ -559,7 +562,7 @@
   async function replaceScreensaverGridForImport(preparedTiles) {
     const folderId = SCREENSAVER_FOLDER_ID;
     const currentTiles = await fetchTilesForImport(folderId);
-    const tileCount = GRID_COLS * GRID_ROWS;
+    const tileCount = TILES_PER_GRID;
     const post = async (index, tile) => {
       try {
         await postTile(folderId, index, tile);

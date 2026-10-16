@@ -157,8 +157,9 @@ void ScreensaverConfigStore::resetGrid(TileGridConfig& grid,
                                         bool transparent_defaults) {
   for (size_t i = 0; i < TILES_PER_GRID; ++i) {
     grid.tiles[i] = Tile{};
-    grid.tiles[i].col = static_cast<uint8_t>(i % GRID_COLS);
-    grid.tiles[i].row = static_cast<uint8_t>(i / GRID_COLS);
+    const size_t cell = grid_slots::defaultCell(i, GRID_CELLS);
+    grid.tiles[i].col = static_cast<uint8_t>(cell % GRID_COLS);
+    grid.tiles[i].row = static_cast<uint8_t>(cell / GRID_COLS);
     grid.tiles[i].span_w = 1;
     grid.tiles[i].span_h = 1;
     if (transparent_defaults) grid.tiles[i].background_opacity = 0;
