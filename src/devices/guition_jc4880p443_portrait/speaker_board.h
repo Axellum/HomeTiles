@@ -31,9 +31,11 @@ constexpr audio_chips::Input kInput = audio_chips::Input::Es8311;
 constexpr uint8_t kMicAddress = 0x00;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_11;
 constexpr bool kAmpActiveHigh = true;
-// Loudest clean level as a fraction of the shared volume scale (1 = the
-// codec's full scale, fine on this board's amplifier).
-constexpr float kVolumeLimit = 1.0f;
+// Loudest clean level as a fraction of the shared volume scale: the same
+// ES8311-to-NS4150 circuit as the Guition JC8012 V2, which distorted and
+// switched off at the full scale (user 2026-10-16); 0.6 as there, by
+// precaution, not tested on this board.
+constexpr float kVolumeLimit = 0.6f;
 
 // The touch-owned I2C bus; nullptr before Device init opened it.
 i2c_master_bus_handle_t bus();

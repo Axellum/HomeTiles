@@ -21,7 +21,7 @@ const WAVESHARE = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 11, out: 'Es8311'
 const GUITION_11 = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 11, out: 'Es8311', codec: 0x18,
   inp: 'Es8311', mic: 0x00, amp: 20, limit: 0.6};
 const GUITION_48 = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 48, out: 'Es8311', codec: 0x18,
-  inp: 'Es8311', mic: 0x00, amp: 11, limit: 1.0};
+  inp: 'Es8311', mic: 0x00, amp: 11, limit: 0.6};
 const BOARDS = {
   DEVICE_WAVESHARE_TOUCH_LCD_7B: {dir: 'waveshare_touch_lcd_7b', ...WAVESHARE},
   DEVICE_WAVESHARE_TOUCH_LCD_8: {dir: 'waveshare_touch_lcd_8', ...WAVESHARE},
@@ -87,7 +87,7 @@ for (const [define, facts] of Object.entries(BOARDS)) {
   assert.equal(Number(constant(header, 'kMicAddress')), facts.mic, `${where} ES7210 address`);
   assert.equal(gpio(constant(header, 'kAmpEnable')), facts.amp, `${where} amplifier`);
   assert.equal(constant(header, 'kAmpActiveHigh'), 'true', `${where} amplifier level`);
-  // Loudest clean level (user 2026-10-16: V2 and its V1 board 60 %, Tab5 90 %).
+  // Loudest clean level (user 2026-10-16: the Guition boards 60 %, Tab5 90 %).
   assert.equal(Number(constant(header, 'kVolumeLimit').replace(/f$/, '')), facts.limit,
     `${where} volume limit`);
   assert.match(source, new RegExp(`#if defined\\(${define}\\) && defined\\(HOMETILES_SPEAKER\\)`),
