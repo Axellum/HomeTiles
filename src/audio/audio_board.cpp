@@ -111,6 +111,11 @@ esp_err_t setOutputRate(uint32_t rate) {
   return es8311::setSampleRate(&g_es8311, rate);
 }
 
+esp_err_t startOutput() {
+  if (!g_output_ready) return ESP_ERR_INVALID_STATE;
+  return speaker_board::kOutput == Output::Es8388 ? es8388::start(&g_es8388) : ESP_OK;
+}
+
 esp_err_t setOutputVolumeRegister(uint8_t value) {
   if (!g_output_ready) return ESP_ERR_INVALID_STATE;
   return speaker_board::kOutput == Output::Es8388 ? es8388::setVolumeRegister(&g_es8388, value)

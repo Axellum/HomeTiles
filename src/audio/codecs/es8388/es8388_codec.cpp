@@ -125,7 +125,11 @@ esp_err_t init(Codec* codec) {
   ES8388_TRY(writeReg(codec, kRegDacPower, kDacPowerAllOutputs));
   // The ADC stays powered down: the Tab5 microphones are on the ES7210.
   ES8388_TRY(writeReg(codec, kRegAdcPower, 0xFF));
-  // es8388_start() for the DAC: restart the state machine, power the DAC.
+  return start(codec);
+}
+
+esp_err_t start(Codec* codec) {
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   ES8388_TRY(writeReg(codec, kRegChipPower, 0xF0));
   ES8388_TRY(writeReg(codec, kRegChipPower, 0x00));
   return writeReg(codec, kRegDacPower, kDacPowerAllOutputs);

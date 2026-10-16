@@ -37,6 +37,11 @@ esp_err_t probe(uint8_t address, Codec* codec);
 // Configures 16-bit I2S slave playback on all four outputs and starts the
 // DAC, muted until setMute(false).
 esp_err_t init(Codec* codec);
+// es8388_start() for the DAC: restarts the state machine and powers the DAC
+// and outputs. init() does it once; the speaker repeats it whenever the I2S
+// output opened and MCLK runs, as esp_codec_dev and M5Unified start the
+// codec after their I2S channel.
+esp_err_t start(Codec* codec);
 // The ES8311 volume scale shared by the speaker core (0 = -95.5 dB,
 // 0xBF = 0 dB, 0.5 dB steps), written as the DAC attenuation (0 = 0 dB,
 // 0xC0 = -96 dB).

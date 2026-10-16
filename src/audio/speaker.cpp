@@ -386,6 +386,11 @@ ErrorCode openOutput(uint32_t rate) {
       return ErrorCode::CodecUnavailable;
     }
     g_tx_rate = rate;
+    const esp_err_t started = audio_board::startOutput();
+    if (started != ESP_OK) {
+      Serial.printf("%s %s start failed (%s)\n", kLogPrefix, audio_board::outputName(),
+                    esp_err_to_name(started));
+    }
   }
   applyVolumeIfChanged();
   writeSilence(kSilenceMs);

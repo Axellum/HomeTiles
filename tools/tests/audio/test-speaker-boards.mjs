@@ -246,6 +246,13 @@ int main() {
   assert(es8388::setVolumeRegister(&es8388, 0xBF - 40) == ESP_OK && lastWrite(0x10, 0x1A) == 40);
   assert(es8388::setVolumeRegister(&es8388, 0) == ESP_OK && lastWrite(0x10, 0x1A) == 0xBF);
   assert(es8388::setVolumeRegister(&es8388, 0xFF) == ESP_OK && lastWrite(0x10, 0x1A) == 0x00);
+  // start(): repeated once MCLK runs, restarts the state machine and powers
+  // the DAC without touching the mute bit.
+  g_writes.clear();
+  assert(es8388::start(&es8388) == ESP_OK);
+  assert(g_writes.size() == 3 && g_writes[0].reg == 0x02 && g_writes[0].value == 0xF0 &&
+         g_writes[1].reg == 0x02 && g_writes[1].value == 0x00 && g_writes[2].reg == 0x04 &&
+         g_writes[2].value == 0x3C);
   assert(es8388::supportsSampleRate(16000) && es8388::supportsSampleRate(44100) &&
          !es8388::supportsSampleRate(96000));
 

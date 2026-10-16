@@ -42,6 +42,9 @@ void setAmp(bool on);
 bool probeOutput(uint32_t initial_rate);
 bool outputSupportsRate(uint32_t rate);
 esp_err_t setOutputRate(uint32_t rate);
+// The I2S output opened and MCLK runs: codecs that start only on a running
+// clock do it now (ES8388); a no-op for the ES8311.
+esp_err_t startOutput();
 // ES8311 volume scale: 0 = -95.5 dB, 0xBF = 0 dB, 0.5 dB steps.
 esp_err_t setOutputVolumeRegister(uint8_t value);
 esp_err_t setOutputMute(bool mute);
