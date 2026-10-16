@@ -260,6 +260,8 @@ struct Strings {
   const char* layout_parked_tile;
   // A layout's storage holds more tiles than it has entries ({n} of {max}).
   const char* layout_storage_full;
+  // A free cell of a folder whose every entry is used ({n} of {max}).
+  const char* folder_full;
   const char* layout_delete_tile;
   const char* layout_delete_confirm;
   // Color of a tile without an icon (Clock, Text, Pixel animation): the

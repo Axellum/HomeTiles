@@ -439,9 +439,40 @@
     const grid = getTileGrid(tab);
     if (!grid || grid.dataset.freeSlotBound === '1') return;
     grid.dataset.freeSlotBound = '1';
+    // A folder whose every entry is used has no free slot to offer: its free
+    // cell still shows the hand, and a click tells why (user 2026-10-16).
+    // The marker is no tile, so nothing that walks the tiles sees it.
+    const fullMarker = () => {
+      let marker = grid.querySelector(':scope > .folder-full-slot');
+      if (!marker) {
+        marker = document.createElement('div');
+        marker.className = 'folder-full-slot';
+        marker.addEventListener('click', event => {
+          event.stopPropagation();
+          const used = getTilesData(tab).filter(tile => Number(tile?.type || 0) !== 0).length;
+          showNotification(tf('folderFull', {n: used, max: TILES_PER_GRID}), false);
+        });
+        grid.appendChild(marker);
+      }
+      return marker;
+    };
+    const hideFull = () => grid.querySelector(':scope > .folder-full-slot')?.classList.remove('shown');
+    const markFull = (clientX, clientY) => {
+      const point = pointerGridPoint(tab, clientX, clientY);
+      const slot = point && freeSlotNear(tab, occupiedFromGrid(tab, grid, null), point);
+      if (!slot) {
+        hideFull();
+        return null;
+      }
+      const marker = fullMarker();
+      setTileGridPosition(marker, slot.col, slot.row, slot.span_w, slot.span_h);
+      marker.classList.add('shown');
+      return null;
+    };
     const placeAt = (clientX, clientY) => {
       const el = freeSlotElement(grid);
-      if (!el) return null;
+      if (!el) return markFull(clientX, clientY);
+      hideFull();
       const point = pointerGridPoint(tab, clientX, clientY);
       const slot = point && freeSlotNear(tab, occupiedFromGrid(tab, grid, el), point);
       if (!slot) {
@@ -473,12 +504,14 @@
       const over = event.target.closest('.tile');
       if (over && over.parentElement === grid && !over.classList.contains('empty')) {
         grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
+        hideFull();
         return;
       }
       placeAt(event.clientX, event.clientY);
     });
     grid.addEventListener('pointerleave', () => {
       grid.querySelector(':scope > .tile.free-slot-hover')?.classList.remove('free-slot-hover');
+      hideFull();
     });
     grid.addEventListener('click', event => {
       if (event.target !== grid || besideScreen(event)) return;

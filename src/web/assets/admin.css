@@ -1415,6 +1415,11 @@
     .tile.empty.free-slot-hover:not(.active):not([data-selected="1"]) { border:3px dashed rgba(38,166,154,0.6); }
     /* The free slot may lie over a selected empty new tile; it takes the click. */
     .tile.empty.free-slot-hover:not([data-selected="1"]) { z-index:1; }
+    /* A full folder's free cell: the free slot's ring and hand; a click says
+       the folder is full (tiles/layout.js enableFreeSlotHover). */
+    .folder-full-slot { display:none; box-sizing:border-box; border:3px dashed rgba(38,166,154,0.6);
+      border-radius:var(--tile-radius, 16px); cursor:pointer; z-index:1; }
+    .folder-full-slot.shown { display:block; }
     .tile-title {
       color:var(--pv-text, #fff);
       font-weight:normal;

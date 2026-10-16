@@ -134,7 +134,7 @@ const helpers = ['clampInt','clampHalf','isCompactSensorType','isEditableValueTy
   'normalizeLayoutForTileType','normalizeTileLayout','constrainLayoutToTab','setGridItemPosition',
   'setTileGridPosition','layoutTiles','headBarLayout','placeCols','placeRows','tileTakesRoom','emptyOccupancy','markOccupied',
   'slotFits','freeSlotNear','pointerGridPoint','firstFreeSlot','occupiedFromGrid','freeSlotElement','getTileElementLayout',
-  'minimumTileSize','canPlaceTileLayout','canPlaceGridLayout','rectsOverlap','getTileLayoutFromData'].map(extractDeliveredFunction).join('\n');
+  'minimumTileSize','canPlaceTileLayout','canPlaceGridLayout','rectsOverlap','getTileLayoutFromData','enableFreeSlotHover'].map(extractDeliveredFunction).join('\n');
 // "Beleuchtung" as exported: the Back tile (classic top left, no head bar
 // place), 8 tiles on the 3x3 screen, 7 in the storage.
 const shown = [[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]];
@@ -149,15 +149,20 @@ ${inlineScriptSafe(helpers)}
 const GRID_COLS=4,GRID_ROWS=4,HEAD_BAR=true,GRID_SHOWN_COLS=3,GRID_SHOWN_ROWS=3,MEDIA_TILE_TYPE=15,MEDIA_TILE_MIN_SPAN=2,
   MEDIA_TILE_MAX_SPAN=3,FREE_SLOT_SIZES=[[1,1],[1,.5]];
 let currentTileTab='test',currentTileIndex=-1,dragSource=null,resizeState=null,newTileSpot=null;
+const TILES_PER_GRID=${list4b},notes=[];
+function showNotification(text,ok){notes.push({text,ok});}
+function tf(key,r){return key+' '+r.n+'/'+r.max;}
+function selectTile(){}
 function firstAllowedGridRow(){return 0;}
 function getTileGrid(){return document.querySelector('#tab-tiles-test .tile-grid');}
 function getTilesData(){return window.testTiles||[];}
 function getTileGridMetrics(){const rect=getTileGrid().getBoundingClientRect();return {rect,padLeft:4,padTop:4,cellW:100,cellH:100,gapX:12,gapY:12};}
 const check=(v,m)=>{if(!v)throw Error(m);};
 const folder=${JSON.stringify(folder)};
-function render(count){
+function render(count,storedExtra=0){
   const grid=getTileGrid();
-  const tiles=[...folder,...Array.from({length:count-folder.length},()=>({type:0}))];
+  const extra=Array.from({length:storedExtra},()=>({type:5,col:0,row:0,span_w:1,span_h:1,layout_hidden:true}));
+  const tiles=[...folder,...extra,...Array.from({length:count-folder.length-storedExtra},()=>({type:0}))];
   grid.innerHTML=tiles.map((t,i)=>'<div class="tile '+(t.type?'filled':'empty')+'" id="test-tile-'+i+'" data-index="'+i+'" data-type="'+t.type+'"></div>').join('');
   window.testTiles=tiles;
   layoutTiles('test',tiles);
@@ -172,6 +177,20 @@ try{
   const at=getTileElementLayout('test',Number(free[0].dataset.index));
   check(at.col===0&&at.row===0&&at.span_w===1&&at.span_h===1,'The free slot rests on the empty top-left cell '+JSON.stringify(at));
   check(!occupiedFromGrid('test',getTileGrid(),free[0])[0][0],'Neither the Back tile nor the storage tiles take that cell');
+  // A folder whose every entry is used: the free cell keeps the hand and a
+  // click says the folder is full.
+  check(render(TILES_PER_GRID,TILES_PER_GRID-folder.length).length===0,'Every entry used: no free slot');
+  enableFreeSlotHover('test');
+  const r=getTileGrid().getBoundingClientRect();
+  getTileGrid().dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerType:'mouse',clientX:r.left+4+50,clientY:r.top+4+50}));
+  const marker=getTileGrid().querySelector('.folder-full-slot.shown');
+  check(marker,'The full folder still marks the free cell');
+  check(getComputedStyle(marker).cursor==='pointer','with the hand');
+  const m=marker.getBoundingClientRect();
+  check(Math.abs(m.left-(r.left+4))<2&&Math.abs(m.top-(r.top+4))<2,'on the top-left cell');
+  document.elementFromPoint(m.left+m.width/2,m.top+m.height/2).click();
+  check(notes.length===1&&notes[0].text==='folderFull 32/32'&&notes[0].ok===false,'A click says the folder is full '+JSON.stringify(notes));
+  check(!getTileGrid().querySelector('.tile[data-selected="1"]'),'and selects no tile');
   document.body.dataset.result='pass';
 }catch(error){document.body.dataset.result='fail';document.getElementById('result').textContent=error.stack;}
 </script></body></html>`;
