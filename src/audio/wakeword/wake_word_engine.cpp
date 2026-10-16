@@ -55,7 +55,9 @@ using OpResolver = tflite::MicroMutableOpResolver<kOpCount>;
 // invocation, so the arena gets this much on top of the manifest size.
 constexpr int kMaxResourceVariables = 8;
 constexpr size_t kVariableArenaBytes = 8 * 1024;
-// Invocation cost is logged once per start, at most this often.
+// Invocation cost is logged once per start, over this many runs, at most
+// this often.
+constexpr uint32_t kTimingInvocations = 100;
 constexpr uint32_t kTimingLogIntervalMs = 10u * 60u * 1000u;
 constexpr uint32_t kErrorLogIntervalMs = 10000;
 
@@ -219,7 +221,7 @@ bool Engine::begin(const ModelSpec& spec) {
     return false;
   }
   impl->detector.configure(spec.probability_cutoff, spec.sliding_window_size);
-  impl->detector.reset(kWarmupInvocations);
+  impl->detector.reset(warmupInvocations(impl->stride));
   Serial.printf("%s %s ready: %d feature rows per invocation, arena %u bytes (PSRAM), cutoff %u/255, "
                 "window %u\n",
                 kLogPrefix, spec.id, impl->stride, static_cast<unsigned>(impl->arena_size),
@@ -244,7 +246,7 @@ void Engine::reset() {
   if (!impl_ || !spec_) return;
   FrontendReset(&impl_->frontend);
   impl_->rows = 0;
-  impl_->detector.reset(kWarmupInvocations);
+  impl_->detector.reset(warmupInvocations(impl_->stride));
   impl_->timed_invocations = 0;
   impl_->invoke_us_total = 0;
   impl_->invoke_us_max = 0;
@@ -287,7 +289,7 @@ bool Engine::process(const int16_t* samples, size_t count) {
       ++e.timed_invocations;
       e.invoke_us_total += elapsed_us;
       if (elapsed_us > e.invoke_us_max) e.invoke_us_max = elapsed_us;
-      if (e.timed_invocations >= kWarmupInvocations) {
+      if (e.timed_invocations >= kTimingInvocations) {
         e.timing_reported = true;
         if (logDue(&g_timing_log_ms, kTimingLogIntervalMs)) {
           Serial.printf("%s %s: invoke avg %lu us, max %lu us over %lu runs (every %u ms of "

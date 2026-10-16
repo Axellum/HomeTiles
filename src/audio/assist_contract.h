@@ -231,6 +231,13 @@ inline void stereoToMono(const int16_t* stereo, size_t frames, int16_t* out) {
   }
 }
 
+// Takes the left slot of interleaved stereo frames: a single ADC whose data
+// is certain only on the left (the ES8311 puts its DAC reference on the
+// right when asked to).
+inline void stereoLeftToMono(const int16_t* stereo, size_t frames, int16_t* out) {
+  for (size_t i = 0; i < frames; ++i) out[i] = stereo[2 * i];
+}
+
 // Averages interleaved stereo frames (one mic per slot) to mono and writes
 // the samples as signed 16-bit little-endian bytes, 2 bytes per frame.
 inline void stereoToMonoLe(const int16_t* stereo, size_t frames, uint8_t* out) {

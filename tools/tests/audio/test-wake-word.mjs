@@ -219,10 +219,16 @@ int main() {
   SlidingWindowDetector d;
   d.configure(0.97f, 5);
   assert(d.cutoff() == 247 && d.window() == 5);
-  d.reset(kWarmupInvocations);
-  assert(kWarmupInvocations == 100);
+  // Warm-up: ESPHome's 100 feature rows (1 s), in invocations of the 3-row
+  // models: 34, about 1 s, not the 3 s of 100 invocations.
+  assert(kWarmupFeatureRows == 100);
+  assert(warmupInvocations(3) == 34);
+  assert(warmupInvocations(1) == 100);
+  assert(warmupInvocations(0) == 100);
+  assert(warmupInvocations(2) == 50);
+  d.reset(warmupInvocations(3));
   // Warm-up ignores even certain detections.
-  for (int i = 0; i < 100; ++i) assert(!d.push(255));
+  for (int i = 0; i < 34; ++i) assert(!d.push(255));
   assert(d.ignoring() == 0);
   // The window must fill first.
   for (int i = 0; i < 4; ++i) assert(!d.push(255));

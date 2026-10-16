@@ -38,9 +38,17 @@ constexpr int kLogScaleShift = 6;
 // uint16 feature -> float feature, as in microwakeword/inference.py.
 constexpr float kFeatureScale = 0.0390625f;
 
-// Invocations ignored after a (re)start while the streaming model's internal
-// state fills with real audio instead of zeros.
-constexpr uint16_t kWarmupInvocations = 100;
+// Feature rows (10 ms of audio each) ignored after a (re)start while the
+// streaming model's internal state fills with real audio instead of zeros:
+// ESPHome micro_wake_word's MIN_SLICES_BEFORE_DETECTION, 100 slices = 1 s.
+// It also keeps the end of a played answer from retriggering the word.
+constexpr uint16_t kWarmupFeatureRows = 100;
+// The same warm-up in model invocations of `stride` feature rows each
+// (rounded up; 34 for the 3-row models).
+constexpr uint16_t warmupInvocations(int stride) {
+  return stride <= 1 ? kWarmupFeatureRows
+                     : static_cast<uint16_t>((kWarmupFeatureRows + stride - 1) / stride);
+}
 
 // Quantizes one microfrontend feature to the model's int8 input:
 // round(value * kFeatureScale / input_scale) + zero_point, clamped. With the

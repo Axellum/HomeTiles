@@ -3,9 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Adapted for HomeTiles from esp-bsp components/es8311/es8311.c: the playback
- * part only, ported to the i2c_master driver, with the coefficient rows for
- * MCLK = 256 x fs. See PROVENANCE.md.
+ * Adapted for HomeTiles from esp-bsp components/es8311/es8311.c (playback,
+ * the coefficient rows for MCLK = 256 x fs) and esp_codec_dev
+ * device/es8311/es8311.c (analog microphone start), with register access
+ * through codec_bus. See PROVENANCE.md.
  */
 
 #include "src/audio/speaker_select.h"
@@ -35,15 +36,18 @@ constexpr uint8_t kRegSystem0D = 0x0D;
 constexpr uint8_t kRegSystem0E = 0x0E;
 constexpr uint8_t kRegSystem12 = 0x12;
 constexpr uint8_t kRegSystem13 = 0x13;
+constexpr uint8_t kRegSystem14 = 0x14;
+constexpr uint8_t kRegAdc15 = 0x15;
+constexpr uint8_t kRegAdc16 = 0x16;
+constexpr uint8_t kRegAdc17 = 0x17;
+constexpr uint8_t kRegAdc1B = 0x1B;
 constexpr uint8_t kRegAdc1C = 0x1C;
 constexpr uint8_t kRegDac31 = 0x31;
 constexpr uint8_t kRegDac32 = 0x32;
 constexpr uint8_t kRegDac37 = 0x37;
+constexpr uint8_t kRegGpio44 = 0x44;
 constexpr uint8_t kRegChipId1 = 0xFD;
 constexpr uint8_t kRegChipId2 = 0xFE;
-
-constexpr int kI2cTimeoutMs = 100;
-constexpr uint32_t kI2cSpeedHz = 100000;
 
 struct CoeffDiv {
   uint32_t mclk;
@@ -81,12 +85,11 @@ const CoeffDiv* findCoeff(uint32_t rate) {
 }
 
 esp_err_t writeReg(Codec* codec, uint8_t reg, uint8_t value) {
-  const uint8_t buffer[2] = {reg, value};
-  return i2c_master_transmit(codec->dev, buffer, sizeof(buffer), kI2cTimeoutMs);
+  return codec_bus::write(codec->dev, reg, value);
 }
 
 esp_err_t readReg(Codec* codec, uint8_t reg, uint8_t* value) {
-  return i2c_master_transmit_receive(codec->dev, &reg, 1, value, 1, kI2cTimeoutMs);
+  return codec_bus::read(codec->dev, reg, value);
 }
 
 #define ES8311_TRY(expr)              \
@@ -99,16 +102,9 @@ esp_err_t readReg(Codec* codec, uint8_t reg, uint8_t* value) {
 
 bool supportsSampleRate(uint32_t sample_rate) { return findCoeff(sample_rate) != nullptr; }
 
-esp_err_t probe(i2c_master_bus_handle_t bus, uint8_t address, Codec* codec) {
-  if (!bus || !codec) return ESP_ERR_INVALID_ARG;
-  codec->dev = nullptr;
-  i2c_device_config_t config = {};
-  config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-  config.device_address = address;
-  config.scl_speed_hz = kI2cSpeedHz;
-  i2c_master_dev_handle_t dev = nullptr;
-  ES8311_TRY(i2c_master_bus_add_device(bus, &config, &dev));
-  codec->dev = dev;
+esp_err_t probe(uint8_t address, Codec* codec) {
+  if (!codec) return ESP_ERR_INVALID_ARG;
+  ES8311_TRY(codec_bus::attach(address, &codec->dev));
   uint8_t id1 = 0;
   uint8_t id2 = 0;
   esp_err_t err = readReg(codec, kRegChipId1, &id1);
@@ -119,7 +115,7 @@ esp_err_t probe(i2c_master_bus_handle_t bus, uint8_t address, Codec* codec) {
 }
 
 esp_err_t setSampleRate(Codec* codec, uint32_t sample_rate) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   const CoeffDiv* coeff = findCoeff(sample_rate);
   if (!coeff) return ESP_ERR_NOT_SUPPORTED;
   uint8_t value = 0;
@@ -147,7 +143,7 @@ esp_err_t setSampleRate(Codec* codec, uint32_t sample_rate) {
 }
 
 esp_err_t init(Codec* codec, uint32_t sample_rate) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   if (!findCoeff(sample_rate)) return ESP_ERR_NOT_SUPPORTED;
 
   // Reset to defaults, then the power-on command.
@@ -179,12 +175,12 @@ esp_err_t init(Codec* codec, uint32_t sample_rate) {
 }
 
 esp_err_t setVolumeRegister(Codec* codec, uint8_t value) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   return writeReg(codec, kRegDac32, value);
 }
 
 esp_err_t setMute(Codec* codec, bool mute) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   uint8_t value = 0;
   ES8311_TRY(readReg(codec, kRegDac31, &value));
   if (mute) {
@@ -195,10 +191,29 @@ esp_err_t setMute(Codec* codec, bool mute) {
   return writeReg(codec, kRegDac31, value);
 }
 
+// esp_codec_dev es8311_start() for the ADC (analog mic, no PDM) and
+// es8311_open()'s ADC lines; register 0x44 = 0x08 keeps ADC data on both
+// slots (0x58 would put the DAC reference on the right one).
+esp_err_t startMicrophone(Codec* codec, uint8_t scale) {
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
+  ES8311_TRY(writeReg(codec, kRegGpio44, 0x08));
+  ES8311_TRY(writeReg(codec, kRegAdc1B, 0x0A));     // ADC HPF.
+  ES8311_TRY(writeReg(codec, kRegAdc17, 0xBF));     // ADC volume 0 dB.
+  ES8311_TRY(writeReg(codec, kRegSystem0E, 0x02));  // Analog PGA, ADC modulator.
+  ES8311_TRY(writeReg(codec, kRegSystem14, 0x1A));  // MIC1P/N in, PGA 30 dB.
+  ES8311_TRY(writeReg(codec, kRegSystem0D, 0x01));  // Power up analog circuitry.
+  ES8311_TRY(writeReg(codec, kRegAdc15, 0x40));     // ADC ramp rate.
+  return setMicScale(codec, scale);
+}
+
+esp_err_t setMicScale(Codec* codec, uint8_t scale) {
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
+  return writeReg(codec, kRegAdc16, scale > kMaxMicScale ? kMaxMicScale : scale);
+}
+
 void release(Codec* codec) {
-  if (!codec || !codec->dev) return;
-  i2c_master_bus_rm_device(codec->dev);
-  codec->dev = nullptr;
+  if (!codec) return;
+  codec_bus::detach(&codec->dev);
 }
 
 #undef ES8311_TRY

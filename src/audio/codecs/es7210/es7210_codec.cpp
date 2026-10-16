@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Adapted for HomeTiles from esp-bsp components/es7210/es7210.c: the capture
- * configuration for 16-bit standard I2S without TDM, ported to the i2c_master
- * driver, with the coefficient row for 16 kHz at MCLK = 256 x fs. See
- * PROVENANCE.md.
+ * configuration for 16-bit standard I2S without TDM, with register access
+ * through codec_bus and the coefficient row for 16 kHz at MCLK = 256 x fs.
+ * See PROVENANCE.md.
  */
 
 #include "src/audio/speaker_select.h"
@@ -59,9 +59,6 @@ uint8_t micGainRegister(uint8_t step) {
   return static_cast<uint8_t>((step > kMaxGainStep ? kMaxGainStep : step) | 0x10);
 }
 
-constexpr int kI2cTimeoutMs = 100;
-constexpr uint32_t kI2cSpeedHz = 100000;
-
 struct CoeffDiv {
   uint32_t mclk;
   uint32_t lrck;
@@ -88,12 +85,11 @@ const CoeffDiv* findCoeff(uint32_t rate) {
 }
 
 esp_err_t writeReg(Codec* codec, uint8_t reg, uint8_t value) {
-  const uint8_t buffer[2] = {reg, value};
-  return i2c_master_transmit(codec->dev, buffer, sizeof(buffer), kI2cTimeoutMs);
+  return codec_bus::write(codec->dev, reg, value);
 }
 
 esp_err_t readReg(Codec* codec, uint8_t reg, uint8_t* value) {
-  return i2c_master_transmit_receive(codec->dev, &reg, 1, value, 1, kI2cTimeoutMs);
+  return codec_bus::read(codec->dev, reg, value);
 }
 
 #define ES7210_TRY(expr)              \
@@ -116,18 +112,10 @@ esp_err_t setSampleRate(Codec* codec, const CoeffDiv* coeff) {
 
 bool supportsSampleRate(uint32_t sample_rate) { return findCoeff(sample_rate) != nullptr; }
 
-esp_err_t probe(i2c_master_bus_handle_t bus, uint8_t address, Codec* codec,
-                uint16_t* id_out) {
-  if (!bus || !codec) return ESP_ERR_INVALID_ARG;
-  codec->dev = nullptr;
+esp_err_t probe(uint8_t address, Codec* codec, uint16_t* id_out) {
+  if (!codec) return ESP_ERR_INVALID_ARG;
   if (id_out) *id_out = 0;
-  i2c_device_config_t config = {};
-  config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-  config.device_address = address;
-  config.scl_speed_hz = kI2cSpeedHz;
-  i2c_master_dev_handle_t dev = nullptr;
-  ES7210_TRY(i2c_master_bus_add_device(bus, &config, &dev));
-  codec->dev = dev;
+  ES7210_TRY(codec_bus::attach(address, &codec->dev));
   uint8_t id1 = 0;
   uint8_t id0 = 0;
   esp_err_t err = readReg(codec, kRegChipId1_3D, &id1);
@@ -142,7 +130,7 @@ esp_err_t probe(i2c_master_bus_handle_t bus, uint8_t address, Codec* codec,
 
 // es7210_config_codec() with the HomeTiles settings.
 esp_err_t init(Codec* codec, uint32_t sample_rate, uint8_t gain_step) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   const CoeffDiv* coeff = findCoeff(sample_rate);
   if (!coeff) return ESP_ERR_NOT_SUPPORTED;
 
@@ -182,7 +170,7 @@ esp_err_t init(Codec* codec, uint32_t sample_rate, uint8_t gain_step) {
 }
 
 esp_err_t setGain(Codec* codec, uint8_t gain_step) {
-  if (!codec || !codec->dev) return ESP_ERR_INVALID_STATE;
+  if (!codec || !codec->dev.attached) return ESP_ERR_INVALID_STATE;
   const uint8_t reg = micGainRegister(gain_step);
   ES7210_TRY(writeReg(codec, kRegMic1Gain43, reg));
   ES7210_TRY(writeReg(codec, kRegMic2Gain44, reg));
@@ -192,9 +180,8 @@ esp_err_t setGain(Codec* codec, uint8_t gain_step) {
 }
 
 void release(Codec* codec) {
-  if (!codec || !codec->dev) return;
-  i2c_master_bus_rm_device(codec->dev);
-  codec->dev = nullptr;
+  if (!codec) return;
+  codec_bus::detach(&codec->dev);
 }
 
 #undef ES7210_TRY

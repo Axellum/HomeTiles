@@ -1,8 +1,8 @@
 # ES7210 microphone ADC driver for Assist capture
 
-Compiled only for profiles that define `HOMETILES_SPEAKER` in
+Compiled for every profile that defines `HOMETILES_SPEAKER` in
 `src/audio/speaker_select.h` (first: Waveshare ESP32-P4-WIFI6-Touch-LCD-7B);
-the speaker worker owns I2S and both codecs.
+the speaker worker owns I2S and the codecs.
 
 ## Source
 
@@ -25,7 +25,7 @@ the speaker worker owns I2S and both codecs.
 
 ## What changed
 
-- Register access uses the ESP-IDF `i2c_master` device API: the legacy
+- Register access uses `codec_bus` (the board's transport): the legacy
   `i2c_cmd_link` calls of the original cannot share the bus that the display,
   touch and ES8311 drivers already opened with `i2c_master`.
 - Format, bias, gain and sample rate are fixed constants instead of a

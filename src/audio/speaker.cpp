@@ -24,11 +24,9 @@
 
 #include "mp3dec.h"
 #include "src/audio/assist_request.h"
-#include "src/audio/codecs/es7210/es7210_codec.h"
-static_assert(speaker::kMaxMicGainStep == es7210::kMaxGainStep &&
-                  speaker::kDefaultMicGainStep == es7210::kDefaultGainStep,
-              "speaker and ES7210 gain steps match");
-#include "src/audio/codecs/es8311/es8311_codec.h"
+#include "src/audio/audio_board.h"
+#include "src/audio/codecs/audio_chips.h"
+#include "src/audio/mic_level.h"
 #include "src/audio/speaker_request.h"
 #include "src/audio/wakeword/wake_word_detector.h"
 #include "src/audio/wakeword/wake_word_engine.h"
@@ -162,9 +160,11 @@ constexpr uint32_t kCaptureWarmupMs = 40;
 constexpr size_t kRingSamples = assist::kSampleRate * 4;
 // Backlog frames published per 20 ms read (5x real time).
 constexpr size_t kBacklogFramesPerRead = 3;
-// Wake word listening resumes this long after playback or a session ended,
-// so the answer cannot retrigger it, and retries this long after an error.
-constexpr uint32_t kWakeRefractoryMs = 1000;
+// Wake word listening waits this long after an Assist session, whose answer
+// usually follows, and retries this long after an error. After playback it
+// resumes at once: the engine ignores the first second of audio anyway
+// (wake_word::kWarmupFeatureRows), which covers the answer's end.
+constexpr uint32_t kWakeAfterSessionMs = 1000;
 constexpr uint32_t kWakeRetryMs = 5000;
 
 struct AssistRequest {
@@ -208,8 +208,6 @@ uint32_t g_assist_log_ms = 0;
 char g_assist_session_id[assist::kMaxRequestIdLength + 1] = {};
 
 // Worker only.
-es8311::Codec g_codec;
-es7210::Codec g_mic;
 i2s_chan_handle_t g_rx = nullptr;
 i2s_chan_handle_t g_tx = nullptr;
 uint32_t g_tx_rate = 0;
@@ -275,75 +273,36 @@ bool stopRequested(uint32_t generation) {
 // Worker: amplifier, codec and I2S output
 // ---------------------------------------------------------------------------
 void setAmp(bool on) {
-  const bool level = speaker_board::kAmpActiveHigh ? on : !on;
-  gpio_set_level(speaker_board::kAmpEnable, level ? 1 : 0);
+  audio_board::setAmp(on);
   g_amp_on = on;
 }
 
-void initAmpPin() {
-  gpio_config_t config = {};
-  config.pin_bit_mask = 1ULL << speaker_board::kAmpEnable;
-  config.mode = GPIO_MODE_OUTPUT;
-  gpio_config(&config);
-  setAmp(false);
-}
-
 void applyVolumeIfChanged() {
-  if (!g_codec.dev) return;
+  if (!g_codec_ready.load()) return;
   const uint8_t reg = volumeRegister(g_volume.load());
-  if (reg != g_applied_volume_reg &&
-      es8311::setVolumeRegister(&g_codec, reg) == ESP_OK) {
+  if (reg != g_applied_volume_reg && audio_board::setOutputVolumeRegister(reg) == ESP_OK) {
     g_applied_volume_reg = reg;
   }
   const int mute = g_muted.load() ? 1 : 0;
-  if (mute != g_applied_mute && es8311::setMute(&g_codec, mute != 0) == ESP_OK) {
+  if (mute != g_applied_mute && audio_board::setOutputMute(mute != 0) == ESP_OK) {
     g_applied_mute = mute;
   }
 }
 
-void probeSpeakerCodec(i2c_master_bus_handle_t bus) {
-  esp_err_t err = es8311::probe(bus, speaker_board::kCodecAddress, &g_codec);
-  if (err == ESP_OK) err = es8311::init(&g_codec, kInitialSampleRate);
-  if (err != ESP_OK) {
-    Serial.printf("%s ES8311 not ready (%s), speaker disabled\n", kLogPrefix,
-                  esp_err_to_name(err));
-    es8311::release(&g_codec);
-    return;
-  }
-  applyVolumeIfChanged();
-  g_codec_ready.store(true);
-  g_state_generation.fetch_add(1);
-  Serial.printf("%s ES8311 ready at 0x%02X\n", kLogPrefix, speaker_board::kCodecAddress);
-}
-
-// The ES7210 is configured once here to prove it answers, and again at every
-// capture start once MCLK runs.
-void probeMic(i2c_master_bus_handle_t bus) {
-  if (speaker_board::kMicAddress == 0) return;
-  uint16_t chip_id = 0;
-  esp_err_t err = es7210::probe(bus, speaker_board::kMicAddress, &g_mic, &chip_id);
-  if (err == ESP_OK) err = es7210::init(&g_mic, assist::kSampleRate, g_mic_gain.load());
-  if (err != ESP_OK) {
-    Serial.printf("%s ES7210 not ready (%s), Assist microphone disabled\n", kLogPrefix,
-                  esp_err_to_name(err));
-    es7210::release(&g_mic);
-    return;
-  }
-  g_mic_ready.store(true);
-  g_assist_state_generation.fetch_add(1);
-  Serial.printf("%s ES7210 ready at 0x%02X (id 0x%04X)\n", kLogPrefix,
-                speaker_board::kMicAddress, static_cast<unsigned>(chip_id));
-}
-
+// The board's chips (audio_board.cpp): output codec first, then the
+// microphone, which may be the output codec's own ADC.
 void probeCodec() {
-  initAmpPin();
-  i2c_master_bus_handle_t bus = speaker_board::bus();
-  if (!bus) {
-    Serial.printf("%s I2C bus unavailable, speaker and microphone disabled\n", kLogPrefix);
-    return;
+  audio_board::initAmp();
+  g_amp_on = false;
+  if (audio_board::probeOutput(kInitialSampleRate)) {
+    g_codec_ready.store(true);
+    applyVolumeIfChanged();
+    g_state_generation.fetch_add(1);
   }
-  probeSpeakerCodec(bus);
-  probeMic(bus);
+  if (audio_board::probeInput(assist::kSampleRate, g_mic_gain.load())) {
+    g_mic_ready.store(true);
+    g_assist_state_generation.fetch_add(1);
+  }
 }
 
 void writeSilence(uint32_t ms) {
@@ -379,13 +338,13 @@ i2s_std_clk_config_t clockConfig(uint32_t rate) {
 
 // Opens the mono 16-bit output at rate, or switches a running one to it.
 ErrorCode openOutput(uint32_t rate) {
-  if (!es8311::supportsSampleRate(rate)) {
+  if (!audio_board::outputSupportsRate(rate)) {
     Serial.printf("%s Unsupported sample rate %lu Hz\n", kLogPrefix,
                   static_cast<unsigned long>(rate));
     return ErrorCode::UnsupportedFormat;
   }
   if (g_tx && g_tx_rate == rate) return ErrorCode::None;
-  if (es8311::setSampleRate(&g_codec, rate) != ESP_OK) return ErrorCode::CodecUnavailable;
+  if (audio_board::setOutputRate(rate) != ESP_OK) return ErrorCode::CodecUnavailable;
   if (g_tx) {
     // Rate change inside one clip (rare): reprogram while muted by the amp.
     setAmp(false);
@@ -821,7 +780,8 @@ bool allocateCaptureBuffers() {
 }
 
 // RX-only master channel on the shared I2S lines: the P4 drives MCLK, BCLK
-// and LRCK, the ES7210 sends MIC1/MIC2 as the left/right slot on din.
+// and LRCK; an ES7210 sends MIC1/MIC2 as the left/right slot on din, an
+// ES8311 its one ADC on the left slot.
 assist::ErrorCode openInput() {
   i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
   chan.dma_desc_num = kRxDmaDescriptors;
@@ -853,10 +813,11 @@ assist::ErrorCode openInput() {
     g_rx = nullptr;
     return assist::ErrorCode::MicUnavailable;
   }
-  // Reprogram the ADC now that its clocks run, as the esp-bsp examples do.
-  const esp_err_t configured = es7210::init(&g_mic, assist::kSampleRate, g_mic_gain.load());
+  // Configure the microphone ADC now that its clocks run.
+  const esp_err_t configured = audio_board::startInput(assist::kSampleRate, g_mic_gain.load());
   if (configured != ESP_OK) {
-    Serial.printf("%s ES7210 setup failed (%s)\n", kLogPrefix, esp_err_to_name(configured));
+    Serial.printf("%s %s setup failed (%s)\n", kLogPrefix, audio_board::inputName(),
+                  esp_err_to_name(configured));
     closeInput();
     return assist::ErrorCode::MicUnavailable;
   }
@@ -886,7 +847,11 @@ int readMono() {
     return -1;
   }
   const size_t frames = bytes_read / (2 * sizeof(int16_t));
-  assist::stereoToMono(g_chunk, frames, g_mono);
+  if (speaker_board::kInput == audio_chips::Input::Es8311) {
+    assist::stereoLeftToMono(g_chunk, frames, g_mono);
+  } else {
+    assist::stereoToMono(g_chunk, frames, g_mono);
+  }
   return static_cast<int>(frames);
 }
 
@@ -1056,6 +1021,27 @@ wake_word::Engine g_wake_engine;
 uint32_t g_wake_sequence = 0;
 uint32_t g_wake_log_ms = 0;
 
+// Microphone level while listening: first after 10 s of audio (a quick board
+// check), then every 10 minutes of audio.
+constexpr uint64_t kFirstLevelSamples = 10ull * assist::kSampleRate;
+constexpr uint64_t kLevelSamples = 600ull * assist::kSampleRate;
+mic_level::Meter g_mic_meter;
+uint64_t g_mic_meter_due = kFirstLevelSamples;
+
+void meterMicLevel(const int16_t* samples, size_t count) {
+  g_mic_meter.add(samples, count);
+  if (g_mic_meter.samples() < g_mic_meter_due) return;
+  const uint16_t gain = micGainTenthsDb(g_mic_gain.load());
+  Serial.printf("%s Mic level (%s, gain setting %u.%u dB): peak %.0f dBFS, average %.0f dBFS over "
+                "%lu s\n",
+                kLogPrefix, audio_board::inputName(), static_cast<unsigned>(gain / 10),
+                static_cast<unsigned>(gain % 10), static_cast<double>(g_mic_meter.peakDbfs()),
+                static_cast<double>(g_mic_meter.rmsDbfs()),
+                static_cast<unsigned long>(g_mic_meter.samples() / assist::kSampleRate));
+  g_mic_meter.reset();
+  g_mic_meter_due = kLevelSamples;
+}
+
 void disableWakeWords(const char* reason) {
   Serial.printf("%s Wake word disabled: %s\n", kLogPrefix, reason);
   g_wake_failed.store(true);
@@ -1162,10 +1148,11 @@ uint32_t wakeListen() {
       g_wake_resume_ms = millis() + kWakeRetryMs;
       break;
     }
+    meterMicLevel(g_mono, static_cast<size_t>(frames));
     if (frames == 0 || !g_wake_engine.process(g_mono, static_cast<size_t>(frames))) continue;
     uint32_t handoff_bits = 0;
     if (handleWakeDetection(spec->id, topic, mask, &handoff_bits)) continue;
-    g_wake_resume_ms = millis() + kWakeRefractoryMs;
+    g_wake_resume_ms = millis() + kWakeAfterSessionMs;
     return handoff_bits;
   }
   closeInput();
@@ -1216,8 +1203,8 @@ void workerMain(void*) {
       }
       if (have) {
         playRequest(*request, stream_memory);
-        // The answer must not retrigger the wake word.
-        g_wake_resume_ms = millis() + kWakeRefractoryMs;
+        // Listening resumes now; the engine's warm-up covers the answer's end.
+        g_wake_resume_ms = millis();
       }
     }
     if (bits & kNotifyAssist) {
@@ -1225,7 +1212,7 @@ void workerMain(void*) {
       uint32_t generation = 0;
       if (takeAssistRequest(&assist_request, &generation)) {
         captureSession(assist_request, generation, false);
-        g_wake_resume_ms = millis() + kWakeRefractoryMs;
+        g_wake_resume_ms = millis() + kWakeAfterSessionMs;
       }
     }
   }

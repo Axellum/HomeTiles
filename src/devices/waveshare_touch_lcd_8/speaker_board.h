@@ -13,6 +13,8 @@
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
 
+#include "src/audio/codecs/audio_chips.h"
+
 namespace speaker_board {
 
 constexpr gpio_num_t kI2sMclk = GPIO_NUM_13;
@@ -24,8 +26,10 @@ constexpr gpio_num_t kI2sDout = GPIO_NUM_9;
 constexpr gpio_num_t kI2sDin = GPIO_NUM_11;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_53;
 constexpr bool kAmpActiveHigh = true;
+constexpr audio_chips::Output kOutput = audio_chips::Output::Es8311;
 constexpr uint8_t kCodecAddress = 0x18;
-// ES7210 7-bit address; 0 on a speaker board without a microphone ADC.
+constexpr audio_chips::Input kInput = audio_chips::Input::Es7210;
+// ES7210 7-bit address; 0 without an ES7210.
 constexpr uint8_t kMicAddress = 0x40;
 
 // The touch-owned I2C bus; nullptr before Device init opened it.
