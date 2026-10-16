@@ -99,6 +99,8 @@ In the head bar layouts the **Head bar** tab, between **Tile** and **Global**, s
 Every display keeps its tiles in three layouts: **Classic**, **Head bar landscape** and **Head bar portrait** (portrait only on ESP32-P4 displays that can stand upright). A click on the **Layout** field in the **Global** tab opens the layout window (**Change layout**):
 
 - The screen is at the top left, the **Storage** to the right and below it. Drag tiles between them; a tile in the storage is not shown in that layout but keeps its settings.
+- Each folder has room for its storage on top of its grid cells, so tiles in the storage never take the place a new tile on a free cell needs. When a layout's storage holds more tiles than it has room for, **Save** waits until you place or delete some.
+- A folder that is completely full still shows the frame on a free cell; a click on it tells you so. Clear out the storage here and save.
 - Each layout has its own tab and places. **Copy from …** takes the places of another layout as a start.
 - A red tile has no place yet. While a folder or the Settings tile is red, **Save** and **Switch** wait: every folder must stay reachable.
 - **X** on a tile deletes it from every layout, after a question.
