@@ -161,6 +161,17 @@ int main() {
     assert(reg <= 0xBF);
     previous = reg;
   }
+  // A board's limit: 100 % plays like the limit's share of the shared scale,
+  // every step below scales with it; an invalid limit is the full scale.
+  assert(limitedVolumeRegister(1.0f, 1.0f) == volumeRegister(1.0f));
+  assert(limitedVolumeRegister(1.0f, 0.6f) == volumeRegister(0.6f));
+  assert(limitedVolumeRegister(0.5f, 0.6f) == volumeRegister(0.3f));
+  assert(limitedVolumeRegister(1.0f, 0.9f) == volumeRegister(0.9f));
+  assert(limitedVolumeRegister(0.0f, 0.6f) == 0);
+  assert(limitedVolumeRegister(2.0f, 0.6f) == volumeRegister(0.6f));
+  assert(limitedVolumeRegister(1.0f, 0.0f) == volumeRegister(1.0f));
+  assert(limitedVolumeRegister(1.0f, 1.5f) == volumeRegister(1.0f));
+  assert(limitedVolumeRegister(1.0f, 0.6f) < 0xBF);
 
   // Format detection by content.
   const uint8_t id3[] = {'I', 'D', '3', 4, 0, 0, 0, 0, 0, 0};

@@ -31,6 +31,9 @@ constexpr audio_chips::Input kInput = audio_chips::Input::Es7210;
 constexpr uint8_t kMicAddress = 0x40;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_53;
 constexpr bool kAmpActiveHigh = true;
+// Loudest clean level as a fraction of the shared volume scale (1 = the
+// codec's full scale, fine on this board's amplifier).
+constexpr float kVolumeLimit = 1.0f;
 
 // The touch-owned I2C bus; nullptr before Device init opened it.
 i2c_master_bus_handle_t bus();

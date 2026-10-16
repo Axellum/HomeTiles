@@ -18,6 +18,9 @@
 //   // and the board's own setAmp() below.
 //   constexpr gpio_num_t kAmpEnable;
 //   constexpr bool kAmpActiveHigh;
+//   // Loudest clean level as a fraction of the shared volume scale (1 =
+//   // the codec's full scale); 100 % in Home Assistant plays at it.
+//   constexpr float kVolumeLimit;
 //   // i2c_master boards: the bus the codecs share (nullptr before Device
 //   // init opened it). Boards with HOMETILES_CODEC_BUS_BY_BOARD implement
 //   // codec_bus themselves instead.

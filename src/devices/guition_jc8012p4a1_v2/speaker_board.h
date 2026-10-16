@@ -32,6 +32,10 @@ constexpr audio_chips::Input kInput = audio_chips::Input::Es8311;
 constexpr uint8_t kMicAddress = 0x00;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_20;
 constexpr bool kAmpActiveHigh = true;
+// Loudest clean level as a fraction of the shared volume scale: at the full
+// scale the V2 distorted and switched off (supply dip, user 2026-10-16);
+// 60 % of it sounded best. The V1 is the same main board.
+constexpr float kVolumeLimit = 0.6f;
 
 // The touch-owned I2C bus; nullptr before Device init opened it.
 i2c_master_bus_handle_t bus();

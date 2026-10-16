@@ -279,7 +279,7 @@ void setAmp(bool on) {
 
 void applyVolumeIfChanged() {
   if (!g_codec_ready.load()) return;
-  const uint8_t reg = volumeRegister(g_volume.load());
+  const uint8_t reg = limitedVolumeRegister(g_volume.load(), speaker_board::kVolumeLimit);
   if (reg != g_applied_volume_reg && audio_board::setOutputVolumeRegister(reg) == ESP_OK) {
     g_applied_volume_reg = reg;
   }

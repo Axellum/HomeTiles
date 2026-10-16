@@ -119,6 +119,15 @@ inline uint8_t volumeRegister(float volume) {
   return static_cast<uint8_t>(value < 1 ? 1 : value);
 }
 
+// The register for a board whose amplifier or supply cannot take the full
+// scale: its loudest clean level is `limit` (0..1) of the shared scale, so
+// 100 % plays like `limit` and every step below scales with it. The volume
+// Home Assistant shows stays the user's.
+inline uint8_t limitedVolumeRegister(float volume, float limit) {
+  if (!(limit > 0.0f) || limit > 1.0f) limit = 1.0f;
+  return volumeRegister(clampVolume(volume) * limit);
+}
+
 // Absolute http:// or https:// URL with a host, printable ASCII without
 // spaces. A caller may refuse https:// (https_allowed = false).
 inline ErrorCode validateUrl(const char* url, size_t length, bool https_allowed) {

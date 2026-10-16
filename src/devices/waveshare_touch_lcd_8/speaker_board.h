@@ -26,6 +26,9 @@ constexpr gpio_num_t kI2sDout = GPIO_NUM_9;
 constexpr gpio_num_t kI2sDin = GPIO_NUM_11;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_53;
 constexpr bool kAmpActiveHigh = true;
+// Loudest clean level as a fraction of the shared volume scale (1 = the
+// codec's full scale, fine on this board's amplifier).
+constexpr float kVolumeLimit = 1.0f;
 constexpr audio_chips::Output kOutput = audio_chips::Output::Es8311;
 constexpr uint8_t kCodecAddress = 0x18;
 constexpr audio_chips::Input kInput = audio_chips::Input::Es7210;

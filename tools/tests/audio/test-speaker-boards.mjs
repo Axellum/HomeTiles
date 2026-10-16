@@ -17,11 +17,11 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8').replace(/\r\n/
 
 // --- Board table: researched facts (see each speaker_board.h) -------------
 const WAVESHARE = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 11, out: 'Es8311', codec: 0x18,
-  inp: 'Es7210', mic: 0x40, amp: 53};
+  inp: 'Es7210', mic: 0x40, amp: 53, limit: 1.0};
 const GUITION_11 = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 11, out: 'Es8311', codec: 0x18,
-  inp: 'Es8311', mic: 0x00, amp: 20};
+  inp: 'Es8311', mic: 0x00, amp: 20, limit: 0.6};
 const GUITION_48 = {mclk: 13, bclk: 12, lrck: 10, dout: 9, din: 48, out: 'Es8311', codec: 0x18,
-  inp: 'Es8311', mic: 0x00, amp: 11};
+  inp: 'Es8311', mic: 0x00, amp: 11, limit: 1.0};
 const BOARDS = {
   DEVICE_WAVESHARE_TOUCH_LCD_7B: {dir: 'waveshare_touch_lcd_7b', ...WAVESHARE},
   DEVICE_WAVESHARE_TOUCH_LCD_8: {dir: 'waveshare_touch_lcd_8', ...WAVESHARE},
@@ -34,7 +34,7 @@ const BOARDS = {
   DEVICE_GUITION_JC1060P470C_V2: {dir: 'guition_jc1060p470c_v2', ...GUITION_48},
   DEVICE_GUITION_JC4880P443_PORTRAIT: {dir: 'guition_jc4880p443_portrait', ...GUITION_48},
   DEVICE_M5STACKS_TAB5: {dir: 'm5stacks_tab5', mclk: 30, bclk: 27, lrck: 29, dout: 26, din: 28,
-    out: 'Es8388', codec: 0x10, inp: 'Es7210', mic: 0x40, amp: 'NC', byBoard: true},
+    out: 'Es8388', codec: 0x10, inp: 'Es7210', mic: 0x40, amp: 'NC', byBoard: true, limit: 0.9},
 };
 // No voice: the ESP32-S3 panels (user decision), the host layout tests and
 // the original-panel JC1060 (board identity unproven, like its camera).
@@ -87,6 +87,9 @@ for (const [define, facts] of Object.entries(BOARDS)) {
   assert.equal(Number(constant(header, 'kMicAddress')), facts.mic, `${where} ES7210 address`);
   assert.equal(gpio(constant(header, 'kAmpEnable')), facts.amp, `${where} amplifier`);
   assert.equal(constant(header, 'kAmpActiveHigh'), 'true', `${where} amplifier level`);
+  // Loudest clean level (user 2026-10-16: V2 and its V1 board 60 %, Tab5 90 %).
+  assert.equal(Number(constant(header, 'kVolumeLimit').replace(/f$/, '')), facts.limit,
+    `${where} volume limit`);
   assert.match(source, new RegExp(`#if defined\\(${define}\\) && defined\\(HOMETILES_SPEAKER\\)`),
     `${facts.dir}/speaker_board.cpp is guarded by its own define`);
   if (facts.byBoard) {

@@ -31,6 +31,10 @@ constexpr uint8_t kMicAddress = 0x40;
 // The amplifier hangs on the IO expander: setAmp() below.
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_NC;
 constexpr bool kAmpActiveHigh = true;
+// Loudest clean level as a fraction of the shared volume scale: at the full
+// scale the Tab5 distorted and switched off (user 2026-10-16); 90 % of it
+// sounded best.
+constexpr float kVolumeLimit = 0.9f;
 
 // SPK_EN on the IO expander (HOMETILES_SPEAKER_AMP_BY_BOARD).
 void setAmp(bool on);
