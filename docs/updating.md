@@ -38,7 +38,7 @@ For a new device or an intentional full reset, use **First install / factory res
 The display only offers newer versions, but you can install v0.8.0 with the [Web Admin upload](#2-web-admin-ota-upload). v0.8.0 only knows the classic layout. Prepare the panel first:
 
 1. **Back up:** use [Export](web-admin.md#import-export) in the Web Admin and keep the file.
-2. **Switch to Classic:** open **Change layout**, choose **Classic**, make sure no tile is red, save, and switch the panel to it. The panel now shows what v0.8.0 will show.
+2. **Switch to Classic:** click the **Layout** field in the **Global** tab, choose **Classic**, make sure no tile is red, save, and switch the panel to it. The panel now shows what v0.8.0 will show.
 3. **Upload** the model's plain v0.8.0 `.bin` in the Web Admin.
 
 Panels mounted upright show the classic landscape layout on v0.8.0. Head bar layouts, pages, the light theme and the other new settings stay stored; v0.8.0 ignores them, and they return when you update to v0.9.0 again.

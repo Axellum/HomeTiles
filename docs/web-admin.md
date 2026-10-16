@@ -71,7 +71,7 @@ The **Global** tab next to **Tile** applies to the whole display:
 | Setting | What it does |
 | --- | --- |
 | **Tile borders** | Draws a thin line around the tiles. Clock and Text tiles can switch it off individually. |
-| **Layout** | Shows the active layout; **Change layout** opens the [layout window](#layouts). |
+| **Layout** | Shows the active layout and its grid; a click opens the [layout window](#layouts). |
 | **Theme** | **Dark**, **Light** or **Automatic** (light by day, dark at night), for the display and the Web Admin. |
 | **Edge swipes** | One action per screen edge: **Settings**, **Home**, **Back**, or the **screensaver**. New displays open Settings from the top and go Home from the bottom. |
 
@@ -96,7 +96,7 @@ In the head bar layouts the **Head bar** tab, between **Tile** and **Global**, s
 
 ## Layouts
 
-Every display keeps its tiles in three layouts: **Classic**, **Head bar landscape** and **Head bar portrait** (portrait only on ESP32-P4 displays that can stand upright). **Change layout** in the **Global** tab opens the layout window:
+Every display keeps its tiles in three layouts: **Classic**, **Head bar landscape** and **Head bar portrait** (portrait only on ESP32-P4 displays that can stand upright). A click on the **Layout** field in the **Global** tab opens the layout window (**Change layout**):
 
 - The screen is at the top left, the **Storage** to the right and below it. Drag tiles between them; a tile in the storage is not shown in that layout but keeps its settings.
 - Each layout has its own tab and places. **Copy from …** takes the places of another layout as a start.
