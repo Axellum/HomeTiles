@@ -134,7 +134,7 @@ On the display, the [page dots](device-ui.md#head-bar-and-pages) show the pages 
 
 A tile's color comes from its icon. Rules change the icon color while an entity has a matching state. Set **Rules** to **On** in the tile settings; a tile with its own entity starts at **Own entity** and **Own rules**:
 
-- **Own entity / Other entity:** follow the tile's own entity or any other entity. Scene, Folder, Camera, Clock, and Text tiles have no entity of their own and always use another entity.
+- **Own entity / Other entity:** follow the tile's own entity or any other entity. Button, Folder, Camera, Clock, and Text tiles have no entity of their own and always use another entity.
 - **Entity color:** use the color the entity shows itself: a light's color, heating or cooling on a climate entity, and the state colors of switches, covers, and binary sensors.
 - **Own rules:** choose the colors yourself, by value or by state (see below).
 

@@ -11,7 +11,7 @@ The [HomeTiles Bridge](https://github.com/GalusPeres/HomeTiles-Bridge) connects 
 
 ## Installation
 
-You need Home Assistant 2025.11 or newer and HomeTiles Bridge v0.9.0 for all documented features with firmware v0.9.0. The direct link needs no MQTT broker. Follow the [Installation](installer.md#install-the-bridge) to install the Bridge and pair your first display.
+You need Home Assistant 2025.11 or newer and HomeTiles Bridge v0.9.2 for all documented features with firmware v0.9.2. The direct link needs no MQTT broker. Follow the [Installation](installer.md#install-the-bridge) to install the Bridge and pair your first display.
 
 <a id="via-hacs-recommended"></a>
 <a id="manual"></a>
@@ -41,7 +41,7 @@ Selections are shared across all displays. Action aliases are generated automati
 
 **Switches / switchable entities** accepts `switch`, `input_boolean`, `automation`, `fan`, `humidifier`, `remote`, and `siren`. They use the existing Switch tile and its on/off popup; lights retain brightness/color controls. Automations are enabled/disabled. Fan and Siren require HA support for both on and off.
 
-**Scenes / Scripts / Buttons** accepts `scene`, `script`, `button`, and `input_button`. Assign these to the existing Scene tile: a tap activates the scene, starts the script without parameters, or presses the button once. See the [compatibility table](tiles.md#switch) for exact behavior and limits. Use updated firmware for the complete availability handling and translated editor labels.
+**Scenes / Scripts / Buttons** accepts `scene`, `script`, `button`, and `input_button`. Assign these to the [Button tile](tiles.md#button) (called Scene before v0.9.2): a tap activates the scene, starts the script without parameters, or presses the button once. See the [compatibility table](tiles.md#switch) for exact behavior and limits. Use updated firmware for the complete availability handling and translated editor labels.
 
 Older display configurations, entity selections, aliases, and MQTT topic names remain valid. Commands must target selected entities; retained switch/action commands are ignored on reconnect.
 
@@ -133,6 +133,26 @@ Tested on the Guition JC8012P4A1 V2, Waveshare 8-inch, and M5Stack Tab5. On the 
 The display captures images only while Home Assistant asks for them. Opening the camera starts a live stream that uses the same TCP ports `8124`–`8131` as camera tiles; it stops a few seconds after the last viewer closes. While the camera is in use, the display shows the [camera indicator](device-ui.md#built-in-camera-indicator). Tapping its pill ends the current stream.
 
 Disabling the setting removes the entity. The paused switch keeps the entity but sends no images. A display cannot show its own camera in its own camera popup.
+
+## Voice Assistant (early version) { #voice-assistant data-toc-label="Voice assistant" }
+
+ESP32-P4 displays with a speaker and microphone can play audio from Home Assistant and work as an Assist voice satellite. This needs HomeTiles v0.9.2 and Bridge v0.9.2. It is an early version: the display has no microphone button and no audio settings yet; everything is set in Home Assistant.
+
+It runs on the Waveshare ESP32-P4 4B, 4.3-inch, 7-inch, 7B, 8-inch and 10.1-inch, the Guition JC8012P4A1 V1, V2 and V3, JC1060P470C V2 and JC4880P443, and the M5Stack Tab5. Displays with only a speaker connector need a speaker fitted. Tested on the Guition JC8012P4A1 V2, Waveshare 4B and 8-inch, and M5Stack Tab5. The ESP32-S3 displays have no voice support.
+
+The Bridge adds these entities to the display's Home Assistant device while the display announces its speaker or microphone:
+
+| Entity | Use |
+| --- | --- |
+| **Speaker** | Media player: plays audio and announcements on the display and sets its volume. |
+| **Assist** | Assist satellite: Home Assistant's voice pipeline listens through the display's microphone, and the answer plays on its speaker. |
+| **Assist** button | Starts a voice request without a wake word. |
+| **Wake word** | Okay Nabu, Hey Jarvis, Alexa or Off. The display listens for it by itself. |
+| **Assistant** | The Assist pipeline the display uses. |
+| **Finished speaking detection** | How quickly a request ends after you stop speaking. |
+| **Microphone** | Turns the microphone off. Turning it on from Home Assistant needs a [paired](#encrypted-commands) display. |
+
+It works on the direct link and over MQTT.
 
 ## MQTT Topics Reference { data-toc-label="MQTT reference" }
 

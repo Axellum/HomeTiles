@@ -259,22 +259,22 @@ The tile shows the position as a bar, like the Switch dimmer; half-height tiles 
 
 **Popup:** separate position and tilt sliders, or open, close, and stop buttons. Controls depend on the cover's capabilities and availability. A slider sends its position once on release, like Home Assistant, and then follows the reported position.
 
-### Scene
+### Button
 
-Runs a scene, script or button with a tap; there is no popup.
+Runs a scene, script or button with a tap; there is no popup. Its picker finds every scene, script and button through the Bridge, like the other tiles. Before v0.9.2 this tile was called Scene; existing tiles keep working.
 
 <div class="ht-type-shots" markdown>
 <figure class="ht-screenshot">
-<img style="width:150px" src="../images/v09-tile-scene.png" alt="Scene tile Movie night" width="194" height="152" loading="lazy">
-<figcaption>Scene</figcaption>
+<img style="width:150px" src="../images/v09-tile-scene.png" alt="Button tile Movie night" width="194" height="152" loading="lazy">
+<figcaption>Button</figcaption>
 </figure>
 <figure class="ht-screenshot">
-<img style="width:150px" src="../images/v09-tile-scene-2.png" alt="Scene tile Dinner" width="194" height="152" loading="lazy">
-<figcaption>Scene</figcaption>
+<img style="width:150px" src="../images/v09-tile-scene-2.png" alt="Button tile Dinner" width="194" height="152" loading="lazy">
+<figcaption>Button</figcaption>
 </figure>
 <figure class="ht-screenshot">
-<img style="width:150px" src="../images/v09-tile-scene-3.png" alt="Scene tile Relax" width="194" height="152" loading="lazy">
-<figcaption>Scene</figcaption>
+<img style="width:150px" src="../images/v09-tile-scene-3.png" alt="Button tile Relax" width="194" height="152" loading="lazy">
+<figcaption>Button</figcaption>
 </figure>
 </div>
 

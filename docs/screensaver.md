@@ -90,7 +90,7 @@ Select the clock to change its time/date formats, font sizes, alignment, and sha
 
 ## Add Tiles
 
-The bottom two rows support Sensor, Binary Sensor, Energy, Switch, Scene, and Media tiles. Select a slot, choose its type, and move or resize it as on the dashboard. Adjust **Color** and **Opacity** together.
+The bottom two rows support Sensor, Binary Sensor, Energy, Switch, Button, and Media tiles. Select a slot, choose its type, and move or resize it as on the dashboard. Adjust **Color** and **Opacity** together.
 
 States stay live. Popups do not open in screensaver mode. Local I/O switches and temperatures remain available when Home Assistant is offline.
 
