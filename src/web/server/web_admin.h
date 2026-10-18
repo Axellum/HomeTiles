@@ -85,7 +85,6 @@ public:
   void handleLocalCamera();
   void handleGetScreensaverWallpaper();
   void handleGetSdImages();
-  void handleGetSdIcons();
   void handleCreateScreenshot();
   void handleDownloadScreenshot();
   void handlePrepareOtaUpload();
@@ -97,8 +96,6 @@ public:
   void handleGithubUpdateCheck();
   void handleGithubUpdateInstall();
   void handleGetGithubUpdateStatus();
-  void handleUploadIcon();
-  void handleUploadIconDone();
   void handleFileManagerList();
   void handleFileManagerDownload();
   void handleFileManagerDelete();

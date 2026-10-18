@@ -137,7 +137,6 @@ void appendAdminScripts(String& html) {
   appendJsEntry("layoutParkedTile", tr.layout_parked_tile);
   appendJsEntry("layoutStorageFull", tr.layout_storage_full);
   appendJsEntry("folderFull", tr.folder_full);
-  appendJsEntry("fileManagerStorageUsed", tr.file_manager_storage_used);
   appendJsEntry("layoutDeleteTile", tr.layout_delete_tile);
   appendJsEntry("layoutDeleteConfirm", tr.layout_delete_confirm);
   appendJsEntry("close", tr.security_close);

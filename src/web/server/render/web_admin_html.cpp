@@ -2158,14 +2158,11 @@ autocomplete="new-password" value=")html";
 <div class="file-manager-topbar">
 )html";
 #if defined(HOMETILES_BETA_BUILD)
-  // Test builds: microSD or the panel's own storage (src/web/admin/files).
+  // Test builds: microSD or the panel's own storage (src/web/admin/files);
+  // technical names only, no translated texts for a test tool.
   html += R"html(<div class="icon-color-segmented file-manager-storage-switch" role="group">
-<button type="button" class="active" data-fs="sd" onclick="selectFileManagerStorage('sd')">)html";
-  html += tr.file_manager_sd;
-  html += R"html(</button>
-<button type="button" data-fs="internal" onclick="selectFileManagerStorage('internal')">)html";
-  html += tr.file_manager_internal;
-  html += R"html(</button>
+<button type="button" class="active" data-fs="sd" onclick="selectFileManagerStorage('sd')">microSD</button>
+<button type="button" data-fs="internal" onclick="selectFileManagerStorage('internal')">LittleFS</button>
 </div>
 )html";
 #endif

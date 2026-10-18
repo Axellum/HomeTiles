@@ -366,10 +366,8 @@
       }
       fileManagerState.path = data.path || fileManagerState.path;
       if (fileManagerState.fs === 'internal') {
-        setFileManagerStorageState(true, tf('fileManagerStorageUsed', {
-          used: formatFileManagerSize({ size: data.used }),
-          total: formatFileManagerSize({ size: data.total })
-        }));
+        setFileManagerStorageState(true,
+          formatFileManagerSize({ size: data.used }) + ' / ' + formatFileManagerSize({ size: data.total }));
       } else {
         setFileManagerStorageState(true);
       }

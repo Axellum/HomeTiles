@@ -66,14 +66,10 @@ const switchAt = html.indexOf('file-manager-storage-switch');
 const switchGuard = html.lastIndexOf('#if defined(HOMETILES_BETA_BUILD)', switchAt);
 assert.ok(switchAt > 0 && switchGuard > 0 && html.indexOf('#endif', switchGuard) > switchAt,
   'the storage switch is rendered only in test builds');
-assert.ok(html.slice(switchGuard, switchAt + 600).includes('tr.file_manager_internal'),
-  'the switch label comes from the central texts');
-const i18n = readRepoFile('src', 'core', 'i18n', 'i18n.h');
-for (const field of ['file_manager_sd', 'file_manager_internal', 'file_manager_storage_used']) {
-  assert.match(i18n, new RegExp(`const char\\* ${field};`), `${field} is a central text`);
-}
-assert.match(readRepoFile('src', 'web', 'server', 'render', 'web_admin_scripts.cpp'),
-  /appendJsEntry\("fileManagerStorageUsed", tr\.file_manager_storage_used\)/);
+// A test tool carries no translated texts into the firmware: technical names.
+assert.ok(html.slice(switchGuard, switchAt + 600).includes('>LittleFS</button>'), 'the switch names LittleFS');
+assert.doesNotMatch(readRepoFile('src', 'core', 'i18n', 'i18n.h'), /file_manager_(sd|internal|storage_used)/,
+  'no translated texts for the test tool');
 
 // The delivered Admin script: switch, request, use badge and the buttons.
 class Element {
@@ -97,12 +93,12 @@ const ids = Object.fromEntries(['file_manager_sd_state', 'file_manager_status', 
 const requiresSd = [new Element(), new Element(), new Element()];
 const switchButtons = [new Element({fs: 'sd'}), new Element({fs: 'internal'})];
 switchButtons[0].classList.add('active');
-switchButtons[1].textContent = 'Internal';
+switchButtons[1].textContent = 'LittleFS';
 
 const requests = [];
 let answer = null;
 const context = vm.createContext({
-  APP_I18N: {fileManagerStorageUsed: '{used} of {total} used'},
+  APP_I18N: {},
   URLSearchParams,
   document: {
     documentElement: {lang: 'en'},
@@ -138,7 +134,7 @@ answer = {ok: true, status: 200, body: {success: true, fs: 'internal', path: '/'
 context.select('internal');
 await settle();
 assert.match(requests.at(-1), /fs=internal/, 'the internal storage is requested');
-assert.equal(ids.file_manager_sd_state.textContent, '2.1 MB of 2.9 MB used', 'the badge shows the internal use');
+assert.equal(ids.file_manager_sd_state.textContent, '2.1 MB / 2.9 MB', 'the badge shows the internal use');
 assert.ok(switchButtons[1].classList.contains('active') && !switchButtons[0].classList.contains('active'));
 assert.ok(requiresSd.every(button => button.disabled), 'upload and new folder are off on the internal storage');
 context.state.selected = {path: '/_mdi_icons_48.bin', name: '_mdi_icons_48.bin', dir: false, size: 2100493};
@@ -150,7 +146,7 @@ answer = {ok: false, status: 500, body: {success: false, error: 'Folder not foun
 context.select('internal');
 await settle();
 assert.ok(ids.file_manager_sd_state.classList.contains('error'));
-assert.equal(ids.file_manager_sd_state.textContent, 'Internal', 'a failed list names the internal storage');
+assert.equal(ids.file_manager_sd_state.textContent, 'LittleFS', 'a failed list names the internal storage');
 
 answer = {ok: true, status: 200, body: {success: true, fs: 'sd', path: '/', entries: []}};
 context.select('sd');
