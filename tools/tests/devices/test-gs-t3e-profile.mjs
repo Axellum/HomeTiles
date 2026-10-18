@@ -1,9 +1,10 @@
-// Golden Security GS-T3E v2 (PCB v2.3, issue #93) runs the Guition
-// ESP32-4848S040 driver with its own board description. This contract checks
-// the T3E's pins, init table, PCLK edge, backlight, touch and missing SD card;
-// that the Guition description keeps its proven values; the driver family;
-// and that both boards keep separate firmware identities. The driver's
-// board-derived constants are compiled on the host for both boards.
+// Golden Security GS-T3E v2 (PCB v2.3, issue #93) has its own driver, derived
+// from the Guition ESP32-4848S040 driver, which stays untouched (2026-10-18: a
+// new device never changes another device's driver). This contract checks the
+// T3E's pins, init table, PCLK edge, backlight, touch and missing SD card; that
+// the Guition driver keeps its own values and knows nothing of the T3E; the
+// shared S3 board list; and that both boards keep separate firmware
+// identities. The T3E driver's board-derived constants are compiled on the host.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -96,17 +97,29 @@ assert.throws(() => resolveReleaseDevice(readManualDeviceSelection(selector(GUIT
   parseFirmwareMetadata(firmwareImage(t3eKey))), /is for golden_security_gs_t3e_v2/);
 
 // --- Source structure ----------------------------------------------------------
-const driver = read('src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.cpp');
-assert.match(driver, /^#if defined\(DEVICE_GUITION_ESP32_4848S040_FAMILY\)$/m, 'One driver for the family');
+// The T3E's own driver, only in T3E builds, its values from its description.
+const driver = read('src/devices/golden_security_gs_t3e_v2/device_golden_security_gs_t3e_v2.cpp');
+assert.match(driver, /^#if defined\(DEVICE_GOLDEN_SECURITY_GS_T3E_V2\)$/m, 'The T3E driver builds only for the T3E');
 assert.match(driver, /constexpr const St7701S3Board::Description& kBoard = DeviceImpl::kBoard;/);
-assert.doesNotMatch(driver, /constexpr int8_t k\w+ = \d+;/, 'No GPIO number is hard-coded in the shared driver');
-assert.doesNotMatch(driver, /st7701_type9_init_operations,\s*sizeof/, 'The init table comes from the board');
-assert.ok(!fs.existsSync(path.join(root, 'src/devices/golden_security_gs_t3e_v2/device_golden_security_gs_t3e_v2.cpp')),
-  'The T3E has no copy of the driver');
+assert.doesNotMatch(driver, /constexpr int8_t k\w+ = \d+;/, 'No GPIO number is hard-coded in the T3E driver');
+assert.doesNotMatch(driver, /DeviceGuitionESP324848S040|DEVICE_GUITION_ESP32_4848S040\b/,
+  'The T3E driver is not the Guition driver');
 const t3eHeader = read('src/devices/golden_security_gs_t3e_v2/device_golden_security_gs_t3e_v2.h');
-assert.match(t3eHeader, /using namespace DeviceGuitionESP324848S040;/);
-assert.doesNotMatch(t3eHeader, /device_guition_esp32_4848s040\.h/,
-  'The Guition profile and description stay out of T3E builds');
+assert.doesNotMatch(t3eHeader, /DeviceGuitionESP324848S040|guition_esp32_4848s040\//,
+  'The T3E header neither includes nor uses the Guition driver');
+// The Guition driver keeps its own exact-board constants and never mentions the T3E.
+const guitionDriver = read('src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.cpp');
+assert.match(guitionDriver, /^#if defined\(DEVICE_GUITION_ESP32_4848S040\)$/m);
+for (const constant of ['kPanelCs = 39', 'kPanelSck = 48', 'kPanelMosi = 47', 'kBacklightPin = 38',
+  'kBacklightFrequency = 150', 'kTouchSda = 19', 'kTouchScl = 45', 'kSdCs = 42']) {
+  assert.ok(guitionDriver.includes(`constexpr ${constant.includes('Frequency') ? 'uint32_t' : 'int8_t'} ${constant};`),
+    `The Guition driver keeps ${constant}`);
+}
+assert.match(guitionDriver, /st7701_type9_init_operations,\s*sizeof\(st7701_type9_init_operations\)/);
+for (const file of fs.readdirSync(path.join(root, 'src/devices/guition_esp32_4848s040'))) {
+  assert.doesNotMatch(read(`src/devices/guition_esp32_4848s040/${file}`), /T3E|GOLDEN_SECURITY|golden_security/i,
+    `${file} knows nothing of the T3E`);
+}
 // GPIO45/46 are relays on every published variant (active high in ESPHome);
 // the variant-specific third and fourth relays stay unexposed.
 const io = read('src/devices/golden_security_gs_t3e_v2/hardware_io_profile.h');
@@ -208,17 +221,6 @@ int main() {
     return JSON.parse(run.stdout);
   };
 
-  const guitionValues = boardValues(GUITION);
-  assert.deepEqual(guitionValues, {
-    log: 'GUITION ESP32-4848S040', key: guitionKey, name: 'GUITION ESP32-4848S040',
-    size: [480, 480, 4, 4], rotation: [2, 0], floor: 39,
-    spi: [39, 48, 47], control: [18, 17, 16, 21],
-    data: [4, 5, 6, 7, 15, 8, 20, 3, 46, 9, 10, 11, 12, 13, 14, 0],
-    init: 9, initSize: 2, cd: 0, label: 'type9-cd00', pclkNeg: 0,
-    backlight: [38, 150, 8], touch: [19, 45], sd: [1, 48, 41, 47, 42],
-    pclk: 12000000, framePeriodMs: 24,
-  }, 'The Guition ESP32-4848S040 keeps every proven value');
-
   const t3eValues = boardValues(T3E);
   assert.deepEqual(t3eValues, {
     log: 'GS-T3E v2', key: t3eKey, name: 'Golden Security GS-T3E v2',
@@ -235,7 +237,6 @@ int main() {
   assert.deepEqual(t3eValues.spi.slice(1), t3eValues.data.slice(0, 2));
 
   // The type9 CD=0x08 A/B switch cannot be applied to the type1 board.
-  assert.equal(boardValues(GUITION, ['-DHOMETILES_GUITION_S3_PANEL_CD=8']).label, 'type9-cd08');
   const t3eCd08 = compile(T3E, ['-DHOMETILES_GUITION_S3_PANEL_CD=8']).result;
   assert.notEqual(t3eCd08.status, 0, 'CD=0x08 override on the type1 board must not compile');
   assert.match(t3eCd08.stdout + t3eCd08.stderr, /applies to type9 boards only/);

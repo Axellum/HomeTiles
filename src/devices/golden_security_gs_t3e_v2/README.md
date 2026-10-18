@@ -11,10 +11,10 @@ on hardware**.
 
 ## Firmware structure
 
-The board is built like the Guition ESP32-4848S040 and runs that board's
-driver (`src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.cpp`,
-`DEVICE_GUITION_ESP32_4848S040_FAMILY`). Its differences are one constexpr
-board description, `kBoard` in `device_golden_security_gs_t3e_v2.h`
+The board is built like the Guition ESP32-4848S040. It has its own driver,
+`device_golden_security_gs_t3e_v2.cpp`, derived from the Guition driver,
+which stays unchanged. Its pins and panel values are one constexpr board
+description, `kBoard` in `device_golden_security_gs_t3e_v2.h`
 (`st7701_s3_board.h`). It has its own define `DEVICE_GOLDEN_SECURITY_GS_T3E_V2`,
 profile key, firmware metadata key, release key and setup AP name
 (`GS_T3E_V2_Config`), so its image and the Guition image can never be

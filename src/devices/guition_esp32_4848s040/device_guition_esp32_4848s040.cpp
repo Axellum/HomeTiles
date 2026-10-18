@@ -1,14 +1,8 @@
-// Shared ESP32-S3 ST7701 RGB driver of DEVICE_GUITION_ESP32_4848S040_FAMILY
-// (device_select.h): the Guition ESP32-4848S040 and the boards built like it.
-// Every pin, the panel init table, the PCLK edge, the backlight and the SD
-// wiring come from the exact board's kBoard description (st7701_s3_board.h)
-// in its own device header, selected through active_device.h.
+#include "src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h"
 #include "src/devices/device_select.h"
 #include "src/devices/guition_esp32_4848s040/s3_diagnostics.h"
 
-#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
-
-#include "src/devices/active_device.h"
+#if defined(DEVICE_GUITION_ESP32_4848S040)
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
@@ -32,44 +26,53 @@
 
 namespace {
 
-// The exact board, from its device header (DeviceImpl::kBoard).
-constexpr const St7701S3Board::Description& kBoard = DeviceImpl::kBoard;
-constexpr const char* kLogName = kBoard.log_name;
+constexpr int8_t kPanelCs = 39;
+constexpr int8_t kPanelSck = 48;
+constexpr int8_t kPanelMosi = 47;
 
-constexpr int8_t kPanelCs = kBoard.panel_cs;
-constexpr int8_t kPanelSck = kBoard.panel_sck;
-constexpr int8_t kPanelMosi = kBoard.panel_mosi;
-constexpr St7701S3Board::RgbPins kRgb = kBoard.rgb;
-// esp_lcd data lines D0..D15 of the RGB565 bus: B0..B4, G0..G5, R0..R4.
-constexpr int kRgbDataPins[16] = {
-    kRgb.blue[0],  kRgb.blue[1],  kRgb.blue[2],  kRgb.blue[3],
-    kRgb.blue[4],  kRgb.green[0], kRgb.green[1], kRgb.green[2],
-    kRgb.green[3], kRgb.green[4], kRgb.green[5], kRgb.red[0],
-    kRgb.red[1],   kRgb.red[2],   kRgb.red[3],   kRgb.red[4]};
-constexpr St7701S3Board::PanelInit kPanelInit = kBoard.panel_init;
-constexpr bool kPclkActiveNeg = kBoard.pclk_active_neg;
+constexpr int8_t kPanelDe = 18;
+constexpr int8_t kPanelVsync = 17;
+constexpr int8_t kPanelHsync = 16;
+constexpr int8_t kPanelPclk = 21;
+constexpr int8_t kPanelR0 = 11;
+constexpr int8_t kPanelR1 = 12;
+constexpr int8_t kPanelR2 = 13;
+constexpr int8_t kPanelR3 = 14;
+constexpr int8_t kPanelR4 = 0;
+constexpr int8_t kPanelG0 = 8;
+constexpr int8_t kPanelG1 = 20;
+constexpr int8_t kPanelG2 = 3;
+constexpr int8_t kPanelG3 = 46;
+constexpr int8_t kPanelG4 = 9;
+constexpr int8_t kPanelG5 = 10;
+constexpr int8_t kPanelB0 = 4;
+constexpr int8_t kPanelB1 = 5;
+constexpr int8_t kPanelB2 = 6;
+constexpr int8_t kPanelB3 = 7;
+constexpr int8_t kPanelB4 = 15;
 
-constexpr int8_t kBacklightPin = kBoard.backlight_pin;
-// The rate is a board fact (see its description); the 10-bit resolution, the
-// raw 0..255 duty mapping and the blackout latch below are shared.
-constexpr uint32_t kBacklightFrequency = kBoard.backlight_frequency_hz;
+constexpr int8_t kBacklightPin = 38;
+// GPIO38 switches the board's backlight driver on and off as a whole. At the
+// former 1 kHz that switching and its harmonics sit in the ear's most
+// sensitive range, and the driver whines whenever the backlight is dimmed
+// (Issue #45: silent at duty 0, silent with EspControl on the same board).
+// Ultrasonic rates do not work on this board: EspControl's former 20 kHz
+// setting made every level below roughly 85 % go dark, and openHASP users
+// settled on 100 Hz. 150 Hz matches EspControl's current exact-board value,
+// chosen there over the visible shimmer at 100 Hz, and the ESPHome device
+// page. The 10-bit resolution is unchanged (40 MHz XTAL divider ~260), so
+// the raw 0..255 mapping and the calibrated visible floor stay identical;
+// each pulse only gets longer at the same duty.
+constexpr uint32_t kBacklightFrequency = 150;
 constexpr uint8_t kBacklightResolution = 10;
-// Arduino-ESP32 3.3.7 drives the S3 LEDC from the 40 MHz XTAL. Its timer
-// divider has a 10-bit integer part, so the rate must keep it within 1..1023.
-static_assert(kBacklightFrequency > 0 &&
-                  40000000u / (kBacklightFrequency << kBacklightResolution) >=
-                      1u &&
-                  40000000u / (kBacklightFrequency << kBacklightResolution) <
-                      1024u,
-              "Backlight PWM rate is outside the S3 LEDC divider range");
 constexpr uint16_t kBacklightMaxDuty = (1u << kBacklightResolution) - 1u;
 // LEDC applies a new duty only from the next PWM cycle. Wait one full period
 // plus margin before relying on a blanked backlight.
 constexpr uint32_t kBacklightDutyLatchMs =
     (1000u + kBacklightFrequency - 1u) / kBacklightFrequency + 1u;
 
-constexpr int8_t kTouchSda = kBoard.touch_sda;
-constexpr int8_t kTouchScl = kBoard.touch_scl;
+constexpr int8_t kTouchSda = 19;
+constexpr int8_t kTouchScl = 45;
 constexpr uint32_t kTouchFrequency = 400000;
 constexpr uint8_t kTouchAddressPrimary = 0x5D;
 constexpr uint8_t kTouchAddressAlternate = 0x14;
@@ -81,16 +84,10 @@ constexpr uint16_t kTouchPointRegister = 0x814F;
 // 16 consecutive real errors give the bus roughly 128 ms to recover.
 constexpr uint8_t kTouchErrorReleaseThreshold = 16;
 
-// Without a card slot every SD path below returns at once: no chip select,
-// no SPI bus, no mount retries.
-constexpr bool kHasSdCard = kBoard.has_sd_card;
-constexpr int8_t kSdSck = kBoard.sd.sck;
-constexpr int8_t kSdMiso = kBoard.sd.miso;
-constexpr int8_t kSdMosi = kBoard.sd.mosi;
-constexpr int8_t kSdCs = kBoard.sd.cs;
-static_assert(!kHasSdCard ||
-                  (kSdSck >= 0 && kSdMiso >= 0 && kSdMosi >= 0 && kSdCs >= 0),
-              "A board with an SD card needs all four SPI pins");
+constexpr int8_t kSdSck = 48;
+constexpr int8_t kSdMiso = 41;
+constexpr int8_t kSdMosi = 47;
+constexpr int8_t kSdCs = 42;
 // Arduino-ESP32's SD library uses 4 MHz as its supported default. The exact
 // Guition demo uses a very conservative 1 MHz, which the device logs showed
 // was already saturated at ~0.93 Mbit/s and made a 260 KB JPEG take >2 s.
@@ -159,9 +156,7 @@ constexpr uint32_t kSdRetryMs = 1500;
 
 // Arduino_GFX 1.6.5's exact GUITION ESP32-4848S040 profile uses 12 MHz with
 // these same porches and rising-edge sampling. Independent exact-board
-// projects use 12-14 MHz, while 16 MHz is reported to glitch. openHASP's and
-// ESPHome's GS-T3E v2 configurations use the same porches at 12 MHz, so the
-// clock and porches are shared by the whole family.
+// projects use 12-14 MHz, while 16 MHz is reported to glitch.
 // Espressif recommends lowering PCLK when direct PSRAM scanout competes with
 // large SD/JPEG/PSRAM operations. Ten MHz retains smooth UI updates while
 // restoring the margin used by the previously stable Guition build.
@@ -186,26 +181,9 @@ constexpr uint32_t kRgbFramePeriodMs =
 constexpr bool kHasPsramXip = HOMETILES_GUITION_S3_HAS_PSRAM_XIP != 0;
 constexpr bool kHasCacheLine64 =
     HOMETILES_GUITION_S3_HAS_CACHE_LINE_64B != 0;
-// The CD=0x08 A/B override above patches only the type9 table; the type1
-// table already sends CD=0x08 itself.
-static_assert(HOMETILES_GUITION_S3_PANEL_CD == 0 ||
-                  kPanelInit == St7701S3Board::PanelInit::Type9,
-              "HOMETILES_GUITION_S3_PANEL_CD applies to type9 boards only");
-constexpr const uint8_t* kPanelInitOperations =
-    kPanelInit == St7701S3Board::PanelInit::Type1
-        ? st7701_type1_init_operations
-        : st7701_type9_init_operations;
-constexpr size_t kPanelInitOperationsSize =
-    kPanelInit == St7701S3Board::PanelInit::Type1
-        ? sizeof(st7701_type1_init_operations)
-        : sizeof(st7701_type9_init_operations);
-// Effective ST7701 BK0 CD value, for the diagnostics log.
-constexpr uint8_t kPanelCd =
-    kPanelInit == St7701S3Board::PanelInit::Type1
-        ? 0x08
-        : HOMETILES_GUITION_S3_PANEL_CD;
+constexpr uint8_t kPanelCd = HOMETILES_GUITION_S3_PANEL_CD;
 constexpr const char* kPanelInitLabel =
-    HOMETILES_GUITION_S3_PANEL_CD == 8 ? "type9-cd08" : kBoard.panel_init_label;
+    kPanelCd == 8 ? "type9-cd08" : "type9-cd00";
 #if HOMETILES_GUITION_S3_PANEL_CD == 8
 const uint8_t kPanelCd08OverrideOperations[] = {
     BEGIN_WRITE,
@@ -235,7 +213,8 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
   GuitionAtomicRgbDisplay(uint8_t rotation, Arduino_DataBus* bus)
       : Arduino_RGB_Display(
             480, 480, nullptr, rotation, true, bus, GFX_NOT_DEFINED,
-            kPanelInitOperations, kPanelInitOperationsSize) {}
+            st7701_type9_init_operations,
+            sizeof(st7701_type9_init_operations)) {}
 
   bool begin(int32_t speed = GFX_NOT_DEFINED) override {
     if (speed != GFX_SKIP_DATABUS_BEGIN && _bus && !_bus->begin()) {
@@ -281,7 +260,7 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
     config.timings.flags.hsync_idle_low = 0;
     config.timings.flags.vsync_idle_low = 0;
     config.timings.flags.de_idle_high = 0;
-    config.timings.flags.pclk_active_neg = kPclkActiveNeg ? 1 : 0;
+    config.timings.flags.pclk_active_neg = 0;
     config.timings.flags.pclk_idle_high = 0;
     config.data_width = 16;
     config.bits_per_pixel = 16;
@@ -289,12 +268,16 @@ class GuitionAtomicRgbDisplay final : public Arduino_RGB_Display {
     config.bounce_buffer_size_px = kRgbBounceBufferPixels;
     config.sram_trans_align = 8;
     config.psram_trans_align = 64;
-    config.hsync_gpio_num = kRgb.hsync;
-    config.vsync_gpio_num = kRgb.vsync;
-    config.de_gpio_num = kRgb.de;
-    config.pclk_gpio_num = kRgb.pclk;
+    config.hsync_gpio_num = kPanelHsync;
+    config.vsync_gpio_num = kPanelVsync;
+    config.de_gpio_num = kPanelDe;
+    config.pclk_gpio_num = kPanelPclk;
     config.disp_gpio_num = GPIO_NUM_NC;
-    std::copy(std::begin(kRgbDataPins), std::end(kRgbDataPins),
+    const int data_pins[16] = {
+        kPanelB0, kPanelB1, kPanelB2, kPanelB3, kPanelB4,
+        kPanelG0, kPanelG1, kPanelG2, kPanelG3, kPanelG4, kPanelG5,
+        kPanelR0, kPanelR1, kPanelR2, kPanelR3, kPanelR4};
+    std::copy(std::begin(data_pins), std::end(data_pins),
               config.data_gpio_nums);
     config.flags.disp_active_low = true;
     config.flags.refresh_on_demand = false;
@@ -615,7 +598,7 @@ bool g_sd_init_attempted = false;
 uint32_t g_sd_retry_tick_ms = 0;
 uint8_t g_brightness = 0;
 uint8_t g_applied_brightness = 0;
-uint8_t g_rotation = DeviceImpl::kProfile.rotation_default;
+uint8_t g_rotation = DeviceGuitionESP324848S040::kProfile.rotation_default;
 uint8_t g_touch_address = 0;
 uint16_t g_storage_write_depth = 0;
 bool g_storage_blackout_active = false;
@@ -629,15 +612,10 @@ int16_t g_touch_last_y = 0;
 uint8_t g_touch_status_error_streak = 0;
 uint8_t g_touch_point_error_streak = 0;
 void initSharedSpiChipSelects() {
-  // On the Guition board CS42 (SD) and CS39 (ST7701 command bus) share
-  // SCK48/MOSI47. Keep both devices explicitly deselected before either stack
-  // emits its first clock. A board without an SD card only parks the panel
-  // chip select, which also keeps the panel deaf to its SCK/MOSI pins when
-  // they become RGB data lines.
-  if (kHasSdCard) {
-    pinMode(kSdCs, OUTPUT);
-    digitalWrite(kSdCs, HIGH);
-  }
+  // CS42 (SD) and CS39 (ST7701 command bus) share SCK48/MOSI47. Keep both
+  // devices explicitly deselected before either stack emits its first clock.
+  pinMode(kSdCs, OUTPUT);
+  digitalWrite(kSdCs, HIGH);
   pinMode(kPanelCs, OUTPUT);
   digitalWrite(kPanelCs, HIGH);
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
@@ -690,7 +668,7 @@ bool probeTouchAddress(uint8_t address) {
     g_touch_address = 0;
     return false;
   }
-  Serial.printf("[Device/%s] GT911 at 0x%02X, id=%c%c%c%c\n", kLogName,
+  Serial.printf("[Device/GUITION ESP32-4848S040] GT911 at 0x%02X, id=%c%c%c%c\n",
                 address, product_id[0], product_id[1], product_id[2],
                 product_id[3]);
   return true;
@@ -703,7 +681,8 @@ bool initTouch() {
 
   if (!probeTouchAddress(kTouchAddressPrimary) &&
       !probeTouchAddress(kTouchAddressAlternate)) {
-    Serial.printf("[Device/%s] GT911 not found at 0x5D/0x14\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] GT911 not found at 0x5D/0x14");
     return false;
   }
 
@@ -722,7 +701,8 @@ bool initBacklight() {
   digitalWrite(kBacklightPin, LOW);
   if (!ledcAttach(kBacklightPin, kBacklightFrequency,
                   kBacklightResolution)) {
-    Serial.printf("[Device/%s] Backlight PWM init failed\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] Backlight PWM init failed");
     return false;
   }
   g_backlight_ready = true;
@@ -754,18 +734,18 @@ bool initDisplay() {
   g_gfx = new GuitionAtomicRgbDisplay(g_rotation, g_panel_bus);
 
   if (!g_panel_bus || !g_gfx || !g_gfx->begin()) {
-    Serial.printf("[Device/%s] ST7701 RGB display init failed\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] ST7701 RGB display init failed");
     return false;
   }
 
   g_gfx->fillScreen(0x0000);
   g_display_ready = true;
   Serial.printf(
-      "[Device/%s] Display ready, test=%s, "
+      "[Device/GUITION ESP32-4848S040] Display ready, test=%s, "
       "panel=%s, PCLK=%u MHz, bounce=%u rows/%u px, XIP=%u, "
       "cache-line=%u B, "
       "opt=%s, VSYNC-restart=%u, PSRAM free=%u KB\n",
-      kLogName,
       HOMETILES_GUITION_S3_RGB_TEST_LABEL,
       kPanelInitLabel,
       static_cast<unsigned>(kRgbPclkHz / 1000000),
@@ -793,18 +773,15 @@ bool initDisplay() {
       static_cast<void*>(g_gfx->framebuffer(1)));
   Serial.printf(
       "[S3Diag/Display] timing pclk_hz=%lu h=pol1/fp10/pw8/bp50 "
-      "v=pol1/fp10/pw8/bp20 frame_us=%lu pclk_neg=%u "
+      "v=pol1/fp10/pw8/bp20 frame_us=%lu pclk_neg=0 "
       "restart_in_vsync=%u\n",
       static_cast<unsigned long>(kRgbPclkHz),
       static_cast<unsigned long>(kRgbFramePeriodMs * 1000U),
-      kPclkActiveNeg ? 1U : 0U,
       kRestartInVsync ? 1U : 0U);
-  Serial.print("[S3Diag/Display] rgb_pins d0..15=");
-  for (size_t i = 0; i < std::size(kRgbDataPins); ++i) {
-    Serial.printf("%s%d", i == 0 ? "" : ",", kRgbDataPins[i]);
-  }
-  Serial.printf(" control=de%d/vsync%d/hsync%d/pclk%d\n", kRgb.de,
-                kRgb.vsync, kRgb.hsync, kRgb.pclk);
+  Serial.println(
+      "[S3Diag/Display] rgb_pins d0..15="
+      "4,5,6,7,15,8,20,3,46,9,10,11,12,13,14,0 "
+      "control=de18/vsync17/hsync16/pclk21");
 #endif
   return true;
 }
@@ -874,16 +851,17 @@ void copyDirectory(fs::FS& src_fs, fs::FS& dst_fs, const char* dir_path) {
 }  // namespace
 
 bool DeviceGuitionESP324848S040::init() {
-  Serial.printf("[Device/%s] Initialising board...\n", kLogName);
+  Serial.println("[Device/GUITION ESP32-4848S040] Initialising board...");
 
   initSharedSpiChipSelects();
 
   if (!psramFound()) {
-    Serial.printf("[Device/%s] ERROR: octal PSRAM not detected\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] ERROR: octal PSRAM not detected");
     return false;
   }
   Serial.printf(
-      "[Device/%s] Flash=%u MB, PSRAM=%u MB\n", kLogName,
+      "[Device/GUITION ESP32-4848S040] Flash=%u MB, PSRAM=%u MB\n",
       static_cast<unsigned>(ESP.getFlashChipSize() / (1024 * 1024)),
       static_cast<unsigned>(ESP.getPsramSize() / (1024 * 1024)));
 
@@ -936,7 +914,8 @@ bool DeviceGuitionESP324848S040::init() {
 #endif
 
   if (!initTouch()) {
-    Serial.printf("[Device/%s] Touch unavailable; continuing\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] Touch unavailable; continuing");
   }
   return true;
 }
@@ -1175,8 +1154,6 @@ void DeviceGuitionESP324848S040::prepareForRestart() {
 }
 
 bool DeviceGuitionESP324848S040::initSDCard() {
-  // No slot: never start the SPI bus or the SD library's mount retries.
-  if (!kHasSdCard) return false;
   if (g_sd_available && SD.cardType() != CARD_NONE) return true;
 
   const uint32_t now = millis();
@@ -1195,9 +1172,8 @@ bool DeviceGuitionESP324848S040::initSDCard() {
       static_cast<unsigned long>(kSdFrequency));
 #endif
 
-  // On the Guition board the card and panel command bus share SCK/MOSI. The
-  // ST7701 is initialized first and remains deselected on CS39 while the card
-  // uses CS42.
+  // The card and panel command bus share SCK/MOSI. The ST7701 is initialized
+  // first and remains deselected on CS39 while the card uses CS42.
   const uint32_t mount_started_ms = millis();
   g_sd_spi.begin(kSdSck, kSdMiso, kSdMosi, kSdCs);
   bool mounted = SD.begin(kSdCs, g_sd_spi, kSdFrequency, "/sdcard", 5);
@@ -1220,7 +1196,8 @@ bool DeviceGuitionESP324848S040::initSDCard() {
   }
   if (!mounted) {
     g_sd_available = false;
-    Serial.printf("[Device/%s] SD card mount failed\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] SD card mount failed");
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
     Serial.printf(
         "[S3Diag/SD] phase=SD.begin result=failed elapsed_ms=%lu "
@@ -1233,7 +1210,7 @@ bool DeviceGuitionESP324848S040::initSDCard() {
     SD.end();
     g_sd_available = false;
     g_sd_active_frequency = 0;
-    Serial.printf("[Device/%s] SD card absent\n", kLogName);
+    Serial.println("[Device/GUITION ESP32-4848S040] SD card absent");
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
     Serial.printf(
         "[S3Diag/SD] phase=card-probe result=absent card_type=%u "
@@ -1246,7 +1223,7 @@ bool DeviceGuitionESP324848S040::initSDCard() {
 
   g_sd_available = true;
   Serial.printf(
-      "[Device/%s] SD card OK, size=%llu MB\n", kLogName,
+      "[Device/GUITION ESP32-4848S040] SD card OK, size=%llu MB\n",
       static_cast<unsigned long long>(SD.cardSize() / (1024ULL * 1024ULL)));
 #if HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE
   const uint8_t card_type = SD.cardType();
@@ -1368,13 +1345,14 @@ bool DeviceGuitionESP324848S040::resumeSDCardAfterNetworkTransition() {
 bool DeviceGuitionESP324848S040::initLittleFS() {
   if (g_littlefs_ready) return true;
   if (!LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
-    Serial.printf("[Device/%s] LittleFS mount failed\n", kLogName);
+    Serial.println(
+        "[Device/GUITION ESP32-4848S040] LittleFS mount failed");
     return false;
   }
   g_littlefs_ready = true;
   ensureStorageLayout();
   Serial.printf(
-      "[Device/%s] LittleFS ready, total=%u, used=%u\n", kLogName,
+      "[Device/GUITION ESP32-4848S040] LittleFS ready, total=%u, used=%u\n",
       static_cast<unsigned>(LittleFS.totalBytes()),
       static_cast<unsigned>(LittleFS.usedBytes()));
   return true;
@@ -1403,4 +1381,4 @@ void DeviceGuitionESP324848S040::migrateStorageFromSD() {
   storageWriteEnd();
 }
 
-#endif  // defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
+#endif  // defined(DEVICE_GUITION_ESP32_4848S040)

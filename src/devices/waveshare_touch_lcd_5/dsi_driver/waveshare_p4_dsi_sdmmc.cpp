@@ -1,4 +1,4 @@
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi_sdmmc.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi_sdmmc.h"
 
 #if defined(DEVICE_WAVESHARE_P4_DSI_BOARD)
 

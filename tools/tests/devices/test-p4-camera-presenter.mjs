@@ -236,8 +236,8 @@ const profiles = [
   {
     // The shared Waveshare P4 DSI driver (Waveshare 5-inch, #76); its UI PPA
     // is the shared p4_dsi_ui_ppa client like the Guition V2's.
-    file: 'src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi.cpp',
-    header: 'src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi.h',
+    file: 'src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi.cpp',
+    header: 'src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi.h',
     qualified: 'waveshare_p4_dsi::displayTryFullFramePreview',
     transform: 'Transform::Portrait90Or270',
     panel: [720, 1280],

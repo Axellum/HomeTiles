@@ -179,11 +179,15 @@ constexpr bool needs_rotation(Layout layout) {
 // the Guition V2). The 1024 x 600 panels (JC1060, Waveshare 7B) are landscape
 // by themselves and the JC4880 is upright: their drivers turn a turned layout
 // a real quarter, the same turn the other way round (draw_turned_area, user
-// 2026-10-11), so the shared touch turn holds for them too. Every native
-// ESP-IDF DSI panel (DEVICE_P4_IDF_DSI, the shared camera presenter's
-// setUpright/drawUpright) and the Tab5 (its own copy) can.
+// 2026-10-11), so the shared touch turn holds for them too.
 constexpr bool upright_ready() {
-#if defined(DEVICE_P4_IDF_DSI) || defined(DEVICE_M5STACKS_TAB5)
+#if defined(DEVICE_GUITION_JC8012P4A1) || defined(DEVICE_GUITION_JC8012P4A1_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
+    defined(DEVICE_M5STACKS_TAB5) || \
+    defined(DEVICE_GUITION_JC1060P470C) || defined(DEVICE_GUITION_JC1060P470C_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || defined(DEVICE_GUITION_JC4880P443_PORTRAIT) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_5)
   return true;
 #else
   return false;

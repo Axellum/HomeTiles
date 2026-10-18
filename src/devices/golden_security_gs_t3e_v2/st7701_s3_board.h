@@ -2,13 +2,10 @@
 
 #include <stdint.h>
 
-// Board description of the shared ESP32-S3 ST7701 RGB driver
-// (device_guition_esp32_4848s040.cpp, DEVICE_GUITION_ESP32_4848S040_FAMILY in
-// device_select.h). Every exact board of that family has one constexpr
-// Description named kBoard in its own device header, beside its own
-// Device::Profile. It holds exactly what the boards are known to differ in;
-// the framebuffer lifecycle, flash-write guards, GT911 protocol, porches and
-// pixel clock stay one shared implementation.
+// Board description of the GS-T3E v2 ST7701 RGB driver
+// (device_golden_security_gs_t3e_v2.cpp, derived from the Guition
+// ESP32-4848S040 driver): the board's constexpr kBoard in its device header
+// holds the pins, init table, PCLK edge, backlight and SD wiring.
 namespace St7701S3Board {
 
 // ST7701 initialization tables of the pinned GFX Library for Arduino 1.6.5

@@ -1,7 +1,7 @@
 #pragma once
 
-// The Waveshare ESP32-P4-WIFI6-Touch-LCD-5 for the shared Waveshare ESP32-P4
-// MIPI-DSI driver (src/devices/common/waveshare_p4_dsi). Sources, all from
+// The Waveshare ESP32-P4-WIFI6-Touch-LCD-5 for its own MIPI-DSI driver
+// (src/devices/waveshare_touch_lcd_5/dsi_driver). Sources, all from
 // Waveshare: the board BSP waveshare/esp32_p4_wifi6_touch_lcd_5 1.0.4
 // (waveshareteam/Waveshare-ESP32-components, bsp/esp32_p4_wifi6_touch_lcd_5,
 // commit 23a6012d5e87d27399cf90fb851cab3689e29159), its HX8394 driver
@@ -12,7 +12,7 @@
 
 #include <sd_protocol_types.h>
 
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi_board.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi_board.h"
 #include "src/devices/waveshare_touch_lcd_5/profile.h"
 
 namespace DeviceWaveshareTouchLCD5Board {
@@ -62,9 +62,11 @@ inline constexpr waveshare_p4_dsi::Board kBoard{
     GPIO_NUM_7,
     GPIO_NUM_8,
     // bsp_sdcard_mount(): SDMMC slot 0 4-bit, card power from on-chip LDO
-    // channel 4, SDMMC_FREQ_HIGHSPEED.
+    // channel 4. The BSP mounts at SDMMC_FREQ_HIGHSPEED (40 MHz); HomeTiles
+    // keeps 20 MHz like the hardware-tested Waveshare 8-inch, whose LCD-X BSP
+    // has the same slot, pins, LDO and 40 MHz.
     4,
-    SDMMC_FREQ_HIGHSPEED,
+    SDMMC_FREQ_DEFAULT,
 };
 
 }  // namespace DeviceWaveshareTouchLCD5Board

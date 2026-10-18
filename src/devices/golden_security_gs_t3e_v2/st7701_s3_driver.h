@@ -4,15 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "src/devices/guition_esp32_4848s040/st7701_s3_board.h"
+#include "src/devices/golden_security_gs_t3e_v2/st7701_s3_board.h"
 
-// API of the shared ESP32-S3 ST7701 RGB driver
-// (device_guition_esp32_4848s040.cpp). It is the Guition ESP32-4848S040
-// driver; every board of DEVICE_GUITION_ESP32_4848S040_FAMILY runs it with
-// the kBoard description of its own device header. A board's namespace pulls
-// these functions in with a using-directive, so DeviceImpl::init() and
-// DeviceImpl::kProfile name the same exact device.
-namespace DeviceGuitionESP324848S040 {
+// API of the GS-T3E v2 ST7701 RGB driver (device_golden_security_gs_t3e_v2.cpp),
+// derived from the Guition ESP32-4848S040 driver, which stays unchanged. It
+// runs with the kBoard description of device_golden_security_gs_t3e_v2.h.
+namespace DeviceGoldenSecurityGST3EV2 {
 
 bool init();
 void update();
@@ -62,4 +59,4 @@ bool resumeSDCardAfterNetworkTransition();
 bool initLittleFS();
 void migrateStorageFromSD();
 
-}  // namespace DeviceGuitionESP324848S040
+}  // namespace DeviceGoldenSecurityGST3EV2

@@ -101,7 +101,13 @@ void displaySetRotation(uint8_t rotation) {
 }
 
 void displaySetUpright(bool upright) {
-#if defined(DEVICE_P4_IDF_DSI) || defined(DEVICE_M5STACKS_TAB5)
+#if defined(DEVICE_GUITION_JC8012P4A1) || defined(DEVICE_GUITION_JC8012P4A1_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
+    defined(DEVICE_M5STACKS_TAB5) || \
+    defined(DEVICE_GUITION_JC1060P470C) || defined(DEVICE_GUITION_JC1060P470C_V2) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || defined(DEVICE_GUITION_JC4880P443_PORTRAIT) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_5)
   DeviceImpl::displaySetUpright(upright);
 #else
   (void)upright;
@@ -159,13 +165,13 @@ void prepareForRestart() {
 }
 
 void displayUpdateCheckGuardBegin() {
-#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
+#if defined(DEVICE_GUITION_ESP32_4848S040) || defined(DEVICE_GOLDEN_SECURITY_GS_T3E_V2)
   DeviceImpl::displayUpdateCheckGuardBegin();
 #endif
 }
 
 void displayUpdateCheckGuardEnd() {
-#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
+#if defined(DEVICE_GUITION_ESP32_4848S040) || defined(DEVICE_GOLDEN_SECURITY_GS_T3E_V2)
   DeviceImpl::displayUpdateCheckGuardEnd();
 #endif
 }

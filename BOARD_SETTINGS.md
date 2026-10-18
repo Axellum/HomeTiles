@@ -113,7 +113,7 @@ Arduino IDE:
 
 Used for:
 - `src/devices/waveshare_touch_lcd_5` (a board description for the shared
-  driver in `src/devices/common/waveshare_p4_dsi`)
+  driver in `src/devices/waveshare_touch_lcd_5/dsi_driver`)
 - build profile `waveshare_5` for ESP32-P4 before v3.0 (revisions 1–199)
 - build profile `waveshare_5_rev3` for ESP32-P4 v3.1 or newer (301–399)
 
@@ -131,8 +131,11 @@ Important:
 - The LCD reset is GPIO27 (active high); the backlight is GPIO26 with 5kHz,
   10-bit LEDC PWM.
 - Touch uses GT911 on SDA GPIO7 and SCL GPIO8 without interrupt or reset pins.
-- The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4.
+- The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4,
+  mounted at 20MHz like the 8-inch.
 - Voice: ES8311 (0x18) and ES7210 (0x40) with the amplifier enable on GPIO53.
+- Camera: an optional OV5647 module on the MIPI-CSI connector (SCCB on SDA 7
+  / SCL 8), off until enabled in the Web Admin.
 - Hardware facts, sources and the open checks are in the
   [device README](src/devices/waveshare_touch_lcd_5/README.md).
 - Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.

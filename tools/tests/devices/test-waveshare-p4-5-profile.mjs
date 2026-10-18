@@ -19,7 +19,7 @@ const requireMarker = (source, marker, label) => {
 };
 
 const base = 'src/devices/waveshare_touch_lcd_5';
-const shared = 'src/devices/common/waveshare_p4_dsi';
+const shared = 'src/devices/waveshare_touch_lcd_5/dsi_driver';
 const profile = read(`${base}/profile.h`);
 const board = read(`${base}/board.h`);
 const boardSource = read(`${base}/board.cpp`);
@@ -101,7 +101,7 @@ assert.deepEqual(values, [
   '"HX8394"', 'createHx8394Panel', '720', '1280', '2', '700', '58000000',
   '20', '20', '40', '4', '10', '24', '3', '2500', 'GPIO_NUM_27', 'true',
   'GPIO_NUM_26', '5000', '10', 'false',
-  'GPIO_NUM_7', 'GPIO_NUM_8', '4', 'SDMMC_FREQ_HIGHSPEED',
+  'GPIO_NUM_7', 'GPIO_NUM_8', '4', 'SDMMC_FREQ_DEFAULT',
 ], 'LCD-5 board description values');
 // The field order these values fill.
 const panelFields = [...boardType.match(/struct Panel \{([\s\S]*?)\n\};/)[1]
@@ -190,11 +190,22 @@ for (const marker of ['static constexpr int kSdD0Pin = 39;', 'static constexpr i
   'host.slot = SDMMC_HOST_SLOT_0;', 'host.flags = SDMMC_HOST_FLAG_4BIT;', 'ldo_cfg.voltage_mv = kSdLdoVoltageMv;']) {
   requireMarker(sdSource, marker, 'Shared SDMMC slot 0');
 }
-// No camera; no configurable I/O (touch RST/INT sit on GPIO23/GPIO2).
+// SD at 20 MHz like the hardware-tested Waveshare 8-inch (same slot, pins, LDO).
+requireMarker(read('src/devices/waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.cpp'),
+  'WaveshareSDMMC.begin("/sdcard", false, SDMMC_FREQ_DEFAULT, 5)', 'the 8-inch SD speed');
+// No configurable I/O (touch RST/INT sit on GPIO23/GPIO2).
 requireMarker(read(`${base}/hardware_io_profile.h`), 'Device::kNoHardwareIoProfile', 'LCD-5 reserved I/O');
-assert.ok(!exists(`${base}/local_camera_board.h`), 'no camera board');
+// The optional OV5647 module on the MIPI-CSI connector, like the 4.3-inch:
+// the shared OV5647 driver with the 8-inch mode (test-local-camera-boards).
 const cameraBlock = deviceSelect.slice(0, deviceSelect.indexOf('#define HOMETILES_LOCAL_CAMERA 1'));
-assert.ok(!cameraBlock.slice(cameraBlock.lastIndexOf('#if ')).includes('LCD_5'), 'LCD-5 has no HomeTiles camera');
+assert.ok(cameraBlock.slice(cameraBlock.lastIndexOf('#if ')).includes('defined(DEVICE_WAVESHARE_TOUCH_LCD_5)'),
+  'LCD-5 camera selection');
+requireMarker(read('src/video/local_camera/camera_select.h'),
+  '#if defined(DEVICE_WAVESHARE_TOUCH_LCD_5)\n#define HOMETILES_CAMERA_SENSOR_OV5647 1\n'
+    + '#define HOMETILES_LOCAL_CAMERA_BOARD "src/devices/waveshare_touch_lcd_5/local_camera_board.h"', 'Camera board');
+requireMarker(read(`${base}/local_camera_board.h`), 'reset_pin = -1, pwdn_pin = -1', 'Camera pins from Waveshare');
+requireMarker(read(`${base}/local_camera_board.cpp`),
+  'i2c_master_bus_handle_t bus = DeviceWaveshareTouchLCD5::sharedI2cBus();', 'Camera SCCB on the board bus');
 
 // --- Audio: the LCD-X pins and chips (speaker_board.h), 60 % volume limit.
 const speaker = read(`${base}/speaker_board.h`);
@@ -225,7 +236,7 @@ for (const index of [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]) {
 }
 assert.equal(own[11], '1', 'direct LEDC PWM: raw 1..255 = 1..100 %');
 assert.equal(own[15], 'Device::Capabilities{false', 'capabilities');
-requireMarker(profile, 'Device::Capabilities{false, false, false, false, true, false, false},', 'LCD-5 capabilities');
+requireMarker(profile, 'Device::Capabilities{false, false, false, false, true, false, kBuiltinCamera},', 'LCD-5 capabilities');
 requireMarker(profile, 'inline constexpr uint32_t kFlashSizeBytes = 32U * 1024U * 1024U;', 'LCD-5 flash');
 requireMarker(profile, 'inline constexpr uint32_t kPsramSizeBytes = 32U * 1024U * 1024U;', 'LCD-5 PSRAM');
 // The driver checks the description against the profile at compile time.
@@ -241,7 +252,11 @@ assert.equal(familyBlock('DEVICE_WAVESHARE_P4_DSI_BOARD').trim(), '#if defined(D
 for (const layout of ['DEVICE_LAYOUT_1024X600', 'DEVICE_LAYOUT_480X480']) {
   assert.ok(!familyBlock(layout).includes('LCD_5'), `the 1280 x 720 layout, not ${layout}`);
 }
-requireMarker(read('src/tiles/config/grid_layout.h'), '#if defined(DEVICE_P4_IDF_DSI) || defined(DEVICE_M5STACKS_TAB5)\n  return true;', 'Upright layout');
+// The 5-inch is added to the upright lists one by one; no other entry changes.
+for (const file of ['src/tiles/config/grid_layout.h', 'src/devices/device.cpp']) {
+  requireMarker(read(file), 'defined(DEVICE_GUITION_JC4880P443_PORTRAIT) || \\\n    defined(DEVICE_WAVESHARE_TOUCH_LCD_5)\n',
+    `Upright list in ${file}`);
+}
 requireMarker(driver, 'g_camera_presenter.drawUpright(x, y, w, h, data, g_rotation);', 'Upright draw');
 
 // --- The device API is the shared driver's, complete like the LCD-X boards'.

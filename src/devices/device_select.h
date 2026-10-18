@@ -125,10 +125,9 @@
 #define DEVICE_WAVESHARE_TOUCH_LCD_X
 #endif
 
-// Waveshare P4 boards run by the shared, description-driven MIPI-DSI driver
-// (src/devices/common/waveshare_p4_dsi): a portrait panel under a landscape
-// profile. Such a board only describes its panel controller, timing and pins
-// (its board.h, picked in waveshare_p4_dsi_board_select.h).
+// The Waveshare 5-inch's own MIPI-DSI driver
+// (src/devices/waveshare_touch_lcd_5/dsi_driver): a portrait panel under a
+// landscape profile, its panel controller, timing and pins in its board.h.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_5)
 #define DEVICE_WAVESHARE_P4_DSI_BOARD
 #endif
@@ -144,17 +143,18 @@
 // Built-in camera on every ESP32-P4 board with a camera: the Guition
 // JC8012P4A1 V2 and V1 cameras and the JC1060P470C V2 / JC4880P443 CSI
 // connectors (OV02C10), the Waveshare 8-inch, 7-inch and 10.1-inch front
-// cameras and the OV5647 CSI connectors of the Waveshare 7B, 4.3-inch and 4B,
-// and the M5Stack Tab5 camera (SC202CS/SC2356). The camera stays off until the
-// user enables it in the Web Admin; only then is the sensor probed. The
-// original-panel JC1060P470C (board identity unproven) and the ESP32-S3 boards
-// keep the capture path out.
+// cameras and the OV5647 CSI connectors of the Waveshare 7B, 4.3-inch, 5-inch
+// and 4B, and the M5Stack Tab5 camera (SC202CS/SC2356). The camera stays off
+// until the user enables it in the Web Admin; only then is the sensor probed.
+// The original-panel JC1060P470C (board identity unproven) and the ESP32-S3
+// boards keep the capture path out.
 #if defined(DEVICE_GUITION_JC8012P4A1_V2) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_10_1) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_5) || \
     defined(DEVICE_WAVESHARE_4B) || \
     defined(DEVICE_GUITION_JC8012P4A1) || \
     defined(DEVICE_GUITION_JC1060P470C_V2) || \
@@ -180,11 +180,11 @@
 #define DEVICE_P4_IDF_DSI
 #endif
 
-// The Guition ESP32-4848S040 driver also runs the boards built like it:
-// ESP32-S3 with 8 MB octal PSRAM, a 480x480 ST7701 RGB panel without a reset
-// line and a GT911 without reset/interrupt pins. Each exact board keeps its
-// own pins, init table, PCLK edge, backlight and SD wiring (kBoard in its
-// device header) and its own profile and firmware identity.
+// Boards built like the Guition ESP32-4848S040 (ESP32-S3, 8 MB octal PSRAM,
+// 480x480 ST7701 RGB panel, GT911) share its board-level behavior outside the
+// driver: the update-check pixel-clock guard, loop-stall diagnostics, the
+// brightness floor and the compact dropdown arrow. Each board has its own
+// driver, pins, profile and firmware identity.
 #if defined(DEVICE_GUITION_ESP32_4848S040) || \
     defined(DEVICE_GOLDEN_SECURITY_GS_T3E_V2)
 #define DEVICE_GUITION_ESP32_4848S040_FAMILY

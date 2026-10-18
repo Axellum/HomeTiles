@@ -1,4 +1,4 @@
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi.h"
 
 #include "src/devices/device_select.h"
 
@@ -23,10 +23,10 @@
 #include "src/devices/common/p4_dsi_camera_presenter.h"
 #include "src/devices/common/p4_dsi_cpu_rotate.h"
 #include "src/devices/common/p4_dsi_ui_ppa.h"
-#include "src/devices/common/waveshare_p4_dsi/vendor/gt911.h"
-#include "src/devices/common/waveshare_p4_dsi/vendor/i2c.h"
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi_board_select.h"
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi_sdmmc.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/vendor/gt911.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/vendor/i2c.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi_board_select.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi_sdmmc.h"
 
 // One line per message, "[Device/<board>] ..." (English, see AGENTS.md).
 #define WAVESHARE_P4_DSI_LOG(fmt, ...)                                   \

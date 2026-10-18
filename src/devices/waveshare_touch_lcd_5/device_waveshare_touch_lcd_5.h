@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi.h"
+#include "src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi.h"
 #include "src/devices/waveshare_touch_lcd_5/profile.h"
 
 // Waveshare ESP32-P4-WIFI6-Touch-LCD-5: the shared Waveshare ESP32-P4

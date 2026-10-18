@@ -38,20 +38,10 @@ const device = read(devicePath);
 const profile = read(
   'src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h');
 
-// Exact-board backlight pin and PWM rate: positional fields of the board
-// description in the device header, which the shared driver reads.
-const backlight = profile.match(
-  /each pulse only gets longer at the same duty\.\n\s*(\d+),\n\s*(\d+),\n/);
-assert.ok(backlight, 'The Guition board description must name its backlight pin and rate');
-assert.equal(Number(backlight[1]), 38,
+// Exact-board backlight pin and PWM settings.
+assert.equal(constant(device, 'kBacklightPin'), 38,
              'The 4848S040 backlight enable is GPIO38');
-assert.match(device,
-  /constexpr int8_t kBacklightPin = kBoard\.backlight_pin;/,
-  'The driver must take the backlight pin from the board description');
-assert.match(device,
-  /constexpr uint32_t kBacklightFrequency = kBoard\.backlight_frequency_hz;/,
-  'The driver must take the backlight rate from the board description');
-const frequency = Number(backlight[2]);
+const frequency = constant(device, 'kBacklightFrequency');
 const resolution = constant(device, 'kBacklightResolution');
 assert.equal(frequency, 150,
              'Backlight PWM must use the silent exact-board 150 Hz rate');

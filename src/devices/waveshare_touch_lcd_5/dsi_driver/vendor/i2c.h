@@ -20,7 +20,7 @@
 #include "esp_log.h"        // ESP32 logging library for debugging
 
 // Modified for HomeTiles: the SDA and SCL pins come from the board
-// description (src/devices/common/waveshare_p4_dsi/waveshare_p4_dsi_board.h).
+// description (src/devices/waveshare_touch_lcd_5/dsi_driver/waveshare_p4_dsi_board.h).
 
 // Define the I2C frequency (400 kHz)
 #define EXAMPLE_I2C_MASTER_FREQUENCY (400 * 1000)  // I2C speed

@@ -2,13 +2,14 @@
 
 #include "src/devices/device_types.h"
 #include "src/devices/golden_security_gs_t3e_v2/hardware_io_profile.h"
-#include "src/devices/guition_esp32_4848s040/st7701_s3_board.h"
-#include "src/devices/guition_esp32_4848s040/st7701_s3_driver.h"
+#include "src/devices/golden_security_gs_t3e_v2/st7701_s3_board.h"
+#include "src/devices/golden_security_gs_t3e_v2/st7701_s3_driver.h"
 
 // Golden Security GS-T3E v2 (PCB v2.3): ESP32-S3-WROOM-1 N16R8, 480x480
 // ST7701S RGB panel and GT911 touch, built like the Guition ESP32-4848S040.
-// It runs that board's driver (DEVICE_GUITION_ESP32_4848S040_FAMILY) with the
-// description below; pins and their sources are in README.md. Hardware
+// It has its own driver (device_golden_security_gs_t3e_v2.cpp, derived from
+// the Guition one) with the description below; pins and their sources are
+// in README.md. Hardware
 // validation is pending: no maintainer hardware.
 namespace DeviceGoldenSecurityGST3EV2 {
 
@@ -80,7 +81,5 @@ inline constexpr St7701S3Board::Description kBoard{
     St7701S3Board::kNoSdCard,
 };
 
-// The shared driver functions (DeviceImpl::init() etc.).
-using namespace DeviceGuitionESP324848S040;
 
 }  // namespace DeviceGoldenSecurityGST3EV2

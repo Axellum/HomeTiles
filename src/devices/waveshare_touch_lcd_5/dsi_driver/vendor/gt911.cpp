@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Modified for HomeTiles: shared by the boards of the description-driven
- * Waveshare ESP32-P4 MIPI-DSI driver (src/devices/common/waveshare_p4_dsi);
+ * Waveshare ESP32-P4 MIPI-DSI driver (src/devices/waveshare_touch_lcd_5/dsi_driver);
  * the coordinate range comes from the caller instead of a board header.
  */
 

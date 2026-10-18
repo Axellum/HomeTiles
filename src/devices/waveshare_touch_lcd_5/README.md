@@ -30,7 +30,7 @@ v3 silicon accepts (the shared driver, like the 10.1-inch and 7B).
 
 The board has no driver of its own. `board.h` describes it to the shared
 description-driven Waveshare ESP32-P4 MIPI-DSI driver
-(`src/devices/common/waveshare_p4_dsi`), which also owns the GT911, I2C and
+(`src/devices/waveshare_touch_lcd_5/dsi_driver`), which also owns the GT911, I2C and
 SDMMC code; this folder only adds the HX8394 controller (`vendor/hx8394`,
 Waveshare's `esp_lcd_hx8394` 2.1.0, see `vendor/README.md`), the profile and
 the audio pins.
@@ -66,7 +66,12 @@ Confirmed by these sources:
 - GT911 at 0x5D or 0x14 (both probed), reset and interrupt not driven by the
   BSP or the examples, touch coordinates in the panel's own orientation.
 - microSD: 4-bit SDMMC slot 0, D0-D3 GPIO39-42, CMD GPIO44, CLK GPIO43, card
-  power from on-chip LDO channel 4, 40 MHz (`SDMMC_FREQ_HIGHSPEED`, as the BSP).
+  power from on-chip LDO channel 4. The BSP mounts at 40 MHz; HomeTiles uses
+  20 MHz like the hardware-tested Waveshare 8-inch with the same wiring.
+- Camera: optional OV5647 module on the 2-lane MIPI-CSI connector, SCCB on
+  the board I2C bus (GPIO7/8), no reset, power-down or clock line (Waveshare's
+  `09_video_lcd_display` and `06_Camera_Preview`). HomeTiles uses the shared
+  OV5647 driver with the 8-inch sensor mode, off until enabled in the Web Admin.
 - Audio: ES8311 at 0x18 (playback), ES7210 at 0x40 (microphones), I2S MCLK
   GPIO13, BCLK GPIO12, LRCK GPIO10, DOUT GPIO9, DIN GPIO11, speaker amplifier
   enable GPIO53 active high. Voice uses the shared audio core with a volume
@@ -96,4 +101,5 @@ Not confirmed (hardware check pending):
   1023).
 - USB-host Ethernet: offered like on the LCD-X boards (the BSP has USB host
   support); untested.
-- The OV5647 CSI camera connector is not a HomeTiles camera on this board.
+- Camera orientation and mirror on this board (the 8-inch's quarter-turn
+  mounting is the default; Rotation and Mirror are in the Web Admin).
