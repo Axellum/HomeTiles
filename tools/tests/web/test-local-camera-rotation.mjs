@@ -355,6 +355,7 @@ const expected = {
   kStringsFr: ['Avancé', 'Rotation', 'Inverser le rouge et le bleu'],
   kStringsPl: ['Zaawansowane', 'Obrót', 'Zamień czerwony i niebieski'],
   kStringsCs: ['Pokročilé', 'Otočení', 'Prohodit červenou a modrou'],
+  kStringsEs: ['Avanzado', 'Rotación', 'Intercambiar rojo y azul'],
 };
 const tables = [...new Set([...i18n.matchAll(/\{&(kStrings\w+), &kLocale\w+\}/g)].map(match => match[1]))];
 assert.deepEqual([...tables].sort(), Object.keys(expected).sort(), 'Every registered language is checked');
