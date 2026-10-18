@@ -950,6 +950,18 @@ struct LocaleProfile {
   // {d}=day and {M}=month ("{d}. {M}" = "21. August").
   const char* month_names_in_date[12];
   const char* long_date_pattern;
+  // The same date with the year, {Y}=year ("{d} de {M} de {Y}" =
+  // "21 de agosto de 2026").
+  const char* long_date_year_pattern;
+
+  // The panel keyboard (settings_keyboard), as data so a language brings
+  // its own: the letter layout under Auto (0 QWERTY, 1 QWERTZ, 2 AZERTY,
+  // settings_keyboard::Layout) and the language's own letters and signs in
+  // lower case ("áčďéěíňóřšťúůýž"), first on the accent page and first
+  // among the forms of a held letter (keyboard_letters.h makes the
+  // capitals). Only characters of the panel fonts.
+  uint8_t keyboard_layout;
+  const char* keyboard_letters;
 };
 
 // Index into LocaleProfile::device_labels.

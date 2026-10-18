@@ -2146,7 +2146,10 @@ static const LocaleProfile kLocaleDe = {
     {"Automatisch", "Icon der Entität", "Kein Icon", "Nur Titel und Wert", "Kein Icon passt zu „{query}“"},
     {"Januar", "Februar", "März", "April", "Mai", "Juni",
      "Juli", "August", "September", "Oktober", "November", "Dezember"},
-    "{d}. {M}"};
+    "{d}. {M}",
+    "{d}. {M} {Y}",
+    1,  // QWERTZ
+    "äöüß"};
 
 static const LocaleProfile kLocaleEn = {
     "en",
@@ -2264,7 +2267,10 @@ static const LocaleProfile kLocaleEn = {
     {"Automatic", "The entity's icon", "No icon", "Title and value only", "No icon matches “{query}”"},
     {"January", "February", "March", "April", "May", "June",
      "July", "August", "September", "October", "November", "December"},
-    "{d} {M}"};
+    "{d} {M}",
+    "{d} {M} {Y}",
+    0,  // QWERTY
+    ""};
 
 static const LocaleProfile kLocaleFr = {
     "fr",
@@ -2388,7 +2394,10 @@ static const LocaleProfile kLocaleFr = {
      "Aucune icône ne correspond à « {query} »"},
     {"janvier", "février", "mars", "avril", "mai", "juin",
      "juillet", "août", "septembre", "octobre", "novembre", "décembre"},
-    "{d} {M}"};
+    "{d} {M}",
+    "{d} {M} {Y}",
+    2,  // AZERTY
+    "àâæéèêëîïôçœùûüÿ«»’€"};
 
 // Codes and groups match LocaleProfile::timezone_labels and
 // timezone_group_labels (see i18n.h).
@@ -5044,7 +5053,10 @@ static const LocaleProfile kLocalePl = {
     {"Automatyczna", "Ikona encji", "Brak ikony", "Tylko tytuł i wartość", "Żadna ikona nie pasuje do „{query}”"},
     {"stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
      "lipca", "sierpnia", "września", "października", "listopada", "grudnia"},
-    "{d} {M}"};
+    "{d} {M}",
+    "{d} {M} {Y}",
+    0,  // QWERTY
+    "ąćęłńóśźż"};
 
 static const LocaleProfile kLocaleCs = {
     "cs",
@@ -5096,7 +5108,10 @@ static const LocaleProfile kLocaleCs = {
     {"Automaticky", "Ikona entity", "Bez ikony", "Pouze název a hodnota", "Žádná ikona neodpovídá „{query}“"},
     {"ledna", "února", "března", "dubna", "května", "června",
      "července", "srpna", "září", "října", "listopadu", "prosince"},
-    "{d}. {M}"};
+    "{d}. {M}",
+    "{d}. {M} {Y}",
+    1,  // QWERTZ
+    "áčďéěíňóřšťúůýž"};
 
 static const LocaleProfile kLocaleEs = {
     "es",
@@ -5214,7 +5229,10 @@ static const LocaleProfile kLocaleEs = {
     {"Automático", "Icono de la entidad", "Sin icono", "Solo título y valor", "Ningún icono coincide con “{query}”"},
     {"enero", "febrero", "marzo", "abril", "mayo", "junio",
      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"},
-    "{d} de {M}"};
+    "{d} de {M}",
+    "{d} de {M} de {Y}",
+    0,  // QWERTY
+    "ñáéíóúü¿¡"};
 
 const TimezoneOptionInfo& timezone_option(size_t index) {
   if (index >= kTimezoneOptionCount) index = 0;
@@ -5342,7 +5360,10 @@ static const LocaleProfile kLocaleSk = {
     {"Automaticky", "Ikona entity", "Bez ikony", "Iba názov a hodnota", "Žiadna ikona sa nezhoduje s „{query}“"},
     {"januára", "februára", "marca", "apríla", "mája", "júna",
      "júla", "augusta", "septembra", "októbra", "novembra", "decembra"},
-    "{d}. {M}"};
+    "{d}. {M}",
+    "{d}. {M} {Y}",
+    1,  // QWERTZ
+    "áäčďéíĺľňóôŕšťúýž"};
 
 static const LanguageEntry kLanguages[] = {
     {&kStringsEn, &kLocaleEn},

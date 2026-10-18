@@ -18,6 +18,10 @@ Last reviewed: 2026-10-17
 - `feature/perf` (both repos, unreleased, FW `b259-perf3f`): nav preload (S3 max 3 grids, 40/16 KB reserve, pressure release), shadow/circle caches, P4 CPU rotation for small areas, touch hold, 60 s energy/history reuse, S3 PCLK 12 MHz; V2/S3/8-inch HW ok. Bridge v0.9.0b16 beta (`17ca8a3`, feature/direct-link): request limits, empty energy answer, meta push + `"push": 1` (panel refresh 15 min); HA test pending.
 - Rejected: LVGL 2 draw threads (global compressed-font RLE state: glyph artifacts, no gain). S3 GT911 (fw 0x1060, cfg 0xFA, filter 8 = 32 px) steps slow drags and ignores config writes (also esp32-macropad #101) - do not retry. Open: S3 Web Admin pages block the loop 1-6 s. S3 b324: mallocs > 32 B prefer PSRAM (heap_caps_malloc_extmem_enable): internal free in use 42 -> ~89 KB, camera-screensaver low 14 -> 85 KB, no stripes; text-heavy steps slower (routes ~0.6 s once after connect).
 
+## Languages (local main, unreleased)
+
+- Built in: en, de, fr, pl, cs (PR #110, pepe59), es, sk (#104 attachment, vik147); each costs ~22 KB flash, fonts already carry Latin-1 + Latin Extended-A. A language is data only: its Strings and LocaleProfile, including `long_date_year_pattern` ("{d} de {M} de {Y}"), `keyboard_layout` (Auto: 0 QWERTY, 1 QWERTZ, 2 AZERTY) and `keyboard_letters` (lead the accent page and a held letter's forms, `keyboard_letters.h`); no language codes in code. Tests take the languages from `kLanguages`; `test-i18n-panel-glyphs` rejects characters the panel fonts lack (Czech came with U+2212). Language packs (like the icon file) later. Device text fit for cs/es/sk pending.
+
 ## Direct Bridge link (`feature/direct-link` in both repos, unreleased)
 
 - Panel connects to the Bridge over TCP 8140 instead of MQTT; Bridge = broker (same topics/retained), frames sealed with pairing-K keys. Contract `docs-dev/bridge-link.md` (shared vectors).
