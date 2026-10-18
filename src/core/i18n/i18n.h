@@ -262,6 +262,9 @@ struct Strings {
   const char* layout_storage_full;
   // A free cell of a folder whose every entry is used ({n} of {max}).
   const char* folder_full;
+  // Web Admin System page: the Icons card's title and its icon file row.
+  const char* icons_section;
+  const char* icon_file_label;
   const char* layout_delete_tile;
   const char* layout_delete_confirm;
   // Color of a tile without an icon (Clock, Text, Pixel animation): the

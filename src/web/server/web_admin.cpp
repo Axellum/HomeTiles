@@ -244,6 +244,13 @@ bool WebAdminServer::start() {
         "/api/ota/upload/raw", HTTP_POST,
         guardedUploadDone([this]() { this->handleOtaUploadDone(); }),
         guardedRaw([this]() { this->handleOtaRawUpdate(); }));
+    // The System page's Icons card: download now, or an uploaded file.
+    server.on("/api/icons/download", HTTP_POST,
+              guarded([this]() { this->handleIconFileDownload(); }));
+    server.on(
+        "/api/icons/upload", HTTP_POST,
+        guardedUploadDone([this]() { this->handleIconFileUploadDone(); }),
+        guardedRaw([this]() { this->handleIconFileUpload(); }));
     server.on("/api/ota/install", HTTP_POST,
               guarded([this]() { this->handleStartOtaInstall(); }));
     server.on("/api/ota/status", HTTP_GET,

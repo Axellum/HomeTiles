@@ -613,6 +613,32 @@ static void apply_icon_download() {
   BoardHAL::restart();
 }
 
+// An icon file uploaded on the Web Admin's Icons card: written from PSRAM
+// with the same checks as a downloaded one; the panel restarts either way.
+static void apply_icon_upload() {
+  Serial.printf("[Icons] Installing the uploaded %s
+", mdi_icon_store::release_file_name());
+  displayManager.setInputEnabled(false);
+  lv_refr_now(displayManager.getDisplay());
+  BoardHAL::displayPowerSaveOn();
+  if (webAdminServer.isRunning()) webAdminServer.stop();
+  String err;
+  Device::storageWriteBegin();
+  const bool ok = mdi_icon_store::install_upload(err);
+  if (ok) mdi_icon_store::clear_download_attempts();
+  Device::storageWriteEnd();
+  if (ok) {
+    Serial.println("[Icons] Uploaded icon file installed - restarting");
+  } else {
+    Serial.printf("[Icons] Uploaded icon file not installed: %s - restarting
+", err.c_str());
+  }
+  camera_transport::planned_restart();
+  BoardHAL::prepareForRestart();
+  delay(500);
+  BoardHAL::restart();
+}
+
 static void apply_system_reboot() {
   Serial.println("[System] Restart requested");
   displayManager.setInputEnabled(false);
@@ -1217,6 +1243,13 @@ void loop() {
       !fw_install_pending && !setup_screen::shown()) {
     icon_download_checked = true;
     if (mdi_icon_store::download_due()) apply_icon_download();
+  }
+
+  // The Web Admin's Icons card: an uploaded icon file to install, or "Update"
+  // (download now, also after three failed attempts). Both restart.
+  if (!fw_install_pending && !setup_screen::shown()) {
+    if (mdi_icon_store::upload_ready()) apply_icon_upload();
+    if (mdi_icon_store::take_download_request() && networkManager.isNetworkConnected()) apply_icon_download();
   }
 
   if (fw_check_pending) {

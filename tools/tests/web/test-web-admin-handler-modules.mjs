@@ -33,6 +33,7 @@ const owners = {
   'web_admin.cpp': ['Root'],
   'web_admin_hardware_io.cpp': ['GetHardwareIo', 'SaveHardwareIo'],
   'web_admin_local_camera.cpp': ['LocalCamera'],
+  'web_admin_icon_file.cpp': ['IconFileDownload', 'IconFileUpload', 'IconFileUploadDone'],
   'web_admin_auth_handlers.cpp': ['AuthChallenge', 'AuthLogin', 'AuthLogout', 'AuthPassword'],
 };
 const sources = new Map(serverFiles.filter(name => name.endsWith('.cpp'))

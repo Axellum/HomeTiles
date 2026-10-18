@@ -90,6 +90,9 @@ public:
   void handlePrepareOtaUpload();
   void handleOtaUpdate();
   void handleOtaRawUpdate();
+  void handleIconFileDownload();
+  void handleIconFileUpload();
+  void handleIconFileUploadDone();
   void handleOtaUploadDone();
   void handleStartOtaInstall();
   void handleGetOtaStatus();
