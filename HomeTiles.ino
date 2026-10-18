@@ -606,6 +606,7 @@ static void apply_icon_download() {
     Serial.println("[Icons] Icon file installed - restarting");
   } else {
     Serial.printf("[Icons] Icon download failed: %s - restarting\n", err.c_str());
+    mdi_icon_store::note_failure(String("Download failed: ") + err);
   }
   camera_transport::planned_restart();
   BoardHAL::prepareForRestart();
@@ -630,6 +631,7 @@ static void apply_icon_upload() {
     Serial.println("[Icons] Uploaded icon file installed - restarting");
   } else {
     Serial.printf("[Icons] Uploaded icon file not installed: %s - restarting\n", err.c_str());
+    mdi_icon_store::note_failure(String("Install failed: ") + err);
   }
   camera_transport::planned_restart();
   BoardHAL::prepareForRestart();

@@ -27,6 +27,11 @@ assert.match(block, /settings-state-link[\s\S]*release_file_url\(\)/, 'without i
 assert.match(block, /builtin_count\(\)\) \+ " \/ " \+ icon_total/, 'without it: built-in / all icons');
 assert.match(block, /id="icon_download_btn" onclick="downloadIconFile\(\)"/, 'without it: Update');
 assert.ok(block.indexOf('icon_download_btn') > block.indexOf('} else {'), 'Update shows only while the file is missing');
+// Without the file the card names why the last download or install failed.
+const reasonAt = block.indexOf('mdi_icon_store::last_failure()');
+assert.ok(reasonAt > block.indexOf('} else {') && reasonAt < block.indexOf('if (icons_ready) {', reasonAt),
+  'the reason shows only while the file is missing');
+assert.match(block, /settings-state-error[\s\S]*appendHtmlEscaped\(html, reason\)/, 'the reason is escaped');
 for (const reused of ['tr.ota_choose_file', 'tr.ota_upload_install', 'tr.ota_no_file_selected']) {
   assert.ok(block.includes(reused), `${reused} is reused`);
 }
@@ -45,6 +50,13 @@ assert.match(body('install_upload'), /begin_write[\s\S]*write\(g_upload, g_uploa
 const sketch = readRepoFile('HomeTiles.ino');
 assert.match(sketch, /if \(mdi_icon_store::upload_ready\(\)\) apply_icon_upload\(\);/);
 assert.match(sketch, /mdi_icon_store::take_download_request\(\) && networkManager\.isNetworkConnected\(\)\) apply_icon_download\(\);/);
+// A failure is noted for the card, in the firmware's own words.
+assert.match(sketch, /Icon download failed: [^\n]*\n\s*mdi_icon_store::note_failure\(String\("Download failed: "\) \+ err\);/);
+assert.match(sketch, /Uploaded icon file not installed: [^\n]*\n\s*mdi_icon_store::note_failure\(String\("Install failed: "\) \+ err\);/);
+// A written file clears the reason with the attempts; a new firmware drops an old one.
+assert.match(body('clear_download_attempts'), /prefs\.clear\(\)/);
+assert.match(body('note_download_attempt'), /!same_version && prefs\.isKey\("err"\)\) prefs\.remove\("err"\)/);
+assert.match(body('last_failure'), /prefs\.isKey\("err"\)/, 'no NVS error for a missing reason');
 assert.match(sketch, /static void apply_icon_upload\(\) \{[\s\S]*?Device::storageWriteBegin\(\);[\s\S]*?install_upload[\s\S]*?BoardHAL::restart\(\);/);
 
 // The delivered script: upload as raw body with progress, Update, errors.

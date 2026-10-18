@@ -308,7 +308,10 @@ void note_download_attempt() {
   Device::ScopedStorageWrite storage_write;
   Preferences prefs;
   if (!prefs.begin(kDownloadNvsNamespace, false)) return;
-  const uint8_t attempts = prefs.getString("ver", "") == FW_VERSION ? prefs.getUChar("att", 0) : 0;
+  const bool same_version = prefs.getString("ver", "") == FW_VERSION;
+  const uint8_t attempts = same_version ? prefs.getUChar("att", 0) : 0;
+  // A reason from an older firmware no longer applies.
+  if (!same_version && prefs.isKey("err")) prefs.remove("err");
   prefs.putString("ver", FW_VERSION);
   prefs.putUChar("att", attempts + 1);
   prefs.end();
@@ -322,6 +325,23 @@ void clear_download_attempts() {
   if (!prefs.begin(kDownloadNvsNamespace, false)) return;
   prefs.clear();
   prefs.end();
+}
+
+void note_failure(const String& reason) {
+  Device::ScopedStorageWrite storage_write;
+  Preferences prefs;
+  if (!prefs.begin(kDownloadNvsNamespace, false)) return;
+  prefs.putString("err", reason.substring(0, 96));
+  prefs.end();
+}
+
+String last_failure() {
+  Preferences prefs;
+  if (!prefs.begin(kDownloadNvsNamespace, true)) return String();
+  // isKey first: a missing key would log an NVS error on every page load.
+  const String reason = prefs.isKey("err") ? prefs.getString("err", "") : String();
+  prefs.end();
+  return reason;
 }
 
 }  // namespace mdi_icon_store

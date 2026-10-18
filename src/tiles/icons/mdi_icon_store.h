@@ -66,4 +66,9 @@ bool download_due();
 void note_download_attempt();
 void clear_download_attempts();
 
+// Why the last download or install failed, shown on the Icons card while the
+// file is missing; a written file clears it (clear_download_attempts).
+void note_failure(const String& reason);
+String last_failure();
+
 }  // namespace mdi_icon_store

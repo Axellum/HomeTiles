@@ -1988,6 +1988,12 @@ data-dhcp-note=")html";
       html += R"html(" rel="noopener"><i class="mdi mdi-download"></i> )html";
       html += mdi_icon_store::release_file_name();
       html += "</a>";
+      // Why the last download or install failed (the firmware's own words).
+      const String reason = mdi_icon_store::last_failure();
+      if (reason.length()) {
+        html += R"html(</div><div class="settings-state-error">)html";
+        appendHtmlEscaped(html, reason);
+      }
     }
     html += "</div></div>";
     if (icons_ready) {
