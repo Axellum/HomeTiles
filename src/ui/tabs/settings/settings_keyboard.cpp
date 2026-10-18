@@ -115,18 +115,13 @@ void lay_out() {
   const Page& p = page();
   uint8_t counts[3];
   uint8_t first[3] = {0, 0, 0};
-  uint8_t used = 0;
-  for (int row = 0; row < 3; ++row) {
-    if (g_kb.accents) {
-      // The accent page fills the rows in order.
-      const uint8_t left = static_cast<uint8_t>(g_kb.page_count - used);
-      const uint8_t room = keyboard_letters::kRowCapacity[row];
-      counts[row] = left < room ? left : room;
-      first[row] = used;
-      used = static_cast<uint8_t>(used + counts[row]);
-    } else {
-      counts[row] = p.counts[row];
-    }
+  if (g_kb.accents) {
+    // The accent page in the letter rows' shape, in order.
+    keyboard_letters::row_counts(g_kb.page_count, counts);
+    first[1] = counts[0];
+    first[2] = static_cast<uint8_t>(counts[0] + counts[1]);
+  } else {
+    for (int row = 0; row < 3; ++row) counts[row] = p.counts[row];
   }
   for (int row = 0; row < 3; ++row) {
     const int count = counts[row];

@@ -140,6 +140,18 @@ inline uint8_t accent_page(const char* own, uint32_t* out, uint8_t capacity) {
   return add_letters(kCommon, out, count, capacity, any);
 }
 
+// How many of `count` page letters each row takes, in the letter rows'
+// shape: the third row (between Shift and Backspace) full first, the rest
+// shared by the first two (26 letters = 10, 9, 7 like QWERTY's rows).
+inline void row_counts(uint8_t count, uint8_t out[3]) {
+  if (count > kPageCapacity) count = kPageCapacity;
+  out[2] = count < kRowCapacity[2] ? count : kRowCapacity[2];
+  const uint8_t rest = static_cast<uint8_t>(count - out[2]);
+  const uint8_t half = static_cast<uint8_t>((rest + 1) / 2);
+  out[0] = half < kRowCapacity[0] ? half : kRowCapacity[0];
+  out[1] = static_cast<uint8_t>(rest - out[0]);
+}
+
 // The forms offered when `letter` ('a'..'z') is held: the language's own
 // first, then the common and further letters. Returns how many `out` holds.
 inline uint8_t variants(const char* own, char letter, uint32_t* out, uint8_t capacity) {

@@ -52,6 +52,9 @@ static void language(const char* code, const char* own) {
     if (!bytes || next(p) != page[i] || *p) std::printf("roundtrip %s %X\\n", code, static_cast<unsigned>(page[i]));
   }
   list("upper", code, capitals, count);
+  uint8_t rows[3];
+  row_counts(count, rows);
+  std::printf("rows %s %u %u %u\\n", code, rows[0], rows[1], rows[2]);
   for (char letter = 'a'; letter <= 'z'; ++letter) {
     uint32_t forms[kVariantCapacity];
     const uint8_t found = variants(own, letter, forms, kVariantCapacity);
@@ -126,6 +129,18 @@ if (output !== null) {
   assert.ok(read('page', 'Es').includes('¿') && read('page', 'Es').includes('¡'), 'Spanish ¿ and ¡ on the accent page');
   // The former French page stays as it was (its own letters, then ä ö ß ñ á í ó).
   assert.equal(read('page', 'Fr').join(''), 'àâæéèêëîïôçœùûüÿ«»’€äößñáíó');
+  // The page keeps the letter rows' shape: every letter placed, no row over
+  // its keys, the third row full first (2026-10-18: 10/10/6 left a gap
+  // beside Backspace).
+  const rows = code => lines.find(line => line.startsWith(`rows ${code} `)).split(' ').slice(2).map(Number);
+  for (const {code} of languages) {
+    const [one, two, three] = rows(code);
+    assert.equal(one + two + three, read('page', code).length, `${code}: every letter has a key`);
+    assert.ok(one <= 10 && two <= 10 && three <= 7, `${code}: the rows fit their keys`);
+  }
+  assert.deepEqual(rows('En'), [10, 9, 7], 'the former European rows');
+  assert.deepEqual(rows('De'), [10, 9, 7]);
+  assert.deepEqual(rows('Fr'), [10, 10, 7], 'the former French rows');
   // English and German keep the former European page.
   assert.equal(read('page', 'En').join(''), 'äöüßéèêàâçëîïôûùñœæáíóúÿøå');
   assert.equal(read('page', 'De').join(''), read('page', 'En').join(''));
