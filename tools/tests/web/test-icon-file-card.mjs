@@ -49,7 +49,9 @@ assert.match(body('upload_finish'), /g_upload_len != file_bytes\(\)[\s\S]*header
 assert.match(body('install_upload'), /begin_write[\s\S]*write\(g_upload, g_upload_len\)[\s\S]*finish_write[\s\S]*upload_discard/);
 const sketch = readRepoFile('HomeTiles.ino');
 assert.match(sketch, /if \(mdi_icon_store::upload_ready\(\)\) apply_icon_upload\(\);/);
-assert.match(sketch, /mdi_icon_store::take_download_request\(\) && networkManager\.isNetworkConnected\(\)\) apply_icon_download\(\);/);
+assert.match(sketch, /mdi_icon_store::take_download_request\(\) && networkManager\.isNetworkConnected\(\)\) apply_icon_download\(true\);/);
+// "Update" does not use up one of the three automatic attempts.
+assert.match(sketch, /static void apply_icon_download\(bool requested = false\) \{[^}]*if \(!requested\) mdi_icon_store::note_download_attempt\(\);/);
 // A failure is noted for the card, in the firmware's own words.
 assert.match(sketch, /Icon download failed: [^\n]*\n\s*mdi_icon_store::note_failure\(String\("Download failed: "\) \+ err\);/);
 assert.match(sketch, /Uploaded icon file not installed: [^\n]*\n\s*mdi_icon_store::note_failure\(String\("Install failed: "\) \+ err\);/);
