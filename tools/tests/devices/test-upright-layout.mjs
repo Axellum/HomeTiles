@@ -148,7 +148,9 @@ for (const [file, ns] of [
   ['waveshare_touch_lcd_4_3/device_waveshare_touch_lcd_4_3.cpp', 'DeviceWaveshareTouchLCD4_3'],
   ['waveshare_touch_lcd_7/device_waveshare_touch_lcd_7.cpp', 'DeviceWaveshareTouchLCD7'],
   ['waveshare_touch_lcd_8/device_waveshare_touch_lcd_8.cpp', 'DeviceWaveshareTouchLCD8'],
-  ['waveshare_touch_lcd_10_1/device_waveshare_touch_lcd_10_1.cpp', 'DeviceWaveshareTouchLCD10']]) {
+  ['waveshare_touch_lcd_10_1/device_waveshare_touch_lcd_10_1.cpp', 'DeviceWaveshareTouchLCD10'],
+  // The shared Waveshare P4 DSI driver (the 5-inch and any later board it runs).
+  ['common/waveshare_p4_dsi/waveshare_p4_dsi.cpp', 'waveshare_p4_dsi']]) {
   const source = read('src/devices/' + file);
   assert.match(source, /\} else \{\n    dst_x = logical_h - y - h;\n    dst_y = x;/, `${file}: landscape (x, y) at panel (w - 1 - y, x)`);
   assert.match(source, /if \(g_camera_presenter\.upright\(\)\) \{\n    g_camera_presenter\.drawUpright\(x, y, w, h, data, g_rotation\);\n    return;\n  \}\n  draw_landscape_area\(x, y, w, h, data\);/,
@@ -168,10 +170,18 @@ assert.ok(!/M5\.Display\.setRotation\([^)]*g_upright/.test(tab5), 'M5GFX keeps i
 // quarter, the same turn the other way round (draw_turned_area: the shared
 // PPA and CPU turn with the rotation's 180 bit flipped), checked natively
 // above against the shared touch turn.
+// Every native ESP-IDF DSI panel (the shared presenter's upright draw) and
+// the Tab5 are upright-ready: the family macros instead of a define list.
 const upright = /constexpr bool upright_ready\(\) \{\n#if ([\s\S]*?)\n  return true;/.exec(read('src/tiles/config/grid_layout.h'))[1];
-for (const name of ['JC8012P4A1)', 'JC8012P4A1_V2)', 'LCD_4_3)', 'LCD_7)', 'LCD_8)', 'LCD_10_1)', 'TAB5)',
-  'JC1060P470C)', 'JC1060P470C_V2)', 'LCD_7B)', 'JC4880P443_PORTRAIT)']) {
-  assert.ok(upright.includes(name), name);
+assert.equal(upright, 'defined(DEVICE_P4_IDF_DSI) || defined(DEVICE_M5STACKS_TAB5)');
+{
+  const select = read('src/devices/device_select.h');
+  const dsiEnd = select.indexOf('#define DEVICE_P4_IDF_DSI');
+  const dsiBlock = select.slice(select.lastIndexOf('#if ', dsiEnd), dsiEnd);
+  for (const name of ['JC8012P4A1)', 'JC8012P4A1_V2)', 'LCD_4_3)', 'LCD_5)', 'LCD_7)', 'LCD_8)', 'LCD_10_1)',
+    'JC1060P470C)', 'JC1060P470C_V2)', 'LCD_7B)', 'JC4880P443_PORTRAIT)']) {
+    assert.ok(dsiBlock.includes(name), name);
+  }
 }
 const reversed = /constexpr bool turn_reversed\(\) \{\n#if ([\s\S]*?)\n  return true;/.exec(read('src/tiles/config/grid_layout.h'))[1];
 for (const name of ['JC1060P470C)', 'JC1060P470C_V2)', 'LCD_7B)', 'JC4880P443_PORTRAIT)']) assert.ok(reversed.includes(name), name);

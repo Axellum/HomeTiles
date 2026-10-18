@@ -10,8 +10,8 @@ Note:
 - The normal ESP32-P4 profiles use the vendors' P4NRW32/pre-v3 modules and
   HomeTiles explicitly guards them to chip revisions 1–199. They are not
   generic all-revision P4 builds. Separate, experimental v3.1-or-newer
-  profiles exist for the Waveshare 7B and 10.1 and the Guition JC8012P4A1 V3,
-  documented below.
+  profiles exist for the Waveshare 5-inch, 7B and 10.1 and the Guition
+  JC8012P4A1 V3, documented below.
 
 ## M5Stacks Tab5
 
@@ -95,6 +95,53 @@ Arduino IDE:
 - Board: `ESP32P4 Dev Module`
 - USB CDC On Boot: `Disabled`
 - Chip Variant: `Before v3.00`
+- Core Debug Level: `None`
+- USB DFU On Boot: `Disabled`
+- Erase All Flash Before Sketch Upload: `Disabled`
+- Flash Frequency: `80MHz`
+- Flash Mode: `QIO`
+- Flash Size: `32MB (256Mb)`
+- JTAG Adapter: `Disabled`
+- USB Firmware MSC On Boot: `Disabled`
+- Partition Scheme: `32M Flash (13MB APP/6.75MB SPIFFS)`
+- PSRAM: `Enabled`
+- Upload Mode: `UART0 / Hardware CDC`
+- Upload Speed: `921600`
+- USB Mode: `USB-OTG (TinyUSB)`
+
+## Waveshare Touch LCD 5
+
+Used for:
+- `src/devices/waveshare_touch_lcd_5` (a board description for the shared
+  driver in `src/devices/common/waveshare_p4_dsi`)
+- build profile `waveshare_5` for ESP32-P4 before v3.0 (revisions 1–199)
+- build profile `waveshare_5_rev3` for ESP32-P4 v3.1 or newer (301–399)
+
+Important:
+- This profile is only for the exact `ESP32-P4-WIFI6-Touch-LCD-5`
+  ([issue #76](https://github.com/GalusPeres/HomeTiles/issues/76)). It is
+  built from Waveshare's BSP and documentation; no board has been tested yet.
+- ESP32-P4 with `32MB` flash and `32MB` PSRAM. Waveshare ships units with
+  rev1.x and rev3.x silicon: check the revision with `esptool chip-id` and
+  pick the matching image. Revision v3.0 is unsupported by the pinned
+  toolchain.
+- The native panel is a `720x1280` HX8394 MIPI-DSI display (2 lanes at
+  700 Mbps, 58 MHz DPI clock). HomeTiles renders it as a `1280x720`
+  landscape dashboard like the Tab5 and the 7-inch, with the upright layout.
+- The LCD reset is GPIO27 (active high); the backlight is GPIO26 with 5kHz,
+  10-bit LEDC PWM.
+- Touch uses GT911 on SDA GPIO7 and SCL GPIO8 without interrupt or reset pins.
+- The microSD interface uses SDMMC slot 0 on GPIO39-44 and P4 LDO channel 4.
+- Voice: ES8311 (0x18) and ES7210 (0x40) with the amplifier enable on GPIO53.
+- Hardware facts, sources and the open checks are in the
+  [device README](src/devices/waveshare_touch_lcd_5/README.md).
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+
+Arduino IDE:
+- Board: `ESP32P4 Dev Module`
+- USB CDC On Boot: `Disabled`
+- Chip Variant: `Before v3.00` for `waveshare_5`, or `v3.00 or newer` for
+  `waveshare_5_rev3`.
 - Core Debug Level: `None`
 - USB DFU On Boot: `Disabled`
 - Erase All Flash Before Sketch Upload: `Disabled`

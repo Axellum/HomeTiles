@@ -7,6 +7,7 @@
 #if !defined(HOMETILES_CI_TARGET)
 #define DEVICE_WAVESHARE_4B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_4_3
+// #define DEVICE_WAVESHARE_TOUCH_LCD_5
 // #define DEVICE_WAVESHARE_TOUCH_LCD_7
 // #define DEVICE_WAVESHARE_TOUCH_LCD_7B
 // #define DEVICE_WAVESHARE_TOUCH_LCD_8
@@ -37,6 +38,7 @@
 
 #if (defined(DEVICE_WAVESHARE_4B) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) + \
+     defined(DEVICE_WAVESHARE_TOUCH_LCD_5) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_7) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) + \
      defined(DEVICE_WAVESHARE_TOUCH_LCD_8) + \
@@ -58,6 +60,7 @@
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
@@ -80,6 +83,7 @@
 
 #if !defined(DEVICE_WAVESHARE_4B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) && \
+    !defined(DEVICE_WAVESHARE_TOUCH_LCD_5) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) && \
     !defined(DEVICE_WAVESHARE_TOUCH_LCD_8) && \
@@ -109,8 +113,9 @@
 
 // These Waveshare P4 products share the same I2C/touch, backlight, SDMMC and
 // ESP-Hosted pin contracts. Each exact panel keeps its own controller, timing,
-// layout and device driver.
+// layout and device driver or board description.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_5) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \
@@ -118,6 +123,14 @@
     defined(DEVICE_LAYOUT_TEST_1024X600) || \
     defined(DEVICE_LAYOUT_TEST_480X480)
 #define DEVICE_WAVESHARE_TOUCH_LCD_X
+#endif
+
+// Waveshare P4 boards run by the shared, description-driven MIPI-DSI driver
+// (src/devices/common/waveshare_p4_dsi): a portrait panel under a landscape
+// profile. Such a board only describes its panel controller, timing and pins
+// (its board.h, picked in waveshare_p4_dsi_board_select.h).
+#if defined(DEVICE_WAVESHARE_TOUCH_LCD_5)
+#define DEVICE_WAVESHARE_P4_DSI_BOARD
 #endif
 
 // Both JC1060 panel revisions share board-level storage, touch, backlight and
@@ -154,6 +167,7 @@
 // presenter. M5GFX Tab5 and Arduino_GFX B4 intentionally keep their library
 // owned display backends.
 #if defined(DEVICE_WAVESHARE_TOUCH_LCD_4_3) || \
+    defined(DEVICE_WAVESHARE_TOUCH_LCD_5) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_7B) || \
     defined(DEVICE_WAVESHARE_TOUCH_LCD_8) || \

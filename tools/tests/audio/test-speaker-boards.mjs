@@ -28,6 +28,8 @@ const BOARDS = {
   DEVICE_WAVESHARE_TOUCH_LCD_7: {dir: 'waveshare_touch_lcd_7', ...WAVESHARE},
   DEVICE_WAVESHARE_TOUCH_LCD_10_1: {dir: 'waveshare_touch_lcd_10_1', ...WAVESHARE},
   DEVICE_WAVESHARE_TOUCH_LCD_4_3: {dir: 'waveshare_touch_lcd_4_3', ...WAVESHARE},
+  // The LCD-5 (#76): the LCD-X pins and chips, 60 % until a hardware test.
+  DEVICE_WAVESHARE_TOUCH_LCD_5: {dir: 'waveshare_touch_lcd_5', ...WAVESHARE, limit: 0.6},
   DEVICE_WAVESHARE_4B: {dir: 'waveshare_4b', ...WAVESHARE},
   DEVICE_GUITION_JC8012P4A1: {dir: 'guition_jc8012p4a1', ...GUITION_11},
   DEVICE_GUITION_JC8012P4A1_V2: {dir: 'guition_jc8012p4a1_v2', ...GUITION_11},
