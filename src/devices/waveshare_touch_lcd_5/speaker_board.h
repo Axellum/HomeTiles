@@ -45,10 +45,9 @@ constexpr uint8_t kMicAddress = 0x40;
 constexpr gpio_num_t kAmpEnable = GPIO_NUM_53;
 constexpr bool kAmpActiveHigh = true;
 // Loudest clean level as a fraction of the shared volume scale (1 = the
-// codec's full scale). Waveshare documents no limit for this board's 2 W
-// speaker; 0.6 by precaution until a hardware test, like the untested
-// Guition boards.
-constexpr float kVolumeLimit = 0.6f;
+// codec's full scale). The same ES8311 and amplifier circuit as the other
+// Waveshare P4 boards, which all run at the full scale.
+constexpr float kVolumeLimit = 1.0f;
 
 // The touch-owned I2C bus; nullptr before Device init opened it.
 i2c_master_bus_handle_t bus();

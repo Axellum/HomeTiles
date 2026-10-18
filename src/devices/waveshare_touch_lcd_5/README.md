@@ -74,8 +74,8 @@ Confirmed by these sources:
   OV5647 driver with the 8-inch sensor mode, off until enabled in the Web Admin.
 - Audio: ES8311 at 0x18 (playback), ES7210 at 0x40 (microphones), I2S MCLK
   GPIO13, BCLK GPIO12, LRCK GPIO10, DOUT GPIO9, DIN GPIO11, speaker amplifier
-  enable GPIO53 active high. Voice uses the shared audio core with a volume
-  limit of 0.6 by precaution (Waveshare documents none).
+  enable GPIO53 active high. Voice uses the shared audio core at the full
+  volume scale like the other Waveshare P4 boards (same circuit).
 - These are the same I2C, touch, backlight, SDMMC and audio pins as on
   Waveshare's LCD-X boards (7, 8 and 10.1 inch, BSP
   `esp32_p4_wifi6_touch_lcd_x`); only the panel controller, its timing and the

@@ -207,12 +207,12 @@ requireMarker(read(`${base}/local_camera_board.h`), 'reset_pin = -1, pwdn_pin = 
 requireMarker(read(`${base}/local_camera_board.cpp`),
   'i2c_master_bus_handle_t bus = DeviceWaveshareTouchLCD5::sharedI2cBus();', 'Camera SCCB on the board bus');
 
-// --- Audio: the LCD-X pins and chips (speaker_board.h), 60 % volume limit.
+// --- Audio: the LCD-X pins and chips (speaker_board.h), full volume like them.
 const speaker = read(`${base}/speaker_board.h`);
 for (const marker of ['kI2sMclk = GPIO_NUM_13;', 'kI2sBclk = GPIO_NUM_12;', 'kI2sLrck = GPIO_NUM_10;',
   'kI2sDout = GPIO_NUM_9;', 'kI2sDin = GPIO_NUM_11;', 'kOutput = audio_chips::Output::Es8311;',
   'kCodecAddress = 0x18;', 'kInput = audio_chips::Input::Es7210;', 'kMicAddress = 0x40;',
-  'kAmpEnable = GPIO_NUM_53;', 'kAmpActiveHigh = true;', 'kVolumeLimit = 0.6f;']) {
+  'kAmpEnable = GPIO_NUM_53;', 'kAmpActiveHigh = true;', 'kVolumeLimit = 1.0f;']) {
   requireMarker(speaker, marker, 'LCD-5 speaker board');
 }
 requireMarker(read('src/audio/speaker_select.h'),
