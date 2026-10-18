@@ -26,8 +26,9 @@ const sketch = read('HomeTiles.ino');
 const update = read('src/core/firmware/github_update.cpp');
 const device = read(
   'src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.cpp');
+// The driver API that every board of the Guition driver family uses.
 const deviceHeader = read(
-  'src/devices/guition_esp32_4848s040/device_guition_esp32_4848s040.h');
+  'src/devices/guition_esp32_4848s040/st7701_s3_driver.h');
 const deviceFacade = read('src/devices/device.cpp');
 const waveshareDevice = read(
   'src/devices/waveshare_s3_touch_lcd_4b/device_waveshare_s3_touch_lcd_4b.cpp');
@@ -42,10 +43,10 @@ const checkBody = sketch.slice(checkStart, applyStart);
 
 requireOrder(checkBody, [
   'const bool s3_rgb_network_active = networkTransport.isConnected();',
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)',
+  '#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)',
   'Device::displayUpdateCheckGuardBegin();',
   'GithubUpdate::CheckResult res = GithubUpdate::checkLatest();',
-  '#if defined(DEVICE_GUITION_ESP32_4848S040)',
+  '#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)',
   'Device::displayUpdateCheckGuardEnd();',
   '#elif defined(DEVICE_WAVESHARE_S3_TOUCH_LCD_4B)',
   'Device::storageWriteBegin();',
@@ -105,8 +106,8 @@ for (const marker of [
 ]) {
   requireMarker(deviceHeader, marker, 'Guition update-check guard API');
 }
-requireMarker(deviceFacade, '#if defined(DEVICE_GUITION_ESP32_4848S040)',
-              'Exact-device update-check guard facade');
+requireMarker(deviceFacade, '#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)',
+              'Guition driver family update-check guard facade');
 
 const allocatorStart = update.indexOf(
   'void* checkTlsPreferredCalloc(size_t count, size_t size)');

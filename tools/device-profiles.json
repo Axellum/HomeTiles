@@ -417,6 +417,28 @@
       }
     },
     {
+      "buildProfile": "golden_security_gs_t3e_v2",
+      "key": "golden_security_gs_t3e_v2",
+      "metadataDeviceKey": "golden_security_gs_t3e_v2",
+      "define": "DEVICE_GOLDEN_SECURITY_GS_T3E_V2",
+      "chipFamily": "ESP32-S3",
+      "flashSize": 16777216,
+      "siliconVariant": "default",
+      "minimumRevision": 0,
+      "maximumRevision": 65535,
+      "rxVariant": "native-s3",
+      "elfFlags": "",
+      "publish": true,
+      "ciOrder": 18,
+      "ciLabel": "Golden Security GS-T3E v2",
+      "legacySlug": "golden-security-gs-t3e-v2",
+      "installer": {
+        "label": "Golden Security GS-T3E v2 (PCB v2.3)",
+        "status": "validation-pending",
+        "hardwareCheck": "The board is a GS-T3E (Tuya T3E) 4-inch 480x480 wall panel with an ESP32-S3-WROOM-1 module and PCB revision v2.3. The discontinued v1.23 board and the Zigbee-only T3E Pro use different hardware."
+      }
+    },
+    {
       "buildProfile": "layout_test_1024x600",
       "key": "layout_test_1024x600",
       "metadataDeviceKey": "layout_test_1024x600",

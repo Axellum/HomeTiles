@@ -35,3 +35,15 @@ scanout mode from the SDK capabilities:
 This distinction is required because the cache-fed bounce path cannot continue
 while the stock SDK disables the external-memory cache for main-flash writes.
 See Espressif's [RGB LCD documentation](https://docs.espressif.com/projects/esp-idf/en/v5.5.1/esp32s3/api-reference/peripherals/lcd/rgb_lcd.html).
+
+## Shared driver
+
+This driver also runs boards built like this one
+(`DEVICE_GUITION_ESP32_4848S040_FAMILY` in `src/devices/device_select.h`, for
+example the Golden Security GS-T3E v2). Everything the boards differ in lives
+in one constexpr `kBoard` description per exact board (`st7701_s3_board.h`):
+log name, ST7701 SPI pins, RGB pins, init table, PCLK edge, backlight pin and
+PWM rate, GT911 pins and the microSD wiring. This board's description is in
+`device_guition_esp32_4848s040.h`; the driver API is `st7701_s3_driver.h`.
+Without an SD card every SD path is a no-op; the flash-write display guards
+apply to every board.

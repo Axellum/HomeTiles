@@ -14,9 +14,12 @@
 //
 // Logging only: nothing here changes what the loop does. Other profiles only
 // time the steps: one of 300 ms or more is logged with its name when it ends;
-// the other markers compile to nothing.
+// the other markers compile to nothing. Every board of the Guition driver
+// family gets the full diagnostics.
 
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#include "src/devices/device_select.h"
+
+#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
 #define HOMETILES_LOOP_STALL_DIAGNOSTICS 1
 #else
 #define HOMETILES_LOOP_STALL_DIAGNOSTICS 0

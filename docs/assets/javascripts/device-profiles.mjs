@@ -226,4 +226,13 @@ export const DEVICE_PROFILES = Object.freeze([
     "status": "validation-pending",
     "hardwareCheck": "The rear label says ESP32-S3-Touch-LCD-4B."
   }),
+  Object.freeze({
+    "key": "golden_security_gs_t3e_v2",
+    "buildProfile": "golden_security_gs_t3e_v2",
+    "label": "Golden Security GS-T3E v2 (PCB v2.3)",
+    "chipFamily": "ESP32-S3",
+    "flashSize": 16777216,
+    "status": "validation-pending",
+    "hardwareCheck": "The board is a GS-T3E (Tuya T3E) 4-inch 480x480 wall panel with an ESP32-S3-WROOM-1 module and PCB revision v2.3. The discontinued v1.23 board and the Zigbee-only T3E Pro use different hardware."
+  }),
 ]);

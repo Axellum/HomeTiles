@@ -182,7 +182,7 @@ int main(int argc,char**argv){
  auto* close=popup_layout::createCloseButton(card,[](lv_event_t*){},nullptr);
  auto* header_icon=text(card,getMdiChar("clock-end").c_str());lv_obj_set_style_text_font(header_icon,FONT_MDI_ICONS,0);popup_layout::applyIconScale(header_icon);popup_layout::alignHeader(card,title,header_icon);
  auto* row=box(card);lv_obj_set_pos(row,0,popup_layout::kValueY);lv_obj_add_flag(row,LV_OBJ_FLAG_OVERFLOW_VISIBLE);auto* c=editable_control_create(row,card,nullptr);
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
  assert(lv_obj_get_style_text_font(c->dropdown,LV_PART_INDICATOR)==&ui_symbols_20);
 #else
  assert(lv_obj_get_style_text_font(c->dropdown,LV_PART_INDICATOR)==&ui_symbols_24);
@@ -583,7 +583,7 @@ int main(int argc,char**argv){
 const source = path.join(out, 'test.cpp'); fs.writeFileSync(source, cpp);
 for (const [profile,width,height,define] of [['square',480,480,'DEVICE_LAYOUT_480X480'],['wide',1024,600,'DEVICE_LAYOUT_1024X600'],['ws8',1280,800,''],['portrait',720,1280,''],['base',720,720,''],['landscape',1280,720,''],['compact-wide',800,480,'DEVICE_LAYOUT_480X480']]) {
   const binary=path.join(out,profile+(process.platform==='win32'?'.exe':''));
-  let result=spawnSync(host.cxx,[...host.flags,'-std=c++17','-Wno-deprecated-declarations','-I',root,'-I',jsonInclude,'-I',out,'-DSCREEN_WIDTH='+width,'-DSCREEN_HEIGHT='+height,...(define?['-D'+define]:[]),...(profile==='square'?['-DDEVICE_GUITION_ESP32_4848S040']:[]),source,host.archive,'-o',binary],{encoding:'utf8'});
+  let result=spawnSync(host.cxx,[...host.flags,'-std=c++17','-Wno-deprecated-declarations','-I',root,'-I',jsonInclude,'-I',out,'-DSCREEN_WIDTH='+width,'-DSCREEN_HEIGHT='+height,...(define?['-D'+define]:[]),...(profile==='square'?['-DDEVICE_GUITION_ESP32_4848S040','-DDEVICE_GUITION_ESP32_4848S040_FAMILY']:[]),source,host.archive,'-o',binary],{encoding:'utf8'});
   assert.equal(result.status,0,result.stdout+result.stderr);
   result=spawnSync(binary,[path.join(out,profile)],{encoding:'utf8',timeout:45000});assert.equal(result.status,0,profile+': '+result.stdout+result.stderr);
   fs.writeFileSync(path.join(out,profile+'.log'),result.stdout+result.stderr);

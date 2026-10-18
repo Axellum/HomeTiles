@@ -282,10 +282,11 @@ static uint8_t normalize_display_brightness(uint8_t brightness) {
   // Preserve raw 0 for the low-level sleep/restart paths only. Persisted
   // normal brightness must remain at the exact panel's measured visible floor.
   return configured_min;
-#elif defined(DEVICE_GUITION_ESP32_4848S040)
+#elif defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
   // The first S3 brightness test build could persist values below the panel's
   // measured visible threshold. Upgrade those values to the new 1 % floor
-  // instead of unexpectedly jumping to the generic default.
+  // instead of unexpectedly jumping to the generic default. Boards that share
+  // the Guition driver share its raw floor and this rule.
   return Device::kBacklightInputMin;
 #else
   return 200;

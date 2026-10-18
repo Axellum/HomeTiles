@@ -19,10 +19,11 @@ if (!compiler) {
 for (const [device, enabled, expected] of [
   ['DEVICE_GUITION_ESP32_4848S040', 1, true],
   ['DEVICE_GUITION_ESP32_4848S040', 0, false],
+  ['DEVICE_GOLDEN_SECURITY_GS_T3E_V2', 1, true],
   ['DEVICE_WAVESHARE_S3_TOUCH_LCD_4', 1, false],
 ]) {
   const run = spawnSync(compiler, ['-E', '-P', '-x', 'c++', '-I', root,
-    '-DCONFIG_IDF_TARGET_ESP32S3=1', `-D${device}=1`,
+    '-DCONFIG_IDF_TARGET_ESP32S3=1', '-DHOMETILES_CI_TARGET', `-D${device}=1`,
     `-DHOMETILES_GUITION_S3_DIAGNOSTICS=${enabled}`, '-'],
   {encoding: 'utf8', input: source});
   assert.equal(run.status, 0, run.stderr);

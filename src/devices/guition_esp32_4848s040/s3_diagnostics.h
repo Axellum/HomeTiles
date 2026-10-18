@@ -3,11 +3,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "src/devices/device_select.h"
+
 #ifndef HOMETILES_GUITION_S3_DIAGNOSTICS
 #define HOMETILES_GUITION_S3_DIAGNOSTICS 0
 #endif
 
-#if defined(DEVICE_GUITION_ESP32_4848S040) && \
+// Opt-in diagnostics of the shared Guition ESP32-4848S040 driver, for every
+// board that runs it.
+#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY) && \
     HOMETILES_GUITION_S3_DIAGNOSTICS
 #define HOMETILES_GUITION_S3_DIAGNOSTICS_ACTIVE 1
 #else

@@ -164,13 +164,13 @@ void prepareForRestart() {
 }
 
 void displayUpdateCheckGuardBegin() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
   DeviceImpl::displayUpdateCheckGuardBegin();
 #endif
 }
 
 void displayUpdateCheckGuardEnd() {
-#if defined(DEVICE_GUITION_ESP32_4848S040)
+#if defined(DEVICE_GUITION_ESP32_4848S040_FAMILY)
   DeviceImpl::displayUpdateCheckGuardEnd();
 #endif
 }

@@ -424,6 +424,41 @@ Arduino IDE:
 - Upload Speed: `921600`
 - USB Mode: `Hardware CDC and JTAG`
 
+## Golden Security GS-T3E v2
+
+Used for:
+- `src/devices/golden_security_gs_t3e_v2` (board description; it runs the
+  `src/devices/guition_esp32_4848s040` driver)
+- build profile `golden_security_gs_t3e_v2`
+
+Important:
+- Community profile for PCB v2.3; hardware validation is pending in
+  [issue #93](https://github.com/GalusPeres/HomeTiles/issues/93). The
+  discontinued v1.23 board uses different wiring.
+- ESP32-S3-WROOM-1 N16R8 with `16MB` flash and `8MB` octal PSRAM.
+- The panel is a `480x480` ST7701S RGB display: 3-wire SPI init on CS 4,
+  SCK 15, MOSI 48 (SCK/MOSI are also RGB B0/B1), RGB bus DE 40, VSYNC 39,
+  HSYNC 38, PCLK 41, R(8,18,17,16,0), G(13,12,11,10,9,3), B(15,48,47,21,14),
+  Arduino_GFX type1 init table, 12MHz.
+- Capacitive touch is GT911 on SDA 7 / SCL 6.
+- Backlight PWM is active-high on GPIO 42 (150Hz, rate unconfirmed).
+- No microSD interface is documented. Runtime files use LittleFS.
+- The serial log is on UART0 (TX 43 / RX 44), as in the Guition profile.
+- Use the repository's `partitions.csv`; HomeTiles needs two 6.5MB OTA slots.
+- Sources and open points: [device README](src/devices/golden_security_gs_t3e_v2/README.md).
+
+Arduino IDE (the `sketch.yaml` profile):
+- Board: `ESP32S3 Dev Module`
+- USB CDC On Boot: `Disabled`
+- CPU Frequency: `240MHz (WiFi)`
+- Core Debug Level: `None`
+- Flash Mode: `QIO 80MHz`
+- Flash Size: `16MB (128Mb)`
+- Partition Scheme: `Custom`
+- PSRAM: `OPI PSRAM`
+- Upload Speed: `921600`
+- USB Mode: `Hardware CDC and JTAG`
+
 ## Waveshare ESP32-S3-Touch-LCD-4 Rev 4.0
 
 Used for:
