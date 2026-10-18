@@ -479,12 +479,21 @@ jobs:
             grep -a -F -q "HTTPS host=%s tls=%d (%s) allocator=%s" "${firmware_bin}"
           fi
 
+      # The factory image carries the device's icon file in its LittleFS
+      # partition (release-helper/factory-icon-file.js), so a freshly flashed
+      # panel needs no download for its icons.
+      - name: Build the icon files for the factory image
+        if: ${{ !inputs.repair_s3_release || matrix.rx_variant == 'native-s3' }}
+        shell: bash
+        run: node tools/generate-icon-files.mjs --files-only --out build/icons
+
       - name: Package firmware binaries
         if: ${{ !inputs.repair_s3_release || matrix.rx_variant == 'native-s3' }}
         shell: bash
         run: |
           node release-helper/package-ci-build.js \
             --build-dir "build/ci/${{ matrix.key }}" \
+            --icon-dir build/icons \
             --device-key "${{ matrix.key }}" \
             --metadata-device-key "${{ matrix.metadata_key || matrix.key }}" \
             --silicon-variant "${{ matrix.silicon_variant || 'default' }}"

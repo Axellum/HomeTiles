@@ -55,6 +55,9 @@ That's it. The action then:
    Arduino `v3.00 or newer` ESP image header.
 4. Creates the GitHub release with auto-generated notes and uploads all
    36 binaries (`<device>.bin` for OTA + `<device>_factory.bin` for first flash).
+   The factory image also holds the device's icon file in its LittleFS
+   partition (`release-helper/factory-icon-file.js`), so a freshly flashed
+   panel shows every icon without downloading it.
 
 After all 36 assets were uploaded successfully, the release job explicitly
 dispatches the documentation workflow for the release tag. This explicit
