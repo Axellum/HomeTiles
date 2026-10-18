@@ -689,6 +689,10 @@
     .file-manager-storage-state.ok { background:rgba(46,125,50,0.22); color:var(--ok); }
     .file-manager-storage-state.error { background:rgba(239,68,68,0.18); color:var(--err); }
     .file-manager-storage-state.checking { background:var(--accent-soft); color:var(--accent-link); }
+    /* Test builds: the storage switch sits left beside the state badge, the
+       toolbar keeps the right edge. */
+    .file-manager-topbar .file-manager-storage-switch { margin:0; }
+    .file-manager-topbar .file-manager-toolbar-group { margin-left:auto; }
     .file-manager-toolbar-group,
     .file-manager-upload-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:38px; }
     .file-manager-upload-row { margin-top:8px; }
@@ -1798,6 +1802,7 @@
       .settings-pin-fields,
       .settings-edge-fields { grid-column:1; }
       .file-manager-topbar { align-items:stretch; flex-direction:column; }
+      .file-manager-topbar .file-manager-toolbar-group { margin-left:0; }
       .file-manager-toolbar-group,
       .file-manager-upload-row { align-items:flex-start; }
       .file-manager-selection-bar { align-items:stretch; flex-direction:column; }

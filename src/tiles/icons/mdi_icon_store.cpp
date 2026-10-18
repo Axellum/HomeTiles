@@ -113,15 +113,19 @@ const char* release_file_name() { return g_release_name; }
 
 uint32_t file_bytes() { return mdi_icon_cache::kHeaderBytes + font_data().bitmap_bytes; }
 
+void release_file() {
+  // The font shows the built-in icons until the restart.
+  mdi_icon_cache::set_source(MDI_ICON_LOADER, nullptr);
+  if (g_file) g_file.close();
+  g_state = State::Missing;
+}
+
 bool begin_write(uint32_t total, String& error) {
   if (total != file_bytes()) {
     error = String("icon file has ") + total + " bytes, expected " + file_bytes();
     return false;
   }
-  // The font shows the built-in icons until the restart.
-  mdi_icon_cache::set_source(MDI_ICON_LOADER, nullptr);
-  if (g_file) g_file.close();
-  g_state = State::Missing;
+  release_file();
   LittleFS.remove(g_path);
   LittleFS.remove(g_part_path);
   g_part = LittleFS.open(g_part_path, "w");

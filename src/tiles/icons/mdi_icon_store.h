@@ -31,6 +31,10 @@ bool begin_write(uint32_t total, String& error);
 bool write(const uint8_t* data, size_t len);
 bool finish_write(String& error);
 
+// Closes the icon file before it is deleted (the file manager of a test
+// build): the font shows the built-in icons until the restart.
+void release_file();
+
 // The automatic download after an update: due while the panel has no valid
 // file and fewer than three attempts were made with this firmware version.
 // note_download_attempt() counts one before the download starts, so a hang

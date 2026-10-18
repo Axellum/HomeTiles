@@ -2156,7 +2156,20 @@ autocomplete="new-password" value=")html";
 <div class="settings-grid file-manager">
 <div class="settings-full">
 <div class="file-manager-topbar">
-<span id="file_manager_sd_state" class="file-manager-storage-state">)html";
+)html";
+#if defined(HOMETILES_BETA_BUILD)
+  // Test builds: microSD or the panel's own storage (src/web/admin/files).
+  html += R"html(<div class="icon-color-segmented file-manager-storage-switch" role="group">
+<button type="button" class="active" data-fs="sd" onclick="selectFileManagerStorage('sd')">)html";
+  html += tr.file_manager_sd;
+  html += R"html(</button>
+<button type="button" data-fs="internal" onclick="selectFileManagerStorage('internal')">)html";
+  html += tr.file_manager_internal;
+  html += R"html(</button>
+</div>
+)html";
+#endif
+  html += R"html(<span id="file_manager_sd_state" class="file-manager-storage-state">)html";
   html += tr.file_manager_checking;
   html += R"html(</span>
 <div class="file-manager-toolbar-group">

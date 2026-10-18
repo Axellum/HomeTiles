@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <lwip/sockets.h>
+#include <LittleFS.h>
+#include "src/core/firmware/firmware_version.h"
+#include "src/tiles/icons/mdi_icon_store.h"
 #include "src/web/server/handlers/web_admin_handler_utils.h"
 
 using namespace web_admin_handlers;
@@ -125,8 +128,26 @@ bool resolveFileManagerFsByKey(const String& raw_key, fs::FS*& out_fs, String& o
     out_key = "sd";
     return true;
   }
+#if defined(HOMETILES_BETA_BUILD)
+  // Test builds also show the panel's own storage (tile data, icon file) to
+  // look at it and delete files while testing; release builds offer microSD
+  // only.
+  if (key == "internal") {
+    out_fs = &storageFS();
+    out_key = "internal";
+    return true;
+  }
+#endif
   error = "Only microSD is available in the file manager";
   return false;
+}
+
+// The internal storage of a test build only lists, downloads and deletes:
+// no upload, new folder or rename next to the panel's own files.
+bool rejectInternalStorageChange(WebServer& server, const String& fs_key) {
+  if (fs_key != "internal") return false;
+  sendJsonError(server, 403, "The internal storage only allows deleting");
+  return true;
 }
 
 bool resolveFileManagerFsFromRequest(WebServer& server, fs::FS*& out_fs, String& out_key, String& error) {
@@ -557,7 +578,16 @@ void WebAdminServer::handleFileManagerList() {
 
   String json = "{\"success\":true,\"fs\":\"";
   appendJsonEscaped(json, fs_key);
-  json += "\",\"path\":\"";
+  if (fs_key == "internal") {
+    // Every profile mounts LittleFS as its internal storage.
+    json += "\",\"total\":";
+    json += String(static_cast<unsigned long>(LittleFS.totalBytes()));
+    json += ",\"used\":";
+    json += String(static_cast<unsigned long>(LittleFS.usedBytes()));
+    json += ",\"path\":\"";
+  } else {
+    json += "\",\"path\":\"";
+  }
   appendJsonEscaped(json, path);
   json += "\",\"parent\":\"";
   appendJsonEscaped(json, fileManagerParentPath(path));
@@ -641,9 +671,19 @@ void WebAdminServer::handleFileManagerDelete() {
     return;
   }
 
+  const bool internal = fs_key == "internal";
+  // LittleFS writes need the S3 display guard; the open icon file is closed
+  // first, the font then shows the built-in icons until the restart.
+  Device::ScopedStorageWrite storage_write(internal);
+  const bool icon_file = internal && path == mdi_icon_store::file_path();
+  if (icon_file) mdi_icon_store::release_file();
+
   if (!removeFileManagerPathRecursive(*fs, path, error)) {
     sendJsonError(server, 500, error.length() ? error : String("Delete failed"));
     return;
+  }
+  if (icon_file) {
+    Serial.printf("[FileManager] Icon file %s deleted; built-in icons until the restart\n", path.c_str());
   }
   sendJsonOk(server);
 }
@@ -657,6 +697,7 @@ void WebAdminServer::handleFileManagerRename() {
     sendJsonError(server, 503, error);
     return;
   }
+  if (rejectInternalStorageChange(server, fs_key)) return;
   if (!requireFileManagerWriteAccess(server, fs_key)) return;
 
   const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String());
@@ -703,6 +744,7 @@ void WebAdminServer::handleFileManagerMkdir() {
     sendJsonError(server, 503, error);
     return;
   }
+  if (rejectInternalStorageChange(server, fs_key)) return;
   if (!requireFileManagerWriteAccess(server, fs_key)) return;
 
   const String path = normalizeFileManagerPath(server.hasArg("path") ? server.arg("path") : String("/"));
@@ -766,6 +808,10 @@ void WebAdminServer::handleFileManagerUpload() {
     String error;
     if (!resolveFileManagerFsFromRequest(server, fs, fs_key, error)) {
       g_file_manager_upload_error = error;
+      return;
+    }
+    if (fs_key == "internal") {
+      g_file_manager_upload_error = "The internal storage only allows deleting";
       return;
     }
     if (!Device::sdWritable()) {

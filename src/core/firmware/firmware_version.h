@@ -38,6 +38,13 @@
 #define FW_VERSION "v0.6.12b480"
 #endif
 
+// Every test build above (it carries a beta number) gets the developer
+// tools, for example the internal storage in the Web Admin file manager.
+#if defined(HOMETILES_ISSUE30_SAFE_BETA) || defined(HOMETILES_ISSUE38_BETA) || \
+    defined(HOMETILES_CAMERA_BETA) || defined(HOMETILES_TEST_BETA)
+#define HOMETILES_BETA_BUILD 1
+#endif
+
 #ifndef FW_VERSION
 #error "FW_VERSION is missing in version.txt"
 #endif

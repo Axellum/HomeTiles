@@ -262,6 +262,12 @@ struct Strings {
   const char* layout_storage_full;
   // A free cell of a folder whose every entry is used ({n} of {max}).
   const char* folder_full;
+  // Web Admin file manager of a test build: the storage switch (microSD or
+  // the panel's own storage) and the internal storage's use ({used} of
+  // {total}).
+  const char* file_manager_sd;
+  const char* file_manager_internal;
+  const char* file_manager_storage_used;
   const char* layout_delete_tile;
   const char* layout_delete_confirm;
   // Color of a tile without an icon (Clock, Text, Pixel animation): the
