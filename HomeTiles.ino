@@ -616,8 +616,7 @@ static void apply_icon_download() {
 // An icon file uploaded on the Web Admin's Icons card: written from PSRAM
 // with the same checks as a downloaded one; the panel restarts either way.
 static void apply_icon_upload() {
-  Serial.printf("[Icons] Installing the uploaded %s
-", mdi_icon_store::release_file_name());
+  Serial.printf("[Icons] Installing the uploaded %s\n", mdi_icon_store::release_file_name());
   displayManager.setInputEnabled(false);
   lv_refr_now(displayManager.getDisplay());
   BoardHAL::displayPowerSaveOn();
@@ -630,8 +629,7 @@ static void apply_icon_upload() {
   if (ok) {
     Serial.println("[Icons] Uploaded icon file installed - restarting");
   } else {
-    Serial.printf("[Icons] Uploaded icon file not installed: %s - restarting
-", err.c_str());
+    Serial.printf("[Icons] Uploaded icon file not installed: %s - restarting\n", err.c_str());
   }
   camera_transport::planned_restart();
   BoardHAL::prepareForRestart();
