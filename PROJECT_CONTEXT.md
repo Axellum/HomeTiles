@@ -15,6 +15,7 @@ Last reviewed: 2026-10-17
 
 - v0.9.2: tag `8964652b` (2026-10-17), Bridge v0.9.2 `38a35d6`; v0.9.1 2026-10-15. Docs CI browser tests run on pinned Chrome for Testing 154.0.8037.57 (`7379a3ad`): the runner's Chrome 154.0.8037.97 (image 20261012.334) never answered the first Page.navigate; a tag's own docs run uses the tag's workflow, so after a release dispatch docs on `main`. Test builds stay `v0.6.12bNNN` on purpose (System Update compares numbers only and offers releases).
 - Guition S3 XIP/`-O2` reverted in `5279456` (risk, no measured gain); XIP now needs 5.4 MB of the 8 MB PSRAM (3.6 MB in use) - do not retry.
+- Fast build (`ca676434`): a cache stays warm when only repo headers changed and the recorded LVGL config fingerprint matches (`hometiles-library-config.json` in the cache); run `node tools/fast-build-check.mjs --build-path <cache>` before every build.
 - `feature/perf` (both repos, unreleased, FW `b259-perf3f`): nav preload (S3 max 3 grids, 40/16 KB reserve, pressure release), shadow/circle caches, P4 CPU rotation for small areas, touch hold, 60 s energy/history reuse, S3 PCLK 12 MHz; V2/S3/8-inch HW ok. Bridge v0.9.0b16 beta (`17ca8a3`, feature/direct-link): request limits, empty energy answer, meta push + `"push": 1` (panel refresh 15 min); HA test pending.
 - Rejected: LVGL 2 draw threads (global compressed-font RLE state: glyph artifacts, no gain). S3 GT911 (fw 0x1060, cfg 0xFA, filter 8 = 32 px) steps slow drags and ignores config writes (also esp32-macropad #101) - do not retry. Open: S3 Web Admin pages block the loop 1-6 s. S3 b324: mallocs > 32 B prefer PSRAM (heap_caps_malloc_extmem_enable): internal free in use 42 -> ~89 KB, camera-screensaver low 14 -> 85 KB, no stripes; text-heavy steps slower (routes ~0.6 s once after connect).
 
@@ -42,6 +43,7 @@ Last reviewed: 2026-10-17
 - JC1060 V2 profile rotation pair 0/2 (b478, #108: `e8457f37` left normal = flipped = 0, so 0/180 did nothing; `test-rotation-profiles` checks every profile).
 - JC4880P443 (PR #46, damianeek): portrait 480x800/4x6, contributor-tested; landscape later. Open: SD DEINIT_ARG, P4 DSI groups.
 - P4 v3 images (post_v3 301-399, v3 DSI clock): WS 10.1 (PR #48, tested v3.2), WS 7B (`_rev3`, replaces exact-v3.1, #41), JC8012 V3 = V2 code (#44); HW pending.
+- New boards 2026-10-18 (local main, unreleased, HW pending by the reporters): GS-T3E v2 (#93, S3 480x480, own driver derived from the Guition one, relays GPIO45/46) and Waveshare 5-inch (#76, 720x1280 HX8394, own `dsi_driver`, pre-v3 + `_rev3`, voice full volume, OV5647 camera, SD 20 MHz). Rule: a new board never changes another board; shared files only get list entries.
 
 ## Issue #30 (closed by fix b6, shipped v0.6.10)
 
