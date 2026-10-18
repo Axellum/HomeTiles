@@ -63,10 +63,11 @@ Sources:
   flips it if the panel stands upside down.
 - **Relays.** openHASP lists GPIO45/46/44 for the EU v2.3 3-gang board and
   GPIO1/2/46/45 for the CN 4-gang board; ESPHome lists GPIO45/46/2 for EU
-  v2.4. No configurable hardware I/O is exposed until an owner confirms them.
-  Discussion #458 also names GPIO44 (UART0 RX) as relay L3 and GPIO43 (UART0
-  TX, the serial log) as relay L4 on v2.3; whether a relay reacts to the boot
-  log or the UART idle level is unknown.
+  v2.4 (`inverted: false`). GPIO45 and GPIO46 are relays on every variant,
+  so the Web Admin I/O page offers them by GPIO number (active high). The
+  third and fourth relays differ between variants and stay unexposed until
+  an owner confirms them. Discussion #458 also names GPIO44 (UART0 RX) as
+  relay L3 and GPIO43 (UART0 TX, the serial log) as relay L4 on v2.3.
 - **Serial log.** The build profile keeps the Guition's USB settings (USB CDC
   on boot off), so the log is on UART0 (GPIO43/44 header). Discussion #458
   places the v2.3 micro-USB on the native USB pins GPIO19/20: flashing works

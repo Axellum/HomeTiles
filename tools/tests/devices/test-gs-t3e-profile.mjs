@@ -107,8 +107,13 @@ const t3eHeader = read('src/devices/golden_security_gs_t3e_v2/device_golden_secu
 assert.match(t3eHeader, /using namespace DeviceGuitionESP324848S040;/);
 assert.doesNotMatch(t3eHeader, /device_guition_esp32_4848s040\.h/,
   'The Guition profile and description stay out of T3E builds');
-assert.match(read('src/devices/golden_security_gs_t3e_v2/hardware_io_profile.h'),
-  /inline constexpr Device::HardwareIoProfile kHardwareIoProfile\{\};/, 'No relay GPIOs until confirmed');
+// GPIO45/46 are relays on every published variant (active high in ESPHome);
+// the variant-specific third and fourth relays stay unexposed.
+const io = read('src/devices/golden_security_gs_t3e_v2/hardware_io_profile.h');
+assert.deepEqual([...io.matchAll(/\{(\d+), Device::kHardwareIoPinSwitch \| Device::kHardwareIoPinOnboard,/g)].map(m => Number(m[1])),
+  [45, 46], 'the two relays every variant has');
+assert.equal((io.match(/HardwareIoOutputLogic::ActiveHigh/g) || []).length, 2, 'both relays are active high');
+assert.doesNotMatch(io, /\{(44|43|2|1), Device::/, 'no variant-specific relay GPIO');
 const readme = read('src/devices/golden_security_gs_t3e_v2/README.md');
 for (const source of ['user_setups/esp32s3/gs-t3e.ini', 'devices.esphome.io/devices/tuya-t3e-esp32-s3',
   'discussions/458', 'not yet validated']) {
