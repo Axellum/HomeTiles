@@ -102,6 +102,16 @@ static constexpr uint32_t kMqttSdioControlQuietMs = 50;
 static constexpr uint32_t kWifiJoinWindowMs = 30000;
 static std::atomic<uint32_t> wifi_join_started_ms{0};
 
+// A join the station gives up on before the window ends (access point not
+// found while the router restarts, handshake refused) is retried after the
+// usual 5 s instead. ASSOC_LEAVE is the station leaving on its own, for
+// example the attempt aborted by the next WiFi.begin(): it does not count,
+// as in the core's own reconnect (STA.cpp). The event task records the
+// failure; update() on the loop task moves wifi_retry_at.
+static constexpr uint32_t kWifiRetryAfterFailureMs = 5000;
+static std::atomic<bool> wifi_join_window_open{false};
+static std::atomic<uint32_t> wifi_join_failed_ms{0};  // millis() | 1, 0 = none
+
 // One line per station event, with the disconnect reason: without it a
 // failed join only shows "WiFi: Connecting to ..." every few seconds.
 static void logWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
@@ -130,6 +140,9 @@ static void logWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
                     reason,
                     WiFi.disconnectReasonName(static_cast<wifi_err_reason_t>(reason)),
                     static_cast<int>(info.wifi_sta_disconnected.rssi), since);
+      if (reason != WIFI_REASON_ASSOC_LEAVE && wifi_join_window_open.load()) {
+        wifi_join_failed_ms = millis() | 1u;
+      }
       break;
     }
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
@@ -800,6 +813,7 @@ void HomeTilesNetworkManager::init() {
 // ========== Connect Wi-Fi ==========
 void HomeTilesNetworkManager::connectWifi() {
   wifi_retry_at = millis() + 5000UL;  // Retry in 5s
+  wifi_join_window_open = false;
 
   // Fixed Ethernet mode keeps Wi-Fi off regardless of retries, reconnects
   // or UI requests. Returning to Wi-Fi requires changing the network mode
@@ -867,6 +881,8 @@ void HomeTilesNetworkManager::connectWifi() {
     // the near one gave the P4 panels beside it -47 dBm. The full scan adds
     // about one to two seconds per connection attempt.
     wifi_join_started_ms = millis();
+    wifi_join_failed_ms = 0;
+    wifi_join_window_open = true;
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(cfg.wifi_ssid, cfg.wifi_pass);
@@ -887,6 +903,7 @@ void HomeTilesNetworkManager::connectWifi() {
       const uint32_t shift =
           wifi_start_failures < 4 ? wifi_start_failures : 4;
       wifi_retry_at = millis() + (5000UL << shift);
+      wifi_join_window_open = false;  // Keep the backoff.
       if (wifi_start_failures >= kWifiStartWedgeThreshold) {
         handleWifiDriverWedge();
       }
@@ -2489,6 +2506,14 @@ void HomeTilesNetworkManager::update() {
   if (!is_connected) {
     wifi_ps_state_known = false;
 
+    // A join that failed before its window ended: next attempt 5 s after
+    // the failure rather than at the end of the window.
+    const uint32_t join_failed_ms = wifi_join_failed_ms.exchange(0);
+    if (join_failed_ms != 0 && wifi_join_window_open.load()) {
+      const uint32_t early = join_failed_ms + kWifiRetryAfterFailureMs;
+      if ((int32_t)(wifi_retry_at - early) > 0) wifi_retry_at = early;
+    }
+
     // Retry a lost connection unless the user disconnected manually.
     // connectWifi() itself blocks attempts in fixed Ethernet mode.
     if (!wifi_manual_disconnect && !wired_dhcp_pending &&
@@ -2508,7 +2533,10 @@ void HomeTilesNetworkManager::update() {
 
     // A live Wi-Fi connection proves Hosted is responsive; earlier isolated
     // slow attempts reflected load rather than a stuck transport.
-    if (networkTransport.isWifiConnected()) wifi_start_failures = 0;
+    if (networkTransport.isWifiConnected()) {
+      wifi_start_failures = 0;
+      wifi_join_window_open = false;  // A later drop is not a failed join.
+    }
 
     if (!was_connected) {
       logNetworkHeap(networkTransport.activeName());
